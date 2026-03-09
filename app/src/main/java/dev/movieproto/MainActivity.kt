@@ -663,3 +663,573 @@ private fun FetchScreen(
     }
 }
 
+private fun detectLang(cues: List<VidLove.Cue>): String? {
+    if (cues.isEmpty()) return null
+    val step = maxOf(1, cues.size / 60)
+    var ja = 0
+    var ko = 0
+    var zh = 0
+    var en = 0
+    var th = 0
+    var ar = 0
+    var ru = 0
+    var n = 0
+    var i = 0
+    while (i < cues.size && n < 60) {
+        val t = cues[i].text.replace(Regex("\\{[^}]*\\}"), "")
+        if (t.isNotBlank()) {
+            n++
+            when {
+                t.contains(Regex("[\u3040-\u30ff]")) -> ja++
+                Regex("[\uac00-\ud7af]").containsMatchIn(t) -> ko++
+                t.contains(Regex("[\u0e00-\u0e7f]")) -> th++
+                t.contains(Regex("[\u0600-\u06ff]")) -> ar++
+                t.contains(Regex("[\u0400-\u04ff]")) -> ru++
+                t.contains(Regex("[\u4e00-\u9fff]")) -> zh++
+                t.contains(Regex("[a-zA-Z]")) -> en++
+            }
+        }
+        i += step
+    }
+    if (n == 0) return null
+    val best = mapOf("ja" to ja, "ko" to ko, "th" to th, "ar" to ar, "ru" to ru, "zh" to zh, "en" to en)
+        .maxByOrNull { it.value }
+    return best?.takeIf { it.value > 0 }?.key
+}
+
+private fun buildMediaFactory(
+    context: android.content.Context,
+    stream: Stream,
+    headers: Map<String, String>,
+    ctl: DlCtl?,
+): androidx.media3.exoplayer.source.DefaultMediaSourceFactory {
+    val retry = androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(3)
+    if (stream.url.startsWith("file")) {
+        return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+            DefaultDataSource.Factory(context),
+        ).setLoadErrorHandlingPolicy(retry)
+    }
+    return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+        DefaultHttpDataSource.Factory()
+            .setUserAgent(headers.getValue("User-Agent"))
+            .setDefaultRequestProperties(headers),
+    ).setLoadErrorHandlingPolicy(retry)
+}
+
+@OptIn(UnstableApi::class)
+private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: DlCtl?): ExoPlayer {
+    val origin = "https://${Uri.parse(stream.referer).host}"
+    val headers = mapOf(
+        "Referer" to stream.referer,
+        "Origin" to origin,
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+    )
+    val selector = DefaultTrackSelector(context).apply {
+        parameters = buildUponParameters()
+            .setPreferredAudioLanguage("en")
+            .setPreferredTextLanguage("en")
+            .build()
+    }
+    val mediaFactory = buildMediaFactory(context, stream, headers, ctl)
+    return ExoPlayer.Builder(context)
+        .setTrackSelector(selector)
+        .setMediaSourceFactory(mediaFactory)
+        .build()
+        .apply {
+            setMediaItem(itemFor(stream.url, stream.isHls, configsFor(stream.subs)))
+            prepare()
+            play()
+        }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val resumeScope = rememberCoroutineScope()
+    var buildError by remember { mutableStateOf<String?>(null) }
+    var emberDone by remember { mutableStateOf(false) }
+    var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var embedIdx by remember { mutableStateOf(-1) }
+    var aiSubUrl by remember { mutableStateOf<String?>(null) }
+    var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
+    LaunchedEffect(title) { AppLog.d("screen $title") }
+    val player: ExoPlayer? = remember {
+        try {
+            buildPlayer(context, stream, ctl).also { AppLog.d("built") }
+        } catch (e: Exception) {
+            buildError = "${e.javaClass.simpleName}: ${e.message}"
+            AppLog.d("build crash ${e.javaClass.simpleName}: ${e.message}")
+            null
+        }
+    }
+    if (player == null) {
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Player failed: $buildError")
+            Button(onClick = onBack) { Text("Back") }
+        }
+        return
+    }
+    val exo = player
+    DisposableEffect(exo) {        val listener = object : Player.Listener {
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                val audios = tracks.groups
+                    .filter { it.type == C.TRACK_TYPE_AUDIO }
+                    .map { g ->
+                        val f = g.getTrackFormat(0)
+                        "${f.language}:${f.sampleMimeType?.substringAfterLast('/')} ${f.channelCount}ch${if (g.isSelected) "*" else ""}"
+                    }
+                if (audios.isNotEmpty()) {
+                    AppLog.d("audio [${audios.joinToString()}]")
+                }
+                val texts = tracks.groups
+                    .filter { it.type == C.TRACK_TYPE_TEXT }
+                    .map { g ->
+                        val f = g.getTrackFormat(0)
+                        "${f.language}:${f.label}${if (g.isSelected) "*" else ""}"
+                    }
+                if (texts.isNotEmpty()) {
+                    AppLog.d("embed subs [${texts.joinToString()}]")
+                }
+                val videos = tracks.groups
+                    .filter { it.type == C.TRACK_TYPE_VIDEO }
+                    .map { g ->
+                        val f = g.getTrackFormat(0)
+                        "${f.width}x${f.height}:${f.sampleMimeType?.substringAfterLast('/')}${if (g.isSelected) "*" else ""}"
+                    }
+                if (videos.isNotEmpty()) {
+                    AppLog.d("video [${videos.joinToString()}]")
+                }
+                run {
+                    val g = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT }
+                    if (g != null) {
+                        embedGroup = g.mediaTrackGroup
+                        val names = (0 until g.mediaTrackGroup.length).map { i ->
+                            val f = g.mediaTrackGroup.getFormat(i)
+                            val lang = f.language ?: "und"
+                            val lab = f.label ?: ""
+                            if (lab.isNotEmpty()) "$lang:$lab" else lang
+                        }
+                        if (names != embedNames) embedNames = names
+                    }
+                }
+                if (!emberDone && stream.subs.isEmpty()) {
+                    emberDone = true
+                    try {
+                        val group = embedGroup
+                        if (group != null) {
+                            var idx = -1
+                            for (i in 0 until group.length) {
+                                val f = group.getFormat(i)
+                                if ((f.language ?: "").startsWith("en", true) ||
+                                    (f.label ?: "").contains("english", true)
+                                ) {
+                                    idx = i
+                                    break
+                                }
+                            }
+                            if (idx >= 0) {
+                                val sel = player.trackSelector as? DefaultTrackSelector
+                                if (sel != null) {
+                                    val ov = androidx.media3.common.TrackSelectionOverride(
+                                        group,
+                                        listOf(idx),
+                                    )
+                                    sel.parameters = sel.buildUponParameters()
+                                        .setOverrideForType(ov)
+                                        .build()
+                                    AppLog.d("embed subs forced $idx")
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        AppLog.d("embed pick fail ${e.message}")
+                    }
+                }
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                val name = when (state) {
+                    Player.STATE_IDLE -> "idle"
+                    Player.STATE_BUFFERING -> "buffering"
+                    Player.STATE_READY -> "ready"
+                    Player.STATE_ENDED -> "ended"
+                    else -> "$state"
+                }
+                AppLog.d("player $name")
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                val cause = error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+                val chain = generateSequence<Throwable>(error) { it.cause }.take(3).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message}"
+                }
+                AppLog.d("player error ${error.errorCodeName} http=${cause?.responseCode} pos=${exo.currentPosition / 1000}s buf=${exo.bufferedPosition / 1000}s dur=${exo.duration / 1000}s")
+                AppLog.d("player cause $chain")
+                if (chain.contains("FileNotFound") || chain.contains("ENOENT")) {
+                    try {
+                        val f = android.net.Uri.parse(stream.url).path?.let { java.io.File(it) }
+                        AppLog.d("file check exists=${f?.exists()} len=${f?.length()}")
+                    } catch (_: Exception) {
+                    }
+                    val c0 = ctl
+                    if (c0 != null) {
+                        c0.stop()
+                        AppLog.d("retries stopped, file gone")
+                        try {
+                            android.widget.Toast.makeText(context, "file gone, reopen the title", android.widget.Toast.LENGTH_LONG).show()
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+                val c = ctl
+                if (c != null && c.active && c.tries < 12) {
+                    c.tries += 1
+                    AppLog.d("player resume ${c.tries} awaiting +5MB")
+                    resumeScope.launch {
+                        val before = try {
+                            c.handle.status().totalDone()
+                        } catch (_: Exception) {
+                            0L
+                        }
+                        val pos = exo.currentPosition
+                        val dur = exo.duration.takeIf { it > 0 } ?: 0L
+                        val t0 = System.currentTimeMillis()
+                        while (System.currentTimeMillis() - t0 < 120000) {
+                            if (!c.active) return@launch
+                            val now = try {
+                                c.handle.status().totalDone()
+                            } catch (_: Exception) {
+                                before
+                            }
+                            if (now > before + 5000000) break
+                            if (dur > 0 && c.fileSize > 0 && c.fileIndex >= 0) {
+                                try {
+                                    val ti = c.handle.torrentFile()
+                                    var start = 0L
+                                    for (i in 0 until c.fileIndex) start += ti.files().fileSize(i)
+                                    val plen = ti.pieceLength().toLong()
+                                    val at = start + (pos.toDouble() / dur * c.fileSize).toLong()
+                                    val bits = c.handle.status(TorrentHandle.QUERY_PIECES).pieces()
+                                    val piece = (at / plen).toInt()
+                                    if (piece >= 0 && piece < bits.size() && bits.getBit(piece)) break
+                                } catch (_: Exception) {
+                                }
+                            }
+                            delay(2000)
+                        }
+                        if (!c.active) return@launch
+                        try {
+                            val dl = try {
+                                c.handle.status().totalDone() / 1048576
+                            } catch (_: Exception) {
+                                -1
+                            }
+                            AppLog.d("player resume at ${pos / 1000}s dl=${dl}MB")
+                            val subs = stream.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
+                            exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(subs)), pos)
+                            exo.prepare()
+                            exo.play()
+                        } catch (_: Exception) {
+                        }
+                    }
+                } else if (c != null && c.active) {
+                    AppLog.d("player gave up after ${c.tries} retries")
+                }
+            }
+        }
+        exo.addListener(listener)
+        onDispose {
+            exo.removeListener(listener)
+            exo.release()
+        }
+    }
+    var subsOff by remember { mutableStateOf(false) }
+    var subDelayMs by remember { mutableStateOf(0L) }
+    var subRaw by remember { mutableStateOf<String?>(null) }
+    val nudgeScope = rememberCoroutineScope()
+    fun applyDelay() {
+        if (stream.subs.isEmpty()) return
+        nudgeScope.launch {
+            var raw = subRaw
+            if (raw == null) {
+                raw = readSubText(VidLove.englishFirst(stream.subs).first().url)
+                if (raw == null) {
+                    AppLog.d("subs download failed")
+                    return@launch
+                }
+                subRaw = raw
+            }
+            val f = withContext(Dispatchers.IO) {
+                VidLove.shiftSubFile(raw, subDelayMs, context.cacheDir)
+            }
+            if (f == null) {
+                AppLog.d("subs shift failed")
+                return@launch
+            }
+            val pos = exo.currentPosition
+            val wasPlaying = exo.isPlaying
+            exo.setMediaItem(
+                itemFor(stream.url, stream.isHls, configsFor(stream.subs, Uri.fromFile(f))),
+                pos,
+            )
+            exo.prepare()
+            if (wasPlaying) exo.play()
+        }
+    }
+    fun nudge(delta: Long) {
+        if (stream.subs.isEmpty()) return
+        subDelayMs += delta
+        AppLog.d("subs delay ${subDelayMs}ms")
+        applyDelay()
+    }
+    var aiStatus by remember { mutableStateOf<String?>(null) }
+    var aiRunning by remember { mutableStateOf(false) }
+    var aiCues by remember { mutableStateOf<List<VidLove.Cue>>(emptyList()) }
+    var lastNeed by remember { mutableStateOf(0) }
+    suspend fun showAi() {
+        val all = aiCues.sortedBy { it.start }
+        val f = withContext(Dispatchers.IO) { VidLove.cuesToFile(all, context.cacheDir) } ?: return
+        aiSubUrl = Uri.fromFile(f).toString()
+        aiStatus = "AI ✓ ${all.size}"
+        AppLog.d("ai cues=${all.size}")
+        val merged = (stream.subs + Sub("AI English", Uri.fromFile(f).toString())).distinctBy { it.url }
+        val pos = exo.currentPosition
+        val wasPlaying = exo.isPlaying
+        exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(merged)), pos)
+        exo.prepare()
+        if (wasPlaying) exo.play()
+        if (stream.subKey.isNotEmpty() && all.size >= 5) {
+            withContext(Dispatchers.IO) {
+                SubsApi.store(stream.subKey, "AI English", VidLove.renderCues(all), "ai")
+            }
+        }
+    }
+    fun runQwenSubs() {
+        if (aiRunning) return
+        aiRunning = true
+        nudgeScope.launch {
+            try {
+                aiStatus = "Qwen…"
+                val keys = withContext(Dispatchers.IO) { AiSubs.keys() }
+                if (keys.isEmpty()) {
+                    aiStatus = null
+                    AppLog.d("ai qwen no groq keys, set GROQ_API_KEY")
+                    return@launch
+                }
+                val path = try {
+                    android.net.Uri.parse(stream.url).path?.takeIf { it.startsWith("/") }
+                } catch (_: Exception) {
+                    null
+                } ?: return@launch
+                val tracks = withContext(Dispatchers.IO) { MkvSubs.extract(path) }
+                lastNeed = maxOf(lastNeed, tracks.maxOfOrNull { it.cues.size } ?: 0)
+                var acted = false
+                var current = false
+                for (t in tracks) {
+                    if (t.cues.size < 5) continue
+                    val from = detectLang(t.cues)
+                    AppLog.d("ai embed ${t.codec} cues=${t.cues.size} lang=${from ?: "?"}")
+                    if (from == null || from == "en") continue
+                    val fresh = t.cues.filter { n -> aiCues.none { o -> o.start == n.start } }
+                    if (fresh.isEmpty()) {
+                        current = true
+                        continue
+                    }
+                    var added = 0
+                    for (chunk in fresh.chunked(40)) {
+                        val tr = withContext(Dispatchers.IO) { AiSubs.translateLines(chunk.map { it.text }, keys, from) }
+                        if (tr == null || tr.size != chunk.size) break
+                        val en = chunk.mapIndexed { j, c -> c.copy(text = tr[j]) }
+                        aiCues = (aiCues + en).sortedBy { it.start }
+                        added += en.size
+                        showAi()
+                    }
+                    if (added > 0) {
+                        aiStatus = "Qwen ✓"
+                        AppLog.d("ai qwen +$added from=$from total=${aiCues.size}")
+                        acted = true
+                        break
+                    }
+                }
+                if (!acted) {
+                    AppLog.d(if (current) "ai subs up to date" else "ai qwen no usable embed subs")
+                    if (!current) aiStatus = null
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                aiRunning = false
+                throw e
+            } catch (e: Exception) {
+                aiStatus = null
+                AppLog.d("ai qwen crash ${e.message}")
+            } finally {
+                aiRunning = false
+            }
+        }
+    }
+    var syncStatus by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(stream.url) {
+        try {
+            if (stream.inSync) {
+                syncStatus = "matched"
+                AppLog.d("sync skipped, same-release subs")
+                return@LaunchedEffect
+            }
+            runQwenSubs()
+            val c = ctl
+            if (c != null && !stream.inSync) {
+                var waited = 0
+                var lastAiDl = 0L
+                while (waited < 600000) {
+                    delay(15000)
+                    if (!c.active) return@LaunchedEffect
+                    val done = try {
+                        c.handle.status().totalDone()
+                    } catch (_: Exception) {
+                        -1L
+                    }
+                    val total = try {
+                        c.handle.status().totalWanted()
+                    } catch (_: Exception) {
+                        -1L
+                    }
+                    if (total > 0 && done >= total) {
+                        var tries = 0
+                        while (tries < 6 && aiCues.size < lastNeed) {
+                            AppLog.d("ai retry on complete file")
+                            runQwenSubs()
+                            var w = 0
+                            while (aiRunning && w < 12) {
+                                delay(15000)
+                                w++
+                            }
+                            tries++
+                        }
+                        return@LaunchedEffect
+                    }
+                    if (done > lastAiDl + 15000000) {
+                        lastAiDl = done
+                        AppLog.d("ai retry at ${done / 1048576}MB")
+                        runQwenSubs()
+                    }
+                    waited += 15000
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.d("sync crash ${e.javaClass.simpleName}: ${e.message}")
+            syncStatus = null
+        }
+    }
+    fun applySubs() {
+        val sel = exo.trackSelector as? DefaultTrackSelector ?: return
+        sel.parameters = sel.buildUponParameters()
+            .setRendererDisabled(C.TRACK_TYPE_TEXT, subsOff)
+            .build()
+        AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
+    }
+    fun pickEmbed(idx: Int, why: String) {
+        val group = embedGroup ?: return
+        if (idx !in 0 until group.length) return
+        try {
+            val sel = exo.trackSelector as? DefaultTrackSelector ?: return
+            sel.parameters = sel.buildUponParameters().setOverrideForType(
+                androidx.media3.common.TrackSelectionOverride(group, listOf(idx)),
+            ).build()
+            embedIdx = idx
+            AppLog.d("embed $why $idx ${embedNames.getOrNull(idx)}")
+        } catch (e: Exception) {
+            AppLog.d("embed pick fail ${e.message}")
+        }
+    }
+    fun cycleEmbed() {
+        val n = embedNames.size
+        if (n == 0) return
+        val next = if (embedIdx < 0) (if (n > 1) 1 else 0) else (embedIdx + 1) % n
+        pickEmbed(next, "cycle")
+    }
+    var langDone by remember { mutableStateOf(false) }
+    LaunchedEffect(embedNames) {
+        if (langDone || stream.subs.isNotEmpty() || embedNames.isEmpty()) return@LaunchedEffect
+        langDone = true
+        val path = try {
+            android.net.Uri.parse(stream.url).path
+        } catch (_: Exception) {
+            null
+        }
+        if (path == null || !path.startsWith("/")) return@LaunchedEffect
+        val tracks = withContext(Dispatchers.IO) { MkvSubs.extract(path) }
+        if (tracks.isEmpty()) return@LaunchedEffect
+        val langs = tracks.map { t -> detectLang(t.cues) ?: "und" }
+        AppLog.d("embed lang $langs")
+        embedNames = embedNames.mapIndexed { i, n -> "$n:${langs.getOrNull(i) ?: "und"}" }
+        val en = langs.indexOfFirst { it == "en" }
+        if (en >= 0) pickEmbed(en, "auto")
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) { Text("‹ Back") }
+            Text(
+                title,
+                Modifier.weight(1f).padding(end = 16.dp),
+                maxLines = 1,
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    this.player = exo
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                }
+            },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
+        Row(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (stream.subs.isNotEmpty()) {
+                Button(onClick = {
+                    subsOff = !subsOff
+                    applySubs()
+                }) { Text(if (subsOff) "CC off" else "CC on · ${stream.subs.size}") }
+                Text(
+                    VidLove.englishFirst(stream.subs).first().label,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = { nudge(-500) }) { Text("-0.5s") }
+                Text(
+                    "${subDelayMs / 1000.0}s",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = { nudge(500) }) { Text("+0.5s") }
+                TextButton(onClick = { runQwenSubs() }) { Text("AI") }
+                if (aiStatus != null) {
+                    Text(aiStatus!!, style = MaterialTheme.typography.bodySmall)
+                }
+                if (syncStatus != null) {
+                    Text(syncStatus!!, style = MaterialTheme.typography.bodySmall)
+                }
+            } else if (embedNames.isNotEmpty()) {
+                val cur = if (embedIdx < 0) "CC: auto" else "CC: ${embedNames.getOrNull(embedIdx) ?: "?"}"
+                Button(onClick = { cycleEmbed() }) { Text(cur) }
+            } else {
+                Text("no subs", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
