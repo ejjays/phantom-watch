@@ -448,3 +448,218 @@ private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConf
         .setSubtitleConfigurations(cfgs)
         .build()
 
+@Composable
+private fun TorrentsScreen(title: Title, season: String, episode: String, onFetch: (TEntry) -> Unit, onBack: () -> Unit) {
+    var loading by remember { mutableStateOf(true) }
+    var entries by remember { mutableStateOf<List<TEntry>?>(null) }
+    var err by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(title.id, season, episode) {
+        try {
+            val key = BuildConfig.TMDB_API_KEY
+            val imdb = withContext(Dispatchers.IO) { VidLove.imdbOf(title.id, title.kind, key) }
+            if (imdb == null) {
+                err = "no imdb id"
+                return@LaunchedEffect
+            }
+            val found = withContext(Dispatchers.IO) {
+                Torrents.query(imdb, title.kind, season, episode)
+            }
+            if (found.isEmpty()) err = "no torrents" else entries = found
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            err = e.message
+        } finally {
+            loading = false
+        }
+    }
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(
+            Modifier.fillMaxWidth().padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) { Text("‹ Back") }
+            Text(title.title, Modifier.weight(1f), maxLines = 1, style = MaterialTheme.typography.titleMedium)
+        }
+        when {
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            err != null && entries == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(err!!)
+            }
+            else -> LazyColumn(Modifier.fillMaxSize()) {
+                items(entries ?: emptyList(), key = { it.infoHash }) { e ->
+                    Column(
+                        Modifier.fillMaxWidth().clickable { onFetch(e) }.padding(12.dp),
+                    ) {
+                        Text(e.name, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "${e.size} · 👤 ${e.seeds}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FetchScreen(
+    title: Title,
+    season: String,
+    episode: String,
+    entry: TEntry,
+    dir: java.io.File,
+    onPlay: (Stream, DlCtl) -> Unit,
+    onBack: () -> Unit,
+) {
+    var prog by remember { mutableStateOf(0f) }
+    var stat by remember { mutableStateOf("starting…") }
+    var err by remember { mutableStateOf<String?>(null) }
+    var ctl by remember { mutableStateOf<DlCtl?>(null) }
+    val context = LocalContext.current
+    var wifiOk by remember { mutableStateOf(isWifi(context)) }
+    if (!wifiOk) {
+        AlertDialog(
+            onDismissRequest = { onBack() },
+            title = { Text("Not on WiFi") },
+            text = { Text("Torrents will eat mobile data. Continue anyway?") },
+            confirmButton = { TextButton(onClick = { wifiOk = true }) { Text("Download") } },
+            dismissButton = { TextButton(onClick = { onBack() }) { Text("Back") } },
+        )
+        return
+    }
+    LaunchedEffect(entry.infoHash) {
+        try {
+            stat = "contacting peers…"
+            var h = withContext(Dispatchers.IO) { TorrentEngine.download(entry, dir) }
+            ctl = DlCtl(h)
+            var vlSubs: List<Sub> = emptyList()
+            val subsJob = launch {
+                val bundled = withContext(Dispatchers.IO) { Torrents.bundledSubs(dir) }
+                val live = mutableListOf<Sub>()
+                for (s in bundled) {
+                    if (live.size >= 8) break
+                    if (withContext(Dispatchers.IO) { Torrents.subAlive(s.url) }) live.add(s)
+                    else AppLog.d("subs drop ${s.label}")
+                }
+                vlSubs = live
+                AppLog.d("subs live ${live.map { it.label }}")
+            }
+            var lastDone = 0L
+            var lastChange = System.currentTimeMillis()
+            var lastLog = 0L
+            var lastArm = 0L
+            val metaSince = System.currentTimeMillis()
+            var pick: Torrents.VidPick? = null
+            while (true) {
+                ensureActive()
+                if (pick == null) {
+                    pick = withContext(Dispatchers.IO) { Torrents.pickIndexed(h, dir) }
+                    if (pick == null) {
+                        if (System.currentTimeMillis() - metaSince > 60000) {
+                            ctl?.stop()
+                            err = "no peers sharing this yet, pick another"
+                            return@LaunchedEffect
+                        }
+                        stat = "waiting for metadata…"
+                        delay(1000)
+                        continue
+                    }
+                    val p0 = pick
+                    if (!p0.file.exists() || p0.file.length() == 0L) {
+                        AppLog.d("fetch stale disk, re-adding")
+                        withContext(Dispatchers.IO) { TorrentEngine.reset() }
+                        h = withContext(Dispatchers.IO) { TorrentEngine.download(entry, dir) }
+                        ctl?.stop()
+                        ctl = DlCtl(h)
+                        pick = null
+                        continue
+                    }
+                    AppLog.d("torrent video ${p0.file.name} ${p0.size / 1048576}MB")
+                    withContext(Dispatchers.IO) { TorrentEngine.armStream(h, p0.index) }
+                }
+                val p = pick
+                val st = h.status()
+                val fp = try {
+                    h.fileProgress()[p.index]
+                } catch (_: Exception) {
+                    -1L
+                }
+                val done = if (fp >= 0) fp else st.totalDone()
+                prog = if (p.size > 0) (done.toFloat() / p.size).coerceIn(0f, 1f) else 0f
+                stat = "${done / 1048576}MB / ${p.size / 1048576}MB · ${st.downloadRate() / 1024}KB/s · ${st.numPeers()} peers"
+                if (done > lastDone) {
+                    lastDone = done
+                    lastChange = System.currentTimeMillis()
+                }
+                if (System.currentTimeMillis() - lastLog > 10000) {
+                    lastLog = System.currentTimeMillis()
+                    AppLog.d("fetch ${done / 1048576}MB/${p.size / 1048576}MB ${st.downloadRate() / 1024}KB/s ${st.numPeers()}p")
+                }
+                val need = minOf(25000000L, maxOf(8000000L, p.size * 4 / 100))
+                if (System.currentTimeMillis() - lastArm > 15000) {
+                    lastArm = System.currentTimeMillis()
+                    withContext(Dispatchers.IO) { TorrentEngine.armStream(h, p.index) }
+                }
+                if (done >= need || (done >= p.size && p.size > 0)) {
+                    subsJob.join()
+                    val subs = vlSubs
+                    val trusted = subs.any { it.url.startsWith("file") && !it.url.contains("/subs/") && it.label.contains("english", true) }
+                    val full = done >= p.size && p.size > 0
+                    AppLog.d("fetch play ${p.file.name} ${done / 1048576}MB subs=${subs.size} ${subs.take(4).joinToString { it.label }} trusted=$trusted full=$full")
+                    ctl!!.fileIndex = p.index
+                    ctl!!.fileSize = p.size
+                    onPlay(
+                        Stream(
+                            android.net.Uri.fromFile(p.file).toString(),
+                            false,
+                            subs,
+                            "",
+                            p.file.absolutePath,
+                            trusted,
+                            full,
+                            if (title.kind == "movie") "movie/${title.id}"
+                            else "tv/${title.id}/$season/$episode",
+                        ),
+                        ctl!!,
+                    )
+                    return@LaunchedEffect
+                }
+                if (System.currentTimeMillis() - lastChange > 180000 && done > 0) {
+                    err = "stalled, try another"
+                    return@LaunchedEffect
+                }
+                delay(800)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            err = "${e.javaClass.simpleName}: ${e.message}"
+            AppLog.d("fetch fail ${e.message}")
+        }
+    }
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(entry.name, maxLines = 2, style = MaterialTheme.typography.titleMedium)
+        androidx.compose.foundation.layout.Spacer(Modifier.padding(8.dp))
+        androidx.compose.material3.LinearProgressIndicator(progress = { prog }, modifier = Modifier.fillMaxWidth())
+        androidx.compose.foundation.layout.Spacer(Modifier.padding(4.dp))
+        Text(stat, style = MaterialTheme.typography.bodySmall)
+        if (err != null) Text(err!!, style = MaterialTheme.typography.bodySmall)
+        androidx.compose.foundation.layout.Spacer(Modifier.padding(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = {
+                ctl?.stop()
+                onBack()
+            }) { Text(if (err != null) "Back" else "Cancel") }
+        }
+        Text("stays in cache — keep app open while downloading", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
