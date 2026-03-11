@@ -1,4 +1,4 @@
-package dev.movieproto
+package dev.phantomwatch
 
 import android.net.Uri
 import android.os.Bundle

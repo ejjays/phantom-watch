@@ -1,4 +1,4 @@
-package dev.movieproto
+package dev.phantomwatch
 
 import com.frostwire.jlibtorrent.Priority
 import com.frostwire.jlibtorrent.SessionManager

@@ -16,5 +16,5 @@ dependencyResolutionManagement {
         }
     }
 }
-rootProject.name = "MovieProto"
+rootProject.name = "PhantomWatch"
 include(":app")

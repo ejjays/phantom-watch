@@ -1,4 +1,4 @@
-# MovieProto — minimal native VidLove player
+# Phantom Watch — minimal native VidLove player
 
 Home = TMDB trending grid. Tap a movie to play, tap a show to pick season/episode.
 Player = ExoPlayer, VidLove stream only, VidLove subs only (English preferred).

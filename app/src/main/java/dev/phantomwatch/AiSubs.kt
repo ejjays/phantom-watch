@@ -1,4 +1,4 @@
-package dev.movieproto
+package dev.phantomwatch
 
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers

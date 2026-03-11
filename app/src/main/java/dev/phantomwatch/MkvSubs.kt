@@ -1,4 +1,4 @@
-package dev.movieproto
+package dev.phantomwatch
 
 object MkvSubs {
     data class Track(val codec: String, val cues: List<VidLove.Cue>)

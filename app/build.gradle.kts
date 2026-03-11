@@ -12,11 +12,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.movieproto"
+    namespace = "dev.phantomwatch"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.movieproto"
+        applicationId = "dev.phantomwatch"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

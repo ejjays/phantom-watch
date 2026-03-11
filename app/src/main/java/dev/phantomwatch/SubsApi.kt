@@ -1,4 +1,4 @@
-package dev.movieproto
+package dev.phantomwatch
 
 import android.content.Context
 import java.util.concurrent.TimeUnit
