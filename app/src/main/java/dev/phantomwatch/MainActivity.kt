@@ -80,6 +80,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import dev.phantomwatch.ui.MoviesHome
+import androidx.activity.compose.BackHandler
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -265,6 +266,7 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, onFetc
     var loading by remember { mutableStateOf(true) }
     var entries by remember { mutableStateOf<List<TEntry>?>(null) }
     var err by remember { mutableStateOf<String?>(null) }
+    BackHandler(onBack = onBack)
     LaunchedEffect(title.id, season, episode) {
         try {
             val key = BuildConfig.TMDB_API_KEY
@@ -332,6 +334,7 @@ private fun FetchScreen(
     var err by remember { mutableStateOf<String?>(null) }
     var ctl by remember { mutableStateOf<DlCtl?>(null) }
     val context = LocalContext.current
+    BackHandler(onBack = onBack)
     var wifiOk by remember { mutableStateOf(isWifi(context)) }
     if (!wifiOk) {
         AlertDialog(
@@ -565,6 +568,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     var embedIdx by remember { mutableStateOf(-1) }
     var aiSubUrl by remember { mutableStateOf<String?>(null) }
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
+    BackHandler(onBack = onBack)
     LaunchedEffect(title) { AppLog.d("screen $title") }
     val player: ExoPlayer? = remember {
         try {

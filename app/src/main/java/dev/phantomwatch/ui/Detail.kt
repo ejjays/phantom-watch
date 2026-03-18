@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,6 +79,7 @@ fun MovieDetail(item: Title, onClose: () -> Unit, onWatch: (Title, String, Strin
     var failed by remember { mutableStateOf(false) }
     var episodesOpen by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
+    BackHandler(onBack = onClose)
 
     LaunchedEffect(item.id, item.kind) {
         loading = true
@@ -382,6 +384,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val seasons = detail.seasons
+    BackHandler(onBack = onClose)
 
     LaunchedEffect(detail.id, seasonIdx) {
         loading = true

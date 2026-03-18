@@ -60,8 +60,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -216,6 +218,15 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
 
     val inSearch = query.trim().length >= 2
     val openRail = rails.firstOrNull { it.key == railKey }
+    val navOpen = searchOpen || railKey != null
+    BackHandler(enabled = navOpen) {
+        if (searchOpen) {
+            searchOpen = false
+            query = ""
+        } else {
+            railKey = null
+        }
+    }
     val screenW = LocalConfiguration.current.screenWidthDp.dp
     val gridW = (screenW - 56.dp) / 3
 
