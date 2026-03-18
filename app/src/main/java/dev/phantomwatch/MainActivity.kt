@@ -79,6 +79,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import dev.phantomwatch.ui.MoviesHome
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -128,8 +129,8 @@ private fun App() {
     }
     Box(Modifier.fillMaxSize()) {
         when (val s = screen) {
-            is Screen.Home -> HomeScreen(
-                onPick = { t, seas, ep ->
+            is Screen.Home -> MoviesHome(
+                onWatch = { t, seas, ep ->
                     screen = Screen.Torrents(t, seas, ep)
                 },
             )
@@ -235,196 +236,6 @@ private fun cacheBytes(dir: java.io.File): Long {
     }
 }
 
-@Composable
-private fun HomeScreen(onPick: (Title, String, String) -> Unit) {
-    val scope = rememberCoroutineScope()
-    var titles by remember { mutableStateOf<List<Title>?>(null) }
-    var pending by remember { mutableStateOf<Title?>(null) }
-    var season by remember { mutableStateOf("1") }
-    var episode by remember { mutableStateOf("1") }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<Title>?>(null) }
-    var searching by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    var cacheMb by remember { mutableStateOf(0L) }
-    LaunchedEffect(titles) {
-        cacheMb = withContext(Dispatchers.IO) {
-            cacheBytes(java.io.File(context.cacheDir, "torrents")) / 1048576
-        }
-    }
-
-    fun runSearch() {
-        val q = query.trim()
-        if (q.length < 2) {
-            results = null
-            return
-        }
-        searching = true
-        scope.launch {
-            results = withContext(Dispatchers.IO) { VidLove.search(q) }
-            searching = false
-        }
-    }
-
-    LaunchedEffect(titles, error) {
-        if (titles != null || error != null) return@LaunchedEffect
-        loading = true
-        val key = BuildConfig.TMDB_API_KEY
-        try {
-            val list = withContext(Dispatchers.IO) { VidLove.trending(key) }
-            if (list.isEmpty()) error = "Trending empty"
-            else titles = list
-        } catch (e: Exception) {
-            val diag = withContext(Dispatchers.IO) {
-                listOf(
-                    "https://www.google.com/generate_204",
-                    "https://image.tmdb.org/t/p/w342/abc.jpg",
-                ).joinToString("\n") { probe(it) }
-            }
-            error = "Trending failed: ${e.message}\n$diag"
-        } finally {
-            loading = false
-        }
-    }
-
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                if (results != null) "Results" else "Trending",
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            if (error != null) TextButton(onClick = { error = null; titles = null }) {
-                Text("Retry")
-            }
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Search movies / shows") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Button(onClick = { runSearch() }) { Text("Go") }
-        }
-        if (cacheMb > 0) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Cache ${cacheMb}MB", style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            java.io.File(context.cacheDir, "torrents").deleteRecursively()
-                            TorrentEngine.reset()
-                        }
-                        cacheMb = 0
-                    }
-                }) { Text("Clear") }
-            }
-        }
-        val shown = results ?: titles
-        when {
-            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            error != null && titles == null -> Box(
-                Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) { Text(error!!) }
-            searching -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            shown != null -> LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(shown, key = { "${it.kind}-${it.id}" }) { t ->
-                    Column(
-                        Modifier.padding(4.dp).clickable {
-                            if (t.kind == "movie") onPick(t, "1", "1")
-                            else pending = t
-                        },
-                    ) {
-                        if (t.poster != null) AsyncImage(
-                            model = t.poster,
-                            contentDescription = t.title,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
-                            contentScale = ContentScale.Crop,
-                        )
-                        Text(t.title, maxLines = 2, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
-    }
-
-    val tv = pending
-    if (tv != null) {
-        AlertDialog(
-            onDismissRequest = { pending = null },
-            title = { Text(tv.title) },
-            text = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = season,
-                        onValueChange = { season = it.filter(Char::isDigit).take(2) },
-                        label = { Text("Season") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = episode,
-                        onValueChange = { episode = it.filter(Char::isDigit).take(3) },
-                        label = { Text("Episode") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    pending = null
-                    onPick(tv, season.ifEmpty { "1" }, episode.ifEmpty { "1" })
-                }) { Text("Play") }
-            },
-            dismissButton = { TextButton(onClick = { pending = null }) { Text("Cancel") } },
-        )
-    }
-
-    if (error != null && titles != null) {
-        AlertDialog(
-            onDismissRequest = { error = null },
-            title = { Text("Playback failed") },
-            text = { Text(error!!) },
-            confirmButton = { TextButton(onClick = { error = null }) { Text("OK") } },
-        )
-    }
-}
-
-private suspend fun readSubText(url: String): String? = withContext(Dispatchers.IO) {
-    if (!url.startsWith("file")) return@withContext null
-    try {
-        val path = android.net.Uri.parse(url).path ?: return@withContext null
-        java.io.File(path).readText()
-    } catch (_: Exception) {
-        null
-    }
-}
-
-@OptIn(UnstableApi::class)
 private fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.SubtitleConfiguration> {
     return VidLove.englishFirst(subs).mapIndexed { i, sub ->
         val uri = if (i == 0 && firstUri != null) firstUri else Uri.parse(sub.url)
@@ -953,6 +764,31 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     var subDelayMs by remember { mutableStateOf(0L) }
     var subRaw by remember { mutableStateOf<String?>(null) }
     val nudgeScope = rememberCoroutineScope()
+    suspend fun readSubText(url: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val path = try {
+                android.net.Uri.parse(url).path?.takeIf { url.startsWith("file") || it.startsWith("/") }
+            } catch (_: Exception) {
+                null
+            }
+            if (path != null) return@withContext try {
+                java.io.File(path).readText()
+            } catch (_: Exception) {
+                null
+            }
+            val req = okhttp3.Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
+                .build()
+            val call = VidLove.client().newCall(req)
+            call.timeout().deadline(30, java.util.concurrent.TimeUnit.SECONDS)
+            call.execute().use { res ->
+                if (res.code !in 200..299) return@withContext null
+                res.body?.string()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
     fun applyDelay() {
         if (stream.subs.isEmpty()) return
         nudgeScope.launch {
