@@ -1,5 +1,18 @@
 package dev.phantomwatch.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -232,7 +245,7 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize()) {
-            if (selected == null && openRail == null) {
+            if (openRail == null) {
                 if (searchOpen) {
                     SearchHeader(
                         query = query,
@@ -246,48 +259,66 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
                     )
                 }
             }
-            when {
-                selected != null -> Box(Modifier.fillMaxSize())
-                openRail != null -> RailGrid(
-                    rail = openRail,
-                    onBack = { railKey = null },
-                    onOpen = ::openDetail,
-                    onEnd = { loadMoreRail(openRail.key) },
-                )
-                searchOpen -> SearchBody(
-                    query = query,
-                    results = results,
-                    searching = searching,
-                    recents = recents,
-                    gridW = gridW,
-                    onOpen = ::openDetail,
-                )
-                else -> BrowseBody(
-                    trending = trending,
-                    rails = rails,
-                    exploreItems = exploreItems,
-                    exploreMore = exploreMore,
-                    exploreTotal = exploreTotal,
-                    loading = loading,
-                    failed = failed,
-                    detailOpen = false,
-                    onOpen = ::openDetail,
-                    onSeeAll = { railKey = it },
-                    onRailEnd = ::loadMoreRail,
-                    onGridEnd = ::loadMoreExplore,
-                    onRetry = ::loadBrowse,
-                )
+            AnimatedContent(
+                targetState = if (searchOpen) 1 else if (openRail != null) 2 else 0,
+                transitionSpec = {
+                    fadeIn(tween(280)) togetherWith fadeOut(tween(280)) using SizeTransform(clip = false)
+                },
+                label = "browse-mode",
+            ) { mode ->
+                when (mode) {
+                    1 -> SearchBody(
+                        query = query,
+                        results = results,
+                        searching = searching,
+                        recents = recents,
+                        gridW = gridW,
+                        
+                        onOpen = ::openDetail,
+                    )
+                    2 -> openRail?.let {
+                        RailGrid(
+                            rail = it,
+                            onBack = { railKey = null },
+                            onOpen = ::openDetail,
+                            onEnd = { loadMoreRail(it.key) },
+                        )
+                    } ?: Box(Modifier.fillMaxSize())
+                    else -> BrowseBody(
+                        trending = trending,
+                        rails = rails,
+                        exploreItems = exploreItems,
+                        exploreMore = exploreMore,
+                        exploreTotal = exploreTotal,
+                        loading = loading,
+                        failed = failed,
+                        detailOpen = selected != null,
+                        
+                        onOpen = ::openDetail,
+                        onSeeAll = { railKey = it },
+                        onRailEnd = ::loadMoreRail,
+                        onGridEnd = ::loadMoreExplore,
+                        onRetry = ::loadBrowse,
+                    )
+                }
             }
         }
-        selected?.let { item ->
-            MovieDetail(
-                item = item,
-                onClose = { selected = null },
-                onWatch = { t, s, e ->
-                    selected = null
-                    onWatch(t, s, e)
-                },
-            )
+        AnimatedVisibility(
+            visible = selected != null,
+            enter = slideInVertically(tween(350), initialOffsetY = { it }) + fadeIn(tween(350)),
+            exit = slideOutVertically(tween(350), targetOffsetY = { it }) + fadeOut(tween(350)),
+        ) {
+            selected?.let { item ->
+                MovieDetail(
+                    item = item,
+                    onClose = { selected = null },
+                    onWatch = { t, s, e ->
+                        selected = null
+                        onWatch(t, s, e)
+                    },
+                    
+                )
+            }
         }
     }
 }
@@ -354,7 +385,12 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
 }
 
 @Composable
-fun PosterCard(item: Title, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp, onOpen: (Title) -> Unit) {
+fun PosterCard(
+    item: Title,
+    width: androidx.compose.ui.unit.Dp,
+    height: androidx.compose.ui.unit.Dp,
+    onOpen: (Title) -> Unit,
+) {
     val radius = (width * 0.24f)
     val playSize = maxOf(13.dp, width * 0.13f)
     val badgePad = maxOf(4.dp, width * 0.04f)

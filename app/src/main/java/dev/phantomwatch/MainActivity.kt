@@ -81,6 +81,12 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import dev.phantomwatch.ui.MoviesHome
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,6 +124,7 @@ class DlCtl(val handle: TorrentHandle) {
 @Composable
 private fun App() {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    var forward by remember { mutableStateOf(true) }
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         SubsApi.init(context)
@@ -129,43 +136,70 @@ private fun App() {
         }
     }
     Box(Modifier.fillMaxSize()) {
-        when (val s = screen) {
-            is Screen.Home -> MoviesHome(
-                onWatch = { t, seas, ep ->
-                    screen = Screen.Torrents(t, seas, ep)
-                },
-            )
-            is Screen.Player -> PlayerScreen(
-                title = s.title,
-                stream = s.stream,
-                ctl = s.ctl,
-                onBack = {
-                    s.ctl?.stop()
-                    screen = Screen.Home
-                },
-            )
-            is Screen.Torrents -> TorrentsScreen(
-                title = s.title,
-                season = s.season,
-                episode = s.episode,
-                onFetch = { e -> screen = Screen.Fetch(s.title, s.season, s.episode, e) },
-                onBack = { screen = Screen.Home },
-            )
-            is Screen.Fetch -> {
-                val dir = remember(s.entry.infoHash) {
-                    java.io.File(context.cacheDir, "torrents/${s.entry.infoHash}")
+        AnimatedContent(
+            targetState = screen,
+            transitionSpec = {
+                if (forward) {
+                    (slideInHorizontally { it } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it } + fadeOut())
+                } else {
+                    (slideInHorizontally { -it } + fadeIn()) togetherWith
+                        (slideOutHorizontally { it } + fadeOut())
                 }
-                FetchScreen(
+            },
+            label = "screen",
+        ) { s ->
+            when (s) {
+                is Screen.Home -> MoviesHome(
+                    onWatch = { t, seas, ep ->
+                        forward = true
+                        screen = Screen.Torrents(t, seas, ep)
+                    },
+                )
+                is Screen.Player -> PlayerScreen(
+                    title = s.title,
+                    stream = s.stream,
+                    ctl = s.ctl,
+                    onBack = {
+                        s.ctl?.stop()
+                        forward = false
+                        screen = Screen.Home
+                    },
+                )
+                is Screen.Torrents -> TorrentsScreen(
                     title = s.title,
                     season = s.season,
                     episode = s.episode,
-                    entry = s.entry,
-                    dir = dir,
-                    onPlay = { stream, ctl ->
-                        screen = Screen.Player(s.title.title, stream, ctl)
+                    onFetch = {
+                        e ->
+                        forward = true
+                        screen = Screen.Fetch(s.title, s.season, s.episode, e)
                     },
-                    onBack = { screen = Screen.Torrents(s.title, s.season, s.episode) },
+                    onBack = {
+                        forward = false
+                        screen = Screen.Home
+                    },
                 )
+                is Screen.Fetch -> {
+                    val dir = remember(s.entry.infoHash) {
+                        java.io.File(context.cacheDir, "torrents/${s.entry.infoHash}")
+                    }
+                    FetchScreen(
+                        title = s.title,
+                        season = s.season,
+                        episode = s.episode,
+                        entry = s.entry,
+                        dir = dir,
+                        onPlay = { stream, ctl ->
+                            forward = true
+                            screen = Screen.Player(s.title.title, stream, ctl)
+                        },
+                        onBack = {
+                            forward = false
+                            screen = Screen.Torrents(s.title, s.season, s.episode)
+                        },
+                    )
+                }
             }
         }
         LogFab()
