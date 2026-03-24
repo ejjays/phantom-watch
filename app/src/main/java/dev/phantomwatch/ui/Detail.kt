@@ -30,10 +30,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -43,7 +42,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -424,11 +422,7 @@ fun MovieDetail(
                 )
             }
         }
-        AnimatedVisibility(
-            visible = episodesOpen && detail != null,
-            enter = slideInVertically(tween(350), initialOffsetY = { it }) + fadeIn(tween(350)),
-            exit = slideOutVertically(tween(350), targetOffsetY = { it }) + fadeOut(tween(350)),
-        ) {
+        EpisodesGate(isOpen = { episodesOpen && detail != null }) {
             if (episodesOpen && detail != null) {
                 EpisodesScreen(
                     detail = detail!!,
@@ -440,6 +434,17 @@ fun MovieDetail(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun EpisodesGate(isOpen: () -> Boolean, content: @Composable AnimatedVisibilityScope.() -> Unit) {
+    AnimatedVisibility(
+        visible = isOpen(),
+        enter = slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { it },
+        exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { it },
+    ) {
+        content()
     }
 }
 
@@ -497,7 +502,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
         Spacer(Modifier.height(8.dp))
     }
     episodes.forEach { ep ->
-        EpisodeRow(ep = ep, onClick = {
+        EpisodeRow(ep = ep, fallbackStill = detail.backdrop ?: detail.poster, onClick = {
             onEpisode((seasons.getOrNull(seasonIdx)?.number ?: 1).toString(), ep.n.toString())
         })
     }
@@ -512,14 +517,24 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
     }
 }
 
+private fun airLabel(iso: String): String {
+    val p = iso.split("-")
+    if (p.size != 3) return iso
+    val m = listOf("Jan.", "Feb.", "Mar.", "Apr.", "May.", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.")
+        .getOrNull((p[1].toIntOrNull() ?: 0) - 1) ?: return iso
+    val d = p[2].toIntOrNull() ?: return iso
+    return "$m $d, ${p[0]}"
+}
+
 @Composable
-private fun EpisodeRow(ep: Episode, onClick: () -> Unit) {
+private fun EpisodeRow(ep: Episode, fallbackStill: String?, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (ep.still != null) {
-            AsyncImage(model = ep.still, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+        val thumb = ep.still ?: fallbackStill
+        if (thumb != null) {
+            AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
         } else {
             Box(Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.05f)), contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
@@ -527,7 +542,7 @@ private fun EpisodeRow(ep: Episode, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("E${ep.n}", color = Slate500, fontSize = 11.sp, fontFamily = Mono)
+            Text("E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""), color = Slate500, fontSize = 11.sp, fontFamily = Mono)
             Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
@@ -569,19 +584,96 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val seasons = detail.seasons
+    val context = LocalContext.current
     BackHandler(onBack = onClose)
+
+    val t0 = remember(detail.id) { System.nanoTime() }
+    fun ms() = (System.nanoTime() - t0) / 1000000
+    LaunchedEffect(detail.id) {
+        AppLog.d("ep open ${detail.kind}/${detail.id} ${detail.title}")
+    }
+    LaunchedEffect(detail.id) {
+        var last = 0L
+        var slow = 0
+        while (slow < 25) {
+            val frame = withFrameNanos { it }
+            if (last != 0L) {
+                val dt = (frame - last) / 1000000
+                if (dt > 50) {
+                    slow++
+                    AppLog.d("ep jank +${ms()}ms frame ${dt}ms")
+                }
+            }
+            last = frame
+        }
+    }
+    // shortcut: debug watchdog, remove once the open hitch is fixed
+    LaunchedEffect(detail.id) {
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        var quits = false
+        var logged = 0
+        val t = Thread {
+            while (!quits && logged < 15) {
+                try {
+                    Thread.sleep(20)
+                } catch (_: InterruptedException) {
+                    break
+                }
+                val sent = System.nanoTime()
+                val done = java.util.concurrent.CountDownLatch(1)
+                main.post { done.countDown() }
+                try {
+                    done.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+                } catch (_: InterruptedException) {
+                    break
+                }
+                val cost = (System.nanoTime() - sent) / 1000000
+                if (cost > 50 && !quits && logged < 15) {
+                    logged++
+                    AppLog.d("ep main blocked +${(sent - t0) / 1000000}ms for ${cost}ms")
+                }
+            }
+        }
+        t.isDaemon = true
+        t.start()
+        try {
+            delay(Long.MAX_VALUE)
+        } finally {
+            quits = true
+            t.interrupt()
+        }
+    }
 
     LaunchedEffect(detail.id, seasonIdx) {
         loading = true
+        val start = System.nanoTime()
+        val first = episodes.isEmpty()
+        AppLog.d("ep fetch start ${detail.id} s$seasonIdx")
+        var result = emptyList<Episode>()
         try {
-            episodes = withContext(Dispatchers.IO) {
+            result = withContext(Dispatchers.IO) {
                 VidLove.season(key, detail.id, seasons.getOrNull(seasonIdx)?.number ?: 1)
             }
         } catch (_: Exception) {
-            episodes = emptyList()
-        } finally {
-            loading = false
+            result = emptyList()
         }
+        val elapsed = (System.nanoTime() - start) / 1000000
+        AppLog.d("ep fetch end +${elapsed}ms n=${result.size}")
+        val stills = result.mapNotNull { it.still }.take(12)
+        if (stills.isNotEmpty()) {
+            val loader = Coil.imageLoader(context)
+            stills.forEach { url ->
+                loader.enqueue(ImageRequest.Builder(context).data(url).build())
+            }
+            AppLog.d("ep precache ${stills.size}")
+        }
+        if (first) {
+            val wait = 400 - elapsed
+            if (wait > 0) delay(wait)
+        }
+        episodes = result
+        loading = false
+        AppLog.d("ep applied +${ms()}ms n=${result.size}")
     }
 
     val shown = remember(query, episodes) {
@@ -625,7 +717,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
                         Text(detail.title, color = Slate400, fontSize = 12.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     IconButton(onClick = { searching = true }) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = Slate200, modifier = Modifier.size(20.dp))
+                        Icon(painterResource(R.drawable.ic_search_normal), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -646,8 +738,20 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
                 }
             }
             when {
-                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Cyan)
+                loading -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                    items(6) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ShimmerBox(Modifier.size(120.dp, 68.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                ShimmerBox(Modifier.fillMaxWidth(0.15f).height(11.dp))
+                                Spacer(Modifier.height(6.dp))
+                                ShimmerBox(Modifier.fillMaxWidth(0.7f).height(14.dp))
+                                Spacer(Modifier.height(6.dp))
+                                ShimmerBox(Modifier.fillMaxWidth(0.9f).height(12.dp))
+                            }
+                        }
+                    }
                 }
                 shown.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(if (query.isNotEmpty()) "No matches for \"$query\"" else "No episodes found", color = Slate200, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
@@ -664,8 +768,9 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
                                 }.padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                if (ep.still != null) {
-                                    AsyncImage(model = ep.still, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+                                val thumb = ep.still ?: (detail.backdrop ?: detail.poster)
+                                if (thumb != null) {
+                                    AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("ep still ok E${ep.n}") }, onError = { AppLog.d("ep still err E${ep.n}") })
                                 } else {
                                     Box(Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.05f)), contentAlignment = Alignment.Center) {
                                         Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
@@ -673,7 +778,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text("E${ep.n}", color = Slate500, fontSize = 11.sp, fontFamily = Mono)
+                                    Text("E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""), color = Slate500, fontSize = 11.sp, fontFamily = Mono)
                                     Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     if (ep.overview.isNotEmpty()) {
                                         Text(ep.overview, color = Slate400, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = Rubik, maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -54,6 +54,7 @@ data class Episode(
     val name: String,
     val overview: String,
     val still: String?,
+    val air: String?,
 )
 
 data class Sub(val label: String, val url: String)
@@ -314,6 +315,7 @@ object VidLove {
                             p.optString("name").ifEmpty { "Episode ${i + 1}" },
                             p.optString("overview"),
                             img(p.optString("still_path"), "w300"),
+                            p.optString("air_date").takeIf { it.isNotEmpty() },
                         ),
                     )
                 }
