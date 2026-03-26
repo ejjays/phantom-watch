@@ -24,12 +24,24 @@ private val TRACKERS = listOf(
 )
 
 private val SIZE_RE = Regex("([0-9.]+)\\s*(GB|MB)")
-private val VIDEO_EXTS = setOf("mp4", "mkv", "avi", "webm", "mov", "m4v")
+internal val VIDEO_EXTS = setOf("mp4", "mkv", "avi", "webm", "mov", "m4v")
 
 object Torrents {
     fun magnet(e: TEntry): String {
         val tr = TRACKERS.joinToString("&") { "tr=${URLEncoder.encode(it, "UTF-8")}" }
         return "magnet:?xt=urn:btih:${e.infoHash}&dn=${URLEncoder.encode(e.name.take(80), "UTF-8")}&$tr"
+    }
+
+    private val audioDecoders: Map<String, Boolean> by lazy {
+        try {
+            val infos = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos
+            mapOf(
+                "eac3" to infos.any { !it.isEncoder && it.supportedTypes.contains("audio/eac3") },
+                "dts" to infos.any { !it.isEncoder && it.supportedTypes.any { t -> t.startsWith("audio/vnd.dts") || t == "audio/true-hd" } },
+            )
+        } catch (_: Exception) {
+            mapOf("eac3" to true, "dts" to true)
+        }
     }
 
     private fun seedsOf(title: String): Int {
@@ -67,13 +79,34 @@ object Torrents {
                 out.add(TEntry(title.take(90), size, seedsOf(title), hash))
             }
             AppLog.d("torrentio $id streams=${out.size}")
+            AppLog.d("audio dec eac3=${audioDecoders["eac3"]} dts=${audioDecoders["dts"]}")
             out.distinctBy { it.infoHash }.sortedWith(
                 compareByDescending<TEntry> { e ->
                     val t = e.name.lowercase()
-                    if (t.contains("aac") || t.contains("ac3") || t.contains("eac3") || t.contains("mp3") || t.contains("opus")) 1 else 0
+                    var s = 0
+                    if ("1080p" in t) s += 30
+                    else if ("720p" in t) s += 20
+                    else if ("2160p" in t || "4k" in t) s += 10
+                    if ("cam" in t || "hdts" in t || "telesync" in t) s -= 50
+                    if ("subfrench" in t) s -= 50
+                    if ("engsub" in t || "english" in t) s += 5
+                    if (audioDecoders["eac3"] == false && ("eac3" in t || "ddp" in t || "dd+" in t || "dolby" in t)) s -= 40
+                    if (audioDecoders["dts"] == false && ("dts" in t || "truehd" in t || "true-hd" in t || "atmos" in t)) s -= 40
+                    s
+                }.thenByDescending { e ->
+                    val t = e.name.lowercase()
+                    if ("aac" in t || "ac3" in t || "eac3" in t || "mp3" in t || "opus" in t) 1 else 0
                 }.thenByDescending { it.seeds },
             ).take(12)
         }
+
+    fun best(entries: List<TEntry>): TEntry? =
+        entries.firstOrNull { it.infoHash !in DeadReleases.hashes && it.seeds >= 3 }
+            ?: entries.firstOrNull { it.infoHash !in DeadReleases.hashes }
+
+    object DeadReleases {
+        val hashes = mutableSetOf<String>()
+    }
 
     data class VidPick(val file: File, val index: Int, val size: Long)
 
@@ -159,6 +192,27 @@ object TorrentEngine {
             Thread.sleep(500)
         }
         throw RuntimeException("torrent handle timeout")
+    }
+
+    fun densePrefix(h: TorrentHandle, fileIndex: Int, fileSize: Long): Long {
+        return try {
+            val ti = h.torrentFile()
+            var start = 0L
+            for (i in 0 until fileIndex) start += ti.files().fileSize(i)
+            val plen = ti.pieceLength().toLong()
+            if (plen <= 0) return 0L
+            val bits = h.status(TorrentHandle.QUERY_PIECES).pieces()
+            var p = (start / plen).toInt()
+            val last = ((start + fileSize - 1) / plen).toInt()
+            var bytes = 0L
+            while (p <= last && p < bits.size() && bits.getBit(p)) {
+                bytes += plen
+                p++
+            }
+            minOf(bytes, fileSize)
+        } catch (_: Exception) {
+            0L
+        }
     }
 
     fun armStream(h: TorrentHandle, fileIndex: Int) {

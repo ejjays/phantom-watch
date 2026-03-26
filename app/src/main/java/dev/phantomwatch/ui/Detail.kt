@@ -471,9 +471,9 @@ private fun Avatar(person: Person, size: androidx.compose.ui.unit.Dp, loadPhoto:
 @Composable
 private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (String, String) -> Unit, onViewAll: () -> Unit) {
     val key = BuildConfig.TMDB_API_KEY
-    var seasonIdx by remember { mutableStateOf(0) }
-    var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
     val seasons = detail.seasons
+    var seasonIdx by remember(detail.id) { mutableStateOf(seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0) }
+    var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
     LaunchedEffect(detail.id, seasonIdx, start) {
         if (!start) return@LaunchedEffect
         AppLog.d("detail season start")
@@ -578,12 +578,12 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
 @Composable
 private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: (String, String) -> Unit) {
     val key = BuildConfig.TMDB_API_KEY
-    var seasonIdx by remember { mutableStateOf(0) }
+    val seasons = detail.seasons
+    var seasonIdx by remember(detail.id) { mutableStateOf(seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0) }
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    val seasons = detail.seasons
     val context = LocalContext.current
     BackHandler(onBack = onClose)
 

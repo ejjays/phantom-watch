@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -66,7 +68,12 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.FileDataSource
+import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
@@ -74,6 +81,7 @@ import coil.compose.AsyncImage
 import com.frostwire.jlibtorrent.TorrentHandle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -102,7 +110,7 @@ class MainActivity : ComponentActivity() {
 
 private sealed interface Screen {
     data object Home : Screen
-    data class Player(val title: String, val stream: Stream, val ctl: DlCtl?) : Screen
+    data class Player(val title: String, val stream: Stream, val ctl: DlCtl?, val entry: TEntry?, val media: Title, val season: String, val episode: String) : Screen
     data class Torrents(val title: Title, val season: String, val episode: String) : Screen
     data class Fetch(val title: Title, val season: String, val episode: String, val entry: TEntry) : Screen
 }
@@ -125,7 +133,9 @@ class DlCtl(val handle: TorrentHandle) {
 private fun App() {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var forward by remember { mutableStateOf(true) }
+    var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         SubsApi.init(context)
         withContext(Dispatchers.IO) {
@@ -153,6 +163,7 @@ private fun App() {
                 is Screen.Home -> MoviesHome(
                     onWatch = { t, seas, ep ->
                         forward = true
+                        autoRelease = true
                         screen = Screen.Torrents(t, seas, ep)
                     },
                 )
@@ -162,18 +173,36 @@ private fun App() {
                     ctl = s.ctl,
                     onBack = {
                         s.ctl?.stop()
+                        val e = s.entry
+                        if (e != null && s.stream.auth != null) {
+                            scope.launch(Dispatchers.IO) {
+                                Seedbox.cfg()?.let { Seedbox.delete(it, e.infoHash) }
+                            }
+                        }
                         forward = false
                         screen = Screen.Home
+                    },
+                    onGiveUp = {
+                        s.entry?.let { Torrents.DeadReleases.hashes.add(it.infoHash) }
+                        s.ctl?.stop()
+                        forward = false
+                        autoRelease = false
+                        screen = Screen.Torrents(s.media, s.season, s.episode)
                     },
                 )
                 is Screen.Torrents -> TorrentsScreen(
                     title = s.title,
                     season = s.season,
                     episode = s.episode,
+                    autoplay = autoRelease,
                     onFetch = {
                         e ->
                         forward = true
                         screen = Screen.Fetch(s.title, s.season, s.episode, e)
+                    },
+                    onSeedReady = { stream, e ->
+                        forward = true
+                        screen = Screen.Player(s.title.title, stream, null, e, s.title, s.season, s.episode)
                     },
                     onBack = {
                         forward = false
@@ -192,10 +221,11 @@ private fun App() {
                         dir = dir,
                         onPlay = { stream, ctl ->
                             forward = true
-                            screen = Screen.Player(s.title.title, stream, ctl)
+                            screen = Screen.Player(s.title.title, stream, ctl, s.entry, s.title, s.season, s.episode)
                         },
                         onBack = {
                             forward = false
+                            autoRelease = false
                             screen = Screen.Torrents(s.title, s.season, s.episode)
                         },
                     )
@@ -296,10 +326,11 @@ private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConf
         .build()
 
 @Composable
-private fun TorrentsScreen(title: Title, season: String, episode: String, onFetch: (TEntry) -> Unit, onBack: () -> Unit) {
+private fun TorrentsScreen(title: Title, season: String, episode: String, autoplay: Boolean, onFetch: (TEntry) -> Unit, onSeedReady: (Stream, TEntry) -> Unit, onBack: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var entries by remember { mutableStateOf<List<TEntry>?>(null) }
     var err by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
     BackHandler(onBack = onBack)
     LaunchedEffect(title.id, season, episode) {
         try {
@@ -312,7 +343,55 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, onFetc
             val found = withContext(Dispatchers.IO) {
                 Torrents.query(imdb, title.kind, season, episode)
             }
-            if (found.isEmpty()) err = "no torrents" else entries = found
+            if (found.isEmpty()) {
+                err = "no torrents"
+            } else {
+                entries = found
+                val pick = Torrents.best(found)
+                val seed = Seedbox.cfg()
+                if (autoplay && seed != null && pick != null) {
+                    status = "Sending to seedbox…"
+                    val sent = withContext(Dispatchers.IO) {
+                        Seedbox.add(seed, Torrents.magnet(pick), pick.infoHash)
+                    }
+                    if (!sent) {
+                        status = null
+                        return@LaunchedEffect
+                    }
+                    val t0 = System.currentTimeMillis()
+                    while (System.currentTimeMillis() - t0 < 8 * 60 * 1000) {
+                        val fs = withContext(Dispatchers.IO) { Seedbox.files(seed, pick.infoHash) }
+                        val vid = fs.filter {
+                            it.path.substringAfterLast('.', "").lowercase() in VIDEO_EXTS
+                        }.maxByOrNull { it.size }
+                        if (vid != null && vid.size > 0) {
+                            val needBytes = minOf(60000000L, maxOf(25000000L, vid.size * 8 / 100))
+                            status = "Cloud fetching ${(100 * vid.progress).toInt()}%…"
+                            if (vid.progress * vid.size >= needBytes) {
+                                AppLog.d("seed play ${vid.path.take(60)} ${(vid.size / 1048576)}MB")
+                                onSeedReady(
+                                    Stream(
+                                        url = Seedbox.fileUrl(seed, pick.infoHash, vid.path),
+                                        isHls = false, subs = emptyList(), referer = seed.base,
+                                        sampleMp4 = null, auth = Seedbox.authHeader(seed),
+                                    ),
+                                    pick,
+                                )
+                                return@LaunchedEffect
+                            }
+                        } else {
+                            status = "Waiting for metadata…"
+                        }
+                        delay(2000)
+                    }
+                    status = null
+                } else if (autoplay) {
+                    pick?.let {
+                        AppLog.d("autoplay ${it.name.take(60)} seeds=${it.seeds}")
+                        onFetch(it)
+                    }
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -330,8 +409,10 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, onFetc
             Text(title.title, Modifier.weight(1f), maxLines = 1, style = MaterialTheme.typography.titleMedium)
         }
         when {
-            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            loading -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 CircularProgressIndicator()
+                Spacer(Modifier.height(12.dp))
+                Text(status ?: "Finding best release…", style = MaterialTheme.typography.bodySmall)
             }
             err != null && entries == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(err!!)
@@ -448,17 +529,20 @@ private fun FetchScreen(
                     lastLog = System.currentTimeMillis()
                     AppLog.d("fetch ${done / 1048576}MB/${p.size / 1048576}MB ${st.downloadRate() / 1024}KB/s ${st.numPeers()}p")
                 }
-                val need = minOf(25000000L, maxOf(8000000L, p.size * 4 / 100))
+                // start only once the head is dense, else Exo reads ahead into sparse ranges
+                val need = minOf(60000000L, maxOf(25000000L, p.size * 8 / 100))
+                val headNeed = minOf(need, 30000000L)
                 if (System.currentTimeMillis() - lastArm > 15000) {
                     lastArm = System.currentTimeMillis()
                     withContext(Dispatchers.IO) { TorrentEngine.armStream(h, p.index) }
                 }
-                if (done >= need || (done >= p.size && p.size > 0)) {
+                val head = withContext(Dispatchers.IO) { TorrentEngine.densePrefix(h, p.index, p.size) }
+                if ((done >= need && head >= headNeed) || (done >= p.size && p.size > 0)) {
                     subsJob.join()
                     val subs = vlSubs
                     val trusted = subs.any { it.url.startsWith("file") && !it.url.contains("/subs/") && it.label.contains("english", true) }
                     val full = done >= p.size && p.size > 0
-                    AppLog.d("fetch play ${p.file.name} ${done / 1048576}MB subs=${subs.size} ${subs.take(4).joinToString { it.label }} trusted=$trusted full=$full")
+                    AppLog.d("fetch play ${p.file.name} ${done / 1048576}MB head=${head / 1048576}MB subs=${subs.size} ${subs.take(4).joinToString { it.label }} trusted=$trusted full=$full")
                     ctl!!.fileIndex = p.index
                     ctl!!.fileSize = p.size
                     onPlay(
@@ -512,6 +596,23 @@ private fun FetchScreen(
     }
 }
 
+private fun rankEmbed(names: List<String>): Int {
+    var best = -1
+    var bestScore = Int.MIN_VALUE
+    names.forEachIndexed { i, n ->
+        val l = n.lowercase()
+        if (!l.substringBefore(":").startsWith("en") && "english" !in l) return@forEachIndexed
+        var s = 0
+        if ("dialog" in l || "full" in l || "complete" in l) s += 10
+        if ("sign" in l || "song" in l || "s&s" in l) s -= 10
+        if (s > bestScore) {
+            bestScore = s
+            best = i
+        }
+    }
+    return best
+}
+
 private fun detectLang(cues: List<VidLove.Cue>): String? {
     if (cues.isEmpty()) return null
     val step = maxOf(1, cues.size / 60)
@@ -554,8 +655,25 @@ private fun buildMediaFactory(
 ): androidx.media3.exoplayer.source.DefaultMediaSourceFactory {
     val retry = androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(3)
     if (stream.url.startsWith("file")) {
+        // incomplete torrent file: hide the length so Exo plays progressively
+        // instead of seeking cue tables that are not downloaded yet
         return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-            DefaultDataSource.Factory(context),
+            DataSource.Factory {
+                val inner = FileDataSource()
+                object : DataSource {
+                    override fun open(dataSpec: DataSpec): Long {
+                        inner.open(dataSpec)
+                        return C.LENGTH_UNSET.toLong()
+                    }
+                    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+                        inner.read(buffer, offset, length)
+                    override fun getUri(): android.net.Uri? = inner.uri
+                    override fun getResponseHeaders(): Map<String, List<String>> = inner.responseHeaders
+                    override fun close() = inner.close()
+                    override fun addTransferListener(transferListener: TransferListener) =
+                        inner.addTransferListener(transferListener)
+                }
+            },
         ).setLoadErrorHandlingPolicy(retry)
     }
     return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
@@ -572,7 +690,7 @@ private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: D
         "Referer" to stream.referer,
         "Origin" to origin,
         "User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
-    )
+    ) + (stream.auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
     val selector = DefaultTrackSelector(context).apply {
         parameters = buildUponParameters()
             .setPreferredAudioLanguage("en")
@@ -580,9 +698,18 @@ private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: D
             .build()
     }
     val mediaFactory = buildMediaFactory(context, stream, headers, ctl)
+    // torrent files: tiny readahead so Exo can't sprint past downloaded pieces
+    val loadControl = if (stream.url.startsWith("file")) {
+        DefaultLoadControl.Builder()
+            .setBufferDurationsMs(5000, 15000, 1000, 2000)
+            .build()
+    } else {
+        DefaultLoadControl()
+    }
     return ExoPlayer.Builder(context)
         .setTrackSelector(selector)
         .setMediaSourceFactory(mediaFactory)
+        .setLoadControl(loadControl)
         .build()
         .apply {
             setMediaItem(itemFor(stream.url, stream.isHls, configsFor(stream.subs)))
@@ -593,11 +720,17 @@ private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: D
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () -> Unit) {
+private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () -> Unit, onGiveUp: () -> Unit) {
     val context = LocalContext.current
     val resumeScope = rememberCoroutineScope()
+    var gaveUpSent by remember { mutableStateOf(false) }
+    var resumeJob: Job? by remember { mutableStateOf(null) }
+    var lastErrPos by remember { mutableStateOf(-1L) }
+    var lastErrDl by remember { mutableStateOf(0L) }
+    var sameSpotStreak by remember { mutableStateOf(0) }
     var buildError by remember { mutableStateOf<String?>(null) }
-    var emberDone by remember { mutableStateOf(false) }
+    var forcedNames by remember { mutableStateOf<List<String>?>(null) }
+    var latestTracks by remember { mutableStateOf<androidx.media3.common.Tracks?>(null) }
     var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var embedIdx by remember { mutableStateOf(-1) }
     var aiSubUrl by remember { mutableStateOf<String?>(null) }
@@ -625,20 +758,52 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
         return
     }
     val exo = player
+    LaunchedEffect(latestTracks) {
+        val t = latestTracks ?: return@LaunchedEffect
+        val g = t.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT }?.mediaTrackGroup
+            ?: return@LaunchedEffect
+        val names = (0 until g.length).map { i ->
+            val f = g.getFormat(i)
+            val lab = f.label ?: ""
+            if (lab.isNotEmpty()) "${f.language ?: "und"}:$lab" else (f.language ?: "und")
+        }
+        if (names.isEmpty()) return@LaunchedEffect
+        embedGroup = g
+        if (names != embedNames) embedNames = names
+        if (stream.subs.isEmpty() && names != forcedNames) {
+            forcedNames = names
+            val idx = rankEmbed(names)
+            AppLog.d("embed force pick $idx from $names")
+            if (idx >= 0) {
+                val sel = exo.trackSelector as? DefaultTrackSelector
+                if (sel != null) {
+                    sel.parameters = sel.buildUponParameters()
+                        .setOverrideForType(
+                            androidx.media3.common.TrackSelectionOverride(g, listOf(idx)),
+                        )
+                        .build()
+                    AppLog.d("embed subs forced $idx")
+                }
+            }
+        }
+    }
     DisposableEffect(exo) {        val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                latestTracks = tracks
                 val audios = tracks.groups
                     .filter { it.type == C.TRACK_TYPE_AUDIO }
-                    .map { g ->
+                    .mapNotNull { g ->
+                        if (g.length == 0) return@mapNotNull null
                         val f = g.getTrackFormat(0)
-                        "${f.language}:${f.sampleMimeType?.substringAfterLast('/')} ${f.channelCount}ch${if (g.isSelected) "*" else ""}"
+                        "${f.language}:${f.sampleMimeType?.substringAfterLast('/')} ${f.channelCount}ch${if (g.isSelected) "*" else ""}${if (!g.isSupported) " UNSUP" else ""}"
                     }
                 if (audios.isNotEmpty()) {
                     AppLog.d("audio [${audios.joinToString()}]")
                 }
                 val texts = tracks.groups
                     .filter { it.type == C.TRACK_TYPE_TEXT }
-                    .map { g ->
+                    .mapNotNull { g ->
+                        if (g.length == 0) return@mapNotNull null
                         val f = g.getTrackFormat(0)
                         "${f.language}:${f.label}${if (g.isSelected) "*" else ""}"
                     }
@@ -647,58 +812,13 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                 }
                 val videos = tracks.groups
                     .filter { it.type == C.TRACK_TYPE_VIDEO }
-                    .map { g ->
+                    .mapNotNull { g ->
+                        if (g.length == 0) return@mapNotNull null
                         val f = g.getTrackFormat(0)
                         "${f.width}x${f.height}:${f.sampleMimeType?.substringAfterLast('/')}${if (g.isSelected) "*" else ""}"
                     }
                 if (videos.isNotEmpty()) {
                     AppLog.d("video [${videos.joinToString()}]")
-                }
-                run {
-                    val g = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT }
-                    if (g != null) {
-                        embedGroup = g.mediaTrackGroup
-                        val names = (0 until g.mediaTrackGroup.length).map { i ->
-                            val f = g.mediaTrackGroup.getFormat(i)
-                            val lang = f.language ?: "und"
-                            val lab = f.label ?: ""
-                            if (lab.isNotEmpty()) "$lang:$lab" else lang
-                        }
-                        if (names != embedNames) embedNames = names
-                    }
-                }
-                if (!emberDone && stream.subs.isEmpty()) {
-                    emberDone = true
-                    try {
-                        val group = embedGroup
-                        if (group != null) {
-                            var idx = -1
-                            for (i in 0 until group.length) {
-                                val f = group.getFormat(i)
-                                if ((f.language ?: "").startsWith("en", true) ||
-                                    (f.label ?: "").contains("english", true)
-                                ) {
-                                    idx = i
-                                    break
-                                }
-                            }
-                            if (idx >= 0) {
-                                val sel = player.trackSelector as? DefaultTrackSelector
-                                if (sel != null) {
-                                    val ov = androidx.media3.common.TrackSelectionOverride(
-                                        group,
-                                        listOf(idx),
-                                    )
-                                    sel.parameters = sel.buildUponParameters()
-                                        .setOverrideForType(ov)
-                                        .build()
-                                    AppLog.d("embed subs forced $idx")
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        AppLog.d("embed pick fail ${e.message}")
-                    }
                 }
             }
 
@@ -737,10 +857,26 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                     }
                 }
                 val c = ctl
-                if (c != null && c.active && c.tries < 12) {
+                if (c != null && c.active) {
+                    val errPos = exo.currentPosition
+                    val errDl = try {
+                        c.handle.status().totalDone()
+                    } catch (_: Exception) {
+                        0L
+                    }
+                    if (lastErrPos >= 0 && errPos - lastErrPos in -5000..5000 && errDl - lastErrDl in -2000000..2000000) {
+                        sameSpotStreak += 1
+                    } else {
+                        sameSpotStreak = 0
+                    }
+                    lastErrPos = errPos
+                    lastErrDl = errDl
+                }
+                if (c != null && c.active && c.tries < 12 && sameSpotStreak < 3) {
                     c.tries += 1
-                    AppLog.d("player resume ${c.tries} awaiting +5MB")
-                    resumeScope.launch {
+                    AppLog.d("player resume ${c.tries} awaiting dense window")
+                    resumeJob?.cancel()
+                    resumeJob = resumeScope.launch {
                         val before = try {
                             c.handle.status().totalDone()
                         } catch (_: Exception) {
@@ -749,26 +885,41 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                         val pos = exo.currentPosition
                         val dur = exo.duration.takeIf { it > 0 } ?: 0L
                         val t0 = System.currentTimeMillis()
-                        while (System.currentTimeMillis() - t0 < 120000) {
+                        var dense = false
+                        while (System.currentTimeMillis() - t0 < 180000) {
                             if (!c.active) return@launch
-                            val now = try {
-                                c.handle.status().totalDone()
-                            } catch (_: Exception) {
-                                before
-                            }
-                            if (now > before + 5000000) break
                             if (dur > 0 && c.fileSize > 0 && c.fileIndex >= 0) {
                                 try {
                                     val ti = c.handle.torrentFile()
                                     var start = 0L
                                     for (i in 0 until c.fileIndex) start += ti.files().fileSize(i)
                                     val plen = ti.pieceLength().toLong()
-                                    val at = start + (pos.toDouble() / dur * c.fileSize).toLong()
+                                    val fromAt = start + (pos.toDouble() / dur * c.fileSize).toLong()
+                                    val toAt = start + minOf(c.fileSize, ((pos + 30000).toDouble() / dur * c.fileSize).toLong())
                                     val bits = c.handle.status(TorrentHandle.QUERY_PIECES).pieces()
-                                    val piece = (at / plen).toInt()
-                                    if (piece >= 0 && piece < bits.size() && bits.getBit(piece)) break
+                                    var q = (fromAt / plen).toInt()
+                                    val last = (toAt / plen).toInt()
+                                    var missing = false
+                                    while (q <= last && q < bits.size()) {
+                                        if (!bits.getBit(q)) {
+                                            missing = true
+                                            try {
+                                                c.handle.setPieceDeadline(q, 7000)
+                                            } catch (_: Exception) {
+                                            }
+                                        }
+                                        q++
+                                    }
+                                    if (!missing) break
                                 } catch (_: Exception) {
                                 }
+                            } else {
+                                val now = try {
+                                    c.handle.status().totalDone()
+                                } catch (_: Exception) {
+                                    before
+                                }
+                                if (now > before + 5000000) break
                             }
                             delay(2000)
                         }
@@ -789,6 +940,11 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                     }
                 } else if (c != null && c.active) {
                     AppLog.d("player gave up after ${c.tries} retries")
+                    if (!gaveUpSent && (exo.currentPosition < 10_000 || sameSpotStreak >= 3)) {
+                        gaveUpSent = true
+                        AppLog.d("player unplayable, back to releases")
+                        onGiveUp()
+                    }
                 }
             }
         }
@@ -885,7 +1041,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
         }
     }
     fun runQwenSubs() {
-        if (aiRunning) return
+        if (aiRunning || !stream.url.startsWith("file")) return
         aiRunning = true
         nudgeScope.launch {
             try {
@@ -1031,6 +1187,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     var langDone by remember { mutableStateOf(false) }
     LaunchedEffect(embedNames) {
         if (langDone || stream.subs.isNotEmpty() || embedNames.isEmpty()) return@LaunchedEffect
+        if (!stream.url.startsWith("file")) return@LaunchedEffect
         langDone = true
         val path = try {
             android.net.Uri.parse(stream.url).path
@@ -1043,8 +1200,15 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
         val langs = tracks.map { t -> detectLang(t.cues) ?: "und" }
         AppLog.d("embed lang $langs")
         embedNames = embedNames.mapIndexed { i, n -> "$n:${langs.getOrNull(i) ?: "und"}" }
-        val en = langs.indexOfFirst { it == "en" }
-        if (en >= 0) pickEmbed(en, "auto")
+        var fullest = -1
+        var fullestCues = -1
+        tracks.forEachIndexed { i, t ->
+            if (langs.getOrNull(i) == "en" && t.cues.size > fullestCues) {
+                fullestCues = t.cues.size
+                fullest = i
+            }
+        }
+        if (fullest >= 0) pickEmbed(fullest, "auto")
     }
 
     Column(Modifier.fillMaxSize()) {
