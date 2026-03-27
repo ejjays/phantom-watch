@@ -6,9 +6,9 @@
 # Prints the admin password + app config lines at the end. Re-runnable.
 set -euo pipefail
 ADMIN_USER="${1:?usage: sudo bash setup-seedbox.sh <basic-auth-user>}"
-ADMIN_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+ADMIN_PASS="$(python3 -c 'import secrets, string; print("".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(24)))')"
 PUB_IP="$(curl -s --max-time 10 ifconfig.me || hostname -I | awk '{print $1}')"
-DOMAIN="$(echo "$PUB_IP" | tr '.' '-')".sslip.io"
+DOMAIN="$(echo "$PUB_IP" | tr '.' '-').sslip.io"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
@@ -22,8 +22,8 @@ cat > /home/seedbox/.config/qBittorrent/qBittorrent.conf <<'EOF'
 [Preferences]
 WebUI\Address=127.0.0.1
 WebUI\Port=8080
-WebUI\LocalHostAuth=true
-WebUI\AuthSubnetWhitelist=127.0.0.1/32
+WebUI\LocalHostAuth=false
+WebUI\AuthSubnetWhitelist=0.0.0.0/0, ::/0
 WebUI\AuthSubnetWhitelistEnabled=true
 WebUI\HostHeaderValidation=false
 WebUI\ReverseProxySupportEnabled=true
@@ -54,7 +54,13 @@ systemctl daemon-reload
 systemctl enable --now qbittorrent
 
 if ! command -v caddy >/dev/null; then
-  curl -sL --max-time 60 "https://github.com/caddyserver/caddy/releases/latest/download/caddy_2.9.1_linux_arm64.tar.gz" -o /tmp/caddy.tgz
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    x86_64) CADDY_ARCH="amd64" ;;
+    aarch64) CADDY_ARCH="arm64" ;;
+    *) CADDY_ARCH="amd64" ;;
+  esac
+  curl -sL --max-time 60 "https://github.com/caddyserver/caddy/releases/download/v2.9.1/caddy_2.9.1_linux_${CADDY_ARCH}.tar.gz" -o /tmp/caddy.tgz
   tar -xzf /tmp/caddy.tgz -C /usr/bin caddy
   chmod +x /usr/bin/caddy
 fi
@@ -96,6 +102,7 @@ EOF
 fi
 systemctl daemon-reload
 systemctl enable --now caddy
+systemctl restart caddy
 
 cat > /usr/local/bin/cleanup-seed.py <<'EOF'
 #!/usr/bin/env python3
@@ -132,13 +139,23 @@ while old or (cands and disk_pct() > 0.85):
         break
 EOF
 chmod +x /usr/local/bin/cleanup-seed.py
-(crontab -l 2>/dev/null; echo "17 4 * * * /usr/local/bin/cleanup-seed.py >>/var/log/seed-cleanup.log 2>&1") | crontab -
+(crontab -l 2>/dev/null || true; echo "17 4 * * * /usr/local/bin/cleanup-seed.py >>/var/log/seed-cleanup.log 2>&1") | crontab -
 
+chmod 755 /srv/seed || true
 ufw allow 22/tcp >/dev/null 2>&1 || true
 ufw allow 80/tcp >/dev/null 2>&1 || true
 ufw allow 443/tcp >/dev/null 2>&1 || true
 ufw allow 6881/tcp >/dev/null 2>&1 || true
 ufw allow 6881/udp >/dev/null 2>&1 || true
+
+# Oracle Linux / Ubuntu iptables default reject rule handling
+if iptables -L INPUT -n | grep -q "reject-with icmp-host-prohibited"; then
+  for port in 80 443 6881; do
+    iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null || iptables -I INPUT 6 -p tcp --dport "$port" -j ACCEPT
+  done
+  iptables -C INPUT -p udp --dport 6881 -j ACCEPT 2>/dev/null || iptables -I INPUT 6 -p udp --dport 6881 -j ACCEPT
+  command -v netfilter-persistent >/dev/null && netfilter-persistent save 2>/dev/null || true
+fi
 
 echo "=== SEEDBOX READY ==="
 echo "base=https://$DOMAIN"
