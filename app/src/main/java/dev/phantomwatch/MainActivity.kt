@@ -318,12 +318,18 @@ private fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.S
 }
 
 @OptIn(UnstableApi::class)
-private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConfiguration>): MediaItem =
-    MediaItem.Builder()
+private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConfiguration>): MediaItem {
+    val low = url.lowercase()
+    val b = MediaItem.Builder()
         .setUri(url)
-        .setMimeType(if (hls) MimeTypes.APPLICATION_M3U8 else MimeTypes.VIDEO_MP4)
         .setSubtitleConfigurations(cfgs)
-        .build()
+    when {
+        hls || ".m3u8" in low -> b.setMimeType(MimeTypes.APPLICATION_M3U8)
+        ".mkv" in low || ".mka" in low || ".webm" in low -> Unit
+        else -> b.setMimeType(MimeTypes.VIDEO_MP4)
+    }
+    return b.build()
+}
 
 @Composable
 private fun TorrentsScreen(title: Title, season: String, episode: String, autoplay: Boolean, onFetch: (TEntry) -> Unit, onSeedReady: (Stream, TEntry) -> Unit, onBack: () -> Unit) {
@@ -840,6 +846,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                 }
                 AppLog.d("player error ${error.errorCodeName} http=${cause?.responseCode} pos=${exo.currentPosition / 1000}s buf=${exo.bufferedPosition / 1000}s dur=${exo.duration / 1000}s")
                 AppLog.d("player cause $chain")
+                AppLog.d("player stack ${android.util.Log.getStackTraceString(error).take(3000)}")
                 if (chain.contains("FileNotFound") || chain.contains("ENOENT")) {
                     try {
                         val f = android.net.Uri.parse(stream.url).path?.let { java.io.File(it) }
