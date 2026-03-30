@@ -37,8 +37,8 @@ object Seedbox {
         val form = FormBody.Builder()
             .add("urls", magnet)
             .add("savepath", "/srv/seed/$saveName")
-            .add("sequentialDownload", "true")
-            .add("firstLastPiecePrio", "true")
+            .add("sequentialDownload", "false")
+            .add("firstLastPiecePrio", "false")
             .build()
         return try {
             call(c, "/qbt/api/v2/torrents/add", form)
@@ -59,6 +59,27 @@ object Seedbox {
             }
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    fun pieceStates(c: Cfg, hash: String): List<Int> {
+        return try {
+            val arr = JSONArray(call(c, "/qbt/api/v2/torrents/pieceStates?hash=$hash"))
+            List(arr.length()) { arr.optInt(it, -1) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    data class SeedStat(val progress: Double, val speed: Long, val eta: Long)
+
+    fun stat(c: Cfg, hash: String): SeedStat? {
+        return try {
+            val arr = JSONArray(call(c, "/qbt/api/v2/torrents/info?hashes=$hash"))
+            val o = arr.optJSONObject(0) ?: return null
+            SeedStat(o.optDouble("progress"), o.optLong("dlspeed"), o.optLong("eta"))
+        } catch (_: Exception) {
+            null
         }
     }
 

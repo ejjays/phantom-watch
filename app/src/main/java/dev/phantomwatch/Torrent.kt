@@ -50,6 +50,12 @@ object Torrents {
         return Regex("[0-9]+").find(title.substring(i))?.value?.toIntOrNull() ?: 0
     }
 
+    private fun sizeBytes(size: String): Long {
+        val m = Regex("([0-9.]+)\\s*(GB|MB)").find(size) ?: return 0L
+        val n = m.groupValues[1].toDoubleOrNull() ?: 0.0
+        return (n * if (m.groupValues[2] == "GB") 1_000_000_000L else 1_000_000L).toLong()
+    }
+
     suspend fun query(imdb: String, kind: String, season: String, episode: String): List<TEntry> =
         withContext(Dispatchers.IO) {
             val id = if (kind == "movie") "movie/$imdb" else "series/$imdb:$season:$episode"
@@ -92,6 +98,15 @@ object Torrents {
                     if ("engsub" in t || "english" in t) s += 5
                     if (audioDecoders["eac3"] == false && ("eac3" in t || "ddp" in t || "dd+" in t || "dolby" in t)) s -= 40
                     if (audioDecoders["dts"] == false && ("dts" in t || "truehd" in t || "true-hd" in t || "atmos" in t)) s -= 40
+                    s += minOf(25, e.seeds / 10)
+                    if (kind != "movie") {
+                        if (Regex("s0*$season" + "e0*$episode\\b").containsMatchIn(t)) s += 60
+                        if ("batch" in t) s -= 40
+                        if (!Regex("s\\d+e\\d+|e\\d{2,}|ep?\\.?\\d+|\\d+x\\d+").containsMatchIn(t)) s -= 25
+                        if (sizeBytes(e.size) > 2_000_000_000L) s -= 30
+                    } else if (sizeBytes(e.size) > 12_000_000_000L) {
+                        s -= 15
+                    }
                     s
                 }.thenByDescending { e ->
                     val t = e.name.lowercase()

@@ -53,6 +53,28 @@ EOF
 systemctl daemon-reload
 systemctl enable --now qbittorrent
 
+for i in $(seq 1 30); do
+  curl -s --max-time 5 http://127.0.0.1:8080/api/v2/app/version >/dev/null 2>&1 && break
+  sleep 10
+done
+python3 - <<'EOF'
+import json, urllib.request
+trs = ["udp://tracker.opentrackr.org:1337/announce", "udp://open.stealth.si:80/announce",
+  "udp://tracker.torrent.eu.org:451/announce", "udp://explodie.org:6969/announce",
+  "udp://tracker.bittor.pw:6969/announce", "udp://tracker0.ufibox.com:6969/announce",
+  "udp://exodus.desync.com:6969/announce", "udp://tracker.moeking.me:6969/announce",
+  "udp://tracker1.bt.moack.co.kr:80/announce", "udp://tracker2.dler.org:80/announce"]
+payload = json.dumps({"listen_port": 6881, "announce_to_all_trackers": True,
+  "announce_to_all_tiers": True, "add_trackers_enabled": True, "add_trackers": "\n".join(trs)})
+req = urllib.request.Request("http://127.0.0.1:8080/api/v2/app/setPreferences",
+  data=urllib.parse.urlencode({"json": payload}).encode())
+try:
+    urllib.request.urlopen(req, timeout=20).read()
+    print("qbt tuned")
+except Exception as e:
+    print("qbt tune skipped:", e)
+EOF
+
 if ! command -v caddy >/dev/null; then
   ARCH="$(uname -m)"
   case "$ARCH" in

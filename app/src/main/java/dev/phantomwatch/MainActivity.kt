@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.media3.common.C
@@ -87,7 +88,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import dev.phantomwatch.ui.Mono
 import dev.phantomwatch.ui.MoviesHome
+import dev.phantomwatch.ui.Slate400
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -325,8 +328,7 @@ private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConf
         .setSubtitleConfigurations(cfgs)
     when {
         hls || ".m3u8" in low -> b.setMimeType(MimeTypes.APPLICATION_M3U8)
-        ".mkv" in low || ".mka" in low || ".webm" in low -> Unit
-        else -> b.setMimeType(MimeTypes.VIDEO_MP4)
+        else -> Unit
     }
     return b.build()
 }
@@ -357,6 +359,8 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, autopl
                 val seed = Seedbox.cfg()
                 if (autoplay && seed != null && pick != null) {
                     status = "Sending to seedbox…"
+                    AppLog.d("seed pick ${pick.name.take(60)} ${pick.size} seeds=${pick.seeds}")
+                    val sentAt = System.currentTimeMillis()
                     val sent = withContext(Dispatchers.IO) {
                         Seedbox.add(seed, Torrents.magnet(pick), pick.infoHash)
                     }
@@ -364,17 +368,38 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, autopl
                         status = null
                         return@LaunchedEffect
                     }
+                    AppLog.d("seed sent +${System.currentTimeMillis() - sentAt}ms")
+                    var metaLogged = false
+                    var lastProg = 0.0
+                    var lastChange = System.currentTimeMillis()
                     val t0 = System.currentTimeMillis()
-                    while (System.currentTimeMillis() - t0 < 8 * 60 * 1000) {
+                    while (System.currentTimeMillis() - t0 < 25 * 60 * 1000 &&
+                        System.currentTimeMillis() - lastChange < 3 * 60 * 1000
+                    ) {
                         val fs = withContext(Dispatchers.IO) { Seedbox.files(seed, pick.infoHash) }
+                        if (fs.isNotEmpty() && !metaLogged) {
+                            metaLogged = true
+                            AppLog.d("seed meta +${System.currentTimeMillis() - sentAt}ms files=${fs.size}")
+                        }
+                        val st = withContext(Dispatchers.IO) { Seedbox.stat(seed, pick.infoHash) }
                         val vid = fs.filter {
                             it.path.substringAfterLast('.', "").lowercase() in VIDEO_EXTS
                         }.maxByOrNull { it.size }
                         if (vid != null && vid.size > 0) {
-                            val needBytes = minOf(60000000L, maxOf(25000000L, vid.size * 8 / 100))
-                            status = "Cloud fetching ${(100 * vid.progress).toInt()}%…"
-                            if (vid.progress * vid.size >= needBytes) {
-                                AppLog.d("seed play ${vid.path.take(60)} ${(vid.size / 1048576)}MB")
+                            if (vid.progress > lastProg) {
+                                lastProg = vid.progress
+                                lastChange = System.currentTimeMillis()
+                            }
+                            status = buildString {
+                                append("Cloud fetching ${(100 * vid.progress).toInt()}%")
+                                val spd = (st?.speed ?: 0L) / 1048576.0
+                                if (spd > 0.05) append(" · ${"%.1f".format(spd)}MB/s")
+                                val eta = st?.eta ?: -1L
+                                if (eta > 0) append(if (eta >= 3600) " · eta ${eta / 3600}h${(eta % 3600) / 60}m" else " · eta ${eta / 60}m${eta % 60}s")
+                                append("…")
+                            }
+                            if (vid.progress >= 0.999) {
+                                AppLog.d("seed play ${vid.path.take(60)} ${(vid.size / 1048576)}MB at ${(100 * vid.progress).toInt()}%")
                                 onSeedReady(
                                     Stream(
                                         url = Seedbox.fileUrl(seed, pick.infoHash, vid.path),
@@ -741,6 +766,8 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     var embedIdx by remember { mutableStateOf(-1) }
     var aiSubUrl by remember { mutableStateOf<String?>(null) }
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
+    var frontierMs by remember { mutableStateOf(0L) }
+    var fillNote by remember { mutableStateOf<String?>(null) }
     BackHandler(onBack = onBack)
     LaunchedEffect(title) { AppLog.d("screen $title") }
     val player: ExoPlayer? = remember {
@@ -837,6 +864,17 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                     else -> "$state"
                 }
                 AppLog.d("player $name")
+            }
+
+            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+                resumeJob?.cancel()
+                val f = frontierMs
+                val dur = exo.duration.takeIf { it > 0 } ?: 0L
+                if (f > 0 && dur > 0 && f < dur - 5000 && newPosition.positionMs > f + 5000) {
+                    exo.seekTo(f)
+                    AppLog.d("seek clamped ${newPosition.positionMs / 1000}s to frontier ${f / 1000}s")
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -1171,6 +1209,43 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
             .build()
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
     }
+    LaunchedEffect(stream.url) {
+        while (true) {
+            try {
+                val dur = exo.duration.takeIf { it > 0 } ?: 0L
+                if (dur > 0) {
+                    val frac = withContext(Dispatchers.IO) {
+                        if (stream.auth != null) {
+                            val hash = stream.url.substringAfter("/files/").substringBefore("/")
+                            val cfg = Seedbox.cfg()
+                            if (cfg == null || hash.length < 10) return@withContext -1.0
+                            val states = Seedbox.pieceStates(cfg, hash)
+                            if (states.isEmpty()) return@withContext -1.0
+                            states.takeWhile { it == 2 }.size.toDouble() / states.size
+                        } else if (ctl != null && ctl.fileSize > 0 && ctl.fileIndex >= 0) {
+                            try {
+                                TorrentEngine.densePrefix(ctl.handle, ctl.fileIndex, ctl.fileSize).toDouble() / ctl.fileSize
+                            } catch (_: Exception) {
+                                -1.0
+                            }
+                        } else {
+                            1.0
+                        }
+                    }
+                    if (frac >= 0) {
+                        frontierMs = (frac * dur).toLong()
+                        fillNote = if (frac < 0.995) {
+                            if (stream.auth != null) "Cloud filling • full seek when done" else "Still downloading • full seek when done"
+                        } else {
+                            null
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+            delay(5000)
+        }
+    }
     fun pickEmbed(idx: Int, why: String) {
         val group = embedGroup ?: return
         if (idx !in 0 until group.length) return
@@ -1275,6 +1350,14 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                 Button(onClick = { cycleEmbed() }) { Text(cur) }
             } else {
                 Text("no subs", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        if (fillNote != null) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(fillNote!!, color = Slate400, fontSize = 11.sp, fontFamily = Mono)
             }
         }
     }
