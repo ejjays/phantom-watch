@@ -83,6 +83,7 @@ import com.frostwire.jlibtorrent.TorrentHandle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -186,11 +187,19 @@ private fun App() {
                         screen = Screen.Home
                     },
                     onGiveUp = {
-                        s.entry?.let { Torrents.DeadReleases.hashes.add(it.infoHash) }
-                        s.ctl?.stop()
-                        forward = false
-                        autoRelease = false
-                        screen = Screen.Torrents(s.media, s.season, s.episode)
+                        if (s.entry != null) {
+                            Torrents.DeadReleases.hashes.add(s.entry.infoHash)
+                            s.ctl?.stop()
+                            forward = false
+                            autoRelease = false
+                            screen = Screen.Torrents(s.media, s.season, s.episode)
+                        } else {
+                            Torrents.DeadReleases.urls.add(s.stream.url)
+                            s.ctl?.stop()
+                            forward = false
+                            autoRelease = true
+                            screen = Screen.Torrents(s.media, s.season, s.episode)
+                        }
                     },
                 )
                 is Screen.Torrents -> TorrentsScreen(
@@ -333,15 +342,55 @@ private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConf
     return b.build()
 }
 
+private const val TORRENTS_ENABLED = false
+
 @Composable
-private fun TorrentsScreen(title: Title, season: String, episode: String, autoplay: Boolean, onFetch: (TEntry) -> Unit, onSeedReady: (Stream, TEntry) -> Unit, onBack: () -> Unit) {
+private fun TorrentsScreen(title: Title, season: String, episode: String, autoplay: Boolean, onFetch: (TEntry) -> Unit, onSeedReady: (Stream, TEntry?) -> Unit, onBack: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var entries by remember { mutableStateOf<List<TEntry>?>(null) }
+    var formats by remember { mutableStateOf<List<VFormat>>(emptyList()) }
+    var formatSubs by remember { mutableStateOf<List<Sub>>(emptyList()) }
     var err by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
+    var imdbState by remember { mutableStateOf<String?>(null) }
     BackHandler(onBack = onBack)
     LaunchedEffect(title.id, season, episode) {
         try {
+            status = "Trying direct streams…"
+            val directJob = async {
+                VidStream.directAll(title.id, title.kind, season, episode, title.title)
+            }
+            val imdbJob = async {
+                VidLove.imdbOf(title.id, title.kind, BuildConfig.TMDB_API_KEY)?.removePrefix("tt")
+            }
+            val all = directJob.await()
+            val imdbDigits = imdbJob.await()
+            imdbState = imdbDigits
+            AppLog.d("imdb ${imdbDigits ?: "none"}")
+            val live = all.first.filter { it.url !in Torrents.DeadReleases.urls }
+            AppLog.d("direct ${live.size} formats subs=${all.second.size}")
+            if (live.isNotEmpty()) {
+                formats = live
+                formatSubs = all.second
+                if (autoplay) {
+                    val best = live.first()
+                    AppLog.d("direct play ${best.label} hls=${best.isHls}")
+                    onSeedReady(
+                        Stream(
+                            url = best.url, isHls = best.isHls,
+                            subs = all.second,
+                            referer = best.referer, sampleMp4 = null,
+                            imdb = imdbDigits,
+                        ),
+                        null,
+                    )
+                    return@LaunchedEffect
+                }
+            } else if (!TORRENTS_ENABLED) {
+                err = "No direct streams found"
+                return@LaunchedEffect
+            }
+            if (!TORRENTS_ENABLED) return@LaunchedEffect
             val key = BuildConfig.TMDB_API_KEY
             val imdb = withContext(Dispatchers.IO) { VidLove.imdbOf(title.id, title.kind, key) }
             if (imdb == null) {
@@ -445,8 +494,30 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, autopl
                 Spacer(Modifier.height(12.dp))
                 Text(status ?: "Finding best release…", style = MaterialTheme.typography.bodySmall)
             }
-            err != null && entries == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(err!!)
+            err != null && entries == null && formats.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(err ?: "No streams found")
+            }
+            !TORRENTS_ENABLED -> LazyColumn(Modifier.fillMaxSize()) {
+                items(formats, key = { it.url }) { f ->
+                    Column(
+                        Modifier.fillMaxWidth().clickable {
+                            onSeedReady(
+                                Stream(
+                                    url = f.url, isHls = f.isHls, subs = formatSubs,
+                                    referer = f.referer, sampleMp4 = null,
+                                    imdb = imdbState,
+                                ),
+                                null,
+                            )
+                        }.padding(12.dp),
+                    ) {
+                        Text(f.label, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            (if (f.height > 0) "${f.height}p · " else "") + if (f.isHls) "HLS" else "MP4",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
             }
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(entries ?: emptyList(), key = { it.infoHash }) { e ->
@@ -755,6 +826,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     val context = LocalContext.current
     val resumeScope = rememberCoroutineScope()
     var gaveUpSent by remember { mutableStateOf(false) }
+    var directErrs by remember { mutableStateOf(0) }
     var resumeJob: Job? by remember { mutableStateOf(null) }
     var lastErrPos by remember { mutableStateOf(-1L) }
     var lastErrDl by remember { mutableStateOf(0L) }
@@ -793,23 +865,30 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     val exo = player
     LaunchedEffect(latestTracks) {
         val t = latestTracks ?: return@LaunchedEffect
-        val g = t.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT }?.mediaTrackGroup
-            ?: return@LaunchedEffect
-        val names = (0 until g.length).map { i ->
-            val f = g.getFormat(i)
+        fun nameOf(f: androidx.media3.common.Format): String {
             val lab = f.label ?: ""
-            if (lab.isNotEmpty()) "${f.language ?: "und"}:$lab" else (f.language ?: "und")
+            return if (lab.isNotEmpty()) "${f.language ?: "und"}:$lab" else (f.language ?: "und")
         }
-        if (names.isEmpty()) return@LaunchedEffect
-        embedGroup = g
-        if (names != embedNames) embedNames = names
+        val flat = t.groups.filter { it.type == C.TRACK_TYPE_TEXT }.flatMap { grp ->
+            val mg = grp.mediaTrackGroup
+            (0 until mg.length).map { i -> Triple(mg, i, nameOf(mg.getFormat(i))) }
+        }
+        if (flat.isEmpty()) return@LaunchedEffect
+        val names = flat.map { it.third }
+        var wi = rankEmbed(names)
+        if (wi < 0 && names.size == 1) wi = 0
+        val dg = if (wi >= 0) flat[wi].first else flat.first().first
+        val dnames = (0 until dg.length).map { i -> nameOf(dg.getFormat(i)) }
+        embedGroup = dg
+        if (dnames != embedNames) embedNames = dnames
         if (stream.subs.isEmpty() && names != forcedNames) {
             forcedNames = names
-            val idx = rankEmbed(names)
-            AppLog.d("embed force pick $idx from $names")
-            if (idx >= 0) {
+            AppLog.d("embed force pick $wi from $names")
+            if (wi >= 0) {
+                val (g, idx) = flat[wi]
                 val sel = exo.trackSelector as? DefaultTrackSelector
                 if (sel != null) {
+                    embedIdx = idx
                     sel.parameters = sel.buildUponParameters()
                         .setOverrideForType(
                             androidx.media3.common.TrackSelectionOverride(g, listOf(idx)),
@@ -990,6 +1069,14 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                         AppLog.d("player unplayable, back to releases")
                         onGiveUp()
                     }
+                } else if (c == null && !TORRENTS_ENABLED) {
+                    directErrs += 1
+                    AppLog.d("player direct err $directErrs")
+                    if (directErrs >= 3 && !gaveUpSent && exo.currentPosition < 60_000) {
+                        gaveUpSent = true
+                        AppLog.d("player direct dead, next source")
+                        onGiveUp()
+                    }
                 }
             }
         }
@@ -1065,6 +1152,8 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     }
     var aiStatus by remember { mutableStateOf<String?>(null) }
     var aiRunning by remember { mutableStateOf(false) }
+    var osStatus by remember { mutableStateOf<String?>(null) }
+    var osRunning by remember { mutableStateOf(false) }
     var aiCues by remember { mutableStateOf<List<VidLove.Cue>>(emptyList()) }
     var lastNeed by remember { mutableStateOf(0) }
     suspend fun showAi() {
@@ -1082,6 +1171,87 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
         if (stream.subKey.isNotEmpty() && all.size >= 5) {
             withContext(Dispatchers.IO) {
                 SubsApi.store(stream.subKey, "AI English", VidLove.renderCues(all), "ai")
+            }
+        }
+    }
+    fun showOsSub(f: java.io.File, hash: String) {
+        val merged = (stream.subs + Sub("English", Uri.fromFile(f).toString())).distinctBy { it.url }
+        val pos = exo.currentPosition
+        val wasPlaying = exo.isPlaying
+        exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(merged)), pos)
+        exo.prepare()
+        if (wasPlaying) exo.play()
+        osStatus = "OS ✓"
+        AppLog.d("os applied $hash")
+    }
+    fun runOsSubs() {
+        if (osRunning) return
+        osRunning = true
+        nudgeScope.launch {
+            try {
+                val key = BuildConfig.OS_API_KEY
+                if (key.isEmpty()) {
+                    AppLog.d("os no api key")
+                    return@launch
+                }
+                delay(8000)
+                if (stream.subs.isNotEmpty() || embedIdx >= 0) {
+                    AppLog.d("os skipped, have subs")
+                    return@launch
+                }
+                osStatus = "OS…"
+                val headers = buildMap {
+                    put("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
+                    if (!stream.url.startsWith("file")) {
+                        put("Referer", stream.referer)
+                        put("Origin", "https://${Uri.parse(stream.referer).host}")
+                    }
+                    stream.auth?.let { put("Authorization", it) }
+                }
+                val hh = withContext(Dispatchers.IO) { OsSubs.hashOf(stream.url, headers) }
+                if (hh != null) {
+                    val (hash, size) = hh
+                    AppLog.d("os hash $hash $size")
+                    val hf = OsSubs.cached(context.cacheDir, hash)
+                        ?: withContext(Dispatchers.IO) {
+                            OsSubs.search(key, hash, size)?.let { id ->
+                                OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, hash) }
+                            }
+                        }
+                    if (hf != null) {
+                        showOsSub(hf, hash)
+                        return@launch
+                    }
+                    AppLog.d("os no hash match")
+                } else {
+                    AppLog.d("os unhashable")
+                }
+                if (stream.imdb.isNullOrEmpty()) {
+                    AppLog.d("os no imdb, stop")
+                    osStatus = null
+                    return@launch
+                }
+                AppLog.d("os imdb ${stream.imdb}")
+                val im = stream.imdb
+                OsSubs.cached(context.cacheDir, "imdb-$im")?.let { f ->
+                    showOsSub(f, "imdb-$im")
+                    return@launch
+                }
+                val f = withContext(Dispatchers.IO) {
+                    OsSubs.searchImdb(key, im)?.let { id ->
+                        OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, "imdb-$im") }
+                    }
+                }
+                if (f == null) {
+                    AppLog.d("os imdb none")
+                    osStatus = null
+                    return@launch
+                }
+                showOsSub(f, "imdb-$im")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                osStatus = null
             }
         }
     }
@@ -1208,6 +1378,9 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
             .setRendererDisabled(C.TRACK_TYPE_TEXT, subsOff)
             .build()
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
+    }
+    LaunchedEffect(stream.url) {
+        runOsSubs()
     }
     LaunchedEffect(stream.url) {
         while (true) {
@@ -1341,6 +1514,9 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                 TextButton(onClick = { runQwenSubs() }) { Text("AI") }
                 if (aiStatus != null) {
                     Text(aiStatus!!, style = MaterialTheme.typography.bodySmall)
+                }
+                if (osStatus != null) {
+                    Text(osStatus!!, style = MaterialTheme.typography.bodySmall)
                 }
                 if (syncStatus != null) {
                     Text(syncStatus!!, style = MaterialTheme.typography.bodySmall)

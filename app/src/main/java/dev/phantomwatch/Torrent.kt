@@ -121,6 +121,7 @@ object Torrents {
 
     object DeadReleases {
         val hashes = mutableSetOf<String>()
+        val urls = mutableSetOf<String>()
     }
 
     data class VidPick(val file: File, val index: Int, val size: Long)

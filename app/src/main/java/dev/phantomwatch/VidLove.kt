@@ -69,6 +69,7 @@ data class Stream(
     val complete: Boolean = true,
     val subKey: String = "",
     val auth: String? = null,
+    val imdb: String? = null,
 )
 
 private const val VIDLOVE_API = "https://api.vidlove.cc"
