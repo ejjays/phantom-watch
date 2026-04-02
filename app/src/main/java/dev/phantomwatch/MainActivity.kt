@@ -357,10 +357,10 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, autopl
     LaunchedEffect(title.id, season, episode) {
         try {
             status = "Trying direct streams…"
-            val directJob = async {
+            val directJob = async(Dispatchers.IO) {
                 VidStream.directAll(title.id, title.kind, season, episode, title.title)
             }
-            val imdbJob = async {
+            val imdbJob = async(Dispatchers.IO) {
                 VidLove.imdbOf(title.id, title.kind, BuildConfig.TMDB_API_KEY)?.removePrefix("tt")
             }
             val all = directJob.await()
@@ -840,6 +840,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
     var frontierMs by remember { mutableStateOf(0L) }
     var fillNote by remember { mutableStateOf<String?>(null) }
+    var lastSubSel by remember { mutableStateOf("") }
     BackHandler(onBack = onBack)
     LaunchedEffect(title) { AppLog.d("screen $title") }
     val player: ExoPlayer? = remember {
@@ -927,7 +928,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                     .mapNotNull { g ->
                         if (g.length == 0) return@mapNotNull null
                         val f = g.getTrackFormat(0)
-                        "${f.width}x${f.height}:${f.sampleMimeType?.substringAfterLast('/')}${if (g.isSelected) "*" else ""}"
+                        "${f.width}x${f.height}:${f.sampleMimeType?.substringAfterLast('/')}@${f.frameRate}fps${if (g.isSelected) "*" else ""}"
                     }
                 if (videos.isNotEmpty()) {
                     AppLog.d("video [${videos.joinToString()}]")
@@ -946,6 +947,9 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
             }
 
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    AppLog.d("seek ${oldPosition.positionMs / 1000}s to ${newPosition.positionMs / 1000}s")
+                }
                 if (reason != Player.DISCONTINUITY_REASON_SEEK) return
                 resumeJob?.cancel()
                 val f = frontierMs
@@ -1104,6 +1108,13 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
             }
             val req = okhttp3.Request.Builder().url(url)
                 .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
+                .apply {
+                    if (!url.startsWith("file")) {
+                        header("Referer", stream.referer)
+                        header("Origin", "https://${android.net.Uri.parse(stream.referer).host}")
+                    }
+                    stream.auth?.let { header("Authorization", it) }
+                }
                 .build()
             val call = VidLove.client().newCall(req)
             call.timeout().deadline(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -1195,7 +1206,7 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                     return@launch
                 }
                 delay(8000)
-                if (stream.subs.isNotEmpty() || embedIdx >= 0) {
+                if (stream.subs.isNotEmpty()) {
                     AppLog.d("os skipped, have subs")
                     return@launch
                 }
@@ -1385,6 +1396,26 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     LaunchedEffect(stream.url) {
         while (true) {
             try {
+                val sel = exo.currentTracks.groups
+                    .filter { it.type == C.TRACK_TYPE_TEXT }
+                    .flatMap { g ->
+                        (0 until g.mediaTrackGroup.length).map { i ->
+                            val f = g.mediaTrackGroup.getFormat(i)
+                            "${f.language}:${f.label}${if (g.isSelected) "*" else ""}"
+                        }
+                    }.joinToString()
+                if (sel != lastSubSel) {
+                    lastSubSel = sel
+                    AppLog.d("subs watch $sel @${exo.currentPosition / 1000}s")
+                }
+            } catch (_: Exception) {
+            }
+            delay(15000)
+        }
+    }
+    LaunchedEffect(stream.url) {
+        while (true) {
+            try {
                 val dur = exo.duration.takeIf { it > 0 } ?: 0L
                 if (dur > 0) {
                     val frac = withContext(Dispatchers.IO) {
@@ -1526,6 +1557,10 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
                 Button(onClick = { cycleEmbed() }) { Text(cur) }
             } else {
                 Text("no subs", style = MaterialTheme.typography.bodySmall)
+            }
+            if (stream.subs.isNotEmpty() && embedNames.isNotEmpty()) {
+                val cur = if (embedIdx < 0) "CC: auto" else "CC: ${embedNames.getOrNull(embedIdx) ?: "?"}"
+                Button(onClick = { cycleEmbed() }) { Text(cur) }
             }
         }
         if (fillNote != null) {

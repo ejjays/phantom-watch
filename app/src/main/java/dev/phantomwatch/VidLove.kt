@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateListOf
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -139,13 +141,13 @@ private fun get(url: String, referer: String): JSONObject? {
 }
 
 object VidLove {
-    fun imdbOf(tmdb: String, kind: String, key: String): String? {
-        return try {
+    suspend fun imdbOf(tmdb: String, kind: String, key: String): String? = withContext(Dispatchers.IO) {
+        try {
             val path = if (kind == "movie") "movie" else "tv"
             val data = get(
                 "https://api.themoviedb.org/3/$path/$tmdb/external_ids?api_key=$key",
                 "https://www.themoviedb.org/",
-            ) ?: return null
+            ) ?: return@withContext null
             data.optString("imdb_id").takeIf { it.startsWith("tt") }
         } catch (_: Exception) {
             null

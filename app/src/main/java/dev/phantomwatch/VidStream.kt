@@ -327,26 +327,32 @@ object VidStream {
         }
 
     suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Pair<List<VFormat>, List<Sub>> =
-        withTimeoutOrNull(30000) {
-            coroutineScope {
-                val love = async { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } }
-                val rock = async { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } }
-                val vix = async { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } }
-                val zee = async { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } }
-                val para = async { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } }
-                val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
-                val all = (formats + (rock.await() ?: emptyList()) + (vix.await() ?: emptyList()) +
-                    (zee.await() ?: emptyList()) + (para.await() ?: emptyList()))
-                    .filter { it.url !in Torrents.DeadReleases.urls }
-                    .sortedWith(
-                    compareByDescending<VFormat> { if (it.height < 0) 0 else 1 }
-                        .thenByDescending { if (it.label.endsWith("-auto")) 1 else 0 }
-                        .thenByDescending { if (it.english) 1 else 0 }
-                        .thenByDescending { it.height },
-                )
-                all.distinctBy { it.url } to subs.distinctBy { it.url }
-            }
-        } ?: (emptyList<VFormat>() to emptyList())
+        withContext(Dispatchers.IO) {
+            withTimeoutOrNull(30000) {
+                coroutineScope {
+                    val love = async { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } }
+                    val rock = async { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } }
+                    val vix = async { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } }
+                    val zee = async { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } }
+                    val para = async { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } }
+                    val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
+                    val rockF = rock.await() ?: emptyList()
+                    val vixF = vix.await() ?: emptyList()
+                    val zeeF = zee.await() ?: emptyList()
+                    val paraF = para.await() ?: emptyList()
+                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size}")
+                    val all = (formats + rockF + vixF + zeeF + paraF)
+                        .filter { it.url !in Torrents.DeadReleases.urls }
+                        .sortedWith(
+                            compareByDescending<VFormat> { if (it.height < 0) 0 else 1 }
+                                .thenByDescending { if (it.label.endsWith("-auto")) 1 else 0 }
+                                .thenByDescending { if (it.english) 1 else 0 }
+                                .thenByDescending { it.height },
+                        )
+                    all.distinctBy { it.url } to subs.distinctBy { it.url }
+                }
+            } ?: (emptyList<VFormat>() to emptyList())
+        }
 
     suspend fun direct(tmdbId: String, kind: String, season: String, episode: String, title: String): DirectHit? {
         val (all, subs) = directAll(tmdbId, kind, season, episode, title)
