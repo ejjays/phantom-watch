@@ -517,7 +517,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
     }
 }
 
-private fun airLabel(iso: String): String {
+internal fun airLabel(iso: String): String {
     val p = iso.split("-")
     if (p.size != 3) return iso
     val m = listOf("Jan.", "Feb.", "Mar.", "Apr.", "May.", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.")

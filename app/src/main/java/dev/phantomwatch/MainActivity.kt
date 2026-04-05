@@ -698,7 +698,7 @@ private fun FetchScreen(
     }
 }
 
-private fun rankEmbed(names: List<String>): Int {
+internal fun rankEmbed(names: List<String>): Int {
     var best = -1
     var bestScore = Int.MIN_VALUE
     names.forEachIndexed { i, n ->
