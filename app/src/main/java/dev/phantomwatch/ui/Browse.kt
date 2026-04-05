@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -188,11 +187,20 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
         scope.launch {
             exploreMore = true
             try {
-                val r = withContext(Dispatchers.IO) { VidLove.rail(key, "movie/popular", explorePage + 1) }
-                val seen = (rails.flatMap { it.items } + exploreItems).map { "${it.kind}-${it.id}" }.toSet()
-                exploreItems = exploreItems + r.items.filter { "${it.kind}-${it.id}" !in seen }
-                explorePage += 1
-                exploreTotal = r.totalPages
+                val seen = (rails.flatMap { it.items } + exploreItems).map { "${it.kind}-${it.id}" }.toMutableSet()
+                var page = explorePage
+                var total = exploreTotal
+                var fresh = emptyList<Title>()
+                while (page < minOf(total, 10)) {
+                    val r = withContext(Dispatchers.IO) { VidLove.rail(key, "movie/popular", page + 1) }
+                    page += 1
+                    total = r.totalPages
+                    fresh = r.items.filter { "${it.kind}-${it.id}" !in seen }
+                    if (fresh.isNotEmpty()) break
+                }
+                if (fresh.isNotEmpty()) exploreItems = exploreItems + fresh
+                explorePage = page
+                exploreTotal = total
             } catch (_: Exception) {
             } finally {
                 exploreMore = false
@@ -439,11 +447,12 @@ private fun BrowseBody(
 ) {
     val screenW = LocalConfiguration.current.screenWidthDp.dp
     val gridW = (screenW - 56.dp) / 3
-    val gridState = rememberLazyGridState()
-    LaunchedEffect(gridState) {
-        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+    val exploreRows = remember(exploreItems) { exploreItems.chunked(3) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { idx ->
-                if (idx != null && idx >= exploreItems.size + rails.size * 2 - 3) onGridEnd()
+                if (idx != null && idx >= exploreRows.size - 1) onGridEnd()
             }
     }
     if (loading && trending.isEmpty() && rails.all { it.items.isEmpty() }) {
@@ -464,15 +473,15 @@ private fun BrowseBody(
         }
         return
     }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        state = gridState,
+    LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 128.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
+        item {
             Column {
-                Text("Trending this week", color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp))
+                Text("Trending this week", color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp))
                 TrendingCarousel(trending = trending, paused = detailOpen, onOpen = onOpen)
                 rails.forEach { rail ->
                     if (rail.items.isNotEmpty()) {
@@ -505,20 +514,24 @@ private fun BrowseBody(
                         }
                     }
                 }
-                if (exploreItems.isNotEmpty()) {
-                    Spacer(Modifier.height(28.dp))
-                    Text("Explore more", color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
-                    Spacer(Modifier.height(12.dp))
+                if (exploreItems.isNotEmpty() || exploreMore) {
+                    Spacer(Modifier.height(24.dp))
+                    Text("Explore more", color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp))
                 }
             }
         }
-        items(exploreItems, key = { "${it.kind}-${it.id}" }) { item ->
-            Box(Modifier.padding(6.dp)) {
-                PosterCard(item = item, width = gridW - 12.dp, height = (gridW - 12.dp) * 1.5f, onOpen = onOpen)
+        items(exploreRows, key = { row -> row.first().let { "${it.kind}-${it.id}" } }) { row ->
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                row.forEach { item ->
+                    PosterCard(item = item, width = gridW, height = gridW * 1.5f, onOpen = onOpen)
+                }
             }
         }
         if (exploreMore) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Cyan, modifier = Modifier.size(24.dp))
                 }
@@ -733,10 +746,10 @@ private fun RailGrid(rail: RailState, onBack: () -> Unit, onOpen: (Title) -> Uni
                         CircularProgressIndicator(color = Cyan, modifier = Modifier.size(24.dp))
                     }
                 }
-            } else {
+            } else if (rail.page >= rail.totalPages) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        "That is everything — ${rail.page} pages",
+                        "That is everything — ${rail.totalPages} pages",
                         color = Slate600, fontSize = 11.sp, fontFamily = Mono, textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                     )
