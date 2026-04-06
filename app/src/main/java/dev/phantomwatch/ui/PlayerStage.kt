@@ -1,6 +1,7 @@
 package dev.phantomwatch.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -125,8 +126,18 @@ fun PlayerStage(
             )
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                    .padding(horizontal = 16.dp).padding(bottom = 24.dp + seekInset),
+                    .padding(horizontal = 16.dp).padding(bottom = 8.dp + seekInset),
             ) {
+                if (fullscreen) {
+                    PlayerSeekBar(
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        bufferedMs = bufferedMs,
+                        slim = false,
+                        onSeek = onSeek,
+                        onInteract = onInteract,
+                    )
+                }
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -168,7 +179,7 @@ fun PlayerStage(
                 }
             }
         }
-        if (controlsVisible || !fullscreen) {
+        if (!fullscreen) {
         PlayerSeekBar(
             positionMs = positionMs,
             durationMs = durationMs,
@@ -300,6 +311,9 @@ private fun PlayerSeekBar(
         onInteract()
         onSeek(f)
     }
+    val playedColor by animateColorAsState(
+        if (slim) Color.White else Cyan, tween(300), label = "seekPlayed",
+    )
     Column(modifier.fillMaxWidth()) {
         if (!slim && scrub != null && durationMs > 0) {
             Text(
@@ -324,7 +338,7 @@ private fun PlayerSeekBar(
                     )
                 },
         ) {
-            val trackH = if (slim) 3.dp else 4.dp
+            val trackH = if (slim) 2.dp else 3.dp
             Box(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(trackH)
                     .clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.25f)),
@@ -335,7 +349,7 @@ private fun PlayerSeekBar(
                 )
                 Box(
                     Modifier.align(Alignment.CenterStart).fillMaxWidth(shown).height(trackH)
-                        .background(Cyan),
+                        .background(playedColor),
                 )
             }
             if (!slim && scrub != null && trackW > 0) {
