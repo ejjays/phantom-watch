@@ -48,7 +48,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -420,10 +419,13 @@ fun PosterCard(
                 }
             }
         }
+        var centered by remember { mutableStateOf(false) }
         Text(
             item.title.uppercase(), color = Slate100, fontSize = titleSize, fontFamily = Rubik,
             fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp),
+            textAlign = if (centered) TextAlign.Center else TextAlign.Start,
+            onTextLayout = { centered = !it.isLineEllipsized(0) },
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         )
     }
 }
@@ -609,7 +611,7 @@ private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Ti
                             Spacer(Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (item.rating != null && item.rating > 0) {
-                                    Icon(Icons.Filled.Star, contentDescription = null, tint = StarYellow, modifier = Modifier.size(12.dp))
+                                    Icon(painterResource(R.drawable.ic_star2), contentDescription = null, tint = StarYellow, modifier = Modifier.size(12.dp))
                                     Spacer(Modifier.width(4.dp))
                                 }
                                 Text(

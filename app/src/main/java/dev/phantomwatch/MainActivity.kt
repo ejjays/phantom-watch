@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,9 +51,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -91,7 +95,12 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import dev.phantomwatch.ui.Mono
 import dev.phantomwatch.ui.MoviesHome
+import dev.phantomwatch.ui.PlayerPanel
+import dev.phantomwatch.ui.PlayerStage
+import dev.phantomwatch.ui.SeekMark
+import dev.phantomwatch.ui.SeekSide
 import dev.phantomwatch.ui.Slate400
+import dev.phantomwatch.ui.ZoneTap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -173,6 +182,7 @@ private fun App() {
                 )
                 is Screen.Player -> PlayerScreen(
                     title = s.title,
+                    media = s.media,
                     stream = s.stream,
                     ctl = s.ctl,
                     onBack = {
@@ -822,7 +832,7 @@ private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: D
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () -> Unit, onGiveUp: () -> Unit) {
+private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl?, onBack: () -> Unit, onGiveUp: () -> Unit) {
     val context = LocalContext.current
     val resumeScope = rememberCoroutineScope()
     var gaveUpSent by remember { mutableStateOf(false) }
@@ -841,7 +851,6 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
     var frontierMs by remember { mutableStateOf(0L) }
     var fillNote by remember { mutableStateOf<String?>(null) }
     var lastSubSel by remember { mutableStateOf("") }
-    BackHandler(onBack = onBack)
     LaunchedEffect(title) { AppLog.d("screen $title") }
     val player: ExoPlayer? = remember {
         try {
@@ -1497,79 +1506,233 @@ private fun PlayerScreen(title: String, stream: Stream, ctl: DlCtl?, onBack: () 
         if (fullest >= 0) pickEmbed(fullest, "auto")
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBack) { Text("‹ Back") }
-            Text(
-                title,
-                Modifier.weight(1f).padding(end = 16.dp),
-                maxLines = 1,
-                style = MaterialTheme.typography.titleMedium,
-            )
+    var controls by remember { mutableStateOf(true) }
+    var fullscreen by remember { mutableStateOf(false) }
+    var positionMs by remember { mutableStateOf(0L) }
+    var durationMs by remember { mutableStateOf(0L) }
+    var bufferedMs by remember { mutableStateOf(0L) }
+    var videoW by remember { mutableStateOf(0) }
+    var videoH by remember { mutableStateOf(0) }
+    var playing by remember { mutableStateOf(false) }
+    var stalled by remember { mutableStateOf(false) }
+    var seekMark by remember { mutableStateOf<SeekMark?>(null) }
+    var hideJob: Job? by remember { mutableStateOf(null) }
+    var lastTapAt by remember { mutableStateOf(0L) }
+    var lastTapSide by remember { mutableStateOf<ZoneTap?>(null) }
+    var tapId by remember { mutableStateOf(0) }
+    var accSide by remember { mutableStateOf<SeekSide?>(null) }
+    var accTotal by remember { mutableStateOf(0) }
+    var accAt by remember { mutableStateOf(0L) }
+    fun poke() {
+        controls = true
+        hideJob?.cancel()
+        hideJob = resumeScope.launch {
+            delay(5000)
+            controls = false
         }
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    this.player = exo
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
+    }
+    fun togglePlay() {
+        if (exo.isPlaying) exo.pause() else exo.play()
+        poke()
+    }
+    fun seekTo(f: Float) {
+        val d = exo.duration
+        if (d > 0) exo.seekTo((f * d).toLong())
+        poke()
+    }
+    fun accSeek(side: SeekSide) {
+        val dir = if (side == SeekSide.Left) -10000L else 10000L
+        val now = System.currentTimeMillis()
+        accTotal = if (accSide == side && now - accAt < 1000) accTotal + 10 else 10
+        accSide = side
+        accAt = now
+        exo.seekTo((exo.currentPosition + dir).coerceAtLeast(0))
+        seekMark = SeekMark(side, accTotal)
+        poke()
+        resumeScope.launch {
+            delay(1000)
+            if (System.currentTimeMillis() - accAt >= 1000) seekMark = null
+        }
+    }
+    fun singleTap() {
+        if (controls) controls = false else poke()
+    }
+    fun handleZone(side: ZoneTap) {
+        val now = System.currentTimeMillis()
+        val prevSide = lastTapSide
+        val prevAt = lastTapAt
+        lastTapAt = now
+        lastTapSide = side
+        if (side == ZoneTap.Center) {
+            if (prevSide == ZoneTap.Center && now - prevAt < 320) togglePlay() else singleTap()
+            return
+        }
+        if (prevSide == side && now - prevAt < 320) {
+            accSeek(if (side == ZoneTap.Left) SeekSide.Left else SeekSide.Right)
+            return
+        }
+        tapId += 1
+        val id = tapId
+        resumeScope.launch {
+            delay(330)
+            if (tapId == id) singleTap()
+        }
+    }
+    fun fullscreenBars(fs: Boolean) {
+        val w = (context as? android.app.Activity)?.window ?: return
+        val c = androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
+        if (fs) {
+            c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            c.systemBarsBehavior =
+                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+    }
+    fun toggleFullscreen() {
+        fullscreen = !fullscreen
+        (context as? android.app.Activity)?.requestedOrientation =
+            if (fullscreen) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        fullscreenBars(fullscreen)
+        poke()
+    }
+    var autoFs by remember { mutableStateOf(false) }
+    var orientJob: Job? by remember { mutableStateOf(null) }
+    val fsNow = rememberUpdatedState(fullscreen)
+    val orientListener = remember {
+        object : android.view.OrientationEventListener(context) {
+            var lastZone = -1
+            override fun onOrientationChanged(deg: Int) {
+                val zone = when {
+                    deg < 0 -> -1
+                    deg in 60..120 || deg in 240..300 -> 1
+                    deg <= 30 || deg >= 330 || deg in 150..210 -> 0
+                    else -> -1
                 }
+                if (zone == -1 || zone == lastZone) return
+                lastZone = zone
+                orientJob?.cancel()
+                orientJob = resumeScope.launch {
+                    delay(800)
+                    if (zone == 1 && !fsNow.value) {
+                        autoFs = true
+                        toggleFullscreen()
+                    } else if (zone == 0 && fsNow.value && autoFs) {
+                        autoFs = false
+                        toggleFullscreen()
+                    }
+                }
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        orientListener.enable()
+        onDispose {
+            orientJob?.cancel()
+            orientListener.disable()
+        }
+    }
+    BackHandler {
+        if (fullscreen) {
+            autoFs = false
+            toggleFullscreen()
+        } else {
+            onBack()
+        }
+    }
+    DisposableEffect(stream.url) {
+        onDispose {
+            (context as? android.app.Activity)?.requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            fullscreenBars(false)
+        }
+    }
+    LaunchedEffect(stream.url) {
+        poke()
+        while (true) {
+            positionMs = exo.currentPosition
+            durationMs = exo.duration.coerceAtLeast(0)
+            bufferedMs = exo.bufferedPosition
+            videoW = exo.videoSize.width
+            videoH = exo.videoSize.height
+            playing = exo.isPlaying
+            stalled = exo.playbackState == Player.STATE_BUFFERING
+            delay(250)
+        }
+    }
+    LaunchedEffect(playing) {
+        if (playing) poke()
+    }
+    val videoAspect = if (videoW > 0 && videoH > 0) videoW.toFloat() / videoH else 16f / 9f
+    @Composable
+    fun stage(seekInset: androidx.compose.ui.unit.Dp) {
+        PlayerStage(
+            title = title,
+        fullscreen = fullscreen,
+        isPlaying = playing,
+        stalled = stalled,
+        positionMs = positionMs,
+        durationMs = durationMs,
+        bufferedMs = bufferedMs,
+        controlsVisible = controls,
+        flash = fillNote,
+        seekMark = seekMark,
+        seekInset = seekInset,
+        subsOn = !subsOff,
+        canSubs = stream.subs.isNotEmpty() || embedNames.isNotEmpty(),
+        onBack = onBack,
+        onFullscreen = {
+            autoFs = false
+            toggleFullscreen()
+        },
+        onTogglePlay = ::togglePlay,
+        onSeek = ::seekTo,
+        onInteract = ::poke,
+        onZoneTap = ::handleZone,
+        onToggleSubs = {
+            subsOff = !subsOff
+            applySubs()
+            poke()
+        },
+        video = { mod ->
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        this.player = exo
+                        useController = false
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                    }
+                },
+                update = {
+                    it.resizeMode =
+                        if (fullscreen) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    it.subtitleView?.translationY =
+                        -(14 * it.resources.displayMetrics.density)
+                },
+                modifier = mod,
+                )
             },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
         )
-        Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (stream.subs.isNotEmpty()) {
-                Button(onClick = {
-                    subsOff = !subsOff
-                    applySubs()
-                }) { Text(if (subsOff) "CC off" else "CC on · ${stream.subs.size}") }
-                Text(
-                    VidLove.englishFirst(stream.subs).first().label,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(onClick = { nudge(-500) }) { Text("-0.5s") }
-                Text(
-                    "${subDelayMs / 1000.0}s",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(onClick = { nudge(500) }) { Text("+0.5s") }
-                TextButton(onClick = { runQwenSubs() }) { Text("AI") }
-                if (aiStatus != null) {
-                    Text(aiStatus!!, style = MaterialTheme.typography.bodySmall)
-                }
-                if (osStatus != null) {
-                    Text(osStatus!!, style = MaterialTheme.typography.bodySmall)
-                }
-                if (syncStatus != null) {
-                    Text(syncStatus!!, style = MaterialTheme.typography.bodySmall)
-                }
-            } else if (embedNames.isNotEmpty()) {
-                val cur = if (embedIdx < 0) "CC: auto" else "CC: ${embedNames.getOrNull(embedIdx) ?: "?"}"
-                Button(onClick = { cycleEmbed() }) { Text(cur) }
-            } else {
-                Text("no subs", style = MaterialTheme.typography.bodySmall)
+    }
+    val cfg = LocalConfiguration.current
+    if (fullscreen) {
+        val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
+        val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
+        val fsVideoH = if (videoAspect >= fsW / fsH) fsW / videoAspect else fsH
+        stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp)
+    } else {
+        val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
+        val stageH = (portraitW * 9 / 16).dp
+        Column(Modifier.fillMaxSize().background(Color.Black)) {
+            Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
+                stage(0.dp)
             }
-            if (stream.subs.isNotEmpty() && embedNames.isNotEmpty()) {
-                val cur = if (embedIdx < 0) "CC: auto" else "CC: ${embedNames.getOrNull(embedIdx) ?: "?"}"
-                Button(onClick = { cycleEmbed() }) { Text(cur) }
-            }
-        }
-        if (fillNote != null) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Text(fillNote!!, color = Slate400, fontSize = 11.sp, fontFamily = Mono)
-            }
+            PlayerPanel(title = media.title, year = media.year, rating = media.rating)
         }
     }
 }

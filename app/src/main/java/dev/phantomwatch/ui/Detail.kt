@@ -1,6 +1,7 @@
 package dev.phantomwatch.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +43,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -259,7 +259,7 @@ fun MovieDetail(
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Filled.Star, contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
+                                    Icon(painterResource(R.drawable.ic_star2), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
                                     Spacer(Modifier.width(4.dp))
                                     if (d.rating > 0) {
                                         Text(String.format("%.1f", d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
@@ -554,7 +554,7 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
     Box(modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().clip(CircleShape)
-                .background(Surface).padding(12.dp),
+                .background(Surface).border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
