@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,6 +28,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -83,11 +86,13 @@ fun PlayerStage(
     flash: String?,
     seekMark: SeekMark?,
     seekInset: Dp = 0.dp,
+    locked: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
     onBack: () -> Unit,
     onFullscreen: () -> Unit,
     onTogglePlay: () -> Unit,
+    onToggleLock: () -> Unit,
     onSeek: (Float) -> Unit,
     onInteract: () -> Unit,
     onZoneTap: (ZoneTap) -> Unit,
@@ -109,7 +114,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = controlsVisible,
+            visible = controlsVisible && !locked,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
         ) {
@@ -134,6 +139,7 @@ fun PlayerStage(
                         durationMs = durationMs,
                         bufferedMs = bufferedMs,
                         slim = false,
+                        locked = locked,
                         onSeek = onSeek,
                         onInteract = onInteract,
                     )
@@ -159,7 +165,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = controlsVisible && !stalled,
+            visible = controlsVisible && !stalled && !locked,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + scaleIn(
                 tween(300, easing = FastOutSlowInEasing), initialScale = 0.85f,
             ),
@@ -179,12 +185,36 @@ fun PlayerStage(
                 }
             }
         }
+        AnimatedVisibility(
+            visible = fullscreen && controlsVisible,
+            enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
+            exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
+            modifier = Modifier.align(Alignment.CenterStart)
+                .windowInsetsPadding(WindowInsets.displayCutout)
+                .padding(start = 8.dp),
+        ) {
+            Box(
+                Modifier.size(44.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onToggleLock() },
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(if (locked) R.drawable.ic_lock else R.drawable.ic_unlock),
+                    contentDescription = if (locked) "Locked" else "Unlocked",
+                    tint = Color.White, modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         if (!fullscreen) {
         PlayerSeekBar(
             positionMs = positionMs,
             durationMs = durationMs,
             bufferedMs = bufferedMs,
             slim = !controlsVisible,
+            locked = locked,
             onSeek = onSeek,
             onInteract = onInteract,
             modifier = Modifier.align(Alignment.BottomStart).padding(bottom = seekInset),
@@ -290,6 +320,7 @@ private fun PlayerSeekBar(
     durationMs: Long,
     bufferedMs: Long,
     slim: Boolean,
+    locked: Boolean,
     onSeek: (Float) -> Unit,
     onInteract: () -> Unit,
     modifier: Modifier = Modifier,
@@ -326,17 +357,19 @@ private fun PlayerSeekBar(
         Box(
             Modifier.fillMaxWidth().height(if (slim) 12.dp else 24.dp)
                 .onGloballyPositioned { trackW = it.size.width }
-                .pointerInput(trackW, durationMs) {
-                    detectTapGestures { offset -> seekAt(offset.x) }
-                }
-                .pointerInput(trackW, durationMs) {
-                    detectDragGestures(
-                        onDragStart = { offset -> seekAt(offset.x) },
-                        onDragEnd = { onInteract() },
-                        onDragCancel = { onInteract() },
-                        onDrag = { change, _ -> seekAt(change.position.x) },
-                    )
-                },
+                .then(
+                    if (locked) Modifier
+                    else Modifier.pointerInput(trackW, durationMs) {
+                        detectTapGestures { offset -> seekAt(offset.x) }
+                    }.pointerInput(trackW, durationMs) {
+                        detectDragGestures(
+                            onDragStart = { offset -> seekAt(offset.x) },
+                            onDragEnd = { onInteract() },
+                            onDragCancel = { onInteract() },
+                            onDrag = { change, _ -> seekAt(change.position.x) },
+                        )
+                    },
+                ),
         ) {
             val trackH = if (slim) 2.dp else 3.dp
             Box(

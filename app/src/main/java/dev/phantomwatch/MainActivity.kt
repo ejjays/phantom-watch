@@ -1508,6 +1508,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
 
     var controls by remember { mutableStateOf(true) }
     var fullscreen by remember { mutableStateOf(false) }
+    var locked by remember { mutableStateOf(false) }
     var positionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
     var bufferedMs by remember { mutableStateOf(0L) }
@@ -1558,6 +1559,10 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         if (controls) controls = false else poke()
     }
     fun handleZone(side: ZoneTap) {
+        if (locked) {
+            poke()
+            return
+        }
         val now = System.currentTimeMillis()
         val prevSide = lastTapSide
         val prevAt = lastTapAt
@@ -1649,6 +1654,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         }
     }
     LaunchedEffect(stream.url) {
+        locked = false
         poke()
         while (true) {
             positionMs = exo.currentPosition
@@ -1663,6 +1669,9 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
     }
     LaunchedEffect(playing) {
         if (playing) poke()
+    }
+    LaunchedEffect(fullscreen) {
+        if (!fullscreen) locked = false
     }
     val videoAspect = if (videoW > 0 && videoH > 0) videoW.toFloat() / videoH else 16f / 9f
     @Composable
@@ -1679,6 +1688,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         flash = fillNote,
         seekMark = seekMark,
         seekInset = seekInset,
+        locked = locked,
         subsOn = !subsOff,
         canSubs = stream.subs.isNotEmpty() || embedNames.isNotEmpty(),
         onBack = onBack,
@@ -1687,6 +1697,10 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
             toggleFullscreen()
         },
         onTogglePlay = ::togglePlay,
+        onToggleLock = {
+            locked = !locked
+            if (locked) controls = false else poke()
+        },
         onSeek = ::seekTo,
         onInteract = ::poke,
         onZoneTap = ::handleZone,
