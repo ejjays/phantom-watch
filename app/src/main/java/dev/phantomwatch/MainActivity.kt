@@ -2,6 +2,9 @@ package dev.phantomwatch
 
 import android.net.Uri
 import android.os.Bundle
+import android.view.Surface
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -70,6 +73,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.text.Cue
+import androidx.media3.effect.Contrast
+import androidx.media3.ui.SubtitleView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -853,7 +859,14 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
     LaunchedEffect(title) { AppLog.d("screen $title") }
     val player: ExoPlayer? = remember {
         try {
-            buildPlayer(context, stream, ctl).also { AppLog.d("built") }
+            buildPlayer(context, stream, ctl).also {
+                try {
+                    it.setVideoEffects(listOf(Contrast(0.1f)))
+                } catch (e: Exception) {
+                    AppLog.d("fx fail ${e.message}")
+                }
+                AppLog.d("built")
+            }
         } catch (e: Exception) {
             buildError = "${e.javaClass.simpleName}: ${e.message}"
             AppLog.d("build crash ${e.javaClass.simpleName}: ${e.message}")
@@ -872,6 +885,13 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         return
     }
     val exo = player
+    var enhReady by remember { mutableStateOf(false) }
+    var enhSession by remember { mutableStateOf<com.google.android.gms.media.effect.enhancement.EnhancementSession?>(null) }
+    var enhSize by remember { mutableStateOf(0 to 0) }
+    var enhOut by remember { mutableStateOf<Surface?>(null) }
+    var enhBound by remember { mutableStateOf<Surface?>(null) }
+    var enhSubView by remember { mutableStateOf<SubtitleView?>(null) }
+    LaunchedEffect(stream.url) { Enhance.probe(context) { enhReady = it } }
     LaunchedEffect(latestTracks) {
         val t = latestTracks ?: return@LaunchedEffect
         fun nameOf(f: androidx.media3.common.Format): String {
@@ -1095,6 +1115,11 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         exo.addListener(listener)
         onDispose {
             exo.removeListener(listener)
+            try {
+                enhSession?.release()
+            } catch (_: Exception) {
+            }
+            enhSession = null
             exo.release()
         }
     }
@@ -1673,8 +1698,73 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         if (!fullscreen) locked = false
     }
     val videoAspect = if (videoW > 0 && videoH > 0) videoW.toFloat() / videoH else 16f / 9f
+    LaunchedEffect(videoW, videoH, enhReady, enhOut, enhSession) {
+        val out = enhOut
+        if (!enhReady || videoW <= 0 || videoH <= 0 || out == null || !out.isValid) return@LaunchedEffect
+        val cur = enhSession
+        if (cur != null && enhSize.first == videoW && enhSize.second == videoH) {
+            if (enhBound !== out) {
+                try {
+                    cur.setOutputSurface(out, Enhance.options(videoW, videoH), Enhance.frames())
+                    enhBound = out
+                } catch (e: Exception) {
+                    AppLog.d("enh rebind fail ${e.message}")
+                }
+            }
+            return@LaunchedEffect
+        }
+        enhSession = null
+        enhBound = null
+        Enhance.open(context, videoW, videoH) { s ->
+            if (s == null || !out.isValid) {
+                try {
+                    s?.release()
+                } catch (_: Exception) {
+                }
+                return@open
+            }
+            try {
+                cur?.release()
+            } catch (_: Exception) {
+            }
+            enhSession = s
+            enhSize = videoW to videoH
+            try {
+                exo.setVideoSurface(s.getInputSurface())
+                s.setOutputSurface(out, Enhance.options(videoW, videoH), Enhance.frames())
+                enhBound = out
+                try {
+                    exo.setVideoEffects(emptyList())
+                } catch (_: Exception) {
+                }
+                AppLog.d("enh on ${videoW}x$videoH")
+            } catch (e: Exception) {
+                AppLog.d("enh attach fail ${e.message}")
+                try {
+                    s.release()
+                } catch (_: Exception) {
+                }
+                try {
+                    exo.setVideoEffects(listOf(Contrast(0.1f)))
+                } catch (_: Exception) {
+                }
+                if (enhSession === s) enhSession = null
+            }
+        }
+    }
+    DisposableEffect(enhSession, enhSubView) {
+        val v = enhSubView
+        if (enhSession == null || v == null) return@DisposableEffect onDispose {}
+        val l = object : Player.Listener {
+            override fun onCues(cues: List<Cue>) {
+                v.setCues(cues)
+            }
+        }
+        exo.addListener(l)
+        onDispose { exo.removeListener(l) }
+    }
     @Composable
-    fun stage(seekInset: androidx.compose.ui.unit.Dp) {
+    fun stage(seekInset: androidx.compose.ui.unit.Dp, matchH: Boolean) {
         PlayerStage(
             title = title,
         fullscreen = fullscreen,
@@ -1709,26 +1799,58 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
             poke()
         },
         video = { mod ->
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        this.player = exo
-                        useController = false
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                        )
-                    }
-                },
-                update = {
-                    it.resizeMode =
-                        if (fullscreen) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    it.subtitleView?.translationY =
-                        -(14 * it.resources.displayMetrics.density)
-                },
-                modifier = mod,
+            if (enhSession != null) {
+                Box(mod.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    AndroidView(
+                        factory = { ctx ->
+                            SurfaceView(ctx).apply {
+                                holder.addCallback(object : SurfaceHolder.Callback {
+                                    override fun surfaceCreated(h: SurfaceHolder) {
+                                        enhOut = h.surface
+                                    }
+
+                                    override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {}
+
+                                    override fun surfaceDestroyed(h: SurfaceHolder) {
+                                        enhOut = null
+                                        enhBound = null
+                                    }
+                                })
+                            }
+                        },
+                        modifier = Modifier.aspectRatio(videoAspect, matchH),
+                    )
+                    AndroidView(
+                        factory = { ctx -> SubtitleView(ctx).also { enhSubView = it } },
+                        update = {
+                            it.translationY =
+                                -(14 * it.resources.displayMetrics.density)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            } else {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            this.player = exo
+                            useController = false
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                            )
+                        }
+                    },
+                    update = {
+                        it.resizeMode =
+                            if (fullscreen) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        it.subtitleView?.translationY =
+                            -(14 * it.resources.displayMetrics.density)
+                    },
+                    modifier = mod,
                 )
+            }
             },
         )
     }
@@ -1737,13 +1859,13 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsVideoH = if (videoAspect >= fsW / fsH) fsW / videoAspect else fsH
-        stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp)
+        stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, videoAspect < fsW / fsH)
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val stageH = (portraitW * 9 / 16).dp
         Column(Modifier.fillMaxSize().background(Color.Black)) {
             Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
-                stage(0.dp)
+                stage(0.dp, videoAspect < 16f / 9f)
             }
             PlayerPanel(title = media.title, year = media.year, rating = media.rating)
         }

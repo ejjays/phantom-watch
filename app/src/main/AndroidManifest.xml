@@ -10,9 +10,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Phantom Watch"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+        <uses-native-library android:name="libGLESv2.so" android:required="false" />
+        <uses-native-library android:name="libGLESv3.so" android:required="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:hardwareAccelerated="true"
             android:theme="@style/Theme.PhantomWatch.Splash"
             android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
