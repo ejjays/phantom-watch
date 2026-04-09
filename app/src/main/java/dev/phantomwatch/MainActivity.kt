@@ -82,7 +82,6 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
-import coil.compose.AsyncImage
 import com.frostwire.jlibtorrent.TorrentHandle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers

@@ -69,9 +69,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.Coil
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
 import dev.phantomwatch.AppLog
 import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
@@ -187,7 +187,7 @@ fun MovieDetail(
         AppLog.d("detail fetch end +${elapsed}ms null=${dd == null} genres=${dd?.genres?.size ?: 0} cast=${dd?.cast?.size ?: 0} ov=${dd?.overview?.length ?: 0} heroSame=${(dd?.backdrop ?: dd?.poster) == (item.backdrop ?: item.poster)}")
         val precache = ((dd?.cast.orEmpty()) + listOfNotNull(dd?.director)).mapNotNull { it.photo }.take(9)
         if (precache.isNotEmpty()) {
-            val loader = Coil.imageLoader(context)
+            val loader = SingletonImageLoader.get(context)
             precache.forEach { url ->
                 loader.enqueue(ImageRequest.Builder(context).data(url).build())
             }
@@ -661,7 +661,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
         AppLog.d("ep fetch end +${elapsed}ms n=${result.size}")
         val stills = result.mapNotNull { it.still }.take(12)
         if (stills.isNotEmpty()) {
-            val loader = Coil.imageLoader(context)
+            val loader = SingletonImageLoader.get(context)
             stills.forEach { url ->
                 loader.enqueue(ImageRequest.Builder(context).data(url).build())
             }
