@@ -2,6 +2,7 @@ package dev.phantomwatch
 
 import android.net.Uri
 import android.os.Bundle
+import android.media.AudioManager
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -885,6 +886,9 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         return
     }
     val exo = player
+    val audio = remember { context.getSystemService(AudioManager::class.java) }
+    var gestureNote by remember { mutableStateOf<String?>(null) }
+    var volAcc by remember { mutableStateOf(0f) }
     var enhReady by remember { mutableStateOf(false) }
     var enhSession by remember { mutableStateOf<com.google.android.gms.media.effect.enhancement.EnhancementSession?>(null) }
     var enhSize by remember { mutableStateOf(0 to 0) }
@@ -1115,6 +1119,13 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         exo.addListener(listener)
         onDispose {
             exo.removeListener(listener)
+            (context as? android.app.Activity)?.window?.let { w ->
+                val lp = w.attributes
+                if (lp.screenBrightness >= 0f) {
+                    lp.screenBrightness = -1f
+                    w.attributes = lp
+                }
+            }
             try {
                 enhSession?.release()
             } catch (_: Exception) {
@@ -1774,7 +1785,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         durationMs = durationMs,
         bufferedMs = bufferedMs,
         controlsVisible = controls,
-        flash = fillNote,
+        flash = gestureNote ?: fillNote,
         seekMark = seekMark,
         seekInset = seekInset,
         locked = locked,
@@ -1797,6 +1808,38 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
             subsOff = !subsOff
             applySubs()
             poke()
+        },
+        onSwipe = { xFrac, dy ->
+            if (xFrac < 0.4f) {
+                val w = (context as? android.app.Activity)?.window
+                if (w != null) {
+                    val lp = w.attributes
+                    val cur = lp.screenBrightness.takeIf { it >= 0f } ?: 0.5f
+                    val nb = (cur - dy / 900f).coerceIn(0.05f, 1f)
+                    lp.screenBrightness = nb
+                    w.attributes = lp
+                    gestureNote = "Brightness ${(nb * 100).roundToInt()}%"
+                }
+            } else if (xFrac > 0.6f && audio != null) {
+                volAcc -= dy
+                val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                var v = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                while (volAcc > 40) {
+                    volAcc -= 40
+                    v += 1
+                }
+                while (volAcc < -40) {
+                    volAcc += 40
+                    v -= 1
+                }
+                v = v.coerceIn(0, max)
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
+                gestureNote = "Volume ${v * 100 / max}%"
+            }
+        },
+        onSwipeEnd = {
+            gestureNote = null
+            volAcc = 0f
         },
         video = { mod ->
             if (enhSession != null) {

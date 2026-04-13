@@ -97,9 +97,42 @@ fun PlayerStage(
     onInteract: () -> Unit,
     onZoneTap: (ZoneTap) -> Unit,
     onToggleSubs: () -> Unit,
+    onSwipe: (Float, Float) -> Unit,
+    onSwipeEnd: () -> Unit,
     video: @Composable (Modifier) -> Unit,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+    var stageW by remember { mutableStateOf(0) }
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(Color.Black)
+            .onGloballyPositioned { stageW = it.size.width }
+            .pointerInput(locked, stageW) {
+                var startX = 0f
+                var accX = 0f
+                var accY = 0f
+                var vertical = false
+                detectDragGestures(
+                    onDragStart = {
+                        startX = if (stageW > 0) it.x / stageW else 0.5f
+                        accX = 0f
+                        accY = 0f
+                        vertical = false
+                    },
+                    onDragEnd = { if (vertical) onSwipeEnd() },
+                    onDragCancel = { if (vertical) onSwipeEnd() },
+                    onDrag = { change, drag ->
+                        if (!locked) {
+                            accX += drag.x
+                            accY += drag.y
+                            if (!vertical && abs(accY) > abs(accX) * 1.5f && abs(accY) > 24f) vertical = true
+                            if (vertical) {
+                                change.consume()
+                                onSwipe(startX, drag.y)
+                            }
+                        }
+                    },
+                )
+            },
+    ) {
         video(Modifier.fillMaxSize())
         Row(Modifier.fillMaxSize()) {
             ZoneTap.entries.forEach { side ->
@@ -224,7 +257,7 @@ fun PlayerStage(
             Text(
                 flash, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = maxHeight / 3)
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = maxHeight / 8)
                     .clip(CircleShape).background(Color.Black.copy(alpha = 0.7f))
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
