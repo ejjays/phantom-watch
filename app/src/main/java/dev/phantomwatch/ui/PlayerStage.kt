@@ -89,6 +89,7 @@ fun PlayerStage(
     locked: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
+    showSpinner: Boolean = true,
     onBack: () -> Unit,
     onFullscreen: () -> Unit,
     onTogglePlay: () -> Unit,
@@ -273,7 +274,7 @@ fun PlayerStage(
                 )
             }
         }
-        if (stalled) {
+        if (stalled && showSpinner) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }

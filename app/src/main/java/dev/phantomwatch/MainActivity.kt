@@ -109,6 +109,9 @@ import dev.phantomwatch.ui.Slate400
 import dev.phantomwatch.ui.ZoneTap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -129,7 +132,7 @@ class MainActivity : ComponentActivity() {
 
 private sealed interface Screen {
     data object Home : Screen
-    data class Player(val title: String, val stream: Stream, val ctl: DlCtl?, val entry: TEntry?, val media: Title, val season: String, val episode: String) : Screen
+    data class Player(val title: String, val stream: Stream?, val ctl: DlCtl?, val entry: TEntry?, val media: Title, val season: String, val episode: String) : Screen
     data class Torrents(val title: Title, val season: String, val episode: String) : Screen
     data class Fetch(val title: Title, val season: String, val episode: String, val entry: TEntry) : Screen
 }
@@ -152,6 +155,7 @@ class DlCtl(val handle: TorrentHandle) {
 private fun App() {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var forward by remember { mutableStateOf(true) }
+    var instant by remember { mutableStateOf(false) }
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -165,10 +169,13 @@ private fun App() {
         }
     }
     Box(Modifier.fillMaxSize()) {
+        LaunchedEffect(screen) { instant = false } // snap applies to one hop only
         AnimatedContent(
             targetState = screen,
             transitionSpec = {
-                if (forward) {
+                if (instant) {
+                    EnterTransition.None togetherWith ExitTransition.None
+                } else if (forward) {
                     (slideInHorizontally { it } + fadeIn()) togetherWith
                         (slideOutHorizontally { -it } + fadeOut())
                 } else {
@@ -183,18 +190,20 @@ private fun App() {
                     onWatch = { t, seas, ep ->
                         forward = true
                         autoRelease = true
-                        screen = Screen.Torrents(t, seas, ep)
+                        screen = Screen.Player(t.title, null, null, null, t, seas, ep)
                     },
                 )
                 is Screen.Player -> PlayerScreen(
                     title = s.title,
                     media = s.media,
-                    stream = s.stream,
+                    initial = s.stream,
                     ctl = s.ctl,
+                    season = s.season,
+                    episode = s.episode,
                     onBack = {
                         s.ctl?.stop()
                         val e = s.entry
-                        if (e != null && s.stream.auth != null) {
+                        if (e != null && s.stream?.auth != null) {
                             scope.launch(Dispatchers.IO) {
                                 Seedbox.cfg()?.let { Seedbox.delete(it, e.infoHash) }
                             }
@@ -202,7 +211,7 @@ private fun App() {
                         forward = false
                         screen = Screen.Home
                     },
-                    onGiveUp = {
+                    onGiveUp = { deadUrl ->
                         if (s.entry != null) {
                             Torrents.DeadReleases.hashes.add(s.entry.infoHash)
                             s.ctl?.stop()
@@ -210,12 +219,17 @@ private fun App() {
                             autoRelease = false
                             screen = Screen.Torrents(s.media, s.season, s.episode)
                         } else {
-                            Torrents.DeadReleases.urls.add(s.stream.url)
+                            deadUrl?.let { Torrents.DeadReleases.urls.add(it) }
                             s.ctl?.stop()
                             forward = false
                             autoRelease = true
                             screen = Screen.Torrents(s.media, s.season, s.episode)
                         }
+                    },
+                    onPickList = {
+                        forward = false
+                        autoRelease = false
+                        screen = Screen.Torrents(s.media, s.season, s.episode)
                     },
                 )
                 is Screen.Torrents -> TorrentsScreen(
@@ -230,6 +244,7 @@ private fun App() {
                     },
                     onSeedReady = { stream, e ->
                         forward = true
+                        instant = true
                         screen = Screen.Player(s.title.title, stream, null, e, s.title, s.season, s.episode)
                     },
                     onBack = {
@@ -369,6 +384,7 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, autopl
     var err by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var imdbState by remember { mutableStateOf<String?>(null) }
+    var gone by remember { mutableStateOf(false) }
     BackHandler(onBack = onBack)
     LaunchedEffect(title.id, season, episode) {
         try {
@@ -391,6 +407,7 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, autopl
                 if (autoplay) {
                     val best = live.first()
                     AppLog.d("direct play ${best.label} hls=${best.isHls}")
+                    gone = true
                     onSeedReady(
                         Stream(
                             url = best.url, isHls = best.isHls,
@@ -495,6 +512,26 @@ private fun TorrentsScreen(title: Title, season: String, episode: String, autopl
         } finally {
             loading = false
         }
+    }
+    if ((autoplay && loading || gone) && err == null) {
+        val cfg = LocalConfiguration.current
+        val stageH = (minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat() * 9 / 16).dp
+        Column(Modifier.fillMaxSize().background(Color.Black)) {
+            Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
+                PlayerStage(
+                    title = title.title, fullscreen = false, isPlaying = false, stalled = true,
+                    positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
+                    flash = null, seekMark = null, seekInset = 0.dp, locked = false,
+                    subsOn = false, canSubs = true,
+                    onBack = onBack, onFullscreen = {}, onTogglePlay = {}, onToggleLock = {},
+                    onSeek = {}, onInteract = {}, onZoneTap = {}, onToggleSubs = {},
+                    onSwipe = { _, _ -> }, onSwipeEnd = {},
+                    video = { mod -> Box(mod.fillMaxSize().background(Color.Black)) },
+                )
+            }
+            PlayerPanel(title = title.title, year = title.year, rating = title.rating)
+        }
+        return
     }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(
@@ -838,9 +875,37 @@ private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: D
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl?, onBack: () -> Unit, onGiveUp: () -> Unit) {
+private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlCtl?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit) {
     val context = LocalContext.current
     val resumeScope = rememberCoroutineScope()
+    var resolved by remember { mutableStateOf(initial) }
+    var resolveErr by remember { mutableStateOf<String?>(null) }
+    var retryN by remember { mutableStateOf(0) }
+    LaunchedEffect(media.id, media.kind, season, episode, retryN) {
+        if (resolved != null) return@LaunchedEffect
+        try {
+            val all = withContext(Dispatchers.IO) {
+                VidStream.directAll(media.id, media.kind, season, episode, media.title)
+            }
+            val imdb = withContext(Dispatchers.IO) {
+                VidLove.imdbOf(media.id, media.kind, BuildConfig.TMDB_API_KEY)?.removePrefix("tt")
+            }
+            val live = all.first.filter { it.url !in Torrents.DeadReleases.urls }
+            AppLog.d("direct ${live.size} formats subs=${all.second.size}")
+            if (live.isEmpty()) {
+                resolveErr = "No direct streams found"
+                return@LaunchedEffect
+            }
+            val best = live.first()
+            AppLog.d("direct play ${best.label} hls=${best.isHls}")
+            resolved = Stream(best.url, best.isHls, all.second, best.referer, null, imdb = imdb)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            resolveErr = e.message ?: "resolve failed"
+        }
+    }
+    val rs = resolved
     var gaveUpSent by remember { mutableStateOf(false) }
     var directErrs by remember { mutableStateOf(0) }
     var resumeJob: Job? by remember { mutableStateOf(null) }
@@ -858,9 +923,10 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
     var fillNote by remember { mutableStateOf<String?>(null) }
     var lastSubSel by remember { mutableStateOf("") }
     LaunchedEffect(title) { AppLog.d("screen $title") }
-    val player: ExoPlayer? = remember {
+    val player: ExoPlayer? = remember(resolved) {
+        val r = resolved ?: return@remember null
         try {
-            buildPlayer(context, stream, ctl).also {
+            buildPlayer(context, r, ctl).also {
                 try {
                     it.setVideoEffects(listOf(Contrast(0.1f)))
                 } catch (e: Exception) {
@@ -874,17 +940,48 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
             null
         }
     }
-    if (player == null) {
-        Column(
-            Modifier.fillMaxSize().statusBarsPadding().padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("Player failed: $buildError")
-            Button(onClick = onBack) { Text("Back") }
+    if (rs == null || player == null) {
+        if (player == null && buildError != null) {
+            Column(
+                Modifier.fillMaxSize().statusBarsPadding().padding(16.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Player failed: $buildError")
+                Button(onClick = onBack) { Text("Back") }
+            }
+            return
+        }
+        BackHandler(onBack = onBack)
+        val cfg = LocalConfiguration.current
+        val stageH = (minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat() * 9 / 16).dp
+        Column(Modifier.fillMaxSize().background(Color.Black)) {
+            Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
+                PlayerStage(
+                    title = title, fullscreen = false, isPlaying = false, stalled = true,
+                    positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
+                    flash = resolveErr, seekMark = null, seekInset = 0.dp, locked = false,
+                    subsOn = false, canSubs = false,
+                    onBack = onBack, onFullscreen = {}, onTogglePlay = {}, onToggleLock = {},
+                    onSeek = {}, onInteract = {}, onZoneTap = {}, onToggleSubs = {},
+                    onSwipe = { _, _ -> }, onSwipeEnd = {},
+                    video = { mod -> Box(mod.fillMaxSize().background(Color.Black)) },
+                )
+            }
+            PlayerPanel(title = media.title, year = media.year, rating = media.rating)
+            if (resolveErr != null) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                ) {
+                    Button(onClick = { resolveErr = null; retryN++ }) { Text("Retry") }
+                    TextButton(onClick = onPickList) { Text("Choose") }
+                }
+            }
         }
         return
     }
+    val stream = rs
     val exo = player
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var gestureNote by remember { mutableStateOf<String?>(null) }
@@ -967,8 +1064,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
                 }
             }
 
-            override fun onPlaybackStateChanged(state: Int) {
-                val name = when (state) {
+            override fun onPlaybackStateChanged(state: Int) {                val name = when (state) {
                     Player.STATE_IDLE -> "idle"
                     Player.STATE_BUFFERING -> "buffering"
                     Player.STATE_READY -> "ready"
@@ -1103,7 +1199,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
                     if (!gaveUpSent && (exo.currentPosition < 10_000 || sameSpotStreak >= 3)) {
                         gaveUpSent = true
                         AppLog.d("player unplayable, back to releases")
-                        onGiveUp()
+                        onGiveUp(stream.url)
                     }
                 } else if (c == null && !TORRENTS_ENABLED) {
                     directErrs += 1
@@ -1111,7 +1207,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
                     if (directErrs >= 3 && !gaveUpSent && exo.currentPosition < 60_000) {
                         gaveUpSent = true
                         AppLog.d("player direct dead, next source")
-                        onGiveUp()
+                        onGiveUp(stream.url)
                     }
                 }
             }
@@ -1550,7 +1646,7 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
     var videoW by remember { mutableStateOf(0) }
     var videoH by remember { mutableStateOf(0) }
     var playing by remember { mutableStateOf(false) }
-    var stalled by remember { mutableStateOf(false) }
+    var stalled by remember { mutableStateOf(true) }
     var seekMark by remember { mutableStateOf<SeekMark?>(null) }
     var hideJob: Job? by remember { mutableStateOf(null) }
     var lastTapAt by remember { mutableStateOf(0L) }
@@ -1902,15 +1998,19 @@ private fun PlayerScreen(title: String, media: Title, stream: Stream, ctl: DlCtl
         val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsVideoH = if (videoAspect >= fsW / fsH) fsW / videoAspect else fsH
-        stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, videoAspect < fsW / fsH)
+        AnimatedVisibility(visible = true, enter = fadeIn()) {
+            stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, videoAspect < fsW / fsH)
+        }
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val stageH = (portraitW * 9 / 16).dp
-        Column(Modifier.fillMaxSize().background(Color.Black)) {
-            Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
-                stage(0.dp, videoAspect < 16f / 9f)
+        AnimatedVisibility(visible = true, enter = fadeIn()) {
+            Column(Modifier.fillMaxSize().background(Color.Black)) {
+                Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
+                    stage(0.dp, videoAspect < 16f / 9f)
+                }
+                PlayerPanel(title = media.title, year = media.year, rating = media.rating)
             }
-            PlayerPanel(title = media.title, year = media.year, rating = media.rating)
         }
     }
 }
