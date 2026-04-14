@@ -1,5 +1,7 @@
 package dev.phantomwatch
 
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.Uri
 import android.os.Bundle
 import android.media.AudioManager
@@ -9,6 +11,8 @@ import android.view.SurfaceView
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -908,6 +912,7 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
     val rs = resolved
     var gaveUpSent by remember { mutableStateOf(false) }
     var directErrs by remember { mutableStateOf(0) }
+    var netErr by remember { mutableStateOf(false) }
     var resumeJob: Job? by remember { mutableStateOf(null) }
     var lastErrPos by remember { mutableStateOf(-1L) }
     var lastErrDl by remember { mutableStateOf(0L) }
@@ -1029,6 +1034,20 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
             }
         }
     }
+    fun netResume(src: String) {
+        try {
+            if (exo.playbackState != Player.STATE_IDLE) return
+            netErr = false
+            val pos = exo.currentPosition
+            val subs = stream.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
+            exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(subs)), pos)
+            exo.prepare()
+            exo.play()
+            AppLog.d("net resume $src at ${pos / 1000}s")
+        } catch (e: Exception) {
+            AppLog.d("net resume fail ${e.message}")
+        }
+    }
     DisposableEffect(exo) {        val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 latestTracks = tracks
@@ -1064,7 +1083,9 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
                 }
             }
 
-            override fun onPlaybackStateChanged(state: Int) {                val name = when (state) {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) netErr = false
+                val name = when (state) {
                     Player.STATE_IDLE -> "idle"
                     Player.STATE_BUFFERING -> "buffering"
                     Player.STATE_READY -> "ready"
@@ -1203,6 +1224,7 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
                     }
                 } else if (c == null && !TORRENTS_ENABLED) {
                     directErrs += 1
+                    netErr = true
                     AppLog.d("player direct err $directErrs")
                     if (directErrs >= 3 && !gaveUpSent && exo.currentPosition < 60_000) {
                         gaveUpSent = true
@@ -1228,6 +1250,25 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
             }
             enhSession = null
             exo.release()
+        }
+    }
+    DisposableEffect(exo) {
+        val conn = context.getSystemService(ConnectivityManager::class.java)
+        if (conn == null) return@DisposableEffect onDispose {}
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                resumeScope.launch { netResume("net") }
+            }
+        }
+        try {
+            conn.registerDefaultNetworkCallback(cb)
+        } catch (_: Exception) {
+        }
+        onDispose {
+            try {
+                conn.unregisterNetworkCallback(cb)
+            } catch (_: Exception) {
+            }
         }
     }
     var subsOff by remember { mutableStateOf(false) }
@@ -1637,6 +1678,14 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
         if (fullest >= 0) pickEmbed(fullest, "auto")
     }
 
+    DisposableEffect(exo) {
+        val lc = (context as? ComponentActivity)?.lifecycle ?: return@DisposableEffect onDispose {}
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME && netErr) resumeScope.launch { netResume("fg") }
+        }
+        lc.addObserver(obs)
+        onDispose { lc.removeObserver(obs) }
+    }
     var controls by remember { mutableStateOf(true) }
     var fullscreen by remember { mutableStateOf(false) }
     var locked by remember { mutableStateOf(false) }
@@ -1664,7 +1713,8 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
         }
     }
     fun togglePlay() {
-        if (exo.isPlaying) exo.pause() else exo.play()
+        if (exo.playbackState == Player.STATE_IDLE) netResume("tap")
+        else if (exo.isPlaying) exo.pause() else exo.play()
         poke()
     }
     fun seekTo(f: Float) {
