@@ -126,11 +126,100 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_PhantomWatch)
         super.onCreate(savedInstanceState)
+        PipCtl.inPip = false
+        androidx.core.content.ContextCompat.registerReceiver(
+            this, pipRecv,
+            android.content.IntentFilter().apply {
+                addAction(ACT_PIP_TOGGLE)
+                addAction(ACT_PIP_CLOSE)
+            },
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) { App() }
             }
         }
+    }
+
+    override fun onDestroy() {
+        try {
+            unregisterReceiver(pipRecv)
+        } catch (_: Exception) {
+        }
+        super.onDestroy()
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        PipCtl.inPip = isInPictureInPictureMode
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val p = PipCtl.player
+        if (PipCtl.active && p != null) {
+            try {
+                pipParams(p.isPlaying)?.let { enterPictureInPictureMode(it) }
+            } catch (e: Exception) {
+                AppLog.d("pip fail ${e.message}")
+            }
+        }
+    }
+
+    private val pipRecv = object : android.content.BroadcastReceiver() {
+        override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
+            val p = PipCtl.player ?: return
+            when (intent.action) {
+                ACT_PIP_TOGGLE -> {
+                    try {
+                        if (p.isPlaying) p.pause() else p.play()
+                        pipParams(p.isPlaying)?.let { setPictureInPictureParams(it) }
+                    } catch (_: Exception) {
+                    }
+                }
+                ACT_PIP_CLOSE -> {
+                    try {
+                        p.pause()
+                    } catch (_: Exception) {
+                    }
+                    finish()
+                }
+            }
+        }
+    }
+
+    private fun pipParams(playing: Boolean): android.app.PictureInPictureParams? = try {
+        val toggle = android.app.RemoteAction(
+            android.graphics.drawable.Icon.createWithResource(
+                this,
+                if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+            ),
+            if (playing) "Pause" else "Play", "",
+            android.app.PendingIntent.getBroadcast(
+                this, 1,
+                android.content.Intent(ACT_PIP_TOGGLE).setPackage(packageName),
+                android.app.PendingIntent.FLAG_IMMUTABLE,
+            ),
+        )
+        val close = android.app.RemoteAction(
+            android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
+            "Close", "",
+            android.app.PendingIntent.getBroadcast(
+                this, 2,
+                android.content.Intent(ACT_PIP_CLOSE).setPackage(packageName),
+                android.app.PendingIntent.FLAG_IMMUTABLE,
+            ),
+        )
+        android.app.PictureInPictureParams.Builder()
+            .setAspectRatio(android.util.Rational(16, 9))
+            .setActions(listOf(toggle, close))
+            .build()
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -139,6 +228,15 @@ private sealed interface Screen {
     data class Player(val title: String, val stream: Stream?, val ctl: DlCtl?, val entry: TEntry?, val media: Title, val season: String, val episode: String) : Screen
     data class Torrents(val title: Title, val season: String, val episode: String) : Screen
     data class Fetch(val title: Title, val season: String, val episode: String, val entry: TEntry) : Screen
+}
+
+private const val ACT_PIP_TOGGLE = "dev.phantomwatch.PIP_TOGGLE"
+private const val ACT_PIP_CLOSE = "dev.phantomwatch.PIP_CLOSE"
+
+object PipCtl {
+    var active = false
+    var inPip by mutableStateOf(false)
+    var player: androidx.media3.exoplayer.ExoPlayer? = null
 }
 
 class DlCtl(val handle: TorrentHandle) {
@@ -279,7 +377,7 @@ private fun App() {
                 }
             }
         }
-        LogFab()
+        if (!PipCtl.inPip) LogFab()
     }
 }
 
@@ -998,6 +1096,14 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
     var enhBound by remember { mutableStateOf<Surface?>(null) }
     var enhSubView by remember { mutableStateOf<SubtitleView?>(null) }
     LaunchedEffect(stream.url) { Enhance.probe(context) { enhReady = it } }
+    DisposableEffect(exo) {
+        PipCtl.active = true
+        PipCtl.player = exo
+        onDispose {
+            PipCtl.active = false
+            if (PipCtl.player === exo) PipCtl.player = null
+        }
+    }
     LaunchedEffect(latestTracks) {
         val t = latestTracks ?: return@LaunchedEffect
         fun nameOf(f: androidx.media3.common.Format): String {
@@ -1930,7 +2036,7 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
         positionMs = positionMs,
         durationMs = durationMs,
         bufferedMs = bufferedMs,
-        controlsVisible = controls,
+        controlsVisible = controls && !PipCtl.inPip,
         flash = gestureNote ?: fillNote,
         seekMark = seekMark,
         seekInset = seekInset,
@@ -2032,7 +2138,7 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
                     },
                     update = {
                         it.resizeMode =
-                            if (fullscreen) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            if (fullscreen && !PipCtl.inPip) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                             else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         it.subtitleView?.translationY =
                             -(14 * it.resources.displayMetrics.density)
@@ -2044,7 +2150,9 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
         )
     }
     val cfg = LocalConfiguration.current
-    if (fullscreen) {
+    if (PipCtl.inPip) {
+        stage(0.dp, videoAspect < 16f / 9f)
+    } else if (fullscreen) {
         val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsVideoH = if (videoAspect >= fsW / fsH) fsW / videoAspect else fsH
