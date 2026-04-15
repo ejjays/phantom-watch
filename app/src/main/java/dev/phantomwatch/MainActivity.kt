@@ -166,6 +166,7 @@ class MainActivity : ComponentActivity() {
         super.onUserLeaveHint()
         val p = PipCtl.player
         AppLog.d("pip leave active=${PipCtl.active} player=${p != null}")
+        if (android.os.Build.VERSION.SDK_INT >= 31) return
         if (PipCtl.active && p != null) {
             try {
                 val ok = pipParams(p.isPlaying)?.let { enterPictureInPictureMode(it) } ?: false
@@ -1135,6 +1136,7 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
         return
     }
     val stream = rs
+    var live by remember { mutableStateOf(rs) }
     val exo = player
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var gestureNote by remember { mutableStateOf<String?>(null) }
@@ -1193,19 +1195,22 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
             }
         }
     }
-    fun netResume(src: String) {
+    fun attach(pos: Long) {
         try {
-            if (exo.playbackState != Player.STATE_IDLE) return
-            netErr = false
-            val pos = exo.currentPosition
-            val subs = stream.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-            exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(subs)), pos)
+            val subs = live.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
+            exo.setMediaItem(itemFor(live.url, live.isHls, configsFor(subs)), pos)
             exo.prepare()
             exo.play()
-            AppLog.d("net resume $src at ${pos / 1000}s")
         } catch (e: Exception) {
-            AppLog.d("net resume fail ${e.message}")
+            AppLog.d("attach fail ${e.message}")
         }
+    }
+    fun netResume(src: String) {
+        if (exo.playbackState != Player.STATE_IDLE) return
+        netErr = false
+        val pos = exo.currentPosition
+        AppLog.d("net resume $src at ${pos / 1000}s")
+        attach(pos)
     }
     DisposableEffect(exo) {        val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -1384,11 +1389,30 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
                 } else if (c == null && !TORRENTS_ENABLED) {
                     directErrs += 1
                     netErr = true
+                    val errPos = exo.currentPosition
                     AppLog.d("player direct err $directErrs")
-                    if (directErrs >= 3 && !gaveUpSent && exo.currentPosition < 60_000) {
+                    if (directErrs >= 3 && !gaveUpSent && errPos < 60_000) {
                         gaveUpSent = true
                         AppLog.d("player direct dead, next source")
-                        onGiveUp(stream.url)
+                        onGiveUp(live.url)
+                    } else if (directErrs <= 3 && errPos >= 60_000) {
+                        resumeJob?.cancel()
+                        resumeJob = resumeScope.launch {
+                            val fresh = try {
+                                withContext(Dispatchers.IO) {
+                                    VidStream.directAll(media.id, media.kind, season, episode, media.title)
+                                }.first.firstOrNull { it.url !in Torrents.DeadReleases.urls }
+                            } catch (e: Exception) {
+                                null
+                            }
+                            if (fresh == null) {
+                                AppLog.d("player relink none")
+                                return@launch
+                            }
+                            live = live.copy(url = fresh.url, isHls = fresh.isHls, referer = fresh.referer)
+                            AppLog.d("player relink ${fresh.label} hls=${fresh.isHls} at ${errPos / 1000}s")
+                            attach(errPos)
+                        }
                     }
                 }
             }
@@ -2082,16 +2106,12 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
     }
     var previewPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
     var previewAt by remember { mutableStateOf(0L) }
-    LaunchedEffect(stream.url) {
-        if (previewPlayer == null) {
-            try {
-                previewPlayer = buildPreviewPlayer(context, stream)
-            } catch (e: Exception) {
-                AppLog.d("preview build fail ${e.message}")
-            }
+    DisposableEffect(live.url) {
+        try {
+            previewPlayer = buildPreviewPlayer(context, live)
+        } catch (e: Exception) {
+            AppLog.d("preview build fail ${e.message}")
         }
-    }
-    DisposableEffect(stream.url) {
         onDispose {
             try {
                 previewPlayer?.release()
