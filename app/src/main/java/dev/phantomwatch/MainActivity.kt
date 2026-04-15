@@ -156,17 +156,28 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         PipCtl.inPip = isInPictureInPictureMode
+        AppLog.d("pip mode $isInPictureInPictureMode")
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         val p = PipCtl.player
+        AppLog.d("pip leave active=${PipCtl.active} player=${p != null}")
         if (PipCtl.active && p != null) {
             try {
-                pipParams(p.isPlaying)?.let { enterPictureInPictureMode(it) }
+                val ok = pipParams(p.isPlaying)?.let { enterPictureInPictureMode(it) } ?: false
+                AppLog.d("pip enter $ok")
             } catch (e: Exception) {
                 AppLog.d("pip fail ${e.message}")
             }
+        }
+    }
+
+    fun armPip(on: Boolean, playing: Boolean) {
+        try {
+            pipParams(playing, auto = on)?.let { setPictureInPictureParams(it) }
+        } catch (e: Exception) {
+            AppLog.d("pip arm fail ${e.message}")
         }
     }
 
@@ -192,7 +203,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun pipParams(playing: Boolean): android.app.PictureInPictureParams? = try {
+    private fun pipParams(playing: Boolean, auto: Boolean = false): android.app.PictureInPictureParams? = try {
         val toggle = android.app.RemoteAction(
             android.graphics.drawable.Icon.createWithResource(
                 this,
@@ -214,10 +225,11 @@ class MainActivity : ComponentActivity() {
                 android.app.PendingIntent.FLAG_IMMUTABLE,
             ),
         )
-        android.app.PictureInPictureParams.Builder()
+        val b = android.app.PictureInPictureParams.Builder()
             .setAspectRatio(android.util.Rational(16, 9))
             .setActions(listOf(toggle, close))
-            .build()
+        if (auto && android.os.Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(true)
+        b.build()
     } catch (_: Exception) {
         null
     }
@@ -1099,7 +1111,10 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
     DisposableEffect(exo) {
         PipCtl.active = true
         PipCtl.player = exo
+        val act = context as? MainActivity
+        act?.armPip(true, exo.isPlaying)
         onDispose {
+            act?.armPip(false, false)
             PipCtl.active = false
             if (PipCtl.player === exo) PipCtl.player = null
         }
@@ -1801,6 +1816,7 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
     var videoW by remember { mutableStateOf(0) }
     var videoH by remember { mutableStateOf(0) }
     var playing by remember { mutableStateOf(false) }
+    LaunchedEffect(playing) { (context as? MainActivity)?.armPip(true, playing) }
     var stalled by remember { mutableStateOf(true) }
     var seekMark by remember { mutableStateOf<SeekMark?>(null) }
     var hideJob: Job? by remember { mutableStateOf(null) }
