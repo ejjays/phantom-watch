@@ -5,9 +5,11 @@ import android.net.Network
 import android.net.Uri
 import android.os.Bundle
 import android.media.AudioManager
+import android.os.SystemClock
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.TextureView
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -90,6 +92,7 @@ import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ScrubbingModeParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
@@ -984,6 +987,41 @@ private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: D
             setMediaItem(itemFor(stream.url, stream.isHls, configsFor(stream.subs)))
             prepare()
             play()
+        }
+}
+
+@OptIn(UnstableApi::class)
+private fun buildPreviewPlayer(context: android.content.Context, stream: Stream): ExoPlayer {
+    val origin = "https://${Uri.parse(stream.referer).host}"
+    val headers = mapOf(
+        "Referer" to stream.referer,
+        "Origin" to origin,
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+    ) + (stream.auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
+    val selector = DefaultTrackSelector(context).apply {
+        parameters = buildUponParameters()
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            .build()
+    }
+    val loadControl = DefaultLoadControl.Builder()
+        .setBufferDurationsMs(2000, 5000, 1000, 1000)
+        .build()
+    return ExoPlayer.Builder(context)
+        .setTrackSelector(selector)
+        .setMediaSourceFactory(buildMediaFactory(context, stream, headers, null))
+        .setLoadControl(loadControl)
+        .build()
+        .apply {
+            volume = 0f
+            setScrubbingModeParameters(ScrubbingModeParameters.Builder().setUseDecodeOnlyFlag(false).build())
+            addListener(object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    AppLog.d("preview err ${error.errorCodeName}")
+                }
+            })
+            setMediaItem(itemFor(stream.url, stream.isHls, emptyList()))
+            prepare()
         }
 }
 
@@ -2042,6 +2080,41 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
         exo.addListener(l)
         onDispose { exo.removeListener(l) }
     }
+    var previewPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+    var previewAt by remember { mutableStateOf(0L) }
+    LaunchedEffect(stream.url) {
+        if (previewPlayer == null) {
+            try {
+                previewPlayer = buildPreviewPlayer(context, stream)
+            } catch (e: Exception) {
+                AppLog.d("preview build fail ${e.message}")
+            }
+        }
+    }
+    DisposableEffect(stream.url) {
+        onDispose {
+            try {
+                previewPlayer?.release()
+            } catch (_: Exception) {
+            }
+            previewPlayer = null
+        }
+    }
+    fun scrubTo(f: Float?) {
+        val p = previewPlayer ?: return
+        try {
+            if (f == null) {
+                p.setScrubbingModeEnabled(false)
+                return
+            }
+            val now = SystemClock.uptimeMillis()
+            if (now - previewAt < 120) return
+            previewAt = now
+            p.setScrubbingModeEnabled(true)
+            if (durationMs > 0) p.seekTo((f * durationMs).toLong())
+        } catch (_: Exception) {
+        }
+    }
     @Composable
     fun stage(seekInset: androidx.compose.ui.unit.Dp, matchH: Boolean) {
         PlayerStage(
@@ -2059,6 +2132,14 @@ private fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlC
         locked = locked,
         subsOn = !subsOff,
         canSubs = stream.subs.isNotEmpty() || embedNames.isNotEmpty(),
+        onScrub = ::scrubTo,
+        preview = { mod ->
+            AndroidView(
+                factory = { ctx -> TextureView(ctx).also { previewPlayer?.setVideoTextureView(it) } },
+                onRelease = { previewPlayer?.clearVideoTextureView(it) },
+                modifier = mod.aspectRatio(videoAspect.coerceIn(1.1f, 2.4f)),
+            )
+        },
         onBack = onBack,
         onFullscreen = {
             autoFs = false

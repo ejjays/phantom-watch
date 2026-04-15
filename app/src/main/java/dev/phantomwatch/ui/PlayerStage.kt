@@ -8,7 +8,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -90,6 +95,8 @@ fun PlayerStage(
     subsOn: Boolean,
     canSubs: Boolean,
     showSpinner: Boolean = true,
+    onScrub: (Float?) -> Unit = {},
+    preview: (@Composable (Modifier) -> Unit)? = null,
     onBack: () -> Unit,
     onFullscreen: () -> Unit,
     onTogglePlay: () -> Unit,
@@ -174,8 +181,11 @@ fun PlayerStage(
                         bufferedMs = bufferedMs,
                         slim = false,
                         locked = locked,
+                        thumb = true,
                         onSeek = onSeek,
                         onInteract = onInteract,
+                        onScrub = onScrub,
+                        preview = preview,
                     )
                 }
                 Row(
@@ -249,8 +259,11 @@ fun PlayerStage(
             bufferedMs = bufferedMs,
             slim = !controlsVisible,
             locked = locked,
+            thumb = false,
             onSeek = onSeek,
             onInteract = onInteract,
+            onScrub = onScrub,
+            preview = preview,
             modifier = Modifier.align(Alignment.BottomStart).padding(bottom = seekInset),
         )
         }
@@ -355,38 +368,54 @@ private fun PlayerSeekBar(
     bufferedMs: Long,
     slim: Boolean,
     locked: Boolean,
+    thumb: Boolean,
     onSeek: (Float) -> Unit,
     onInteract: () -> Unit,
+    onScrub: (Float?) -> Unit,
+    preview: (@Composable (Modifier) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     var scrub by remember { mutableStateOf<Float?>(null) }
+    var dragging by remember { mutableStateOf(false) }
     var trackW by remember { mutableStateOf(0) }
     val frac = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     val shown = (scrub ?: frac).coerceIn(0f, 1f)
     val bufFrac = if (durationMs > 0) (bufferedMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     LaunchedEffect(positionMs) {
+        if (dragging) return@LaunchedEffect
         scrub?.let { s ->
             if (durationMs > 0 && abs(positionMs - s * durationMs) < 1500) scrub = null
         }
     }
-    fun seekAt(xPx: Float) {
-        if (trackW <= 0 || durationMs <= 0) return
+    fun seekAt(xPx: Float, live: Boolean): Float? {
+        if (trackW <= 0 || durationMs <= 0) return null
         val f = (xPx / trackW).coerceIn(0f, 1f)
         scrub = f
         onInteract()
-        onSeek(f)
+        if (live) onSeek(f)
+        return f
     }
     val playedColor by animateColorAsState(
         if (slim) Color.White else Cyan, tween(300), label = "seekPlayed",
     )
     Column(modifier.fillMaxWidth()) {
-        if (!slim && scrub != null && durationMs > 0) {
-            Text(
-                playerClock((scrub!! * durationMs).toLong()),
-                color = Color.White, fontSize = 12.sp, fontFamily = Mono,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            )
+        val at = scrub
+        if (!slim && at != null && durationMs > 0) {
+            if (preview != null) {
+                ScrubPreview(
+                    positionMs = (at * durationMs).toLong(),
+                    shown = shown,
+                    trackW = trackW,
+                    preview = preview,
+                )
+            } else {
+                Text(
+                    playerClock((at * durationMs).toLong()),
+                    color = Color.White, fontSize = 12.sp, fontFamily = Mono,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                )
+            }
         }
         Box(
             Modifier.fillMaxWidth().height(if (slim) 12.dp else 24.dp)
@@ -394,13 +423,26 @@ private fun PlayerSeekBar(
                 .then(
                     if (locked) Modifier
                     else Modifier.pointerInput(trackW, durationMs) {
-                        detectTapGestures { offset -> seekAt(offset.x) }
+                        detectTapGestures { offset -> seekAt(offset.x, true) }
                     }.pointerInput(trackW, durationMs) {
                         detectDragGestures(
-                            onDragStart = { offset -> seekAt(offset.x) },
-                            onDragEnd = { onInteract() },
-                            onDragCancel = { onInteract() },
-                            onDrag = { change, _ -> seekAt(change.position.x) },
+                            onDragStart = { offset ->
+                                dragging = true
+                                onScrub(seekAt(offset.x, false))
+                            },
+                            onDragEnd = {
+                                dragging = false
+                                onScrub(null)
+                                scrub?.let { onSeek(it) }
+                                onInteract()
+                            },
+                            onDragCancel = {
+                                dragging = false
+                                onScrub(null)
+                                scrub?.let { onSeek(it) }
+                                onInteract()
+                            },
+                            onDrag = { change, _ -> onScrub(seekAt(change.position.x, false)) },
                         )
                     },
                 ),
@@ -416,10 +458,11 @@ private fun PlayerSeekBar(
                 )
                 Box(
                     Modifier.align(Alignment.CenterStart).fillMaxWidth(shown).height(trackH)
+                        .clip(RoundedCornerShape(topEnd = 1.5.dp, bottomEnd = 1.5.dp))
                         .background(playedColor),
                 )
             }
-            if (!slim && scrub != null && trackW > 0) {
+            if (!slim && thumb && scrub != null && trackW > 0) {
                 val thumbOff = with(LocalDensity.current) {
                     val r = 7.dp.roundToPx()
                     if (trackW <= 0) 0
@@ -431,6 +474,56 @@ private fun PlayerSeekBar(
                         .size(14.dp).clip(CircleShape).background(Cyan),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ScrubPreview(
+    positionMs: Long,
+    shown: Float,
+    trackW: Int,
+    preview: @Composable (Modifier) -> Unit,
+) {
+    val width = 176.dp
+    val widthPx = with(LocalDensity.current) { width.roundToPx() }
+    val x = if (trackW > widthPx) {
+        ((shown * trackW).roundToInt() - widthPx / 2).coerceIn(0, trackW - widthPx)
+    } else {
+        0
+    }
+    Box(Modifier.fillMaxWidth().offset(y = 12.dp).padding(bottom = 2.dp)) {
+        Column(
+            Modifier.offset { IntOffset(x, 0) }.width(width),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, Cyan, RoundedCornerShape(8.dp))
+                    .background(Color.Black),
+            ) {
+                preview(Modifier.fillMaxWidth())
+                Text(
+                    playerClock(positionMs),
+                    color = Color.White, fontSize = 10.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 3.dp, vertical = 1.dp),
+                )
+            }
+            Canvas(Modifier.size(16.dp, 7.dp)) {
+                drawArc(
+                    color = Cyan,
+                    startAngle = 0f,
+                    sweepAngle = 180f,
+                    useCenter = true,
+                    topLeft = Offset(0f, -size.height),
+                    size = Size(size.width, size.height * 2f),
+                )
+            }
+            Box(
+                Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(Cyan),
+            )
         }
     }
 }
