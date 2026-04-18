@@ -8,6 +8,7 @@ import com.frostwire.jlibtorrent.swig.torrent_flags_t
 import java.io.File
 import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import org.json.JSONObject
@@ -25,6 +26,7 @@ private val TRACKERS = listOf(
 
 private val SIZE_RE = Regex("([0-9.]+)\\s*(GB|MB)")
 internal val VIDEO_EXTS = setOf("mp4", "mkv", "avi", "webm", "mov", "m4v")
+internal const val TORRENTS_ENABLED = false
 
 object Torrents {
     fun magnet(e: TEntry): String {
@@ -192,7 +194,7 @@ object TorrentEngine {
         AppLog.d("torrent session reset")
     }
 
-    fun download(e: TEntry, dir: File): TorrentHandle {
+    suspend fun download(e: TEntry, dir: File): TorrentHandle {
         val s = ensure()
         if (!dir.exists()) dir.mkdirs()
         // sequential_download bit, see torrent_flags.hpp: pieces arrive in
@@ -205,7 +207,7 @@ object TorrentEngine {
                 s.find(hash)?.let { return it }
             } catch (_: Exception) {
             }
-            Thread.sleep(500)
+            delay(500)
         }
         throw RuntimeException("torrent handle timeout")
     }

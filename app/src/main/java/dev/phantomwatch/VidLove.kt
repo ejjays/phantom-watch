@@ -1,7 +1,9 @@
 package dev.phantomwatch
 
 import android.net.Uri
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
@@ -79,12 +81,24 @@ private const val PLAYER = "https://player.vidlove.cc"
 private const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
 
 object AppLog {
-    val lines = mutableStateListOf<String>()
+    private val buf = ArrayDeque<String>()
     private val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")
-    @Synchronized
+    var lines by mutableStateOf<List<String>>(emptyList())
+        private set
+
     fun d(msg: String) {
-        lines.add("${fmt.format(java.time.LocalTime.now())} $msg")
-        if (lines.size > 300) lines.removeRange(0, lines.size - 300)
+        synchronized(buf) {
+            buf.addLast("${fmt.format(java.time.LocalTime.now())} $msg")
+            while (buf.size > 300) buf.removeFirst()
+            lines = buf.toList()
+        }
+    }
+
+    fun clear() {
+        synchronized(buf) {
+            buf.clear()
+            lines = emptyList()
+        }
     }
 }
 

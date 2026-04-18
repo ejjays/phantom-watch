@@ -1,7 +1,9 @@
-# Phantom Watch — minimal native VidLove player
+# Phantom Watch — minimal native streaming player
 
 Home = TMDB trending grid. Tap a movie to play, tap a show to pick season/episode.
-Player = ExoPlayer, VidLove stream only, VidLove subs only (English preferred).
+Player = ExoPlayer; streams merged from five direct providers (VidLove, VidRock,
+VixSrc, VidZee, AnimeParadise, best height wins); subs preferred from VidLove,
+then OpenSubtitles / AI.
 
 ## Run
 
@@ -12,8 +14,8 @@ Player = ExoPlayer, VidLove stream only, VidLove subs only (English preferred).
 
 ## Notes
 
-- No relay through other providers: stream + subs both come from the same
-  VidLove response, so they stay in sync by construction.
+- VidLove supplies stream + subs in one response, so those stay in sync by
+  construction; the other providers are stream-only.
 - Best video is capped at 1080p; moviebox mp4 is last resort.
 
 ## Subtitle cache (Supabase, once)

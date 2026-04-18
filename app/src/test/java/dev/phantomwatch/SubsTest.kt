@@ -1,7 +1,9 @@
 package dev.phantomwatch
 
 import dev.phantomwatch.ui.airLabel
+import dev.phantomwatch.ui.playerClock
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -97,5 +99,43 @@ class SubsTest {
         val vtt = VidLove.renderCues(cues)
         assertTrue(vtt.startsWith("WEBVTT"))
         assertTrue(vtt.contains("Hi"))
+    }
+
+    @Test
+    fun playerClockFormatsMinutesAndHours() {
+        assertEquals("0:00", playerClock(0))
+        assertEquals("1:05", playerClock(65000))
+        assertEquals("1:02:03", playerClock(3723000))
+    }
+
+    @Test
+    fun englishFirstPutsEnglishOnTop() {
+        val subs = listOf(Sub("Spanish", "a"), Sub("English SDH", "b"), Sub("French", "c"))
+        assertEquals(listOf("b", "a", "c"), VidLove.englishFirst(subs).map { it.url })
+    }
+
+    @Test
+    fun torrentsBestPrefersSeeded() {
+        val risky = TEntry("risky", "1 GB", 1, "hashA")
+        val solid = TEntry("solid", "1 GB", 9, "hashB")
+        assertEquals(solid, Torrents.best(listOf(risky, solid)))
+    }
+
+    @Test
+    fun torrentsBestSkipsDeadReleases() {
+        val dead = TEntry("dead", "1 GB", 20, "hashC")
+        Torrents.DeadReleases.hashes.add("hashC")
+        try {
+            assertNull(Torrents.best(listOf(dead)))
+        } finally {
+            Torrents.DeadReleases.hashes.remove("hashC")
+        }
+    }
+
+    @Test
+    fun shiftSubFileMovesCues() {
+        val dir = java.nio.file.Files.createTempDirectory("phantom-subs").toFile()
+        val f = VidLove.shiftSubFile("1\n00:00:01,000 --> 00:00:02,000\nHi\n", 1000, dir)
+        assertEquals(2000L, VidLove.parseCues(f!!.readText())[0].start)
     }
 }
