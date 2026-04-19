@@ -75,11 +75,13 @@ import coil3.request.ImageRequest
 import dev.phantomwatch.AppLog
 import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
+import dev.phantomwatch.Resolve
 import dev.phantomwatch.Episode
 import dev.phantomwatch.Person
 import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
 import dev.phantomwatch.VidLove
+import dev.phantomwatch.isWifi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -115,6 +117,15 @@ fun MovieDetail(
     fun ms() = (System.nanoTime() - t0) / 1000000
     LaunchedEffect(item.id, item.kind) {
         AppLog.d("detail open ${item.kind}/${item.id} ${item.title}")
+    }
+    LaunchedEffect(item.id, item.kind) {
+        if (item.kind != "movie") return@LaunchedEffect
+        delay(1200)
+        if (!isWifi(context)) {
+            AppLog.d("prefetch skipped ${item.title} (metered)")
+            return@LaunchedEffect
+        }
+        Resolve.prefetch(item, "", "")
     }
     LaunchedEffect(item.id, item.kind) {
         delay(600)

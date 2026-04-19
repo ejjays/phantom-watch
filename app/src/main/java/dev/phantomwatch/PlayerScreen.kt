@@ -276,21 +276,18 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     LaunchedEffect(media.id, media.kind, season, episode, retryN) {
         if (resolved != null) return@LaunchedEffect
         try {
-            val all = withContext(Dispatchers.IO) {
-                VidStream.directAll(media.id, media.kind, season, episode, media.title)
+            val bundle = withContext(Dispatchers.IO) {
+                Resolve.streams(media, season, episode, fresh = retryN > 0)
             }
-            val imdb = withContext(Dispatchers.IO) {
-                VidLove.imdbOf(media.id, media.kind, BuildConfig.TMDB_API_KEY)?.removePrefix("tt")
-            }
-            val live = all.first.filter { it.url !in Torrents.DeadReleases.urls }
-            AppLog.d("direct ${live.size} formats subs=${all.second.size}")
+            val live = bundle.formats.filter { it.url !in Torrents.DeadReleases.urls }
+            AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
                 resolveErr = "No direct streams found"
                 return@LaunchedEffect
             }
             val best = live.first()
             AppLog.d("direct play ${best.label} hls=${best.isHls}")
-            resolved = Stream(best.url, best.isHls, all.second, best.referer, null, imdb = imdb)
+            resolved = Stream(best.url, best.isHls, bundle.subs, best.referer, null, imdb = bundle.imdb)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

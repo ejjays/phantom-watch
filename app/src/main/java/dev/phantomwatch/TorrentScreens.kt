@@ -42,7 +42,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private fun isWifi(context: android.content.Context): Boolean {
+internal fun isWifi(context: android.content.Context): Boolean {
     val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
         ?: return true
     val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
