@@ -330,17 +330,23 @@ object VidStream {
         withContext(Dispatchers.IO) {
             withTimeoutOrNull(30000) {
                 coroutineScope {
-                    val love = async { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } }
-                    val rock = async { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } }
-                    val vix = async { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } }
-                    val zee = async { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } }
-                    val para = async { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } }
+                    val t0 = System.currentTimeMillis()
+                    suspend fun <T> leg(name: String, block: suspend () -> T): T {
+                        val r = block()
+                        AppLog.d("leg $name ${System.currentTimeMillis() - t0}ms")
+                        return r
+                    }
+                    val love = async { leg("love") { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } } }
+                    val rock = async { leg("rock") { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } } }
+                    val vix = async { leg("vix") { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } } }
+                    val zee = async { leg("zee") { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } } }
+                    val para = async { leg("para") { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } } }
                     val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
                     val rockF = rock.await() ?: emptyList()
                     val vixF = vix.await() ?: emptyList()
                     val zeeF = zee.await() ?: emptyList()
                     val paraF = para.await() ?: emptyList()
-                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size}")
+                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} @${System.currentTimeMillis() - t0}ms")
                     val all = (formats + rockF + vixF + zeeF + paraF)
                         .filter { it.url !in Torrents.DeadReleases.urls }
                         .sortedWith(
