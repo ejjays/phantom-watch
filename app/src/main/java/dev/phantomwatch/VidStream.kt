@@ -27,9 +27,6 @@ object VidStream {
     private const val LOVE_ORIGIN = "https://player.vidlove.cc"
     private const val VIX_REFERER = "https://vixsrc.to/"
     private const val VIX_ORIGIN = "https://vixsrc.to"
-    private const val ZEE_API = "https://core.vidzee.wtf"
-    private const val ZEE_ORIGIN = "https://player.vidzee.wtf"
-    private const val ZEE_PLAYER = "https://player.vidzee.wtf"
     private const val PARA_API = "https://api.animeparadise.moe"
     private const val PARA_STREAM = "https://stream.animeparadise.moe"
     private const val PARA_ORIGIN = "https://animeparadise.moe"
@@ -215,24 +212,6 @@ object VidStream {
             formats.sortedByDescending { it.height }.map { it.copy(referer = embed) } to subs
         }
 
-    private suspend fun vidzee(tmdbId: String, kind: String, season: String, episode: String): List<VFormat> =
-        coroutineScope {
-            val path = if (kind == "movie") "/streams/movie/$tmdbId" else "/streams/tv/$tmdbId/$season/$episode"
-            listOf("dcloud", "tik", "ipcloud").map { sr ->
-                async {
-                    val (code, body) = fetch("$ZEE_API$path?s=$sr&e=0", "$ZEE_ORIGIN/", 8) ?: return@async null
-                    if (code != 200) return@async null
-                    val url = try {
-                        JSONObject(body).optString("url")
-                    } catch (_: Exception) {
-                        return@async null
-                    }
-                    if (!url.startsWith("http")) return@async null
-                    VFormat(url, true, "zee-$sr-auto", 0, true, "$ZEE_ORIGIN/")
-                }
-            }.awaitAll().filterNotNull().distinctBy { it.url }
-        }
-
     private suspend fun vixsrc(tmdbId: String, kind: String, season: String, episode: String): List<VFormat> =
         withContext(Dispatchers.IO) {
             val api = if (kind == "movie") "https://vixsrc.to/api/movie/$tmdbId"
@@ -339,15 +318,13 @@ object VidStream {
                     val love = async { leg("love") { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } } }
                     val rock = async { leg("rock") { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } } }
                     val vix = async { leg("vix") { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } } }
-                    val zee = async { leg("zee") { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } } }
                     val para = async { leg("para") { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } } }
                     val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
                     val rockF = rock.await() ?: emptyList()
                     val vixF = vix.await() ?: emptyList()
-                    val zeeF = zee.await() ?: emptyList()
                     val paraF = para.await() ?: emptyList()
-                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} @${System.currentTimeMillis() - t0}ms")
-                    val all = (formats + rockF + vixF + zeeF + paraF)
+                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} para=${paraF.size} @${System.currentTimeMillis() - t0}ms")
+                    val all = (formats + rockF + vixF + paraF)
                         .filter { it.url !in Torrents.DeadReleases.urls }
                         .sortedWith(
                             compareByDescending<VFormat> { if (it.height < 0) 0 else 1 }
