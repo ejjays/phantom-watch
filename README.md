@@ -1,8 +1,8 @@
 # Phantom Watch — minimal native streaming player
 
 Home = TMDB trending grid. Tap a movie to play, tap a show to pick season/episode.
-Player = ExoPlayer; streams merged from four direct providers (VidLove, VidRock,
-VixSrc, AnimeParadise, best height wins); subs preferred from VidLove,
+Player = ExoPlayer; streams merged from five direct providers (VidLove, VidRock,
+VixSrc, AnimeParadise, VAPlayer, best height wins); subs preferred from VidLove,
 then OpenSubtitles / AI.
 
 ## Run

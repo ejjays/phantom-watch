@@ -30,6 +30,8 @@ object VidStream {
     private const val PARA_API = "https://api.animeparadise.moe"
     private const val PARA_STREAM = "https://stream.animeparadise.moe"
     private const val PARA_ORIGIN = "https://animeparadise.moe"
+    private const val VAPLAYER_API = "https://streamdata.vaplayer.ru/api.php"
+    private const val VAPLAYER_ORIGIN = "https://nextgencloudfabric.com"
     private const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
 
     private fun hexBytes(hex: String): ByteArray {
@@ -245,6 +247,28 @@ object VidStream {
             }
         }
 
+    private suspend fun vaplayer(imdb: String, kind: String, season: String, episode: String): List<VFormat> =
+        withContext(Dispatchers.IO) {
+            val query = if (kind == "movie") "imdb=$imdb&type=movie"
+            else "imdb=$imdb&type=tv&season=$season&episode=$episode"
+            val referer = if (kind == "movie") "$VAPLAYER_ORIGIN/embed/movie/$imdb"
+            else "$VAPLAYER_ORIGIN/embed/tv/$imdb/$season/$episode"
+            val (code, body) = fetch("$VAPLAYER_API?$query", referer, 10) ?: return@withContext emptyList()
+            if (code != 200) return@withContext emptyList()
+            val master = try {
+                JSONObject(body).optJSONObject("data")?.optJSONArray("stream_urls")?.optString(0)
+            } catch (_: Exception) {
+                null
+            }
+            if (master.isNullOrEmpty() || !master.startsWith("http")) return@withContext emptyList()
+            val (_, manifest) = fetch(master, "$VAPLAYER_ORIGIN/", 8) ?: return@withContext emptyList()
+            if (!manifest.contains("#EXTM3U")) return@withContext emptyList()
+            val variants = masterVariants(manifest, master).map {
+                it.copy(label = "vap-${it.label}", referer = "$VAPLAYER_ORIGIN/")
+            }
+            listOf(VFormat(master, true, "vap-auto", variants.firstOrNull()?.height ?: 0, true, "$VAPLAYER_ORIGIN/")) + variants
+        }
+
     private fun normTitle(title: String): String =
         title.lowercase().replace(Regex("[^a-z0-9]+"), "")
 
@@ -305,11 +329,12 @@ object VidStream {
             listOf(VFormat(masterUrl, true, "paradise-auto", variants.firstOrNull()?.height ?: 0, true, "$PARA_ORIGIN/")) + variants
         }
 
-    suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Pair<List<VFormat>, List<Sub>> =
+    suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Triple<List<VFormat>, List<Sub>, String?> =
         withContext(Dispatchers.IO) {
             withTimeoutOrNull(30000) {
                 coroutineScope {
                     val t0 = System.currentTimeMillis()
+                    val imdb = async { VidLove.imdbOf(tmdbId, kind, BuildConfig.TMDB_API_KEY) }
                     suspend fun <T> leg(name: String, block: suspend () -> T): T {
                         val r = block()
                         AppLog.d("leg $name ${System.currentTimeMillis() - t0}ms")
@@ -319,12 +344,20 @@ object VidStream {
                     val rock = async { leg("rock") { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } } }
                     val vix = async { leg("vix") { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } } }
                     val para = async { leg("para") { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } } }
+                    val vap = async {
+                        leg("vap") {
+                            withTimeoutOrNull(15000) {
+                                imdb.await()?.let { vaplayer(it, kind, season, episode) } ?: emptyList()
+                            }
+                        }
+                    }
                     val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
                     val rockF = rock.await() ?: emptyList()
                     val vixF = vix.await() ?: emptyList()
                     val paraF = para.await() ?: emptyList()
-                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} para=${paraF.size} @${System.currentTimeMillis() - t0}ms")
-                    val all = (formats + rockF + vixF + paraF)
+                    val vapF = vap.await() ?: emptyList()
+                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} para=${paraF.size} vap=${vapF.size} @${System.currentTimeMillis() - t0}ms")
+                    val all = (formats + rockF + vixF + paraF + vapF)
                         .filter { it.url !in Torrents.DeadReleases.urls }
                         .sortedWith(
                             compareByDescending<VFormat> { if (it.height < 0) 0 else 1 }
@@ -332,13 +365,13 @@ object VidStream {
                                 .thenByDescending { if (it.english) 1 else 0 }
                                 .thenByDescending { it.height },
                         )
-                    all.distinctBy { it.url } to subs.distinctBy { it.url }
+                    Triple(all.distinctBy { it.url }, subs.distinctBy { it.url }, imdb.await())
                 }
-            } ?: (emptyList<VFormat>() to emptyList())
+            } ?: Triple(emptyList(), emptyList(), null)
         }
 
     suspend fun direct(tmdbId: String, kind: String, season: String, episode: String, title: String): DirectHit? {
-        val (all, subs) = directAll(tmdbId, kind, season, episode, title)
+        val (all, subs, _) = directAll(tmdbId, kind, season, episode, title)
         val best = all.firstOrNull { it.height >= 0 } ?: return null
         return DirectHit(best, if (best.label.startsWith("rock-")) emptyList() else subs)
     }

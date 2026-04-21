@@ -6,7 +6,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -66,10 +65,8 @@ object Resolve {
         return b
     }
 
-    private suspend fun solve(media: Title, season: String, episode: String): Bundle = coroutineScope {
-        val all = async { VidStream.directAll(media.id, media.kind, season, episode, media.title) }
-        val imdb = async { VidLove.imdbOf(media.id, media.kind, BuildConfig.TMDB_API_KEY)?.removePrefix("tt") }
-        val (formats, subs) = all.await()
-        Bundle(formats, subs, imdb.await())
+    private suspend fun solve(media: Title, season: String, episode: String): Bundle {
+        val (formats, subs, imdb) = VidStream.directAll(media.id, media.kind, season, episode, media.title)
+        return Bundle(formats, subs, imdb?.removePrefix("tt"))
     }
 }
