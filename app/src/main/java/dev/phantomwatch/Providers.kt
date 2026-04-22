@@ -14,8 +14,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class VFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "")
-data class DirectHit(val format: VFormat, val subs: List<Sub>)
+data class VFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false)
 
 object Providers {
     private const val ROCK_API = "https://vidrock.net/api"
@@ -27,11 +26,16 @@ object Providers {
     private const val LOVE_ORIGIN = "https://player.vidlove.cc"
     private const val VIX_REFERER = "https://vixsrc.to/"
     private const val VIX_ORIGIN = "https://vixsrc.to"
+    private const val ZEE_API = "https://core.vidzee.wtf"
+    private const val ZEE_ORIGIN = "https://player.vidzee.wtf"
     private const val PARA_API = "https://api.animeparadise.moe"
     private const val PARA_STREAM = "https://stream.animeparadise.moe"
     private const val PARA_ORIGIN = "https://animeparadise.moe"
     private const val VAPLAYER_API = "https://streamdata.vaplayer.ru/api.php"
     private const val VAPLAYER_ORIGIN = "https://nextgencloudfabric.com"
+    private const val VL_API = "https://vidlink.pro/api/b"
+    private const val VL_ENC = "https://enc-dec.app/api/enc-vidlink?text="
+    private const val VL_REFERER = "https://vidlink.pro/"
     private const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
 
     private fun hexBytes(hex: String): ByteArray {
@@ -93,6 +97,14 @@ object Providers {
             }
         }
         return out.sortedByDescending { it.height }
+    }
+
+    // EXT-X-MEDIA renditions declared by a master playlist
+    private fun enRenditions(text: String): Pair<Boolean, Boolean> {
+        val media = Regex("""#EXT-X-MEDIA:[^\r\n]*""").findAll(text).map { it.value }
+        val en = Regex("""LANGUAGE="?en""")
+        return media.any { "TYPE=SUBTITLES" in it && en.containsMatchIn(it) } to
+            media.any { "TYPE=AUDIO" in it && en.containsMatchIn(it) }
     }
 
     private fun jsonLevels(text: String): List<VFormat>? {
@@ -166,7 +178,7 @@ object Providers {
             val embed = if (kind == "movie") "$LOVE_PLAYER/embed/movie/$tmdbId"
             else "$LOVE_PLAYER/embed/tv/$tmdbId/$season/$episode"
             val referer = embed
-            val urls = listOf(base, "$base&sources=vidapi", "$base&sources=moviebox")
+            val urls = listOf(base, "$base&sources=vidapi", "$base&sources=moviebox", "$base&sources=dcloud", "$base&sources=tcloud", "$base&sources=moviebox2")
             val bodies: List<String> = urls.map { u ->
                 async {
                     fetch(u, referer, 10)?.takeIf { it.first == 200 }?.second
@@ -207,11 +219,27 @@ object Providers {
                     for (i in 0 until arr.length()) {
                         val f = arr.optJSONObject(i)?.optString("file").orEmpty()
                         val l = arr.optJSONObject(i)?.optString("label")?.trim().orEmpty().ifEmpty { "Unknown" }
-                        if (f.startsWith("http") && seenSubs.add(f)) subs.add(Sub(l, f))
+                        if (f.startsWith("http") && seenSubs.add(f)) subs.add(Sub(l, f, "love"))
                     }
                 }
             }
-            formats.sortedByDescending { it.height }.map { it.copy(referer = embed) } to subs
+            val enSubs = subs.any { it.label.contains("english", true) }
+            formats.sortedByDescending { it.height }.map { it.copy(referer = embed, enSubs = enSubs) } to subs
+        }
+
+    // dcloud is the only live variant: tik serves png, ipcloud 403 (re-tested 2026-10-16)
+    private suspend fun vidzee(tmdbId: String, kind: String, season: String, episode: String): List<VFormat> =
+        withContext(Dispatchers.IO) {
+            val path = if (kind == "movie") "/streams/movie/$tmdbId" else "/streams/tv/$tmdbId/$season/$episode"
+            val (code, body) = fetch("$ZEE_API$path?s=dcloud&e=0", "$ZEE_ORIGIN/", 8) ?: return@withContext emptyList()
+            if (code != 200) return@withContext emptyList()
+            val url = try {
+                JSONObject(body).optString("url")
+            } catch (_: Exception) {
+                return@withContext emptyList()
+            }
+            if (!url.startsWith("http")) return@withContext emptyList()
+            listOf(VFormat(url, true, "zee-dcloud-auto", 0, true, "$ZEE_ORIGIN/"))
         }
 
     private suspend fun vixsrc(tmdbId: String, kind: String, season: String, episode: String): List<VFormat> =
@@ -243,7 +271,10 @@ object Providers {
                 it.copy(label = "vix-${it.label}", referer = VIX_REFERER)
             }.let { rungs ->
                 if (rungs.isEmpty()) emptyList()
-                else listOf(VFormat(master, true, "vix-auto", rungs.first().height, true, VIX_REFERER)) + rungs
+                else {
+                    val (enSubs, enAudio) = enRenditions(m3u8)
+                    listOf(VFormat(master, true, "vix-auto", rungs.maxOf { it.height }, true, VIX_REFERER, enSubs, enAudio)) + rungs
+                }
             }
         }
 
@@ -266,15 +297,56 @@ object Providers {
             val variants = masterVariants(manifest, master).map {
                 it.copy(label = "vap-${it.label}", referer = "$VAPLAYER_ORIGIN/")
             }
-            listOf(VFormat(master, true, "vap-auto", variants.firstOrNull()?.height ?: 0, true, "$VAPLAYER_ORIGIN/")) + variants
+            val (enSubs, enAudio) = enRenditions(manifest)
+            listOf(VFormat(master, true, "vap-auto", variants.maxOfOrNull { it.height } ?: 0, true, "$VAPLAYER_ORIGIN/", enSubs, enAudio)) + variants
         }
 
     private fun normTitle(title: String): String =
         title.lowercase().replace(Regex("[^a-z0-9]+"), "")
 
-    private suspend fun paradise(tmdbId: String, kind: String, season: String, episode: String, title: String): List<VFormat> =
+    private suspend fun vidlink(tmdbId: String, kind: String, season: String, episode: String): Pair<List<VFormat>, List<Sub>> =
         withContext(Dispatchers.IO) {
-            if (kind != "tv" || season != "1" || title.isEmpty()) return@withContext emptyList()
+            val enc = fetch("$VL_ENC$tmdbId", VL_REFERER, 8)?.takeIf { it.first == 200 }?.second?.let {
+                try {
+                    JSONObject(it).optString("result")
+                } catch (_: Exception) {
+                    ""
+                }
+            }.orEmpty()
+            if (enc.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList())
+            val path = if (kind == "movie") "movie/$enc" else "tv/$enc/$season/$episode"
+            val (code, body) = fetch("$VL_API/$path", VL_REFERER, 10) ?: return@withContext (emptyList<VFormat>() to emptyList())
+            if (code != 200) return@withContext (emptyList<VFormat>() to emptyList())
+            val stream = try {
+                JSONObject(body).optJSONObject("stream")
+            } catch (_: Exception) {
+                null
+            } ?: return@withContext (emptyList<VFormat>() to emptyList())
+            val subs = mutableListOf<Sub>()
+            stream.optJSONArray("captions")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val u = o.optString("url")
+                    val l = o.optString("language").ifEmpty { "Unknown" }
+                    if (u.startsWith("http")) subs.add(Sub(l, u, "vidlink"))
+                }
+            }
+            val enSubs = subs.any { it.label.equals("English", true) }
+            val formats = mutableListOf<VFormat>()
+            stream.optJSONObject("qualities")?.let { q ->
+                for (key in q.keys()) {
+                    val u = q.optJSONObject(key)?.optString("url").orEmpty()
+                    if (!u.startsWith("http")) continue
+                    val h = key.toIntOrNull() ?: 0
+                    formats.add(VFormat(u, false, "vidlink-${if (h > 0) "${h}p" else "src"}", h, true, VL_REFERER, enSubs))
+                }
+            }
+            formats.sortedByDescending { it.height } to subs
+        }
+
+    private suspend fun paradise(tmdbId: String, kind: String, season: String, episode: String, title: String): Pair<List<VFormat>, List<Sub>> =
+        withContext(Dispatchers.IO) {
+            if (kind != "tv" || season != "1" || title.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
             fun getJson(path: String): JSONObject? {
                 val (code, body) = fetch("$PARA_API$path", "$PARA_ORIGIN/", 8) ?: return null
                 if (code != 200) return null
@@ -292,9 +364,9 @@ object Providers {
                     ?: return@run
                 for (i in 0 until data.length()) {
                     val o = data.optJSONObject(i) ?: continue
-                    if (normTitle(o.optString("title")) != want) continue
-                    val id = o.optString("_id")
                     val li = o.optString("link")
+                    if (normTitle(o.optString("title")) != want && normTitle(li) != want) continue
+                    val id = o.optString("_id")
                     if (id.isEmpty() || li.isEmpty()) continue
                     val type = getJson("/anime/$li")?.optJSONObject("data")?.optString("type")
                     if (type != "TV") continue
@@ -303,7 +375,7 @@ object Providers {
                     break
                 }
             }
-            if (showId.isEmpty()) return@withContext emptyList()
+            if (showId.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
             var uid = ""
             val eps = getJson("/anime/$showId/episode")?.optJSONArray("data")
             if (eps != null) {
@@ -315,18 +387,29 @@ object Providers {
                     }
                 }
             }
-            if (uid.isEmpty()) return@withContext emptyList()
-            val streamLink = getJson("/ep/$uid?origin=$showId")
-                ?.optJSONObject("data")?.optJSONObject("episode")?.optString("streamLink")
-                .orEmpty()
-            if (streamLink.isEmpty()) return@withContext emptyList()
-            val masterUrl = "$PARA_STREAM/m3u8?url=${java.net.URLEncoder.encode(streamLink, "UTF-8")}"
-            val (_, manifest) = fetch(masterUrl, "$PARA_ORIGIN/", 8) ?: return@withContext emptyList()
-            if (!manifest.contains("#EXTM3U")) return@withContext emptyList()
-            val variants = masterVariants(manifest, masterUrl).map {
-                it.copy(label = "paradise-${it.label}", referer = "$PARA_ORIGIN/")
+            if (uid.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
+            val ep = getJson("/ep/$uid?origin=$showId")?.optJSONObject("data")?.optJSONObject("episode")
+            val streamLink = ep?.optString("streamLink").orEmpty()
+            if (streamLink.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
+            val subs = mutableListOf<Sub>()
+            ep?.optJSONArray("subData")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val u = o.optString("src")
+                    val l = o.optString("label")
+                    if (o.optString("type") == "vtt" && u.startsWith("http") && l.contains("english", true)) subs.add(Sub(l, u, "paradise"))
+                }
             }
-            listOf(VFormat(masterUrl, true, "paradise-auto", variants.firstOrNull()?.height ?: 0, true, "$PARA_ORIGIN/")) + variants
+            val masterUrl = "$PARA_STREAM/m3u8?url=${java.net.URLEncoder.encode(streamLink, "UTF-8")}"
+            val (_, manifest) = fetch(masterUrl, "$PARA_ORIGIN/", 8) ?: return@withContext (emptyList<VFormat>() to emptyList<Sub>())
+            if (!manifest.contains("#EXTM3U")) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
+            val (rSubs, rAudio) = enRenditions(manifest)
+            val enSubs = rSubs || subs.isNotEmpty()
+            val variants = masterVariants(manifest, masterUrl).map {
+                it.copy(label = "paradise-${it.label}", referer = "$PARA_ORIGIN/", enSubs = enSubs)
+            }
+            val auto = VFormat(masterUrl, true, "paradise-auto", variants.maxOfOrNull { it.height } ?: 0, true, "$PARA_ORIGIN/", enSubs, rAudio)
+            (listOf(auto) + variants) to subs
         }
 
     suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Triple<List<VFormat>, List<Sub>, String?> =
@@ -343,6 +426,7 @@ object Providers {
                     val love = async { leg("love") { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } } }
                     val rock = async { leg("rock") { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } } }
                     val vix = async { leg("vix") { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } } }
+                    val zee = async { leg("zee") { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } } }
                     val para = async { leg("para") { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } } }
                     val vap = async {
                         leg("vap") {
@@ -351,28 +435,43 @@ object Providers {
                             }
                         }
                     }
+                    val vl = async { leg("vl") { withTimeoutOrNull(15000) { vidlink(tmdbId, kind, season, episode) } } }
                     val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
                     val rockF = rock.await() ?: emptyList()
                     val vixF = vix.await() ?: emptyList()
-                    val paraF = para.await() ?: emptyList()
+                    val zeeF = zee.await() ?: emptyList()
+                    val (paraF, paraSubs) = para.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
                     val vapF = vap.await() ?: emptyList()
-                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} para=${paraF.size} vap=${vapF.size} @${System.currentTimeMillis() - t0}ms")
-                    val all = (formats + rockF + vixF + paraF + vapF)
-                        .filter { it.url !in Torrents.DeadReleases.urls }
+                    val (vlF, vlSubs) = vl.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
+                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} vap=${vapF.size} vl=${vlF.size} @${System.currentTimeMillis() - t0}ms")
+                    val all = (formats + rockF + vixF + zeeF + paraF + vapF + vlF)
+                        .filter { it.url !in Torrents.DeadReleases.urls && !Torrents.DeadHosts.blocked(it.url) }
+                        // 1080p+ with EN subs first, then adaptive masters, then height
                         .sortedWith(
                             compareByDescending<VFormat> { if (it.height < 0) 0 else 1 }
+                                .thenByDescending { if (it.enSubs && it.height >= 1080) 1 else 0 }
                                 .thenByDescending { if (it.label.endsWith("-auto")) 1 else 0 }
+                                .thenByDescending { if (it.enSubs) 1 else 0 }
                                 .thenByDescending { if (it.english) 1 else 0 }
                                 .thenByDescending { it.height },
                         )
-                    Triple(all.distinctBy { it.url }, subs.distinctBy { it.url }, imdb.await())
+                    Triple(all.distinctBy { it.url }, (subs + paraSubs + vlSubs).distinctBy { it.url }, imdb.await())
                 }
             } ?: Triple(emptyList(), emptyList(), null)
         }
 
-    suspend fun direct(tmdbId: String, kind: String, season: String, episode: String, title: String): DirectHit? {
-        val (all, subs, _) = directAll(tmdbId, kind, season, episode, title)
-        val best = all.firstOrNull { it.height >= 0 } ?: return null
-        return DirectHit(best, if (best.label.startsWith("rock-")) emptyList() else subs)
+    // provider subs are timed for that provider's release only
+    fun subsFor(f: VFormat, subs: List<Sub>): List<Sub> =
+        subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
+
+    fun providerName(f: VFormat): String = when {
+        f.label.startsWith("love-") -> "VidLove"
+        f.label.startsWith("rock-") -> "VidRock"
+        f.label.startsWith("vix-") -> "VixSrc"
+        f.label.startsWith("zee-") -> "VidZee"
+        f.label.startsWith("para-") -> "AnimeParadise"
+        f.label.startsWith("vap-") -> "VAPlayer"
+        f.label.startsWith("vidlink-") -> "VidLink"
+        else -> f.label
     }
 }

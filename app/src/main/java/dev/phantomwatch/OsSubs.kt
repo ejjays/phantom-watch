@@ -99,8 +99,9 @@ object OsSubs {
         return searchPick(apiKey, url)
     }
 
-    fun searchImdb(apiKey: String, imdbDigits: String): Long? {
-        val url = "$API/subtitles?imdb_id=$imdbDigits&languages=en"
+    fun searchImdb(apiKey: String, imdbDigits: String, season: String, episode: String): Long? {
+        val url = if (season.isEmpty()) "$API/subtitles?imdb_id=$imdbDigits&languages=en"
+        else "$API/subtitles?imdb_id=$imdbDigits&season_number=$season&episode_number=$episode&languages=en"
         return searchPick(apiKey, url)
     }
 

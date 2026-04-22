@@ -61,7 +61,7 @@ data class Episode(
     val air: String?,
 )
 
-data class Sub(val label: String, val url: String)
+data class Sub(val label: String, val url: String, val src: String = "")
 
 data class Stream(
     val url: String,

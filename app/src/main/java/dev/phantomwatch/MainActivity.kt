@@ -111,9 +111,12 @@ class MainActivity : ComponentActivity() {
 
     fun armPip(on: Boolean, playing: Boolean) {
         try {
-            pipParams(playing, auto = on)?.let { setPictureInPictureParams(it) }
+            pipParams(playing, auto = on)?.let {
+                setPictureInPictureParams(it)
+                AppLog.d("pip arm ok on=$on playing=$playing")
+            }
         } catch (e: Exception) {
-            AppLog.d("pip arm fail ${e.message}")
+            AppLog.d("pip arm fail on=$on ${e.message}")
         }
     }
 
@@ -164,9 +167,10 @@ class MainActivity : ComponentActivity() {
         val b = android.app.PictureInPictureParams.Builder()
             .setAspectRatio(android.util.Rational(16, 9))
             .setActions(listOf(toggle, close))
-        if (auto && android.os.Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(true)
+        if (android.os.Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(auto)
         b.build()
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        AppLog.d("pip params fail ${e.message}")
         null
     }
 }
@@ -184,6 +188,7 @@ private const val ACT_PIP_CLOSE = "dev.phantomwatch.PIP_CLOSE"
 object PipCtl {
     var active = false
     var inPip by mutableStateOf(false)
+    var playing by mutableStateOf(false)
     var player: androidx.media3.exoplayer.ExoPlayer? = null
 }
 
@@ -209,8 +214,12 @@ private fun App() {
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    LaunchedEffect(screen, PipCtl.playing) {
+        (context as? MainActivity)?.armPip(screen is Screen.Player, PipCtl.playing)
+    }
     LaunchedEffect(Unit) {
         SubsApi.init(context)
+        Torrents.DeadHosts.init(context)
         withContext(Dispatchers.IO) {
             try {
                 TorrentEngine.ensure()
@@ -239,6 +248,7 @@ private fun App() {
                 is Screen.Home -> MoviesHome(
                     onWatch = { t, seas, ep ->
                         forward = true
+                        instant = true
                         autoRelease = true
                         screen = Screen.Player(t.title, null, null, null, t, seas, ep)
                     },

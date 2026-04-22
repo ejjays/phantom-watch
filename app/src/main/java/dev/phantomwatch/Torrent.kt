@@ -126,6 +126,49 @@ object Torrents {
         val urls = mutableSetOf<String>()
     }
 
+    object DeadHosts {
+        private val mem = mutableSetOf<String>()
+        private var prefs: android.content.SharedPreferences? = null
+
+        fun init(ctx: android.content.Context) {
+            if (prefs == null) {
+                prefs = ctx.applicationContext.getSharedPreferences("phantom_net", android.content.Context.MODE_PRIVATE)
+            }
+        }
+
+        fun hostOf(url: String): String =
+            try {
+                android.net.Uri.parse(url).host.orEmpty()
+            } catch (_: Exception) {
+                ""
+            }
+
+        fun mark(url: String, hours: Long = 24) {
+            val h = hostOf(url)
+            if (h.isEmpty()) return
+            mem.add(h)
+            try {
+                prefs?.edit()?.putLong(h, System.currentTimeMillis() + hours * 3_600_000)?.apply()
+            } catch (_: Exception) {
+            }
+        }
+
+        fun blocked(url: String): Boolean {
+            val h = hostOf(url)
+            if (h.isEmpty() || h in mem) return h in mem
+            val until = try {
+                prefs?.getLong(h, 0) ?: 0
+            } catch (_: Exception) {
+                0
+            }
+            if (until > System.currentTimeMillis()) {
+                mem.add(h)
+                return true
+            }
+            return false
+        }
+    }
+
     data class VidPick(val file: File, val index: Int, val size: Long)
 
     fun pickIndexed(h: TorrentHandle, dir: File): VidPick? {

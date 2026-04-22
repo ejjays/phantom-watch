@@ -80,12 +80,12 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
                 formatSubs = all.second
                 if (autoplay) {
                     val best = live.first()
-                    AppLog.d("direct play ${best.label} hls=${best.isHls}")
+                    AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${Providers.subsFor(best, all.second).size}")
                     gone = true
                     onSeedReady(
                         Stream(
                             url = best.url, isHls = best.isHls,
-                            subs = all.second,
+                            subs = Providers.subsFor(best, all.second),
                             referer = best.referer, sampleMp4 = null,
                             imdb = imdbDigits,
                         ),
@@ -230,7 +230,7 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
                         Modifier.fillMaxWidth().clickable {
                             onSeedReady(
                                 Stream(
-                                    url = f.url, isHls = f.isHls, subs = formatSubs,
+                                    url = f.url, isHls = f.isHls, subs = Providers.subsFor(f, formatSubs),
                                     referer = f.referer, sampleMp4 = null,
                                     imdb = imdbState,
                                 ),

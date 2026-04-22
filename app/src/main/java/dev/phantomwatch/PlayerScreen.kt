@@ -109,12 +109,17 @@ private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConf
     return b.build()
 }
 
+internal fun looksEnglish(name: String): Boolean {
+    val l = name.lowercase()
+    return l.substringBefore(":").startsWith("en") || "english" in l
+}
+
 internal fun rankEmbed(names: List<String>): Int {
     var best = -1
     var bestScore = Int.MIN_VALUE
     names.forEachIndexed { i, n ->
+        if (!looksEnglish(n)) return@forEachIndexed
         val l = n.lowercase()
-        if (!l.substringBefore(":").startsWith("en") && "english" !in l) return@forEachIndexed
         var s = 0
         if ("dialog" in l || "full" in l || "complete" in l) s += 10
         if ("sign" in l || "song" in l || "s&s" in l) s -= 10
@@ -286,8 +291,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 return@LaunchedEffect
             }
             val best = live.first()
-            AppLog.d("direct play ${best.label} hls=${best.isHls}")
-            resolved = Stream(best.url, best.isHls, bundle.subs, best.referer, null, imdb = bundle.imdb)
+            val streamSubs = Providers.subsFor(best, bundle.subs)
+            AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
+            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -307,6 +313,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var latestTracks by remember { mutableStateOf<androidx.media3.common.Tracks?>(null) }
     var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var embedIdx by remember { mutableStateOf(-1) }
+    var osTrack by remember { mutableStateOf<String?>(null) }
     var aiSubUrl by remember { mutableStateOf<String?>(null) }
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
     var frontierMs by remember { mutableStateOf(0L) }
@@ -387,10 +394,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     DisposableEffect(exo) {
         PipCtl.active = true
         PipCtl.player = exo
-        val act = context as? MainActivity
-        act?.armPip(true, exo.isPlaying)
         onDispose {
-            act?.armPip(false, false)
             PipCtl.active = false
             if (PipCtl.player === exo) PipCtl.player = null
         }
@@ -419,14 +423,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             if (wi >= 0) {
                 val (g, idx) = flat[wi]
                 val sel = exo.trackSelector as? DefaultTrackSelector
-                if (sel != null) {
+                if (sel != null && names.getOrNull(wi) != osTrack) {
                     embedIdx = idx
                     sel.parameters = sel.buildUponParameters()
                         .setOverrideForType(
                             androidx.media3.common.TrackSelectionOverride(g, listOf(idx)),
                         )
                         .build()
-                    AppLog.d("embed subs forced $idx")
+                    AppLog.d("subs source=stream ${names.getOrNull(wi)}")
                 }
             }
         }
@@ -476,7 +480,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     .filter { it.type == C.TRACK_TYPE_VIDEO }
                     .mapNotNull { g ->
                         if (g.length == 0) return@mapNotNull null
-                        val f = g.getTrackFormat(0)
+                        val idx = (0 until g.length).firstOrNull { g.isTrackSelected(it) } ?: 0
+                        val f = g.getTrackFormat(idx)
                         "${f.width}x${f.height}:${f.sampleMimeType?.substringAfterLast('/')}@${f.frameRate}fps${if (g.isSelected) "*" else ""}"
                     }
                 if (videos.isNotEmpty()) {
@@ -518,6 +523,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 AppLog.d("player error ${error.errorCodeName} http=${cause?.responseCode} pos=${exo.currentPosition / 1000}s buf=${exo.bufferedPosition / 1000}s dur=${exo.duration / 1000}s")
                 AppLog.d("player cause $chain")
                 AppLog.d("player stack ${android.util.Log.getStackTraceString(error).take(3000)}")
+                if (cause?.responseCode == 429 || cause?.responseCode == 403) {
+                    Torrents.DeadHosts.mark(stream.url)
+                    AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(stream.url)}")
+                }
                 if (chain.contains("FileNotFound") || chain.contains("ENOENT")) {
                     try {
                         val f = android.net.Uri.parse(stream.url).path?.let { java.io.File(it) }
@@ -632,7 +641,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                         gaveUpSent = true
                         AppLog.d("player direct dead, next source")
                         onGiveUp(live.url)
-                    } else if (directErrs <= 3 && errPos >= 60_000) {
+                    } else if (directErrs <= 3 && (errPos >= 60_000 || errPos < 10_000)) {
                         resumeJob?.cancel()
                         resumeJob = resumeScope.launch {
                             val fresh = try {
@@ -646,7 +655,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                                 AppLog.d("player relink none")
                                 return@launch
                             }
-                            live = live.copy(url = fresh.url, isHls = fresh.isHls, referer = fresh.referer)
+                            live = live.copy(url = fresh.url, isHls = fresh.isHls, referer = fresh.referer, subs = Providers.subsFor(fresh, live.subs))
                             AppLog.d("player relink ${fresh.label} hls=${fresh.isHls} at ${errPos / 1000}s")
                             attach(errPos)
                         }
@@ -781,13 +790,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     fun showOsSub(f: java.io.File, hash: String) {
         val merged = (stream.subs + Sub("English", Uri.fromFile(f).toString())).distinctBy { it.url }
+        osTrack = "en:English"
         val pos = exo.currentPosition
         val wasPlaying = exo.isPlaying
         exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(merged)), pos)
         exo.prepare()
         if (wasPlaying) exo.play()
         osStatus = "OS ✓"
-        AppLog.d("os applied $hash")
+        AppLog.d("subs source=OpenSubtitles $hash")
     }
     fun runOsSubs() {
         if (osRunning) return
@@ -801,7 +811,17 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 }
                 delay(8000)
                 if (stream.subs.isNotEmpty()) {
-                    AppLog.d("os skipped, have subs")
+                    AppLog.d("os skipped, stream subs")
+                    return@launch
+                }
+                val hasEnEmbed = latestTracks?.groups?.any { g ->
+                    g.type == C.TRACK_TYPE_TEXT && (0 until g.length).any { i ->
+                        val f = g.getTrackFormat(i)
+                        looksEnglish("${f.language ?: "und"}:${f.label ?: ""}")
+                    }
+                } == true
+                if (hasEnEmbed) {
+                    AppLog.d("os skipped, embed subs")
                     return@launch
                 }
                 osStatus = "OS…"
@@ -831,13 +851,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 }
                 AppLog.d("os imdb ${stream.imdb}")
                 val im = stream.imdb
-                OsSubs.cached(context.cacheDir, "imdb-$im")?.let { f ->
-                    showOsSub(f, "imdb-$im")
+                val ck = if (season.isEmpty()) "imdb-$im" else "imdb-$im-s$season-e$episode"
+                OsSubs.cached(context.cacheDir, ck)?.let { f ->
+                    showOsSub(f, ck)
                     return@launch
                 }
                 val f = withContext(Dispatchers.IO) {
-                    OsSubs.searchImdb(key, im)?.let { id ->
-                        OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, "imdb-$im") }
+                    OsSubs.searchImdb(key, im, season, episode)?.let { id ->
+                        OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, ck) }
                     }
                 }
                 if (f == null) {
@@ -845,7 +866,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     osStatus = null
                     return@launch
                 }
-                showOsSub(f, "imdb-$im")
+                showOsSub(f, ck)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -1101,7 +1122,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var videoW by remember { mutableStateOf(0) }
     var videoH by remember { mutableStateOf(0) }
     var playing by remember { mutableStateOf(false) }
-    LaunchedEffect(playing) { (context as? MainActivity)?.armPip(true, playing) }
     var stalled by remember { mutableStateOf(true) }
     var seekMark by remember { mutableStateOf<SeekMark?>(null) }
     var hideJob: Job? by remember { mutableStateOf(null) }
@@ -1251,6 +1271,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             videoW = exo.videoSize.width
             videoH = exo.videoSize.height
             playing = exo.isPlaying
+            PipCtl.playing = exo.isPlaying
             stalled = exo.playbackState == Player.STATE_BUFFERING
             delay(250)
         }
