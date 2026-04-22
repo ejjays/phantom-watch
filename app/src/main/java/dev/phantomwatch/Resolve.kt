@@ -66,7 +66,7 @@ object Resolve {
     }
 
     private suspend fun solve(media: Title, season: String, episode: String): Bundle {
-        val (formats, subs, imdb) = VidStream.directAll(media.id, media.kind, season, episode, media.title)
+        val (formats, subs, imdb) = Providers.directAll(media.id, media.kind, season, episode, media.title)
         return Bundle(formats, subs, imdb?.removePrefix("tt"))
     }
 }

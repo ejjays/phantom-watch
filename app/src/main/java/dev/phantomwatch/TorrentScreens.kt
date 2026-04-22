@@ -64,7 +64,7 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
         try {
             status = "Trying direct streams…"
             val directJob = async(Dispatchers.IO) {
-                VidStream.directAll(title.id, title.kind, season, episode, title.title)
+                Providers.directAll(title.id, title.kind, season, episode, title.title)
             }
             val imdbJob = async(Dispatchers.IO) {
                 VidLove.imdbOf(title.id, title.kind, BuildConfig.TMDB_API_KEY)?.removePrefix("tt")

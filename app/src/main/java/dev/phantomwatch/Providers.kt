@@ -17,7 +17,7 @@ import org.json.JSONObject
 data class VFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "")
 data class DirectHit(val format: VFormat, val subs: List<Sub>)
 
-object VidStream {
+object Providers {
     private const val ROCK_API = "https://vidrock.net/api"
     private const val ROCK_REFERER = "https://vidrock.net/"
     private const val ROCK_KEY =

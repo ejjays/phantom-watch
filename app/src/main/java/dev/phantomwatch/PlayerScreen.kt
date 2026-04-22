@@ -637,7 +637,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                         resumeJob = resumeScope.launch {
                             val fresh = try {
                                 withContext(Dispatchers.IO) {
-                                    VidStream.directAll(media.id, media.kind, season, episode, media.title)
+                                    Providers.directAll(media.id, media.kind, season, episode, media.title)
                                 }.first.firstOrNull { it.url !in Torrents.DeadReleases.urls }
                             } catch (e: Exception) {
                                 null
