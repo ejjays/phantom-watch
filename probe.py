@@ -36,7 +36,8 @@ def love(tid, kind, s, e):
         else:
             base, ref = f"https://api.vidlove.cc/tv?id={tid}&season={s}&episode={e}&mode=json", f"https://player.vidlove.cc/embed/tv/{tid}/{s}/{e}"
         fm, subs, mx = [], [], 0
-        for u in (base, base + "&sources=vidapi", base + "&sources=moviebox"):
+        for u in (base, base + "&sources=vidapi", base + "&sources=moviebox",
+                   base + "&sources=dcloud", base + "&sources=tcloud", base + "&sources=moviebox2"):
             c, b, _ = get(u, ref)
             if c != 200:
                 continue
