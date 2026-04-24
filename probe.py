@@ -212,8 +212,15 @@ def main():
         pass
     rows, cur, fails = [], {}, 0
     for kind, tid, s, e in JOBS:
+        def run(leg):
+            return leg(tid, kind, s, e, key) if leg is vap else leg(tid, kind, s, e)
         for leg in LEGS:
-            r = leg(tid, kind, s, e, key) if leg is vap else leg(tid, kind, s, e)
+            r = run(leg)
+            if not r["ok"] and not str(r["err"]).startswith("SKIP"):
+                time.sleep(5)
+                r = run(leg)
+                if r["ok"]:
+                    r["retry"] = True
             r["title"] = f"{kind}/{tid}" + (f" s{s}e{e}" if kind == "tv" else "")
             rows.append(r)
             k = f"{leg.__name__}:{r['title']}"
@@ -227,8 +234,9 @@ def main():
     print(f"{'provider':9} {'title':16} {'ms':>6} {'fmts':>4} {'max':>5} en {'st':6} note")
     for r in rows:
         mx = f"{r['max']}p" if r["max"] else "-"
+        note = (r["flag"] or r["err"]) + (" retry" if r.get("retry") else "")
         print(f"{r['provider']:9} {r['title']:16} {r['ms']:6} {r['formats']:4} {mx:>5} "
-              f"{'Y' if r['enSubs'] else '-'} {('FAIL' if not r['ok'] and not r['flag'] == 'skip' else 'ok'):6} {r['flag'] or r['err']}")
+              f"{'Y' if r['enSubs'] else '-'} {('FAIL' if not r['ok'] and not r['flag'] == 'skip' else 'ok'):6} {note}")
     json.dump(cur, open(BASE, "w"), indent=1)
     print(f"\n{len(rows) - fails}/{len(rows)} ok" + (" — baseline updated" if not prev else ""))
     sys.exit(1 if fails else 0)
