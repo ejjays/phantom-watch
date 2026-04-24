@@ -3,6 +3,7 @@ package dev.phantomwatch
 import java.net.URL
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -10,7 +11,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -36,6 +39,11 @@ object Providers {
     private const val VL_API = "https://vidlink.pro/api/b"
     private const val VL_ENC = "https://enc-dec.app/api/enc-vidlink?text="
     private const val VL_REFERER = "https://vidlink.pro/"
+    private const val MEGA_ORIGIN = "https://megaplay.buzz"
+    // megaplay player JS crypto; breaks when they bump lib/e1-player (see probe.py)
+    private val MEGA_KEY = MEGA_KEY_S.toByteArray().copyOf(32)
+    private val MEGA_IV = "hlsMediaAttached".toByteArray()
+    private const val MEGA_KEY_S = "i?LMTAx0Q6,:}50U"
     private const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
 
     private fun hexBytes(hex: String): ByteArray {
@@ -344,6 +352,90 @@ object Providers {
             formats.sortedByDescending { it.height } to subs
         }
 
+    private fun postJson(url: String, referer: String, json: String, timeoutSec: Long = 10): JSONObject? =
+        try {
+            val req = Request.Builder().url(url)
+                .header("User-Agent", UA)
+                .header("Referer", referer)
+                .post(json.toRequestBody("application/json".toMediaType()))
+                .build()
+            val call = VidLove.client().newCall(req)
+            call.timeout().deadline(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
+            call.execute().use { res ->
+                if (res.code != 200) null else JSONObject(res.body?.string().orEmpty())
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+    private fun megaDecrypt(enc: String): String {
+        var s = enc.trim().replace('-', '+').replace('_', '/')
+        repeat((4 - s.length % 4) % 4) { s += "=" }
+        val raw = android.util.Base64.decode(s, android.util.Base64.DEFAULT)
+        val c = Cipher.getInstance("AES/CBC/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, SecretKeySpec(MEGA_KEY, "AES"), IvParameterSpec(MEGA_IV))
+        val pt = c.doFinal(raw)
+        val pad = pt.last().toInt() and 0xFF
+        return if (pad in 1..16) String(pt, 0, pt.size - pad, Charsets.UTF_8) else String(pt, Charsets.UTF_8)
+    }
+
+    private suspend fun hianime(tmdbId: String, kind: String, season: String, episode: String): Pair<List<VFormat>, List<Sub>> =
+        withContext(Dispatchers.IO) {
+            val ep = if (kind == "movie") "movie" else "tv"
+            val meta = fetch("https://api.themoviedb.org/3/$ep/$tmdbId?api_key=${BuildConfig.TMDB_API_KEY}", "https://www.themoviedb.org/")?.takeIf { it.first == 200 }?.second
+            val title = try {
+                val o = JSONObject(meta.orEmpty())
+                (o.optString("name").ifEmpty { o.optString("title") }).substringBefore(':').trim()
+            } catch (_: Exception) {
+                ""
+            }
+            if (title.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList())
+            val gql = "{\"query\":\"query(\$s:String){Media(search:\$s,type:ANIME){idMal}}\",\"variables\":{\"s\":" + JSONObject.quote(title) + "}}"
+            val mal = postJson("https://graphql.anilist.co", "https://anilist.co/", gql, 8)
+                ?.optJSONObject("data")?.optJSONObject("Media")?.optInt("idMal", 0) ?: 0
+            if (mal <= 0) return@withContext (emptyList<VFormat>() to emptyList())
+            val epNum = if (kind == "movie") 1 else episode.toIntOrNull()?.takeIf { it > 0 } ?: 1
+            val page = "$MEGA_ORIGIN/stream/mal/$mal/$epNum/sub"
+            val (_, html) = fetch(page, page, 10) ?: return@withContext (emptyList<VFormat>() to emptyList())
+            val dataId = Regex("""data-id=["'](\d+)["']""").find(html)?.groupValues?.get(1)
+            AppLog.d("ani mal=$mal page=${html.length} id=$dataId")
+            val srcObj = try {
+                fetch("$MEGA_ORIGIN/stream/getSources?id=$dataId&id=$dataId", page, 10)
+                    ?.takeIf { it.first == 200 }?.second?.let { JSONObject(it) }
+            } catch (_: Exception) {
+                null
+            }
+            val enc = srcObj?.optString("enc").orEmpty()
+            if (enc.isEmpty() || dataId == null) return@withContext (emptyList<VFormat>() to emptyList())
+            if (enc.isNullOrEmpty()) return@withContext (emptyList<VFormat>() to emptyList())
+            val master = try {
+                val m = Regex("""([a-z0-9.-]+\.[a-z]+/anime/[a-f0-9]+/[a-f0-9]+/master\.m3u8)""").find(megaDecrypt(enc))
+                if (m != null) "https://${m.groupValues[1]}" else ""
+            } catch (_: Exception) {
+                ""
+            }
+            AppLog.d("ani enc=${enc.length} master=${master.take(60)}")
+            if (master.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList())
+            val (_, manifest) = fetch(master, "$MEGA_ORIGIN/", 10) ?: return@withContext (emptyList<VFormat>() to emptyList())
+            if (!manifest.contains("#EXTM3U")) return@withContext (emptyList<VFormat>() to emptyList())
+            val subs = mutableListOf<Sub>()
+            val tracks = srcObj?.optJSONArray("tracks")
+            for (i in 0 until (tracks?.length() ?: 0)) {
+                val t = tracks!!.optJSONObject(i) ?: continue
+                val u = t.optString("file")
+                val l = t.optString("label")
+                if (u.startsWith("http") && l.equals("English", true)) subs.add(Sub("English", u, "hianime"))
+            }
+            val (mEnSubs, mEnAudio) = enRenditions(manifest)
+            val enSubs = mEnSubs || subs.isNotEmpty()
+            val rungs = masterVariants(manifest, master).map {
+                it.copy(label = "hianime-${it.label}", referer = "$MEGA_ORIGIN/", enSubs = enSubs)
+            }
+            val auto = VFormat(master, true, "hianime-auto", rungs.maxOfOrNull { it.height } ?: 0, true, "$MEGA_ORIGIN/", enSubs, mEnAudio)
+            AppLog.d("ani fmts=${rungs.size + 1} max=${rungs.maxOfOrNull { it.height } ?: 0} subs=${subs.size}")
+            (listOf(auto) + rungs) to subs
+        }
+
     private suspend fun paradise(tmdbId: String, kind: String, season: String, episode: String, title: String): Pair<List<VFormat>, List<Sub>> =
         withContext(Dispatchers.IO) {
             if (kind != "tv" || season != "1" || title.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
@@ -436,6 +528,7 @@ object Providers {
                         }
                     }
                     val vl = async { leg("vl") { withTimeoutOrNull(15000) { vidlink(tmdbId, kind, season, episode) } } }
+                    val ani = async { leg("ani") { withTimeoutOrNull(15000) { hianime(tmdbId, kind, season, episode) } } }
                     val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
                     val rockF = rock.await() ?: emptyList()
                     val vixF = vix.await() ?: emptyList()
@@ -443,8 +536,9 @@ object Providers {
                     val (paraF, paraSubs) = para.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
                     val vapF = vap.await() ?: emptyList()
                     val (vlF, vlSubs) = vl.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
-                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} vap=${vapF.size} vl=${vlF.size} @${System.currentTimeMillis() - t0}ms")
-                    val all = (formats + rockF + vixF + zeeF + paraF + vapF + vlF)
+                    val (aniF, aniSubs) = ani.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
+                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} vap=${vapF.size} vl=${vlF.size} ani=${aniF.size} @${System.currentTimeMillis() - t0}ms")
+                    val all = (formats + rockF + vixF + zeeF + paraF + vapF + vlF + aniF)
                         .filter { it.url !in Torrents.DeadReleases.urls && !Torrents.DeadHosts.blocked(it.url) }
                         // 1080p+ with EN subs first, then adaptive masters, then height
                         .sortedWith(
@@ -455,12 +549,12 @@ object Providers {
                                 .thenByDescending { if (it.english) 1 else 0 }
                                 .thenByDescending { it.height },
                         )
-                    Triple(all.distinctBy { it.url }, (subs + paraSubs + vlSubs).distinctBy { it.url }, imdb.await())
+                    Triple(all.distinctBy { it.url }, (subs + paraSubs + vlSubs + aniSubs).distinctBy { it.url }, imdb.await())
                 }
             } ?: Triple(emptyList(), emptyList(), null)
         }
 
-    // provider subs are timed for that provider's release only
+    // subs fit their own provider's cut only: different releases drift out of sync
     fun subsFor(f: VFormat, subs: List<Sub>): List<Sub> =
         subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
 
@@ -472,6 +566,7 @@ object Providers {
         f.label.startsWith("para-") -> "AnimeParadise"
         f.label.startsWith("vap-") -> "VAPlayer"
         f.label.startsWith("vidlink-") -> "VidLink"
+        f.label.startsWith("hianime-") -> "HiAnime"
         else -> f.label
     }
 }
