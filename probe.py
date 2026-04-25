@@ -4,6 +4,7 @@ Usage: python3 probe.py  (exit 1 if any provider fails)
 Needs TMDB_API_KEY from local.properties (vap leg only)."""
 import base64, json, os, re, sys, time, urllib.parse
 import requests
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -200,8 +201,54 @@ def vidlink(tid, kind, s, e):
     except Exception as ex:
         return res("vidlink", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
+MEGA = "https://megaplay.buzz"
+MEGA_KEY = b"i?LMTAx0Q6,:}50U".ljust(32, b"\0")
+MEGA_IV = b"hlsMediaAttached"
+
+def hianime(tid, kind, s, e, key):
+    t = time.time()
+    try:
+        if not key:
+            return res("hianime", True, err="SKIP no TMDB key")
+        ep = "tv" if kind == "tv" else "movie"
+        c, b, _ = get(f"https://api.themoviedb.org/3/{ep}/{tid}?api_key={key}", "https://www.themoviedb.org/")
+        if c != 200:
+            return res("hianime", False, err=f"tmdb http={c}", ms=int((time.time() - t) * 1000))
+        title = (json.loads(b).get("name") or json.loads(b).get("title") or "").split(":")[0].strip()
+        if not title:
+            return res("hianime", True, err="SKIP no title")
+        q = {"query": "query($s:String){Media(search:$s,type:ANIME){idMal}}", "variables": {"s": title}}
+        r = S.post("https://graphql.anilist.co", json=q, headers={"User-Agent": UA, "Referer": "https://anilist.co/"}, timeout=15)
+        mal = ((r.json().get("data") or {}).get("Media") or {}).get("idMal") if r.status_code == 200 else None
+        if not mal:
+            return res("hianime", True, err="SKIP no MAL mapping")
+        epnum = e if kind == "tv" else "1"
+        page = f"{MEGA}/stream/mal/{mal}/{epnum}/sub"
+        c, html, _ = get(page, page)
+        did = re.search(r'data-id=["\'](\d+)["\']', html if c == 200 else "")
+        if not did:
+            return res("hianime", False, err="no data-id", ms=int((time.time() - t) * 1000))
+        c2, js, _ = get(f"{MEGA}/stream/getSources?id={did.group(1)}&id={did.group(1)}", page)
+        enc = (json.loads(js).get("enc") if c2 == 200 else "") or ""
+        if not enc:
+            return res("hianime", False, err="no enc", ms=int((time.time() - t) * 1000))
+        raw = base64.b64decode(enc.replace("-", "+").replace("_", "/") + "=" * (-len(enc) % 4))
+        dec = Cipher(algorithms.AES(MEGA_KEY), modes.CBC(MEGA_IV)).decryptor()
+        pt = dec.update(raw) + dec.finalize()
+        m = re.search(r"([a-z0-9.-]+\.[a-z]+/anime/[a-f0-9]+/[a-f0-9]+/master\.m3u8)", pt.decode("utf-8", "replace"))
+        if not m:
+            return res("hianime", False, err="decrypt no master", ms=int((time.time() - t) * 1000))
+        c3, man, _ = get("https://" + m.group(1), MEGA + "/")
+        hs = heights_m3u8(man) if c3 == 200 else []
+        en = any((x.get("label") or "").lower() == "english" for x in ((json.loads(js).get("tracks") or [])))
+        if not hs:
+            return res("hianime", False, err=f"manifest http={c3}", ms=int((time.time() - t) * 1000))
+        return res("hianime", True, len(hs), max(hs), en, int((time.time() - t) * 1000))
+    except Exception as ex:
+        return res("hianime", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
+
 JOBS = [("movie", MOVIE, None, None), ("tv", TV, SEASON, EP)]
-LEGS = [love, rock, zee, vix, vap, paradise, vidlink]
+LEGS = [love, rock, zee, vix, vap, paradise, vidlink, hianime]
 
 def main():
     key = tmdb_key()
@@ -213,7 +260,7 @@ def main():
     rows, cur, fails = [], {}, 0
     for kind, tid, s, e in JOBS:
         def run(leg):
-            return leg(tid, kind, s, e, key) if leg is vap else leg(tid, kind, s, e)
+            return leg(tid, kind, s, e, key) if leg in (vap, hianime) else leg(tid, kind, s, e)
         for leg in LEGS:
             r = run(leg)
             if not r["ok"] and not str(r["err"]).startswith("SKIP"):
@@ -227,7 +274,7 @@ def main():
             cur[k] = {"ok": r["ok"], "formats": r["formats"], "max": r["max"]}
             p = prev.get(k)
             r["flag"] = "" if not p or p["ok"] == r["ok"] else ("recovered" if r["ok"] else "REGRESSED")
-            if r["err"] == "SKIP no TMDB key" or r["err"] == "SKIP tv-s1 only":
+            if str(r["err"]).startswith("SKIP"):
                 r["flag"] = "skip"
             elif not r["ok"]:
                 fails += 1
