@@ -102,15 +102,17 @@ fun MovieDetail(
     item: Title,
     onClose: () -> Unit,
     onWatch: (Title, String, String) -> Unit,
+    startEpisodes: Boolean = false,
+    onEpisodesExit: (() -> Unit)? = null,
 ) {
     val key = BuildConfig.TMDB_API_KEY
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var detail by remember { mutableStateOf<TitleDetail?>(null) }
+    var detail by remember(item.id) { mutableStateOf(DetailCache.detail(item.id)) }
     var failed by remember { mutableStateOf(false) }
-    var episodesOpen by remember { mutableStateOf(false) }
+    var episodesOpen by remember(startEpisodes) { mutableStateOf(startEpisodes) }
     var checking by remember { mutableStateOf(false) }
-    var photosReady by remember { mutableStateOf(false) }
+    var photosReady by remember { mutableStateOf(detail != null) }
     BackHandler(onBack = onClose)
 
     val t0 = remember(item.id, item.kind) { System.nanoTime() }
@@ -185,6 +187,7 @@ fun MovieDetail(
     }
 
     LaunchedEffect(item.id, item.kind) {
+        if (detail != null) return@LaunchedEffect
         failed = false
         val start = System.nanoTime()
         AppLog.d("detail fetch start ${item.kind}/${item.id}")
@@ -208,6 +211,7 @@ fun MovieDetail(
         if (wait > 0) delay(wait)
         detail = result
         failed = result == null
+        if (result != null) DetailCache.put(result)
         AppLog.d("detail applied +${ms()}ms")
     }
 
@@ -220,7 +224,8 @@ fun MovieDetail(
             cast = emptyList(), seasons = emptyList(),
         )
         val pending = detail == null
-        when {
+        // returning from the player lands on episodes, so skip the detail body entirely
+        if (!(startEpisodes && episodesOpen)) when {
             failed && detail == null -> Column(
                 Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
@@ -433,11 +438,13 @@ fun MovieDetail(
                 )
             }
         }
-        EpisodesGate(isOpen = { episodesOpen && detail != null }) {
-            if (episodesOpen && detail != null) {
+        EpisodesGate(isOpen = { episodesOpen }) {
+            if (episodesOpen) {
                 EpisodesScreen(
-                    detail = detail!!,
-                    onClose = { episodesOpen = false },
+                    detail = detail,
+                    title = item.title,
+                    // back from a post-player return skips the detail view
+                    onClose = { if (startEpisodes && onEpisodesExit != null) onEpisodesExit() else episodesOpen = false },
                     onEpisode = { s, e ->
                         episodesOpen = false
                         onWatch(item, s, e)
@@ -488,10 +495,14 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
     LaunchedEffect(detail.id, seasonIdx, start) {
         if (!start) return@LaunchedEffect
         AppLog.d("detail season start")
+        val n = seasons.getOrNull(seasonIdx)?.number ?: 1
         try {
-            episodes = withContext(Dispatchers.IO) {
-                VidLove.season(key, detail.id, seasons.getOrNull(seasonIdx)?.number ?: 1).take(3)
+            val all = withContext(Dispatchers.IO) { VidLove.season(key, detail.id, n) }
+            if (all.isNotEmpty()) {
+                DetailCache.putSeason(detail.id, n)
+                DetailCache.putEpisodes(detail.id, n, all)
             }
+            episodes = all.take(3)
         } catch (_: Exception) {
         }
         AppLog.d("detail season end ${episodes.size}")
@@ -587,23 +598,28 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
 }
 
 @Composable
-private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: (String, String) -> Unit) {
+private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> Unit, onEpisode: (String, String) -> Unit) {
     val key = BuildConfig.TMDB_API_KEY
-    val seasons = detail.seasons
-    var seasonIdx by remember(detail.id) { mutableStateOf(seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0) }
-    var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    val seasons = detail?.seasons.orEmpty()
+    var seasonIdx by remember(detail?.id) {
+        val def = seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0
+        val last = detail?.id?.let { DetailCache.season(it) } ?: -1
+        mutableStateOf(seasons.indexOfFirst { it.number == last }.takeIf { it >= 0 } ?: def)
+    }
+    val initial = detail?.let { DetailCache.episodes(it.id, seasons.getOrNull(seasonIdx)?.number ?: 1) }
+    var episodes by remember { mutableStateOf(initial.orEmpty()) }
+    var loading by remember { mutableStateOf(initial == null) }
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val context = LocalContext.current
     BackHandler(onBack = onClose)
 
-    val t0 = remember(detail.id) { System.nanoTime() }
+    val t0 = remember(detail?.id) { System.nanoTime() }
     fun ms() = (System.nanoTime() - t0) / 1000000
-    LaunchedEffect(detail.id) {
-        AppLog.d("ep open ${detail.kind}/${detail.id} ${detail.title}")
+    LaunchedEffect(detail?.id) {
+        detail?.let { AppLog.d("ep open ${it.kind}/${it.id} ${it.title}") }
     }
-    LaunchedEffect(detail.id) {
+    LaunchedEffect(detail?.id) {
         var last = 0L
         var slow = 0
         while (slow < 25) {
@@ -619,7 +635,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
         }
     }
     // shortcut: debug watchdog, remove once the open hitch is fixed
-    LaunchedEffect(detail.id) {
+    LaunchedEffect(detail?.id) {
         val main = android.os.Handler(android.os.Looper.getMainLooper())
         var quits = false
         var logged = 0
@@ -655,15 +671,24 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
         }
     }
 
-    LaunchedEffect(detail.id, seasonIdx) {
+    LaunchedEffect(detail?.id, seasonIdx) {
+        val d = detail ?: return@LaunchedEffect
+        val n = seasons.getOrNull(seasonIdx)?.number ?: 1
+        DetailCache.putSeason(d.id, n)
+        val cached = DetailCache.episodes(d.id, n)
+        if (cached != null) {
+            episodes = cached
+            loading = false
+            return@LaunchedEffect
+        }
         loading = true
         val start = System.nanoTime()
         val first = episodes.isEmpty()
-        AppLog.d("ep fetch start ${detail.id} s$seasonIdx")
+        AppLog.d("ep fetch start ${d.id} s$seasonIdx")
         var result = emptyList<Episode>()
         try {
             result = withContext(Dispatchers.IO) {
-                VidLove.season(key, detail.id, seasons.getOrNull(seasonIdx)?.number ?: 1)
+                VidLove.season(key, d.id, n)
             }
         } catch (_: Exception) {
             result = emptyList()
@@ -684,6 +709,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
         }
         episodes = result
         loading = false
+        if (result.isNotEmpty()) DetailCache.putEpisodes(d.id, n, result)
         AppLog.d("ep applied +${ms()}ms n=${result.size}")
     }
 
@@ -725,7 +751,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
                 } else {
                     Column(Modifier.weight(1f)) {
                         Text("Episodes", color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
-                        Text(detail.title, color = Slate400, fontSize = 12.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(detail?.title ?: title, color = Slate400, fontSize = 12.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     IconButton(onClick = { searching = true }) {
                         Icon(painterResource(R.drawable.ic_search_normal), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
@@ -779,7 +805,7 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
                                 }.padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                val thumb = ep.still ?: (detail.backdrop ?: detail.poster)
+                                val thumb = ep.still ?: (detail?.backdrop ?: detail?.poster)
                                 if (thumb != null) {
                                     AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("ep still ok E${ep.n}") }, onError = { AppLog.d("ep still err E${ep.n}") })
                                 } else {
@@ -801,5 +827,34 @@ private fun EpisodesScreen(detail: TitleDetail, onClose: () -> Unit, onEpisode: 
                 }
             }
         }
+    }
+}
+
+private object DetailCache {
+    private var id: String? = null
+    private var last: TitleDetail? = null
+    private var lastSeason = -1
+    private val bySeason = mutableMapOf<Pair<String, Int>, List<Episode>>()
+
+    fun detail(id: String): TitleDetail? = last?.takeIf { this.id == id }
+
+    fun put(d: TitleDetail) {
+        if (d.id != id) {
+            id = d.id
+            lastSeason = -1
+        }
+        last = d
+    }
+
+    fun season(id: String): Int = lastSeason.takeIf { this.id == id } ?: -1
+
+    fun putSeason(id: String, n: Int) {
+        if (this.id == id) lastSeason = n
+    }
+
+    fun episodes(id: String, n: Int): List<Episode>? = bySeason[id to n]
+
+    fun putEpisodes(id: String, n: Int, eps: List<Episode>) {
+        bySeason[id to n] = eps
     }
 }

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -82,7 +83,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private data class RailState(
+internal data class RailState(
     val key: String,
     val title: String,
     val path: String,
@@ -101,30 +102,38 @@ private val RailDefs = listOf(
     Triple("airing", "Airing Today", "tv/airing_today"),
 )
 
+internal class BrowseState {
+    var openTitle by mutableStateOf<Title?>(null)
+    var backToEpisodes by mutableStateOf(false)
+    var searchOpen by mutableStateOf(false)
+    var query by mutableStateOf("")
+    var results by mutableStateOf<List<Title>>(emptyList())
+    var resultsFor by mutableStateOf("")
+    var railKey by mutableStateOf<String?>(null)
+    var trending by mutableStateOf<List<Title>>(emptyList())
+    var rails by mutableStateOf<List<RailState>>(emptyList())
+    var exploreItems by mutableStateOf<List<Title>>(emptyList())
+    var explorePage by mutableStateOf(0)
+    var exploreTotal by mutableStateOf(1)
+    var loading by mutableStateOf(true)
+    var failed by mutableStateOf(false)
+    var loaded by mutableStateOf(false)
+    val homeScroll = LazyListState()
+}
+
 @Composable
-fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
+internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
     val key = BuildConfig.TMDB_API_KEY
     val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var searchOpen by remember { mutableStateOf(false) }
-    var results by remember { mutableStateOf<List<Title>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
     var searchSeq by remember { mutableStateOf(0) }
-    var trending by remember { mutableStateOf<List<Title>>(emptyList()) }
-    var rails by remember { mutableStateOf(RailDefs.map { RailState(it.first, it.second, it.third) }) }
-    var exploreItems by remember { mutableStateOf<List<Title>>(emptyList()) }
-    var explorePage by remember { mutableStateOf(0) }
-    var exploreTotal by remember { mutableStateOf(1) }
     var exploreMore by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(true) }
-    var failed by remember { mutableStateOf(false) }
-    var railKey by remember { mutableStateOf<String?>(null) }
-    var selected by remember { mutableStateOf<Title?>(null) }
+    var selected by remember(browse.openTitle) { mutableStateOf(browse.openTitle) }
     val recents = remember { mutableStateListOf<Title>() }
 
     fun loadBrowse() {
         scope.launch {
-            loading = true
+            browse.loading = true
             try {
                 val foundTrending = withContext(Dispatchers.IO) { VidLove.trending(key) }
                 val foundRails = withContext(Dispatchers.IO) {
@@ -133,29 +142,30 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
                         RailState(def.first, def.second, def.third, r.items, 1, r.totalPages)
                     }
                 }
-                trending = foundTrending.take(12)
-                rails = foundRails
-                exploreItems = emptyList()
-                explorePage = 0
-                exploreTotal = 1
-                failed = foundTrending.isEmpty() && foundRails.all { it.items.isEmpty() }
+                browse.trending = foundTrending.take(12)
+                browse.rails = foundRails
+                browse.exploreItems = emptyList()
+                browse.explorePage = 0
+                browse.exploreTotal = 1
+                browse.failed = foundTrending.isEmpty() && foundRails.all { it.items.isEmpty() }
             } catch (_: Exception) {
-                failed = true
+                browse.failed = true
             } finally {
-                loading = false
+                browse.loading = false
+                browse.loaded = true
             }
         }
     }
 
     fun loadMoreRail(railKey: String) {
-        val rail = rails.firstOrNull { it.key == railKey } ?: return
+        val rail = browse.rails.firstOrNull { it.key == railKey } ?: return
         if (rail.loadingMore || rail.page >= rail.totalPages) return
         scope.launch {
-            rails = rails.map { if (it.key == railKey) it.copy(loadingMore = true) else it }
+            browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = true) else it }
             try {
                 val r = withContext(Dispatchers.IO) { VidLove.rail(key, rail.path, rail.page + 1) }
                 val known = rail.items.map { "${it.kind}-${it.id}" }.toSet()
-                rails = rails.map {
+                browse.rails = browse.rails.map {
                     if (it.key != railKey) it
                     else it.copy(
                         items = it.items + r.items.filter { n -> "${n.kind}-${n.id}" !in known },
@@ -165,19 +175,19 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
                     )
                 }
             } catch (_: Exception) {
-                rails = rails.map { if (it.key == railKey) it.copy(loadingMore = false) else it }
+                browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = false) else it }
             }
         }
     }
 
     fun loadMoreExplore() {
-        if (exploreMore || explorePage >= minOf(exploreTotal, 10)) return
+        if (exploreMore || browse.explorePage >= minOf(browse.exploreTotal, 10)) return
         scope.launch {
             exploreMore = true
             try {
-                val seen = (rails.flatMap { it.items } + exploreItems).map { "${it.kind}-${it.id}" }.toMutableSet()
-                var page = explorePage
-                var total = exploreTotal
+                val seen = (browse.rails.flatMap { it.items } + browse.exploreItems).map { "${it.kind}-${it.id}" }.toMutableSet()
+                var page = browse.explorePage
+                var total = browse.exploreTotal
                 var fresh = emptyList<Title>()
                 while (page < minOf(total, 10)) {
                     val r = withContext(Dispatchers.IO) { VidLove.rail(key, "movie/popular", page + 1) }
@@ -186,9 +196,9 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
                     fresh = r.items.filter { "${it.kind}-${it.id}" !in seen }
                     if (fresh.isNotEmpty()) break
                 }
-                if (fresh.isNotEmpty()) exploreItems = exploreItems + fresh
-                explorePage = page
-                exploreTotal = total
+                if (fresh.isNotEmpty()) browse.exploreItems = browse.exploreItems + fresh
+                browse.explorePage = page
+                browse.exploreTotal = total
             } catch (_: Exception) {
             } finally {
                 exploreMore = false
@@ -196,44 +206,50 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
         }
     }
 
-    LaunchedEffect(Unit) { loadBrowse() }
-    LaunchedEffect(query) {
-        val term = query.trim()
+    LaunchedEffect(Unit) { if (!browse.loaded) loadBrowse() }
+    LaunchedEffect(browse.query) {
+        val term = browse.query.trim()
         if (term.length < 2) {
-            results = emptyList()
+            browse.results = emptyList()
+            browse.resultsFor = ""
             searching = false
             return@LaunchedEffect
         }
+        if (term == browse.resultsFor) return@LaunchedEffect
         searching = true
         delay(300)
         searchSeq += 1
         val mine = searchSeq
         try {
             val found = withContext(Dispatchers.IO) { VidLove.search(term) }
-            if (mine == searchSeq) results = found
+            if (mine == searchSeq) {
+                browse.results = found
+                browse.resultsFor = term
+            }
         } catch (_: Exception) {
-            if (mine == searchSeq) results = emptyList()
+            if (mine == searchSeq) browse.results = emptyList()
         } finally {
             if (mine == searchSeq) searching = false
         }
     }
 
     fun openDetail(item: Title) {
+        browse.openTitle = item
         selected = item
         recents.removeAll { it.kind == item.kind && it.id == item.id }
         recents.add(0, item)
         if (recents.size > 6) recents.removeLast()
     }
 
-    val inSearch = query.trim().length >= 2
-    val openRail = rails.firstOrNull { it.key == railKey }
-    val navOpen = searchOpen || railKey != null
+    val inSearch = browse.query.trim().length >= 2
+    val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
+    val navOpen = browse.searchOpen || browse.railKey != null
     BackHandler(enabled = navOpen) {
-        if (searchOpen) {
-            searchOpen = false
-            query = ""
+        if (browse.searchOpen) {
+            browse.searchOpen = false
+            browse.query = ""
         } else {
-            railKey = null
+            browse.railKey = null
         }
     }
     val screenW = LocalConfiguration.current.screenWidthDp.dp
@@ -242,21 +258,21 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize()) {
             if (openRail == null) {
-                if (searchOpen) {
+                if (browse.searchOpen) {
                     SearchHeader(
-                        query = query,
-                        onQuery = { query = it },
-                        onBack = { searchOpen = false; query = "" },
+                        query = browse.query,
+                        onQuery = { browse.query = it },
+                        onBack = { browse.searchOpen = false; browse.query = "" },
                     )
                 } else {
                     BrowseHeader(
-                        onSearch = { searchOpen = true },
+                        onSearch = { browse.searchOpen = true },
                         onClose = {},
                     )
                 }
             }
             AnimatedContent(
-                targetState = if (searchOpen) 1 else if (openRail != null) 2 else 0,
+                targetState = if (browse.searchOpen) 1 else if (openRail != null) 2 else 0,
                 transitionSpec = {
                     fadeIn(tween(280)) togetherWith fadeOut(tween(280)) using SizeTransform(clip = false)
                 },
@@ -264,8 +280,8 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
             ) { mode ->
                 when (mode) {
                     1 -> SearchBody(
-                        query = query,
-                        results = results,
+                        query = browse.query,
+                        results = browse.results,
                         searching = searching,
                         recents = recents,
                         gridW = gridW,
@@ -275,23 +291,24 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
                     2 -> openRail?.let {
                         RailGrid(
                             rail = it,
-                            onBack = { railKey = null },
+                            onBack = { browse.railKey = null },
                             onOpen = ::openDetail,
                             onEnd = { loadMoreRail(it.key) },
                         )
                     } ?: Box(Modifier.fillMaxSize())
                     else -> BrowseBody(
-                        trending = trending,
-                        rails = rails,
-                        exploreItems = exploreItems,
+                        trending = browse.trending,
+                        rails = browse.rails,
+                        exploreItems = browse.exploreItems,
                         exploreMore = exploreMore,
-                        exploreTotal = exploreTotal,
-                        loading = loading,
-                        failed = failed,
+                        exploreTotal = browse.exploreTotal,
+                        loading = browse.loading,
+                        failed = browse.failed,
                         detailOpen = selected != null,
+                        listState = browse.homeScroll,
                         
                         onOpen = ::openDetail,
-                        onSeeAll = { railKey = it },
+                        onSeeAll = { browse.railKey = it },
                         onRailEnd = ::loadMoreRail,
                         onGridEnd = ::loadMoreExplore,
                         onRetry = ::loadBrowse,
@@ -307,7 +324,9 @@ fun MoviesHome(onWatch: (Title, String, String) -> Unit) {
             selected?.let { item ->
                 MovieDetail(
                     item = item,
-                    onClose = { selected = null },
+                    onClose = { browse.openTitle = null; browse.backToEpisodes = false },
+                    startEpisodes = browse.backToEpisodes,
+                    onEpisodesExit = { browse.openTitle = null; browse.backToEpisodes = false },
                     onWatch = { t, s, e ->
                         selected = null
                         onWatch(t, s, e)
@@ -430,6 +449,7 @@ private fun BrowseBody(
     loading: Boolean,
     failed: Boolean,
     detailOpen: Boolean,
+    listState: LazyListState,
     onOpen: (Title) -> Unit,
     onSeeAll: (String) -> Unit,
     onRailEnd: (String) -> Unit,
@@ -439,7 +459,6 @@ private fun BrowseBody(
     val screenW = LocalConfiguration.current.screenWidthDp.dp
     val gridW = (screenW - 56.dp) / 3
     val exploreRows = remember(exploreItems) { exploreItems.chunked(3) }
-    val listState = rememberLazyListState()
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { idx ->

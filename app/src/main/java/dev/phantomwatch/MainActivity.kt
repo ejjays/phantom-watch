@@ -47,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.MoviesHome
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
@@ -177,13 +178,18 @@ class MainActivity : ComponentActivity() {
 
 private sealed interface Screen {
     data object Home : Screen
-    data class Player(val title: String, val stream: Stream?, val ctl: DlCtl?, val entry: TEntry?, val media: Title, val season: String, val episode: String) : Screen
+    data class Player(val title: String, val stream: Stream?, val ctl: DlCtl?, val entry: TEntry?, val media: Title, val season: String, val episode: String, val back: Screen) : Screen
     data class Torrents(val title: Title, val season: String, val episode: String) : Screen
     data class Fetch(val title: Title, val season: String, val episode: String, val entry: TEntry) : Screen
 }
 
 private const val ACT_PIP_TOGGLE = "dev.phantomwatch.PIP_TOGGLE"
 private const val ACT_PIP_CLOSE = "dev.phantomwatch.PIP_CLOSE"
+
+private fun Screen.navLabel(): String = when (this) {
+    is Screen.Player -> "Player(back=${back.navLabel()})"
+    else -> this::class.simpleName ?: "?"
+}
 
 object PipCtl {
     var active = false
@@ -209,6 +215,7 @@ class DlCtl(val handle: TorrentHandle) {
 @Composable
 private fun App() {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    val browse = remember { BrowseState() } // survives the trip to the player
     var forward by remember { mutableStateOf(true) }
     var instant by remember { mutableStateOf(false) }
     var autoRelease by remember { mutableStateOf(true) }
@@ -228,7 +235,10 @@ private fun App() {
         }
     }
     Box(Modifier.fillMaxSize()) {
-        LaunchedEffect(screen) { instant = false } // snap applies to one hop only
+        LaunchedEffect(screen) {
+            instant = false // snap applies to one hop only
+            AppLog.d("nav -> ${screen.navLabel()}")
+        }
         AnimatedContent(
             targetState = screen,
             transitionSpec = {
@@ -246,11 +256,15 @@ private fun App() {
         ) { s ->
             when (s) {
                 is Screen.Home -> MoviesHome(
+                    browse = browse,
                     onWatch = { t, seas, ep ->
                         forward = true
                         instant = true
                         autoRelease = true
-                        screen = Screen.Player(t.title, null, null, null, t, seas, ep)
+                        // back: tv lands on the episode list, movies skip the detail sheet
+                        browse.backToEpisodes = t.kind == "tv"
+                        if (t.kind != "tv") browse.openTitle = null
+                        screen = Screen.Player(t.title, null, null, null, t, seas, ep, Screen.Home)
                     },
                 )
                 is Screen.Player -> PlayerScreen(
@@ -269,7 +283,7 @@ private fun App() {
                             }
                         }
                         forward = false
-                        screen = Screen.Home
+                        screen = s.back
                     },
                     onGiveUp = { deadUrl ->
                         if (s.entry != null) {
@@ -305,7 +319,7 @@ private fun App() {
                     onSeedReady = { stream, e ->
                         forward = true
                         instant = true
-                        screen = Screen.Player(s.title.title, stream, null, e, s.title, s.season, s.episode)
+                        screen = Screen.Player(s.title.title, stream, null, e, s.title, s.season, s.episode, Screen.Torrents(s.title, s.season, s.episode))
                     },
                     onBack = {
                         forward = false
@@ -324,7 +338,7 @@ private fun App() {
                         dir = dir,
                         onPlay = { stream, ctl ->
                             forward = true
-                            screen = Screen.Player(s.title.title, stream, ctl, s.entry, s.title, s.season, s.episode)
+                            screen = Screen.Player(s.title.title, stream, ctl, s.entry, s.title, s.season, s.episode, Screen.Fetch(s.title, s.season, s.episode, s.entry))
                         },
                         onBack = {
                             forward = false
