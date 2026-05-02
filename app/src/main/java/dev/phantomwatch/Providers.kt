@@ -554,9 +554,11 @@ object Providers {
             } ?: Triple(emptyList(), emptyList(), null)
         }
 
-    // subs fit their own provider's cut only: different releases drift out of sync
-    fun subsFor(f: VFormat, subs: List<Sub>): List<Sub> =
-        subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
+    // own-provider subs fit this cut; others drift, so they're only a fallback
+    fun subsFor(f: VFormat, subs: List<Sub>): List<Sub> {
+        if (f.label.startsWith("rock-")) return emptyList()
+        return subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }.ifEmpty { subs }
+    }
 
     fun providerName(f: VFormat): String = when {
         f.label.startsWith("love-") -> "VidLove"
