@@ -10,7 +10,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.join(ROOT, "probe_last.json")
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
-MOVIE, TV, SEASON, EP = "236751", "127532", "1", "1"
+MOVIES = ("1560520", "980431", "1108427")  # Batman Knightfall, Avatar Aang, Moana
+TV, SEASON, EP = "127532", "1", "1"
 S = requests.Session()
 
 def get(url, referer, timeout=15):
@@ -208,6 +209,8 @@ MEGA_IV = b"hlsMediaAttached"
 def hianime(tid, kind, s, e, key):
     t = time.time()
     try:
+        if kind != "tv":
+            return res("hianime", True, err="SKIP tv only")
         if not key:
             return res("hianime", True, err="SKIP no TMDB key")
         ep = "tv" if kind == "tv" else "movie"
@@ -247,7 +250,7 @@ def hianime(tid, kind, s, e, key):
     except Exception as ex:
         return res("hianime", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
-JOBS = [("movie", MOVIE, None, None), ("tv", TV, SEASON, EP)]
+JOBS = [("movie", t, None, None) for t in MOVIES] + [("tv", TV, SEASON, EP)]
 LEGS = [love, rock, zee, vix, vap, paradise, vidlink, hianime]
 
 def main():
