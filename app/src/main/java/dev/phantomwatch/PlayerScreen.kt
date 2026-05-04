@@ -217,6 +217,7 @@ private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: D
         parameters = buildUponParameters()
             .setPreferredAudioLanguage("en")
             .setPreferredTextLanguage("en")
+            .setForceHighestSupportedBitrate(true)
             .build()
     }
     val mediaFactory = buildMediaFactory(context, stream, headers, ctl)
