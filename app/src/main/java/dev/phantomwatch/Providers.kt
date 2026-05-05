@@ -399,6 +399,7 @@ object Providers {
             val (_, html) = fetch(page, page, 10) ?: return@withContext (emptyList<VFormat>() to emptyList())
             val dataId = Regex("""data-id=["'](\d+)["']""").find(html)?.groupValues?.get(1)
             AppLog.d("ani mal=$mal page=${html.length} id=$dataId")
+            if (dataId == null) return@withContext (emptyList<VFormat>() to emptyList())
             val srcObj = try {
                 fetch("$MEGA_ORIGIN/stream/getSources?id=$dataId&id=$dataId", page, 10)
                     ?.takeIf { it.first == 200 }?.second?.let { JSONObject(it) }
@@ -406,8 +407,7 @@ object Providers {
                 null
             }
             val enc = srcObj?.optString("enc").orEmpty()
-            if (enc.isEmpty() || dataId == null) return@withContext (emptyList<VFormat>() to emptyList())
-            if (enc.isNullOrEmpty()) return@withContext (emptyList<VFormat>() to emptyList())
+            if (enc.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList())
             val master = try {
                 val m = Regex("""([a-z0-9.-]+\.[a-z]+/anime/[a-f0-9]+/[a-f0-9]+/master\.m3u8)""").find(megaDecrypt(enc))
                 if (m != null) "https://${m.groupValues[1]}" else ""
