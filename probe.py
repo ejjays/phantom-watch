@@ -89,8 +89,12 @@ def zee(tid, kind, s, e):
         path = f"/streams/movie/{tid}" if kind == "movie" else f"/streams/tv/{tid}/{s}/{e}"
         c, b, _ = get(f"https://core.vidzee.wtf{path}?s=dcloud&e=0", "https://player.vidzee.wtf/")
         url = json.loads(b).get("url", "") if c == 200 else ""
-        return res("zee", url.startswith("http"), url.startswith("http"), None, False,
-                   int((time.time() - t) * 1000), "" if url.startswith("http") else f"http={c}")
+        if not url.startswith("http"):
+            return res("zee", False, 0, None, False, int((time.time() - t) * 1000), f"http={c}")
+        c2, man, _ = get(url, "https://player.vidzee.wtf/")
+        hs = heights_m3u8(man) if c2 == 200 and "#EXTM3U" in man else []
+        return res("zee", bool(hs), len(hs), max(hs) if hs else None, en_media(man),
+                   int((time.time() - t) * 1000), "" if hs else f"no video rungs (http={c2})")
     except Exception as ex:
         return res("zee", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
