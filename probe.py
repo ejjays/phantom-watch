@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Live provider health check. Metadata only, never fetches media bytes.
 Usage: python3 probe.py  (exit 1 if any provider fails)
-Needs TMDB_API_KEY from local.properties (vap leg only)."""
+Needs TMDB_API_KEY from local.properties (vap, paradise, hianime legs)."""
 import base64, json, os, re, sys, time, urllib.parse
 import requests
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.join(ROOT, "probe_last.json")
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
 MOVIES = ("1560520", "980431", "1108427")  # Batman Knightfall, Avatar Aang, Moana
-TV, SEASON, EP = "127532", "1", "1"
+TVS = (("127532", "1", "1"), ("62715", "1", "1"))  # Solo Leveling, Dragon Ball Super
 S = requests.Session()
 
 def get(url, referer, timeout=15):
@@ -150,17 +150,23 @@ def vap(tid, kind, s, e, key):
     except Exception as ex:
         return res("vap", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
-def paradise(tid, kind, s, e):
+def paradise(tid, kind, s, e, key):
     t = time.time()
     try:
         if kind != "tv" or s != "1":
             return res("paradise", True, err="SKIP tv-s1 only")
+        if not key:
+            return res("paradise", True, err="SKIP no TMDB key")
+        c, b, _ = get(f"https://api.themoviedb.org/3/tv/{tid}?api_key={key}", "https://www.themoviedb.org/")
+        title = ((json.loads(b).get("name") or "").split(":")[0].strip()) if c == 200 else ""
+        if not title:
+            return res("paradise", True, err="SKIP no title")
         def js(path):
             c, b, _ = get(f"https://api.animeparadise.moe{path}", "https://animeparadise.moe/")
             return json.loads(b) if c == 200 else None
         norm = lambda x: re.sub(r"[^a-z0-9]+", "", x.lower())
-        want, show, link = norm("Solo Leveling"), "", ""
-        data = (js(f"/search?q=Solo%20Leveling&limit=20") or {}).get("data") or []
+        want, show, link = norm(title), "", ""
+        data = (js(f"/search?q={urllib.parse.quote(title)}&limit=20") or {}).get("data") or []
         for o in data:
             if (norm(o.get("title", "")) == want or norm(o.get("link", "")) == want) and (js(f"/anime/{o.get('link', '')}") or {}).get("data", {}).get("type") == "TV":
                 show, link = o["_id"], o["link"]
@@ -192,13 +198,13 @@ def vidlink(tid, kind, s, e):
             return res("vidlink", False, err="enc failed", ms=int((time.time() - t) * 1000))
         path = f"movie/{enc}" if kind == "movie" else f"tv/{enc}/{s}/{e}"
         c2, b2, _ = get(f"https://vidlink.pro/api/b/{path}", "https://vidlink.pro/")
-        st = (json.loads(b2).get("stream") or {}) if c2 == 200 else {}
+        st = ((json.loads(b2) or {}).get("stream") or {}) if c2 == 200 else {}
         qs = st.get("qualities") or {}
         caps = st.get("captions") or []
         en = any((x.get("language") or "").lower() == "english" for x in caps)
         hs = [int(k) for k in qs if k.isdigit()]
         return res("vidlink", bool(hs), len(hs), max(hs) if hs else None, en,
-                   int((time.time() - t) * 1000), "" if hs else f"http={c2}")
+                   int((time.time() - t) * 1000), "" if hs else f"no stream (http={c2})")
     except Exception as ex:
         return res("vidlink", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
@@ -250,7 +256,7 @@ def hianime(tid, kind, s, e, key):
     except Exception as ex:
         return res("hianime", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
-JOBS = [("movie", t, None, None) for t in MOVIES] + [("tv", TV, SEASON, EP)]
+JOBS = [("movie", t, None, None) for t in MOVIES] + [("tv", t, s, e) for t, s, e in TVS]
 LEGS = [love, rock, zee, vix, vap, paradise, vidlink, hianime]
 
 def main():
@@ -263,7 +269,7 @@ def main():
     rows, cur, fails = [], {}, 0
     for kind, tid, s, e in JOBS:
         def run(leg):
-            return leg(tid, kind, s, e, key) if leg in (vap, hianime) else leg(tid, kind, s, e)
+            return leg(tid, kind, s, e, key) if leg in (vap, hianime, paradise) else leg(tid, kind, s, e)
         for leg in LEGS:
             r = run(leg)
             if not r["ok"] and not str(r["err"]).startswith("SKIP"):
