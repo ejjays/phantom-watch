@@ -138,4 +138,24 @@ class SubsTest {
         val f = VidLove.shiftSubFile("1\n00:00:01,000 --> 00:00:02,000\nHi\n", 1000, dir)
         assertEquals(2000L, VidLove.parseCues(f!!.readText())[0].start)
     }
+
+    @Test
+    fun subsForPrefersOwnProvider() {
+        val subs = listOf(Sub("English", "a", "vidlink"), Sub("English", "b", "love"), Sub("English", "c"))
+        val f = VFormat("u", false, "vidlink-1080p", 1080)
+        assertEquals(listOf("a", "c"), Providers.subsFor(f, subs).map { it.url })
+    }
+
+    @Test
+    fun subsForFallsBackWhenProviderHasNoSubs() {
+        val subs = listOf(Sub("English", "a", "vidlink"), Sub("English", "b", "love"))
+        val f = VFormat("u", false, "vap-auto", 1080)
+        assertEquals(listOf("a", "b"), Providers.subsFor(f, subs).map { it.url })
+    }
+
+    @Test
+    fun subsForSkipsRock() {
+        val f = VFormat("u", false, "rock-mp4", 1080)
+        assertTrue(Providers.subsFor(f, listOf(Sub("English", "a", "love"))).isEmpty())
+    }
 }
