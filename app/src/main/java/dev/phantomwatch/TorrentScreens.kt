@@ -97,7 +97,6 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
                 err = "No direct streams found"
                 return@LaunchedEffect
             }
-            if (!TORRENTS_ENABLED) return@LaunchedEffect
             val key = BuildConfig.TMDB_API_KEY
             val imdb = withContext(Dispatchers.IO) { VidLove.imdbOf(title.id, title.kind, key) }
             if (imdb == null) {
