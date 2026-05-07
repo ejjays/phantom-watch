@@ -462,7 +462,7 @@ private fun BrowseBody(
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { idx ->
-                if (idx != null && idx >= exploreRows.size - 1) onGridEnd()
+                if (idx != null && idx >= exploreRows.size) onGridEnd()
             }
     }
     if (loading && trending.isEmpty() && rails.all { it.items.isEmpty() }) {
