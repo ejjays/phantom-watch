@@ -135,6 +135,7 @@ fun MovieDetail(
         AppLog.d("detail photos ready")
     }
     LaunchedEffect(item.id, item.kind) {
+        if (!BuildConfig.DEBUG) return@LaunchedEffect
         var last = 0L
         var slow = 0
         while (slow < 25) {
@@ -151,6 +152,7 @@ fun MovieDetail(
     }
     // shortcut: debug watchdog, remove once the open hitch is fixed
     LaunchedEffect(item.id, item.kind) {
+        if (!BuildConfig.DEBUG) return@LaunchedEffect
         val main = android.os.Handler(android.os.Looper.getMainLooper())
         var quits = false
         var logged = 0
@@ -620,6 +622,7 @@ private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> U
         detail?.let { AppLog.d("ep open ${it.kind}/${it.id} ${it.title}") }
     }
     LaunchedEffect(detail?.id) {
+        if (!BuildConfig.DEBUG) return@LaunchedEffect
         var last = 0L
         var slow = 0
         while (slow < 25) {
@@ -636,6 +639,7 @@ private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> U
     }
     // shortcut: debug watchdog, remove once the open hitch is fixed
     LaunchedEffect(detail?.id) {
+        if (!BuildConfig.DEBUG) return@LaunchedEffect
         val main = android.os.Handler(android.os.Looper.getMainLooper())
         var quits = false
         var logged = 0
