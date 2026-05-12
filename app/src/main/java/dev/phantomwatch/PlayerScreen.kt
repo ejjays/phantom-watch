@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -1279,6 +1280,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     LaunchedEffect(playing) {
         if (playing) poke()
+    }
+    val playerView = LocalView.current
+    DisposableEffect(playing) {
+        playerView.keepScreenOn = playing
+        onDispose { playerView.keepScreenOn = false }
     }
     LaunchedEffect(fullscreen) {
         if (!fullscreen) locked = false
