@@ -1204,17 +1204,32 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         }
     }
+    val activity = context as? android.app.Activity
+    val baseOrientation = remember {
+        activity?.requestedOrientation ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+    val cfg = LocalConfiguration.current
+    val smallScreen = cfg.smallestScreenWidthDp < 600
+    fun rotationEnabled() = try {
+        android.provider.Settings.System.getInt(
+            context.contentResolver,
+            android.provider.Settings.System.ACCELEROMETER_ROTATION,
+            0,
+        ) == 1
+    } catch (_: Exception) {
+        false
+    }
     fun toggleFullscreen() {
         fullscreen = !fullscreen
-        (context as? android.app.Activity)?.requestedOrientation =
-            if (fullscreen) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (smallScreen) activity?.requestedOrientation =
+            if (fullscreen) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
         fullscreenBars(fullscreen)
         poke()
     }
-    var autoFs by remember { mutableStateOf(false) }
     var orientJob: Job? by remember { mutableStateOf(null) }
     val fsNow = rememberUpdatedState(fullscreen)
+    val lockedNow = rememberUpdatedState(locked)
     val orientListener = remember {
         object : android.view.OrientationEventListener(context) {
             var lastZone = -1
@@ -1230,11 +1245,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 orientJob?.cancel()
                 orientJob = resumeScope.launch {
                     delay(800)
-                    if (zone == 1 && !fsNow.value) {
-                        autoFs = true
+                    if (PipCtl.inPip) return@launch
+                    if (zone == 0 && fsNow.value && !lockedNow.value) {
                         toggleFullscreen()
-                    } else if (zone == 0 && fsNow.value && autoFs) {
-                        autoFs = false
+                    } else if (zone == 1 && !fsNow.value && rotationEnabled()) {
                         toggleFullscreen()
                     }
                 }
@@ -1249,17 +1263,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         }
     }
     BackHandler {
-        if (fullscreen) {
-            autoFs = false
-            toggleFullscreen()
-        } else {
-            onBack()
-        }
+        if (fullscreen) toggleFullscreen() else onBack()
     }
     DisposableEffect(stream.url) {
         onDispose {
-            (context as? android.app.Activity)?.requestedOrientation =
-                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            activity?.requestedOrientation = baseOrientation
             fullscreenBars(false)
         }
     }
@@ -1288,6 +1296,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     LaunchedEffect(fullscreen) {
         if (!fullscreen) locked = false
+    }
+    LaunchedEffect(locked, cfg.orientation) {
+        if (locked) {
+            activity?.requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
     }
     val videoAspect = if (videoW > 0 && videoH > 0) videoW.toFloat() / videoH else 16f / 9f
     LaunchedEffect(videoW, videoH, enhReady, enhOut, enhSession) {
@@ -1387,10 +1401,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         }
     }
     @Composable
-    fun stage(seekInset: androidx.compose.ui.unit.Dp, matchH: Boolean) {
+    fun stage(seekInset: androidx.compose.ui.unit.Dp, matchH: Boolean, fsUi: Boolean) {
         PlayerStage(
             title = title,
-        fullscreen = fullscreen,
+        fullscreen = fsUi,
         isPlaying = playing,
         stalled = stalled,
         positionMs = positionMs,
@@ -1412,14 +1426,17 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             )
         },
         onBack = onBack,
-        onFullscreen = {
-            autoFs = false
-            toggleFullscreen()
-        },
+        onFullscreen = { toggleFullscreen() },
         onTogglePlay = ::togglePlay,
         onToggleLock = {
             locked = !locked
-            if (locked) controls = false else poke()
+            if (locked) {
+                controls = false
+            } else {
+                if (fullscreen && orientListener.lastZone == 0) toggleFullscreen()
+                else if (!fullscreen) activity?.requestedOrientation = baseOrientation
+                poke()
+            }
         },
         onSeek = ::seekTo,
         onInteract = ::poke,
@@ -1506,7 +1523,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     },
                     update = {
                         it.resizeMode =
-                            if (fullscreen && !PipCtl.inPip) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            if (fsUi && !PipCtl.inPip) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                             else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         it.subtitleView?.translationY =
                             -(14 * it.resources.displayMetrics.density)
@@ -1517,15 +1534,15 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             },
         )
     }
-    val cfg = LocalConfiguration.current
+    val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     if (PipCtl.inPip) {
-        stage(0.dp, videoAspect < 16f / 9f)
-    } else if (fullscreen) {
+        stage(0.dp, videoAspect < 16f / 9f, false)
+    } else if (wide) {
         val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsVideoH = if (videoAspect >= fsW / fsH) fsW / videoAspect else fsH
         AnimatedVisibility(visible = true, enter = fadeIn()) {
-            stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, videoAspect < fsW / fsH)
+            stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, videoAspect < fsW / fsH, true)
         }
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
@@ -1533,7 +1550,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         AnimatedVisibility(visible = true, enter = fadeIn()) {
             Column(Modifier.fillMaxSize().background(Color.Black)) {
                 Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
-                    stage(0.dp, videoAspect < 16f / 9f)
+                    stage(0.dp, videoAspect < 16f / 9f, false)
                 }
                 PlayerPanel(title = media.title, year = media.year, rating = media.rating)
             }
