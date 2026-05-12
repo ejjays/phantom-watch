@@ -557,7 +557,7 @@ object Providers {
     // own-provider subs fit this cut; others drift, so they're only a fallback
     fun subsFor(f: VFormat, subs: List<Sub>): List<Sub> {
         if (f.label.startsWith("rock-")) return emptyList()
-        return subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }.ifEmpty { subs }
+        return subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
     }
 
     fun providerName(f: VFormat): String = when {

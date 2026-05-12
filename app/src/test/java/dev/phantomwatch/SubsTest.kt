@@ -147,10 +147,10 @@ class SubsTest {
     }
 
     @Test
-    fun subsForFallsBackWhenProviderHasNoSubs() {
+    fun subsForKeepsForeignSubsOffProvidersWithoutOwn() {
         val subs = listOf(Sub("English", "a", "vidlink"), Sub("English", "b", "love"))
         val f = VFormat("u", false, "vap-auto", 1080)
-        assertEquals(listOf("a", "b"), Providers.subsFor(f, subs).map { it.url })
+        assertTrue(Providers.subsFor(f, subs).isEmpty())
     }
 
     @Test
