@@ -871,8 +871,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 showOsSub(f, ck)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 osStatus = null
+                AppLog.d("os crash ${e.javaClass.simpleName}: ${e.message}")
             }
         }
     }
