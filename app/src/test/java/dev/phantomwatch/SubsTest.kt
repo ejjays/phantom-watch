@@ -140,6 +140,14 @@ class SubsTest {
     }
 
     @Test
+    fun deadHostsForgiveClearsBan() {
+        Torrents.DeadHosts.mark("https://forgive.example/a.mp4")
+        assertTrue(Torrents.DeadHosts.blocked("https://forgive.example/b.mp4"))
+        Torrents.DeadHosts.forgive("https://forgive.example/b.mp4")
+        assertTrue(!Torrents.DeadHosts.blocked("https://forgive.example/a.mp4"))
+    }
+
+    @Test
     fun subsForPrefersOwnProvider() {
         val subs = listOf(Sub("English", "a", "vidlink"), Sub("English", "b", "love"), Sub("English", "c"))
         val f = VFormat("u", false, "vidlink-1080p", 1080)

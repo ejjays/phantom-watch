@@ -138,7 +138,7 @@ object Torrents {
 
         fun hostOf(url: String): String =
             try {
-                android.net.Uri.parse(url).host.orEmpty()
+                java.net.URI(url).host.orEmpty()
             } catch (_: Exception) {
                 ""
             }
@@ -166,6 +166,16 @@ object Torrents {
                 return true
             }
             return false
+        }
+
+        fun forgive(url: String) {
+            val h = hostOf(url)
+            if (h.isEmpty()) return
+            mem.remove(h)
+            try {
+                prefs?.edit()?.remove(h)?.apply()
+            } catch (_: Exception) {
+            }
         }
     }
 

@@ -84,6 +84,21 @@ object Providers {
         }
     }
 
+    private fun alive(url: String, referer: String): Boolean {
+        return try {
+            val req = Request.Builder().url(url)
+                .header("User-Agent", UA)
+                .header("Referer", referer)
+                .header("Range", "bytes=0-0")
+                .build()
+            val call = VidLove.client().newCall(req)
+            call.timeout().deadline(6, java.util.concurrent.TimeUnit.SECONDS)
+            call.execute().use { it.code in 200..299 }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun absUrl(rel: String, base: String): String {
         return try {
             if (rel.startsWith("http")) rel else URL(URL(base), rel).toString()
@@ -539,6 +554,11 @@ object Providers {
                     val (aniF, aniSubs) = ani.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
                     AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} vap=${vapF.size} vl=${vlF.size} ani=${aniF.size} @${System.currentTimeMillis() - t0}ms")
                     val all = (formats + rockF + vixF + zeeF + paraF + vapF + vlF + aniF)
+                    // bans outlive transient 403/429s; one 1-byte probe re-admits a host that recovered
+                    all.filter { Torrents.DeadHosts.blocked(it.url) }
+                        .distinctBy { Torrents.DeadHosts.hostOf(it.url) }
+                        .forEach { f -> if (alive(f.url, f.referer)) Torrents.DeadHosts.forgive(f.url) }
+                    val live = all
                         .filter { it.url !in Torrents.DeadReleases.urls && !Torrents.DeadHosts.blocked(it.url) }
                         // 1080p+ with EN subs first, then adaptive masters, then height
                         .sortedWith(
@@ -549,7 +569,7 @@ object Providers {
                                 .thenByDescending { if (it.english) 1 else 0 }
                                 .thenByDescending { it.height },
                         )
-                    Triple(all.distinctBy { it.url }, (subs + paraSubs + vlSubs + aniSubs).distinctBy { it.url }, imdb.await())
+                    Triple(live.distinctBy { it.url }, (subs + paraSubs + vlSubs + aniSubs).distinctBy { it.url }, imdb.await())
                 }
             } ?: Triple(emptyList(), emptyList(), null)
         }
