@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Live provider health check. Metadata only, never fetches media bytes.
+"""Live provider health check. Metadata only, never downloads media: the one
+exception is a 1-byte range probe on the vidlink CDN, whose 429s never show up
+in its API.
 Usage: python3 probe.py  (exit 1 if any provider fails)
 Needs TMDB_API_KEY from local.properties (vap, paradise, hianime legs)."""
 import base64, json, os, re, sys, time, urllib.parse
@@ -10,7 +12,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.join(ROOT, "probe_last.json")
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
-MOVIES = ("1560520", "980431", "1108427")  # Batman Knightfall, Avatar Aang, Moana
+MOVIES = ("1560520", "980431", "1108427", "969681")  # Batman Knightfall, Avatar Aang, Moana, Spider-Man BND
 TVS = (("127532", "1", "1"), ("62715", "1", "1"))  # Solo Leveling, Dragon Ball Super
 S = requests.Session()
 
@@ -193,6 +195,16 @@ def paradise(tid, kind, s, e, key):
     except Exception as ex:
         return res("paradise", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
+def cdn_code(url):
+    try:
+        r = S.get(url, headers={"User-Agent": UA, "Referer": "https://vidlink.pro/", "Range": "bytes=0-0"},
+                  timeout=10, stream=True)
+        code = r.status_code
+        r.close()
+        return code
+    except Exception:
+        return 0
+
 def vidlink(tid, kind, s, e):
     t = time.time()
     try:
@@ -207,8 +219,15 @@ def vidlink(tid, kind, s, e):
         caps = st.get("captions") or []
         en = any((x.get("language") or "").lower() == "english" for x in caps)
         hs = [int(k) for k in qs if k.isdigit()]
-        return res("vidlink", bool(hs), len(hs), max(hs) if hs else None, en,
-                   int((time.time() - t) * 1000), "" if hs else f"no stream (http={c2})")
+        if not hs:
+            return res("vidlink", False, 0, None, en, int((time.time() - t) * 1000), f"no stream (http={c2})")
+        top = max(hs)
+        e0 = qs.get(str(top))
+        u = (e0.get("url", "") if isinstance(e0, dict) else "") or ""
+        cdn = cdn_code(u) if u.startswith("http") else 200
+        ok = 200 <= cdn < 300
+        return res("vidlink", ok, len(hs), top, en,
+                   int((time.time() - t) * 1000), "" if ok else f"cdn http={cdn or 'ERR'}")
     except Exception as ex:
         return res("vidlink", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
@@ -284,9 +303,16 @@ def main():
             r["title"] = f"{kind}/{tid}" + (f" s{s}e{e}" if kind == "tv" else "")
             rows.append(r)
             k = f"{leg.__name__}:{r['title']}"
-            cur[k] = {"ok": r["ok"], "formats": r["formats"], "max": r["max"]}
+            cur[k] = {"ok": r["ok"], "formats": r["formats"], "max": r["max"], "enSubs": r["enSubs"]}
             p = prev.get(k)
-            r["flag"] = "" if not p or p["ok"] == r["ok"] else ("recovered" if r["ok"] else "REGRESSED")
+            if not p:
+                r["flag"] = ""
+            elif p["ok"] != r["ok"]:
+                r["flag"] = "recovered" if r["ok"] else "REGRESSED"
+            elif p.get("enSubs") and not r["enSubs"]:
+                r["flag"] = "en lost"
+            else:
+                r["flag"] = ""
             if str(r["err"]).startswith("SKIP"):
                 r["flag"] = "skip"
             elif not r["ok"]:
@@ -294,7 +320,7 @@ def main():
     print(f"{'provider':9} {'title':16} {'ms':>6} {'fmts':>4} {'max':>5} en {'st':6} note")
     for r in rows:
         mx = f"{r['max']}p" if r["max"] else "-"
-        note = (r["flag"] or r["err"]) + (" retry" if r.get("retry") else "")
+        note = " ".join(x for x in (r["flag"], r["err"]) if x) + (" retry" if r.get("retry") else "")
         print(f"{r['provider']:9} {r['title']:16} {r['ms']:6} {r['formats']:4} {mx:>5} "
               f"{'Y' if r['enSubs'] else '-'} {('FAIL' if not r['ok'] and not r['flag'] == 'skip' else 'ok'):6} {note}")
     json.dump(cur, open(BASE, "w"), indent=1)
