@@ -42,7 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
+
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -267,7 +267,6 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
                 } else {
                     BrowseHeader(
                         onSearch = { browse.searchOpen = true },
-                        onClose = {},
                     )
                 }
             }
@@ -339,7 +338,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
 }
 
 @Composable
-private fun BrowseHeader(onSearch: () -> Unit, onClose: () -> Unit) {
+private fun BrowseHeader(onSearch: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -356,13 +355,6 @@ private fun BrowseHeader(onSearch: () -> Unit, onClose: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(painterResource(R.drawable.ic_search_normal), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
-        }
-        Spacer(Modifier.width(8.dp))
-        Box(
-            Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onClose),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
         }
     }
 }
