@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -780,16 +781,15 @@ private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> U
             }
             when {
                 loading -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    items(6) {
-                        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            ShimmerBox(Modifier.size(120.dp, 68.dp))
+                    items(6) {                                Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
+                            ShimmerBox(Modifier.fillMaxWidth(0.46f).aspectRatio(16f / 9f))
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                ShimmerBox(Modifier.fillMaxWidth(0.15f).height(11.dp))
+                                ShimmerBox(Modifier.fillMaxWidth(0.95f).height(16.dp))
                                 Spacer(Modifier.height(6.dp))
-                                ShimmerBox(Modifier.fillMaxWidth(0.7f).height(14.dp))
-                                Spacer(Modifier.height(6.dp))
-                                ShimmerBox(Modifier.fillMaxWidth(0.9f).height(12.dp))
+                                ShimmerBox(Modifier.fillMaxWidth(0.7f).height(16.dp))
+                                Spacer(Modifier.height(8.dp))
+                                ShimmerBox(Modifier.fillMaxWidth(0.4f).height(12.dp))
                             }
                         }
                     }
@@ -804,26 +804,24 @@ private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> U
                     LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                         items(shown, key = { it.n }) { ep ->
                             Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable {
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
                                     onEpisode((seasons.getOrNull(seasonIdx)?.number ?: 1).toString(), ep.n.toString())
-                                }.padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                                }.padding(vertical = 14.dp),
+                                verticalAlignment = Alignment.Top,
                             ) {
                                 val thumb = ep.still ?: (detail?.backdrop ?: detail?.poster)
-                                if (thumb != null) {
-                                    AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("ep still ok E${ep.n}") }, onError = { AppLog.d("ep still err E${ep.n}") })
-                                } else {
-                                    Box(Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.05f)), contentAlignment = Alignment.Center) {
-                                        Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
+                                Box(Modifier.fillMaxWidth(0.46f).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.05f))) {
+                                    if (thumb != null) {
+                                        AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("ep still ok E${ep.n}") }, onError = { AppLog.d("ep still err E${ep.n}") })
+                                    } else {
+                                        Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.align(Alignment.Center).size(18.dp))
                                     }
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text("E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""), color = Slate500, fontSize = 11.sp, fontFamily = Mono)
-                                    Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    if (ep.overview.isNotEmpty()) {
-                                        Text(ep.overview, color = Slate400, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = Rubik, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    }
+                                    Text(ep.name, color = Color.White, fontSize = 16.sp, lineHeight = 21.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""), color = Slate400, fontSize = 13.sp, fontFamily = Mono)
                                 }
                             }
                         }
