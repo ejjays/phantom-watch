@@ -34,6 +34,26 @@ android {
         }
     }
 
+    // debug keystore on purpose: sideload builds must install over the existing app
+    signingConfigs {
+        create("sideload") {
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+        release {
+            signingConfig = signingConfigs.getByName("sideload")
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -58,6 +78,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
+    implementation("androidx.media3:media3-session:1.11.1")
     implementation("androidx.media3:media3-effect:1.11.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.frostwire:jlibtorrent:2.0.12.9")
@@ -66,6 +87,7 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta09")
-    implementation("androidx.compose.material:material-icons-extended")
+    // JitPack: release tags fail to build; snapshot publishes repo-level artifact, not the reicon-compose module
+    implementation("com.github.dqev:reicon:main-SNAPSHOT")
     testImplementation("junit:junit:4.13.2")
 }

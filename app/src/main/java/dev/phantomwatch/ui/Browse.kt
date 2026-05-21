@@ -40,10 +40,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,6 +74,8 @@ import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
 import dev.phantomwatch.Title
 import dev.phantomwatch.VidLove
+import dev.reicon.ChevronRight
+import dev.reicon.ReiconIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -369,7 +367,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
             Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = "Back", tint = Slate400, modifier = Modifier.size(18.dp))
+            Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Slate400, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(8.dp))
         Row(
@@ -495,7 +493,7 @@ private fun BrowseBody(
                             Text(rail.title, color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                             Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
                                 Text("See all", color = Cyan, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Cyan, modifier = Modifier.size(15.dp))
+                                ReiconIcon(ChevronRight.Outline, contentDescription = null, tint = Cyan, size = 15.dp)
                             }
                         }
                         val rowState = rememberLazyListState()
@@ -720,7 +718,7 @@ private fun RailGrid(rail: RailState, onBack: () -> Unit, onOpen: (Title) -> Uni
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.ChevronRight, contentDescription = "Back", tint = Slate400, modifier = Modifier.size(18.dp))
+                Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Slate400, modifier = Modifier.size(18.dp))
             }
             Text(rail.title, color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Text("${rail.items.size} titles", color = Slate500, fontSize = 11.sp, fontFamily = Mono)

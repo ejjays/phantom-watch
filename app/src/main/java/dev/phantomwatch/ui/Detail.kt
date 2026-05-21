@@ -36,14 +36,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,6 +75,9 @@ import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
 import dev.phantomwatch.VidLove
 import dev.phantomwatch.isWifi
+import dev.reicon.ChevronRight
+import dev.reicon.ReiconIcon
+import dev.reicon.X
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -414,7 +409,7 @@ fun MovieDetail(
                     onClick = onClose,
                     modifier = Modifier.statusBarsPadding().padding(start = 16.dp, top = 8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
                 ) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 Box(
                     Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = 16.dp, top = 16.dp)
@@ -538,7 +533,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("View all $total episodes", color = Cyan, fontSize = 13.sp, fontFamily = Rubik)
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Cyan, modifier = Modifier.size(15.dp))
+        ReiconIcon(ChevronRight.Outline, contentDescription = null, tint = Cyan, size = 15.dp)
     }
 }
 
@@ -733,7 +728,7 @@ private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> U
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose, modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.05f))) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 if (searching) {
@@ -751,7 +746,7 @@ private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> U
                         },
                     )
                     IconButton(onClick = { searching = false; query = "" }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = Slate200, modifier = Modifier.size(20.dp))
+                        ReiconIcon(X.Outline, contentDescription = "Close", tint = Slate200, size = 20.dp)
                     }
                 } else {
                     Column(Modifier.weight(1f)) {

@@ -14,6 +14,10 @@ dependencyResolutionManagement {
             url = uri("https://dl.frostwire.com/maven")
             content { includeGroup("com.frostwire") }
         }
+        maven {
+            url = uri("https://jitpack.io")
+            content { includeGroup("com.github.dqev") }
+        }
     }
 }
 rootProject.name = "PhantomWatch"
