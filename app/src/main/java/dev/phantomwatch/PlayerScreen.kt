@@ -49,6 +49,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -64,6 +65,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.ScrubbingModeParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
@@ -98,7 +100,12 @@ private fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.S
 }
 
 @OptIn(UnstableApi::class)
-private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConfiguration>): MediaItem {
+private fun itemFor(
+    url: String,
+    hls: Boolean,
+    cfgs: List<MediaItem.SubtitleConfiguration>,
+    meta: MediaMetadata? = null,
+): MediaItem {
     val low = url.lowercase()
     val b = MediaItem.Builder()
         .setUri(url)
@@ -107,6 +114,7 @@ private fun itemFor(url: String, hls: Boolean, cfgs: List<MediaItem.SubtitleConf
         hls || ".m3u8" in low -> b.setMimeType(MimeTypes.APPLICATION_M3U8)
         else -> Unit
     }
+    if (meta != null) b.setMediaMetadata(meta)
     return b.build()
 }
 
@@ -212,35 +220,15 @@ private fun buildMediaFactory(
 }
 
 @OptIn(UnstableApi::class)
-private fun buildPlayer(context: android.content.Context, stream: Stream, ctl: DlCtl?): ExoPlayer {
-    val headers = mediaHeaders(stream)
-    val selector = DefaultTrackSelector(context).apply {
-        parameters = buildUponParameters()
-            .setPreferredAudioLanguage("en")
-            .setPreferredTextLanguage("en")
-            .setForceHighestSupportedBitrate(true)
-            .build()
-    }
-    val mediaFactory = buildMediaFactory(context, stream, headers, ctl)
-    // torrent files: tiny readahead so Exo can't sprint past downloaded pieces
-    val loadControl = if (stream.url.startsWith("file")) {
-        DefaultLoadControl.Builder()
-            .setBufferDurationsMs(5000, 15000, 1000, 2000)
-            .build()
-    } else {
-        DefaultLoadControl()
-    }
-    return ExoPlayer.Builder(context)
-        .setTrackSelector(selector)
-        .setMediaSourceFactory(mediaFactory)
-        .setLoadControl(loadControl)
-        .build()
-        .apply {
-            setMediaItem(itemFor(stream.url, stream.isHls, configsFor(stream.subs)))
-            prepare()
-            play()
-        }
-}
+private fun sourceFor(
+    context: android.content.Context,
+    stream: Stream,
+    subs: List<Sub>,
+    firstUri: Uri?,
+    ctl: DlCtl?,
+    meta: MediaMetadata?,
+): MediaSource = buildMediaFactory(context, stream, mediaHeaders(stream), ctl)
+    .createMediaSource(itemFor(stream.url, stream.isHls, configsFor(subs, firstUri), meta))
 
 @OptIn(UnstableApi::class)
 private fun buildPreviewPlayer(context: android.content.Context, stream: Stream): ExoPlayer {
@@ -277,6 +265,13 @@ private fun buildPreviewPlayer(context: android.content.Context, stream: Stream)
 internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlCtl?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit) {
     val context = LocalContext.current
     val resumeScope = rememberCoroutineScope()
+    val meta = remember(title, media, season, episode) {
+        MediaMetadata.Builder()
+            .setTitle(title)
+            .setArtist(if (season.isNotEmpty() && episode.isNotEmpty()) "S$season E$episode" else media.year.orEmpty())
+            .apply { media.poster?.let { setArtworkUri(Uri.parse(it)) } }
+            .build()
+    }
     var resolved by remember { mutableStateOf(initial) }
     var resolveErr by remember { mutableStateOf<String?>(null) }
     var retryN by remember { mutableStateOf(0) }
@@ -322,17 +317,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var fillNote by remember { mutableStateOf<String?>(null) }
     var lastSubSel by remember { mutableStateOf("") }
     LaunchedEffect(title) { AppLog.d("screen $title") }
-    val player: ExoPlayer? = remember(resolved) {
-        val r = resolved ?: return@remember null
+    val player: ExoPlayer? = remember {
         try {
-            buildPlayer(context, r, ctl).also {
-                try {
-                    it.setVideoEffects(listOf(Contrast(0.1f)))
-                } catch (e: Exception) {
-                    AppLog.d("fx fail ${e.message}")
-                }
-                AppLog.d("built")
-            }
+            Playback.ensure(context).also { AppLog.d("built") }
         } catch (e: Exception) {
             buildError = "${e.javaClass.simpleName}: ${e.message}"
             AppLog.d("build crash ${e.javaClass.simpleName}: ${e.message}")
@@ -440,12 +427,18 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     fun attach(pos: Long) {
         try {
             val subs = live.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-            exo.setMediaItem(itemFor(live.url, live.isHls, configsFor(subs)), pos)
+            exo.setMediaSource(sourceFor(context, live, subs, null, ctl, meta), pos)
             exo.prepare()
             exo.play()
         } catch (e: Exception) {
             AppLog.d("attach fail ${e.message}")
         }
+    }
+    LaunchedEffect(resolved) {
+        val r = resolved ?: return@LaunchedEffect
+        val same = exo.currentMediaItem?.localConfiguration?.uri?.toString() == r.url
+        if (same && exo.playbackState != Player.STATE_IDLE) return@LaunchedEffect
+        attach(if (same) exo.currentPosition else 0L)
     }
     fun netResume(src: String) {
         if (exo.playbackState != Player.STATE_IDLE) return
@@ -621,7 +614,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                             }
                             AppLog.d("player resume at ${pos / 1000}s dl=${dl}MB")
                             val subs = stream.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-                            exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(subs)), pos)
+                            exo.setMediaSource(sourceFor(context, stream, subs, null, ctl, meta), pos)
                             exo.prepare()
                             exo.play()
                         } catch (_: Exception) {
@@ -680,7 +673,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             } catch (_: Exception) {
             }
             enhSession = null
-            exo.release()
+            try {
+                exo.setVideoSurface(null)
+                exo.setVideoEffects(listOf(Contrast(0.1f)))
+            } catch (_: Exception) {
+            }
         }
     }
     DisposableEffect(exo) {
@@ -752,10 +749,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             }
             val pos = exo.currentPosition
             val wasPlaying = exo.isPlaying
-            exo.setMediaItem(
-                itemFor(stream.url, stream.isHls, configsFor(stream.subs, Uri.fromFile(f))),
-                pos,
-            )
+            exo.setMediaSource(sourceFor(context, stream, stream.subs, Uri.fromFile(f), ctl, meta), pos)
             exo.prepare()
             if (wasPlaying) exo.play()
         }
@@ -781,7 +775,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         val merged = (stream.subs + Sub("AI English", Uri.fromFile(f).toString())).distinctBy { it.url }
         val pos = exo.currentPosition
         val wasPlaying = exo.isPlaying
-        exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(merged)), pos)
+        exo.setMediaSource(sourceFor(context, stream, merged, null, ctl, meta), pos)
         exo.prepare()
         if (wasPlaying) exo.play()
         if (stream.subKey.isNotEmpty() && all.size >= 5) {
@@ -795,7 +789,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         osTrack = "en:English"
         val pos = exo.currentPosition
         val wasPlaying = exo.isPlaying
-        exo.setMediaItem(itemFor(stream.url, stream.isHls, configsFor(merged)), pos)
+        exo.setMediaSource(sourceFor(context, stream, merged, null, ctl, meta), pos)
         exo.prepare()
         if (wasPlaying) exo.play()
         osStatus = "OS ✓"

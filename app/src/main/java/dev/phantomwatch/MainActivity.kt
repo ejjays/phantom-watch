@@ -93,6 +93,18 @@ class MainActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         PipCtl.inPip = isInPictureInPictureMode
         AppLog.d("pip mode $isInPictureInPictureMode")
+        val gone = isFinishing || !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+        if (!isInPictureInPictureMode && gone) pauseForPipClose("mode")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (PipCtl.inPip) pauseForPipClose("stop")
+    }
+
+    private fun pauseForPipClose(why: String) {
+        AppLog.d("pip close pause $why")
+        Playback.player?.pause()
     }
 
     override fun onUserLeaveHint() {
@@ -176,7 +188,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private sealed interface Screen {
+internal sealed interface Screen {
     data object Home : Screen
     data class Player(val title: String, val stream: Stream?, val ctl: DlCtl?, val entry: TEntry?, val media: Title, val season: String, val episode: String, val back: Screen) : Screen
     data class Torrents(val title: Title, val season: String, val episode: String) : Screen
@@ -214,7 +226,7 @@ class DlCtl(val handle: TorrentHandle) {
 
 @Composable
 private fun App() {
-    var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    var screen by remember { mutableStateOf<Screen>(Playback.lastScreen ?: Screen.Home) }
     val browse = remember { BrowseState() } // survives the trip to the player
     var forward by remember { mutableStateOf(true) }
     var instant by remember { mutableStateOf(false) }
@@ -267,45 +279,48 @@ private fun App() {
                         screen = Screen.Player(t.title, null, null, null, t, seas, ep, Screen.Home)
                     },
                 )
-                is Screen.Player -> PlayerScreen(
-                    title = s.title,
-                    media = s.media,
-                    initial = s.stream,
-                    ctl = s.ctl,
-                    season = s.season,
-                    episode = s.episode,
-                    onBack = {
-                        s.ctl?.stop()
-                        val e = s.entry
-                        if (e != null && s.stream?.auth != null) {
-                            scope.launch(Dispatchers.IO) {
-                                Seedbox.cfg()?.let { Seedbox.delete(it, e.infoHash) }
-                            }
-                        }
-                        forward = false
-                        screen = s.back
-                    },
-                    onGiveUp = { deadUrl ->
-                        if (s.entry != null) {
-                            Torrents.DeadReleases.hashes.add(s.entry.infoHash)
+                is Screen.Player -> {
+                    Playback.lastScreen = s
+                    PlayerScreen(
+                        title = s.title,
+                        media = s.media,
+                        initial = s.stream,
+                        ctl = s.ctl,
+                        season = s.season,
+                        episode = s.episode,
+                        onBack = {
                             s.ctl?.stop()
+                            val e = s.entry
+                            if (e != null && s.stream?.auth != null) {
+                                scope.launch(Dispatchers.IO) {
+                                    Seedbox.cfg()?.let { Seedbox.delete(it, e.infoHash) }
+                                }
+                            }
+                            forward = false
+                            screen = s.back
+                        },
+                        onGiveUp = { deadUrl ->
+                            if (s.entry != null) {
+                                Torrents.DeadReleases.hashes.add(s.entry.infoHash)
+                                s.ctl?.stop()
+                                forward = false
+                                autoRelease = false
+                                screen = Screen.Torrents(s.media, s.season, s.episode)
+                            } else {
+                                deadUrl?.let { Torrents.DeadReleases.urls.add(it) }
+                                s.ctl?.stop()
+                                forward = false
+                                autoRelease = true
+                                screen = Screen.Torrents(s.media, s.season, s.episode)
+                            }
+                        },
+                        onPickList = {
                             forward = false
                             autoRelease = false
                             screen = Screen.Torrents(s.media, s.season, s.episode)
-                        } else {
-                            deadUrl?.let { Torrents.DeadReleases.urls.add(it) }
-                            s.ctl?.stop()
-                            forward = false
-                            autoRelease = true
-                            screen = Screen.Torrents(s.media, s.season, s.episode)
-                        }
-                    },
-                    onPickList = {
-                        forward = false
-                        autoRelease = false
-                        screen = Screen.Torrents(s.media, s.season, s.episode)
-                    },
-                )
+                        },
+                    )
+                }
                 is Screen.Torrents -> TorrentsScreen(
                     title = s.title,
                     season = s.season,
@@ -349,7 +364,7 @@ private fun App() {
                 }
             }
         }
-        if (!PipCtl.inPip) LogFab()
+        if (BuildConfig.DEBUG && !PipCtl.inPip) LogFab()
     }
 }
 
