@@ -3,5 +3,7 @@
     <item android:drawable="@color/ic_launcher_background" />
     <item
         android:drawable="@drawable/splash_ghost"
+        android:width="64dp"
+        android:height="64dp"
         android:gravity="center" />
 </layer-list>
