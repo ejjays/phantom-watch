@@ -386,6 +386,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         onDispose {
             PipCtl.active = false
             if (PipCtl.player === exo) PipCtl.player = null
+            exo.stop() // leaving the player screen ends playback; background playback stays in the media session
         }
     }
     LaunchedEffect(latestTracks) {
