@@ -74,6 +74,7 @@ import dev.phantomwatch.ui.PlayerPanel
 import dev.phantomwatch.ui.PlayerStage
 import dev.phantomwatch.ui.SeekMark
 import dev.phantomwatch.ui.SeekSide
+import dev.phantomwatch.ui.SubsSourceSheet
 import dev.phantomwatch.ui.ZoneTap
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
@@ -82,6 +83,17 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val SV_MODEL_URL =
+    "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/model.int8.onnx"
+private const val SV_TOKENS_URL =
+    "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/tokens.txt"
+private const val SV_MODEL_BYTES = 239_233_841L
+private const val SV_TOKENS_BYTES = 315_894L
+private val modelHttp = okhttp3.OkHttpClient.Builder()
+    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+    .build()
 
 private fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.SubtitleConfiguration> {
     return VidLove.englishFirst(subs).mapIndexed { i, sub ->
@@ -767,6 +779,104 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var osRunning by remember { mutableStateOf(false) }
     var aiCues by remember { mutableStateOf<List<VidLove.Cue>>(emptyList()) }
     var lastNeed by remember { mutableStateOf(0) }
+    val subPrefs = remember { context.getSharedPreferences("phantom_prefs", android.content.Context.MODE_PRIVATE) }
+    var subsSource by remember { mutableStateOf(subPrefs.getString("subs_src", "providers") ?: "providers") }
+    var srcSheet by remember { mutableStateOf(false) }
+    val modelDir = remember { java.io.File(context.filesDir, "models/sensevoice") }
+    var modelReady by remember {
+        mutableStateOf(
+            java.io.File(modelDir, "model.int8.onnx").let { it.exists() && it.length() == SV_MODEL_BYTES } &&
+                java.io.File(modelDir, "tokens.txt").exists(),
+        )
+    }
+    var dlPct by remember { mutableStateOf<Int?>(null) }
+    var dlErr by remember { mutableStateOf(false) }
+    var dlJob: Job? by remember { mutableStateOf(null) }
+    fun downloadModel() {
+        if (dlJob?.isActive == true) return
+        dlErr = false
+        dlPct = 0
+        AppLog.d("mdl start 228MB wifi=${isWifi(context)}")
+        dlJob = nudgeScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    modelDir.mkdirs()
+                    val total = SV_MODEL_BYTES + SV_TOKENS_BYTES
+                    var base = 0L
+                    var lastLog = -25
+                    val files = listOf(
+                        Triple(SV_MODEL_URL, SV_MODEL_BYTES, "model.int8.onnx"),
+                        Triple(SV_TOKENS_URL, SV_TOKENS_BYTES, "tokens.txt"),
+                    )
+                    for ((url, expect, name) in files) {
+                        val dst = java.io.File(modelDir, name)
+                        if (dst.exists() && dst.length() == expect) {
+                            base += expect
+                            continue
+                        }
+                        val tmp = java.io.File(modelDir, "$name.part")
+                        val req = okhttp3.Request.Builder().url(url).build()
+                        modelHttp.newCall(req).execute().use { res ->
+                            if (res.code != 200) throw RuntimeException("http ${res.code} $name")
+                            val body = res.body ?: throw RuntimeException("empty $name")
+                            body.byteStream().use { src ->
+                                tmp.outputStream().use { out ->
+                                    val buf = ByteArray(65536)
+                                    var done = 0L
+                                    while (true) {
+                                        val n = src.read(buf)
+                                        if (n <= 0) break
+                                        out.write(buf, 0, n)
+                                        done += n
+                                        val p = ((base + done) * 100 / total).toInt()
+                                        dlPct = p
+                                        if (p - lastLog >= 25) {
+                                            lastLog = p
+                                            AppLog.d("mdl $p%")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (tmp.length() != expect) {
+                            tmp.delete()
+                            throw RuntimeException("$name size ${tmp.length()} != $expect")
+                        }
+                        if (!tmp.renameTo(dst)) throw RuntimeException("$name rename fail")
+                        base += expect
+                        AppLog.d("mdl $name ok")
+                    }
+                }
+                modelReady = true
+                dlPct = null
+                if (subsSource != "local") {
+                    subsSource = "local"
+                    subPrefs.edit().putString("subs_src", "local").apply()
+                }
+                AppLog.d("mdl ready, src=local")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.d("mdl fail ${e.message?.take(140)}")
+                dlErr = true
+                dlPct = null
+            }
+        }
+    }
+    fun cancelModel() {
+        dlJob?.cancel()
+        dlJob = null
+        dlPct = null
+        AppLog.d("mdl cancel")
+    }
+    fun deleteModel() {
+        dlJob?.cancel()
+        dlJob = null
+        dlPct = null
+        modelDir.listFiles()?.forEach { it.delete() }
+        modelReady = false
+        AppLog.d("mdl del")
+    }
     suspend fun showAi() {
         val all = aiCues.sortedBy { it.start }
         val f = withContext(Dispatchers.IO) { VidLove.cuesToFile(all, context.cacheDir) } ?: return
@@ -935,8 +1045,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         }
     }
     var syncStatus by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(stream.url) {
+    LaunchedEffect(stream.url, subsSource) {
         try {
+            if (subsSource != "providers") {
+                AppLog.d("subsrc local, provider sync off")
+                return@LaunchedEffect
+            }
             if (stream.inSync) {
                 syncStatus = "matched"
                 AppLog.d("sync skipped, same-release subs")
@@ -996,8 +1110,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             .build()
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
     }
-    LaunchedEffect(stream.url) {
-        runOsSubs()
+    LaunchedEffect(stream.url, subsSource) {
+        if (subsSource == "providers") runOsSubs()
+        else AppLog.d("subsrc local, os search off")
     }
     LaunchedEffect(stream.url) {
         while (true) {
@@ -1433,6 +1548,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         onSeek = ::seekTo,
         onInteract = ::poke,
         onZoneTap = ::handleZone,
+        onSubsSource = {
+            poke()
+            hideJob?.cancel()
+            srcSheet = true
+            AppLog.d("subsrc sheet open")
+        },
         onToggleSubs = {
             subsOff = !subsOff
             applySubs()
@@ -1547,5 +1668,26 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 PlayerPanel(title = media.title, year = media.year, rating = media.rating)
             }
         }
+    }
+    if (srcSheet) {
+        SubsSourceSheet(
+            selected = subsSource,
+            metered = !isWifi(context),
+            ready = modelReady,
+            dlPct = dlPct,
+            dlErr = dlErr,
+            onSelect = { s ->
+                subsSource = s
+                subPrefs.edit().putString("subs_src", s).apply()
+                AppLog.d("subsrc $s")
+            },
+            onDownload = ::downloadModel,
+            onCancel = ::cancelModel,
+            onDelete = ::deleteModel,
+            onDismiss = {
+                srcSheet = false
+                poke()
+            },
+        )
     }
 }

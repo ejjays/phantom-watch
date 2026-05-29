@@ -104,6 +104,7 @@ fun PlayerStage(
     onInteract: () -> Unit,
     onZoneTap: (ZoneTap) -> Unit,
     onToggleSubs: () -> Unit,
+    onSubsSource: () -> Unit = {},
     onSwipe: (Float, Float) -> Unit,
     onSwipeEnd: () -> Unit,
     video: @Composable (Modifier) -> Unit,
@@ -168,6 +169,7 @@ fun PlayerStage(
                 onBack = onBack,
                 onFullscreen = onFullscreen,
                 onToggleSubs = onToggleSubs,
+                onSubsSource = onSubsSource,
             )
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
@@ -321,6 +323,7 @@ private fun PlayerTopBar(
     onBack: () -> Unit,
     onFullscreen: () -> Unit,
     onToggleSubs: () -> Unit,
+    onSubsSource: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth()
@@ -354,6 +357,16 @@ private fun PlayerTopBar(
                 painterResource(if (subsOn) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
                 contentDescription = if (subsOn) "Turn subtitles off" else "Turn subtitles on",
                 tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Box(
+            Modifier.padding(10.dp).clickable { onSubsSource() },
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_subs_source),
+                contentDescription = "Subtitle source",
+                tint = Color.White,
                 modifier = Modifier.size(20.dp),
             )
         }
