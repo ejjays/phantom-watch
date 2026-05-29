@@ -1133,7 +1133,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         controls = true
         hideJob?.cancel()
         hideJob = resumeScope.launch {
-            delay(5000)
+            delay(3000)
             controls = false
         }
     }
@@ -1155,7 +1155,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         accAt = now
         exo.seekTo((exo.currentPosition + dir).coerceAtLeast(0))
         seekMark = SeekMark(side, accTotal)
-        poke()
         resumeScope.launch {
             delay(1000)
             if (System.currentTimeMillis() - accAt >= 1000) seekMark = null
@@ -1179,6 +1178,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             return
         }
         if (prevSide == side && now - prevAt < 320) {
+            tapId += 1
             accSeek(if (side == ZoneTap.Left) SeekSide.Left else SeekSide.Right)
             return
         }
@@ -1221,7 +1221,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             if (fullscreen) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
         fullscreenBars(fullscreen)
-        poke()
     }
     var orientJob: Job? by remember { mutableStateOf(null) }
     val fsNow = rememberUpdatedState(fullscreen)
@@ -1281,9 +1280,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             stalled = exo.playbackState == Player.STATE_BUFFERING
             delay(250)
         }
-    }
-    LaunchedEffect(playing) {
-        if (playing) poke()
     }
     val playerView = LocalView.current
     DisposableEffect(playing) {
@@ -1422,7 +1418,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             )
         },
         onBack = onBack,
-        onFullscreen = { toggleFullscreen() },
+        onFullscreen = { toggleFullscreen(); poke() },
         onTogglePlay = ::togglePlay,
         onToggleLock = {
             locked = !locked
