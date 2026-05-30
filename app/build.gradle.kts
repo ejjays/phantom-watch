@@ -87,6 +87,7 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta09")
+    implementation("com.airbnb.android:lottie-compose:6.7.1")
     // JitPack: release tags fail to build; snapshot publishes repo-level artifact, not the reicon-compose module
     implementation("com.github.dqev:reicon:main-SNAPSHOT")
     testImplementation("junit:junit:4.13.2")
