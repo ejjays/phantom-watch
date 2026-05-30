@@ -1113,6 +1113,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     var controls by remember { mutableStateOf(true) }
     var fullscreen by remember { mutableStateOf(false) }
+    var muted by remember { mutableStateOf(false) }
     var locked by remember { mutableStateOf(false) }
     var positionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
@@ -1409,6 +1410,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         locked = locked,
         subsOn = !subsOff,
         canSubs = stream.subs.isNotEmpty() || embedNames.isNotEmpty(),
+        muted = muted,
         onScrub = ::scrubTo,
         preview = { mod ->
             AndroidView(
@@ -1418,6 +1420,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             )
         },
         onBack = onBack,
+        onToggleMute = {
+            muted = !muted
+            exo.volume = if (muted) 0f else 1f
+            poke()
+        },
         onFullscreen = { toggleFullscreen(); poke() },
         onTogglePlay = ::togglePlay,
         onToggleLock = {

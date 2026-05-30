@@ -93,10 +93,12 @@ fun PlayerStage(
     locked: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
+    muted: Boolean = false,
     showSpinner: Boolean = true,
     onScrub: (Float?) -> Unit = {},
     preview: (@Composable (Modifier) -> Unit)? = null,
     onBack: () -> Unit,
+    onToggleMute: () -> Unit = {},
     onFullscreen: () -> Unit,
     onTogglePlay: () -> Unit,
     onToggleLock: () -> Unit,
@@ -196,6 +198,18 @@ fun PlayerStage(
                         color = Slate200, fontSize = 11.sp, fontFamily = Mono,
                         modifier = Modifier.weight(1f),
                     )
+                    Box(
+                        Modifier.padding(10.dp).clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onToggleMute() },
+                    ) {
+                        Icon(
+                            painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on),
+                            contentDescription = if (muted) "Unmute" else "Mute",
+                            tint = Color.White, modifier = Modifier.size(20.dp),
+                        )
+                    }
                     Box(Modifier.padding(10.dp).clickable { onFullscreen() }) {
                         Icon(
                             painterResource(if (fullscreen) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen),
