@@ -2,6 +2,7 @@ package dev.phantomwatch.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,15 +13,22 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -57,12 +65,18 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -72,6 +86,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.rememberLottieComposition
 import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
 import dev.phantomwatch.Title
@@ -125,6 +142,8 @@ internal class BrowseState {
 internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
     val key = BuildConfig.TMDB_API_KEY
     val scope = rememberCoroutineScope()
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     var searching by remember { mutableStateOf(false) }
     var searchSeq by remember { mutableStateOf(0) }
     var exploreMore by remember { mutableStateOf(false) }
@@ -234,6 +253,8 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
     }
 
     fun openDetail(item: Title) {
+        keyboard?.hide()
+        focusManager.clearFocus()
         browse.openTitle = item
         selected = item
         recents.removeAll { it.kind == item.kind && it.id == item.id }
@@ -349,7 +370,7 @@ private fun BrowseHeader(onSearch: () -> Unit) {
             modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)),
         )
         Spacer(Modifier.width(8.dp))
-        Text("Watch", color = Color.White, fontSize = 24.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text("Phantom", color = Color.White, fontSize = 24.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         Box(
             Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onSearch),
             contentAlignment = Alignment.Center,
@@ -363,6 +384,8 @@ private val SearchTextStyle = TextStyle(color = Color.White, fontSize = 12.sp, f
 
 @Composable
 private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () -> Unit) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -371,7 +394,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
             Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Slate400, modifier = Modifier.size(18.dp))
+            Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(8.dp))
         Row(
@@ -381,7 +404,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
             BasicTextField(
                 value = query,
                 onValueChange = onQuery,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester),
                 textStyle = SearchTextStyle,
                 singleLine = true,
                 cursorBrush = SolidColor(Cyan),
@@ -395,6 +418,17 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
 }
 
 @Composable
+private fun Modifier.pressClick(onClick: () -> Unit): Modifier {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, label = "press")
+    return graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }.clickable(interactionSource = src, indication = null, onClick = onClick)
+}
+
+@Composable
 fun PosterCard(
     item: Title,
     width: androidx.compose.ui.unit.Dp,
@@ -405,7 +439,7 @@ fun PosterCard(
     val playSize = maxOf(13.dp, width * 0.13f)
     val badgePad = maxOf(4.dp, width * 0.04f)
     val titleSize = if (width >= 150.dp) 16.sp else 12.sp
-    Column(Modifier.width(width).clickable { onOpen(item) }) {
+    Column(Modifier.width(width).pressClick { onOpen(item) }) {
         Box(Modifier.clip(RoundedCornerShape(radius.value.dp)).background(Color.White.copy(alpha = 0.05f))) {
             if (item.poster != null) {
                 AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.size(width, height), contentScale = ContentScale.Crop)
@@ -624,7 +658,7 @@ private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Ti
                                 Brush.linearGradient(
                                     colors = listOf(Color(0xFF333333), Color(0xFF767676), Color(0xFF363535)),
                                 ),
-                            ).clickable { onOpen(item) }
+                            ).pressClick { onOpen(item) }
                                 .padding(horizontal = 20.dp, vertical = 10.dp),
                         ) {
                             Text("Details", color = Color.White, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
@@ -703,10 +737,21 @@ private fun SearchBody(
             }
         }
     } else {
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text("Search Movie", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
-            Text("Type a title to look it up", color = Slate400, fontSize = 12.sp, fontFamily = Mono)
+        BoxWithConstraints(Modifier.fillMaxSize().navigationBarsPadding().imePadding(), contentAlignment = Alignment.Center) {
+            val ghost = (maxHeight * 0.26f).coerceIn(84.dp, 132.dp)
+            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                val comp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lottie_search))
+                LottieAnimation(
+                    composition = comp,
+                    iterations = 1,
+                    isPlaying = imeVisible,
+                    restartOnPlay = true,
+                    modifier = Modifier.size(ghost),
+                )
+                Spacer(Modifier.height(20.dp))
+                Text("Let's Grab a Movie", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
