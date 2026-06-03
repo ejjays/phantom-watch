@@ -9,28 +9,41 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.TextureView
+import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.AnchoredDraggableState
+import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +52,18 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -60,7 +85,6 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.TransferListener
-import androidx.media3.effect.Contrast
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.ScrubbingModeParameters
@@ -389,7 +413,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var enhSize by remember { mutableStateOf(0 to 0) }
     var enhOut by remember { mutableStateOf<Surface?>(null) }
     var enhBound by remember { mutableStateOf<Surface?>(null) }
-    var enhSubView by remember { mutableStateOf<SubtitleView?>(null) }
+    var subView by remember { mutableStateOf<SubtitleView?>(null) }
     LaunchedEffect(stream.url) { Enhance.probe(context) { enhReady = it } }
     DisposableEffect(exo) {
         PipCtl.active = true
@@ -689,7 +713,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             enhSession = null
             try {
                 exo.setVideoSurface(null)
-                exo.setVideoEffects(listOf(Contrast(0.1f)))
             } catch (_: Exception) {
             }
         }
@@ -1219,6 +1242,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         activity?.requestedOrientation ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
     val cfg = LocalConfiguration.current
+    val statusInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusTop = remember { statusInset }
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBottom = remember { navInset }
+    var keepTheater by remember { mutableStateOf(false) }
     val smallScreen = cfg.smallestScreenWidthDp < 600
     fun rotationEnabled() = try {
         android.provider.Settings.System.getInt(
@@ -1345,10 +1373,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 exo.setVideoSurface(s.getInputSurface())
                 s.setOutputSurface(out, Enhance.options(videoW, videoH), Enhance.frames())
                 enhBound = out
-                try {
-                    exo.setVideoEffects(emptyList())
-                } catch (_: Exception) {
-                }
                 AppLog.d("enh on ${videoW}x$videoH")
             } catch (e: Exception) {
                 AppLog.d("enh attach fail ${e.message}")
@@ -1356,17 +1380,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     s.release()
                 } catch (_: Exception) {
                 }
-                try {
-                    exo.setVideoEffects(listOf(Contrast(0.1f)))
-                } catch (_: Exception) {
-                }
                 if (enhSession === s) enhSession = null
             }
         }
     }
-    DisposableEffect(enhSession, enhSubView) {
-        val v = enhSubView
-        if (enhSession == null || v == null) return@DisposableEffect onDispose {}
+    DisposableEffect(subView) {
+        val v = subView ?: return@DisposableEffect onDispose {}
         val l = object : Player.Listener {
             override fun onCues(cues: List<Cue>) {
                 v.setCues(cues)
@@ -1407,7 +1426,20 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         }
     }
     @Composable
-    fun stage(seekInset: androidx.compose.ui.unit.Dp, matchH: Boolean, fsUi: Boolean) {
+    fun stage(
+        seekInset: androidx.compose.ui.unit.Dp,
+        matchH: Boolean,
+        fsUi: Boolean,
+        shiftPx: () -> Float = { 0f },
+        sheetZoneTopPx: () -> Float = { Float.MAX_VALUE },
+        onSheetDrag: (Float) -> Unit = {},
+        onSheetDragEnd: (Float) -> Unit = {},
+        titleBelow: Boolean = false,
+        barsInset: Boolean = true,
+        lockButton: Boolean = true,
+        subStyle: Pair<Float, Float>? = null,
+        onFullscreen: () -> Unit = { toggleFullscreen(); poke() },
+    ) {
         PlayerStage(
             title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
         fullscreen = fsUi,
@@ -1420,6 +1452,13 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         flash = gestureNote ?: fillNote,
         seekMark = seekMark,
         seekInset = seekInset,
+        shiftPx = shiftPx,
+        sheetZoneTopPx = sheetZoneTopPx,
+        onSheetDrag = onSheetDrag,
+        onSheetDragEnd = onSheetDragEnd,
+        titleBelow = titleBelow,
+        barsInset = barsInset,
+        lockButton = lockButton,
         locked = locked,
         subsOn = !subsOff,
         canSubs = stream.subs.isNotEmpty() || embedNames.isNotEmpty(),
@@ -1438,7 +1477,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             exo.volume = if (muted) 0f else 1f
             poke()
         },
-        onFullscreen = { toggleFullscreen(); poke() },
+        onFullscreen = onFullscreen,
         onTogglePlay = ::togglePlay,
         onToggleLock = {
             locked = !locked
@@ -1491,8 +1530,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             volAcc = 0f
         },
         video = { mod ->
-            if (enhSession != null) {
-                Box(mod.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(mod.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (enhSession != null) {
                     AndroidView(
                         factory = { ctx ->
                             SurfaceView(ctx).apply {
@@ -1512,36 +1551,50 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                         },
                         modifier = Modifier.aspectRatio(videoAspect, matchH),
                     )
+                } else {
                     AndroidView(
-                        factory = { ctx -> SubtitleView(ctx).also { enhSubView = it } },
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                this.player = exo
+                                useController = false
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                )
+                            }
+                        },
                         update = {
-                            it.translationY =
-                                -(14 * it.resources.displayMetrics.density)
+                            it.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            val sub = subStyle
+                            it.subtitleView?.let { sv ->
+                                if (sub == null) {
+                                    sv.visibility = View.VISIBLE
+                                    sv.translationY = -(14 * it.resources.displayMetrics.density)
+                                } else {
+                                    sv.visibility = View.GONE
+                                }
+                            }
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-            } else {
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            this.player = exo
-                            useController = false
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                            )
-                        }
-                    },
-                    update = {
-                        it.resizeMode =
-                            if (fsUi && !PipCtl.inPip) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        it.subtitleView?.translationY =
-                            -(14 * it.resources.displayMetrics.density)
-                    },
-                    modifier = mod,
-                )
+                if (subStyle != null || enhSession != null) {
+                    AndroidView(
+                        factory = { ctx -> SubtitleView(ctx).also { subView = it } },
+                        onRelease = { if (subView === it) subView = null },
+                        update = {
+                            val sub = subStyle
+                            if (sub != null) {
+                                it.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sub.first)
+                                it.setBottomPaddingFraction(0f)
+                                it.translationY = sub.second
+                            } else {
+                                it.translationY = -(14 * it.resources.displayMetrics.density)
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
             },
         )
@@ -1559,15 +1612,131 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val stageH = (portraitW * 9 / 16).dp
+        val density = LocalDensity.current
         AnimatedVisibility(visible = true, enter = fadeIn()) {
-            Column(Modifier.fillMaxSize().background(Color.Black)) {
-                Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
-                    stage(0.dp, videoAspect < 16f / 9f, false)
+            BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+                val restTop = statusTop + stageH
+                val panelH = (maxHeight - restTop).coerceAtLeast(0.dp)
+                val panelPx = with(density) { panelH.toPx() }
+                val restPx = with(density) { restTop.toPx() }
+
+                val flingPx = with(density) { 125.dp.toPx() }
+                val sheet = remember(panelPx) {
+                    AnchoredDraggableState(
+                        initialValue = if (keepTheater) panelPx else 0f,
+                        positionalThreshold = { it * 0.5f },
+                        velocityThreshold = { flingPx },
+                        snapAnimationSpec = tween(240),
+                        decayAnimationSpec = exponentialDecay(),
+                    )
                 }
-                PlayerPanel(
-                    media = media, season = season, episode = episode,
-                    overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
-                )
+                LaunchedEffect(panelPx) {
+                    sheet.updateAnchors(DraggableAnchors { 0f at 0f; panelPx at panelPx })
+                }
+                val scope = rememberCoroutineScope()
+                val sheetJob = remember(sheet) { arrayOfNulls<Job>(1) }
+                fun glide(target: Float) {
+                    sheetJob[0]?.cancel()
+                    sheetJob[0] = scope.launch { sheet.animateTo(target, tween(240)) }
+                }
+                val panelTop = remember { floatArrayOf(0f) }
+                val downY = remember { floatArrayOf(Float.MAX_VALUE) }
+                val headerBottom = remember { floatArrayOf(Float.MAX_VALUE) }
+                fun inHeader() = downY[0] < headerBottom[0]
+                val nested = remember(sheet) {
+                    object : NestedScrollConnection {
+                        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                            if (available.y >= 0f || sheet.offset <= 0f || sheet.isAnimationRunning || !inHeader()) return Offset.Zero
+                            return Offset(0f, sheet.dispatchRawDelta(available.y))
+                        }
+
+                        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                            if (available.y <= 0f || sheet.isAnimationRunning || !inHeader()) return Offset.Zero
+                            return Offset(0f, sheet.dispatchRawDelta(available.y))
+                        }
+
+                        override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                            val o = sheet.offset
+                            if (!o.isNaN() && !sheet.isAnimationRunning && inHeader()) {
+                                glide(if (available.y > flingPx || o > panelPx / 2f) panelPx else 0f)
+                            }
+                            return Velocity(0f, available.y)
+                        }
+                    }
+                }
+                val theater by remember(sheet) {
+                    derivedStateOf {
+                        val o = sheet.offset
+                        if (o.isNaN()) keepTheater else o >= panelPx - 0.5f
+                    }
+                }
+                fun reopen() = glide(0f)
+                fun settleSheet(v: Float) {
+                    val o = sheet.offset
+                    if (o.isNaN()) return
+                    glide(if (v < -flingPx || o < panelPx / 2f) 0f else panelPx)
+                }
+                LaunchedEffect(theater, controls) {
+                    keepTheater = theater
+                    fullscreenBars(theater && !controls)
+                }
+                BackHandler(theater, ::reopen)
+                val stageHpx = with(density) { (maxHeight - statusTop).toPx() }
+                val videoHpx = with(density) {
+                    (portraitW / videoAspect.coerceAtLeast(0.1f)).dp.toPx()
+                }.coerceAtMost(stageHpx)
+                val letterbox = ((stageHpx - videoHpx) / 2f).coerceAtLeast(0f)
+                val subStyle =
+                    videoHpx * SubtitleView.DEFAULT_TEXT_SIZE_FRACTION to
+                        if (theater) -(letterbox - with(density) { 10.dp.toPx() })
+                        else -(letterbox + with(density) { (if (controls) 36.dp else 14.dp).toPx() })
+                Box(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxSize().padding(top = statusTop)) {
+                        stage(
+                            if (theater) navBottom else 0.dp, false, theater,
+                            shiftPx = {
+                                val o = sheet.offset.takeUnless { it.isNaN() }
+                                    ?: (if (keepTheater) panelPx else 0f)
+                                panelPx - o
+                            },
+                            onSheetDrag = { dy -> sheetJob[0]?.cancel(); sheet.dispatchRawDelta(dy) },
+                            onSheetDragEnd = ::settleSheet,
+                            sheetZoneTopPx = {
+                                if (theater) stageHpx - letterbox + with(density) { 8.dp.toPx() }
+                                else Float.MAX_VALUE
+                            },
+                            titleBelow = theater,
+                            barsInset = false,
+                            lockButton = false,
+                            subStyle = subStyle,
+                            onFullscreen = ::reopen,
+                        )
+                    }
+                    Box(
+                        Modifier.offset {
+                            val o = sheet.offset.takeUnless { it.isNaN() }
+                                ?: (if (keepTheater) panelPx else 0f)
+                            IntOffset(0, (restPx + o).roundToInt())
+                        }.fillMaxWidth().height(panelH)
+                            .onGloballyPositioned { panelTop[0] = it.positionInWindow().y }
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val down = awaitPointerEvent(PointerEventPass.Initial)
+                                            .changes.firstOrNull { it.changedToDownIgnoreConsumed() }
+                                        if (down != null) downY[0] = panelTop[0] + down.position.y
+                                    }
+                                }
+                            }
+                            .nestedScroll(nested),
+                    ) {
+                        PlayerPanel(
+                            media = media, season = season, episode = episode,
+                            overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
+                            onHeaderBottom = { headerBottom[0] = it },
+                        )
+                    }
+                }
             }
         }
     }

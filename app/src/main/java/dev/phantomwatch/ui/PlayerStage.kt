@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +52,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -91,6 +95,13 @@ fun PlayerStage(
     flash: String?,
     seekMark: SeekMark?,
     seekInset: Dp = 0.dp,
+    shiftPx: () -> Float = { 0f },
+    sheetZoneTopPx: () -> Float = { Float.MAX_VALUE },
+    onSheetDrag: (Float) -> Unit = {},
+    onSheetDragEnd: (Float) -> Unit = {},
+    titleBelow: Boolean = false,
+    barsInset: Boolean = true,
+    lockButton: Boolean = true,
     locked: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
@@ -112,6 +123,7 @@ fun PlayerStage(
     video: @Composable (Modifier) -> Unit,
 ) {
     var stageW by remember { mutableStateOf(0) }
+    val zone = rememberUpdatedState(sheetZoneTopPx)
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.Black)
             .onGloballyPositioned { stageW = it.size.width }
@@ -120,17 +132,31 @@ fun PlayerStage(
                 var accX = 0f
                 var accY = 0f
                 var vertical = false
+                var sheetZone = false
+                val vel = VelocityTracker()
                 detectDragGestures(
                     onDragStart = {
                         startX = if (stageW > 0) it.x / stageW else 0.5f
                         accX = 0f
                         accY = 0f
                         vertical = false
+                        sheetZone = it.y >= zone.value()
+                        vel.resetTracking()
                     },
-                    onDragEnd = { if (vertical) onSwipeEnd() },
-                    onDragCancel = { if (vertical) onSwipeEnd() },
+                    onDragEnd = {
+                        if (sheetZone) onSheetDragEnd(vel.calculateVelocity().y)
+                        else if (vertical) onSwipeEnd()
+                    },
+                    onDragCancel = {
+                        if (sheetZone) onSheetDragEnd(0f)
+                        else if (vertical) onSwipeEnd()
+                    },
                     onDrag = { change, drag ->
-                        if (!locked) {
+                        if (sheetZone) {
+                            vel.addPointerInputChange(change)
+                            change.consume()
+                            onSheetDrag(drag.y)
+                        } else if (!locked) {
                             accX += drag.x
                             accY += drag.y
                             if (!vertical && abs(accY) > abs(accX) * 1.5f && abs(accY) > 24f) vertical = true
@@ -143,7 +169,7 @@ fun PlayerStage(
                 )
             },
     ) {
-        video(Modifier.fillMaxSize())
+        video(Modifier.fillMaxSize().offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) })
         Row(Modifier.fillMaxSize()) {
             ZoneTap.entries.forEach { side ->
                 Box(
@@ -166,6 +192,8 @@ fun PlayerStage(
             PlayerTopBar(
                 title = title,
                 fullscreen = fullscreen,
+                titleBelow = titleBelow,
+                barsInset = barsInset,
                 subsOn = subsOn,
                 canSubs = canSubs,
                 onBack = onBack,
@@ -174,6 +202,7 @@ fun PlayerStage(
             )
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                    .offset { IntOffset(0, -shiftPx().roundToInt()) }
                     .padding(horizontal = 16.dp).padding(bottom = 8.dp + seekInset),
             ) {
                 if (fullscreen) {
@@ -229,7 +258,10 @@ fun PlayerStage(
             ),
             exit = fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.9f),
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.fillMaxSize().offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) },
+                contentAlignment = Alignment.Center,
+            ) {
                 Box(
                     Modifier.size(56.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f))
                         .clickable { onTogglePlay() },
@@ -244,7 +276,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = fullscreen && controlsVisible,
+            visible = fullscreen && lockButton && controlsVisible,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
             modifier = Modifier.align(Alignment.CenterStart)
@@ -278,7 +310,9 @@ fun PlayerStage(
             onInteract = onInteract,
             onScrub = onScrub,
             preview = preview,
-            modifier = Modifier.align(Alignment.BottomStart).padding(bottom = seekInset),
+            modifier = Modifier.align(Alignment.BottomStart)
+                .offset { IntOffset(0, -shiftPx().roundToInt()) }
+                .padding(bottom = seekInset),
         )
         }
         if (flash != null) {
@@ -292,7 +326,8 @@ fun PlayerStage(
         }
         if (seekMark != null) {
             Box(
-                Modifier.fillMaxSize().padding(horizontal = 28.dp),
+                Modifier.fillMaxSize().padding(horizontal = 28.dp)
+                    .offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) },
                 contentAlignment = if (seekMark.side == SeekSide.Left) Alignment.CenterStart else Alignment.CenterEnd,
             ) {
                 Icon(
@@ -302,7 +337,10 @@ fun PlayerStage(
             }
         }
         if (stalled && showSpinner) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.fillMaxSize().offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) },
+                contentAlignment = Alignment.Center,
+            ) {
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
         }
@@ -313,45 +351,58 @@ fun PlayerStage(
 private fun PlayerTopBar(
     title: String,
     fullscreen: Boolean,
+    titleBelow: Boolean,
+    barsInset: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
     onBack: () -> Unit,
     onFullscreen: () -> Unit,
     onToggleSubs: () -> Unit,
 ) {
-    Row(
+    Column(
         Modifier.fillMaxWidth()
-            .then(if (fullscreen) Modifier.statusBarsPadding() else Modifier)
+            .then(if (fullscreen && barsInset) Modifier.statusBarsPadding() else Modifier)
             .padding(top = 8.dp).padding(end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier.padding(start = 4.dp).padding(10.dp)
-                .clickable { if (fullscreen) onFullscreen() else onBack() },
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(
-                painterResource(if (fullscreen) R.drawable.ic_arrow_down5 else R.drawable.ic_arrow_left2),
-                contentDescription = if (fullscreen) "Exit fullscreen" else "Close player",
-                tint = Color.White, modifier = Modifier.size(22.dp),
-            )
+            Box(
+                Modifier.padding(start = 4.dp).padding(10.dp)
+                    .clickable { if (fullscreen) onFullscreen() else onBack() },
+            ) {
+                Icon(
+                    painterResource(if (fullscreen) R.drawable.ic_arrow_down5 else R.drawable.ic_arrow_left2),
+                    contentDescription = if (fullscreen) "Exit fullscreen" else "Close player",
+                    tint = Color.White, modifier = Modifier.size(22.dp),
+                )
+            }
+            if (fullscreen && !titleBelow) {
+                Text(
+                    title, color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                    maxLines = 1, modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            Box(
+                Modifier.padding(10.dp).clickable(enabled = canSubs) { onToggleSubs() },
+            ) {
+                Icon(
+                    painterResource(if (subsOn) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
+                    contentDescription = if (subsOn) "Turn subtitles off" else "Turn subtitles on",
+                    tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
-        if (fullscreen) {
+        if (titleBelow) {
             Text(
-                title, color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
-                maxLines = 1, modifier = Modifier.weight(1f),
-            )
-        } else {
-            Spacer(Modifier.weight(1f))
-        }
-        Box(
-            Modifier.padding(10.dp).clickable(enabled = canSubs) { onToggleSubs() },
-        ) {
-            Icon(
-                painterResource(if (subsOn) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
-                contentDescription = if (subsOn) "Turn subtitles off" else "Turn subtitles on",
-                tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
-                modifier = Modifier.size(20.dp),
+                title, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 16.dp, top = 6.dp),
             )
         }
     }
@@ -421,7 +472,7 @@ private fun PlayerSeekBar(
                     else Modifier.pointerInput(trackW, durationMs) {
                         detectTapGestures { offset -> seekAt(offset.x, true) }
                     }.pointerInput(trackW, durationMs) {
-                        detectDragGestures(
+                        detectHorizontalDragGestures(
                             onDragStart = { offset ->
                                 dragging = true
                                 onScrub(seekAt(offset.x, false))
@@ -438,7 +489,7 @@ private fun PlayerSeekBar(
                                 scrub?.let { onSeek(it) }
                                 onInteract()
                             },
-                            onDrag = { change, _ -> onScrub(seekAt(change.position.x, false)) },
+                            onHorizontalDrag = { change, _ -> onScrub(seekAt(change.position.x, false)) },
                         )
                     },
                 ),

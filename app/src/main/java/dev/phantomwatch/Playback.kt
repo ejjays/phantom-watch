@@ -4,8 +4,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.effect.Contrast
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.session.MediaSession
@@ -28,7 +26,6 @@ internal object Playback {
         }
     }
 
-    @OptIn(UnstableApi::class)
     private fun build(context: Context): ExoPlayer {
         // shortcut: one shared player can't shrink LoadControl for file:// streams; restore the torrent readahead if torrents come back
         val selector = DefaultTrackSelector(context).apply {
@@ -38,13 +35,7 @@ internal object Playback {
                 .setForceHighestSupportedBitrate(true)
                 .build()
         }
-        return ExoPlayer.Builder(context).setTrackSelector(selector).build().apply {
-            // shortcut: one shared player can't shrink LoadControl for file:// streams; restore the torrent readahead if torrents come back
-            try {
-                setVideoEffects(listOf(Contrast(0.1f)))
-            } catch (_: Exception) {
-            }
-        }
+        return ExoPlayer.Builder(context).setTrackSelector(selector).build()
     }
 }
 

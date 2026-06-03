@@ -48,6 +48,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +75,7 @@ fun PlayerPanel(
     overview: String? = null,
     onEpisode: ((String, String) -> Unit)? = null,
     onOpenTitle: ((Title) -> Unit)? = null,
+    onHeaderBottom: ((Float) -> Unit)? = null,
 ) {
     val key = BuildConfig.TMDB_API_KEY
     var detail by remember(media.id) { mutableStateOf(DetailCache.detail(media.id)) }
@@ -122,7 +125,7 @@ fun PlayerPanel(
         val panelH = maxHeight
         Column(
             Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState(), overscrollEffect = null)
                 .padding(top = 18.dp)
                 .navigationBarsPadding(),
         ) {
@@ -153,7 +156,8 @@ fun PlayerPanel(
             if (isTv) {
                 Spacer(Modifier.height(22.dp))
                 Row(
-                    Modifier.padding(horizontal = 20.dp),
+                    Modifier.padding(horizontal = 20.dp)
+                        .onGloballyPositioned { onHeaderBottom?.invoke(it.positionInWindow().y) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SectionTitle("Episodes")

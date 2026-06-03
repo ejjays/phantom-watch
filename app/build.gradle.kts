@@ -79,7 +79,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-session:1.11.1")
-    implementation("androidx.media3:media3-effect:1.11.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.frostwire:jlibtorrent:2.0.12.9")
     implementation("com.frostwire:jlibtorrent-android-arm64:2.0.12.9")
