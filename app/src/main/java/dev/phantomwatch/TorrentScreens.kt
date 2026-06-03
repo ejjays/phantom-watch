@@ -192,7 +192,7 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
         Column(Modifier.fillMaxSize().background(Color.Black)) {
             Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
                 PlayerStage(
-                    title = title.title, fullscreen = false, isPlaying = false, stalled = true,
+                    title = if (season.isNotEmpty() && episode.isNotEmpty()) "${title.title} · S$season E$episode" else title.title, fullscreen = false, isPlaying = false, stalled = true,
                     positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
                     flash = null, seekMark = null, seekInset = 0.dp, locked = false,
                     subsOn = false, canSubs = true,
@@ -202,7 +202,7 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
                     video = { mod -> Box(mod.fillMaxSize().background(Color.Black)) },
                 )
             }
-            PlayerPanel(title = title.title, year = title.year, rating = title.rating)
+            PlayerPanel(media = title, season = season, episode = episode)
         }
         return
     }

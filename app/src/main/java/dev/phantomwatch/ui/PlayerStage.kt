@@ -54,6 +54,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -304,24 +305,6 @@ fun PlayerStage(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
-        }
-    }
-}
-
-@Composable
-fun PlayerPanel(title: String, year: String?, rating: Double?) {
-    Column(
-        Modifier.fillMaxSize().background(Color.Black)
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-    ) {
-        Text(
-            title, color = Color.White, fontSize = 20.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
-            maxLines = 2, lineHeight = 28.sp,
-        )
-        val meta = listOfNotNull(year, rating?.let { "%.1f".format(it) }).joinToString("  ·  ")
-        if (meta.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(meta, color = Slate500, fontSize = 12.sp, fontFamily = Mono)
         }
     }
 }

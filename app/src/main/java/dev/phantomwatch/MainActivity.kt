@@ -310,7 +310,8 @@ private fun App() {
                                 deadUrl?.let { Torrents.DeadReleases.urls.add(it) }
                                 s.ctl?.stop()
                                 forward = false
-                                autoRelease = true
+                                // show the source list instead of auto-restarting another dead pick
+                                autoRelease = false
                                 screen = Screen.Torrents(s.media, s.season, s.episode)
                             }
                         },
@@ -318,6 +319,20 @@ private fun App() {
                             forward = false
                             autoRelease = false
                             screen = Screen.Torrents(s.media, s.season, s.episode)
+                        },
+                        onEpisode = { seas, ep ->
+                            forward = true
+                            instant = true
+                            autoRelease = true
+                            browse.backToEpisodes = s.media.kind == "tv"
+                            screen = Screen.Player(s.media.title, null, null, null, s.media, seas, ep, s.back)
+                        },
+                        onOpenTitle = { t ->
+                            forward = false
+                            s.ctl?.stop()
+                            browse.openTitle = t
+                            browse.backToEpisodes = false
+                            screen = Screen.Home
                         },
                     )
                 }

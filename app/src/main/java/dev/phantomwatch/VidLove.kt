@@ -317,6 +317,24 @@ object VidLove {
         }
     }
 
+    fun similar(apiKey: String, kind: String, id: String): List<Title> {
+        return try {
+            val path = if (kind == "movie") "movie" else "tv"
+            val data = get(
+                "https://api.themoviedb.org/3/$path/$id/similar?api_key=$apiKey",
+                "https://www.themoviedb.org/",
+            ) ?: return emptyList()
+            val results = data.optJSONArray("results") ?: return emptyList()
+            val out = mutableListOf<Title>()
+            for (i in 0 until results.length()) {
+                titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
+            }
+            out
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     fun season(apiKey: String, tvId: String, season: Int): List<Episode> {
         return try {
             val e = get(

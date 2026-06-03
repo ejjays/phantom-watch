@@ -411,13 +411,6 @@ fun MovieDetail(
                 ) {
                     Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
                 }
-                Box(
-                    Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = 16.dp, top = 16.dp)
-                        .clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text(if (d.kind == "movie") "MOVIE" else "TV SHOW", color = Slate200, fontSize = 11.sp, fontFamily = Mono)
-                }
                 WatchBar(
                     isTv = d.kind != "movie",
                     checking = checking,
@@ -547,7 +540,7 @@ internal fun airLabel(iso: String): String {
 }
 
 @Composable
-private fun EpisodeRow(ep: Episode, fallbackStill: String?, onClick: () -> Unit) {
+internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = false, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -562,10 +555,22 @@ private fun EpisodeRow(ep: Episode, fallbackStill: String?, onClick: () -> Unit)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""), color = Slate500, fontSize = 11.sp, fontFamily = Mono)
+            Text(
+                "E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""),
+                color = if (playing) Cyan else Slate500, fontSize = 11.sp, fontFamily = Mono,
+            )
             Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
+        if (playing) {
+            Box(
+                Modifier.clip(CircleShape).background(Cyan.copy(alpha = 0.15f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text("PLAYING", color = Cyan, fontSize = 9.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
+        }
     }
 }
 
@@ -596,7 +601,7 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
 }
 
 @Composable
-private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> Unit, onEpisode: (String, String) -> Unit) {
+internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> Unit, onEpisode: (String, String) -> Unit) {
     val key = BuildConfig.TMDB_API_KEY
     val seasons = detail?.seasons.orEmpty()
     var seasonIdx by remember(detail?.id) {
@@ -827,7 +832,7 @@ private fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> U
     }
 }
 
-private object DetailCache {
+internal object DetailCache {
     private var id: String? = null
     private var last: TitleDetail? = null
     private var lastSeason = -1

@@ -70,6 +70,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import com.frostwire.jlibtorrent.TorrentHandle
+import dev.phantomwatch.ui.DetailCache
 import dev.phantomwatch.ui.PlayerPanel
 import dev.phantomwatch.ui.PlayerStage
 import dev.phantomwatch.ui.SeekMark
@@ -262,7 +263,7 @@ private fun buildPreviewPlayer(context: android.content.Context, stream: Stream)
 
 @OptIn(UnstableApi::class)
 @Composable
-internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlCtl?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit) {
+internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlCtl?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit, onEpisode: (String, String) -> Unit = { _, _ -> }, onOpenTitle: (Title) -> Unit = {}) {
     val context = LocalContext.current
     val resumeScope = rememberCoroutineScope()
     val meta = remember(title, media, season, episode) {
@@ -271,6 +272,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             .setArtist(if (season.isNotEmpty() && episode.isNotEmpty()) "S$season E$episode" else media.year.orEmpty())
             .apply { media.poster?.let { setArtworkUri(Uri.parse(it)) } }
             .build()
+    }
+    val epMeta = remember(media.id, season, episode) {
+        DetailCache.episodes(media.id, season.toIntOrNull() ?: -1)?.firstOrNull { it.n.toString() == episode }
+    }
+    val overview = remember(media.id, epMeta) {
+        epMeta?.overview?.ifBlank { null } ?: DetailCache.detail(media.id)?.overview?.ifBlank { null }
     }
     var resolved by remember { mutableStateOf(initial) }
     var resolveErr by remember { mutableStateOf<String?>(null) }
@@ -344,7 +351,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         Column(Modifier.fillMaxSize().background(Color.Black)) {
             Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
                 PlayerStage(
-                    title = title, fullscreen = false, isPlaying = false, stalled = true,
+                    title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
+                    fullscreen = false, isPlaying = false, stalled = true,
                     positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
                     flash = resolveErr, seekMark = null, seekInset = 0.dp, locked = false,
                     subsOn = false, canSubs = false,
@@ -354,7 +362,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     video = { mod -> Box(mod.fillMaxSize().background(Color.Black)) },
                 )
             }
-            PlayerPanel(title = media.title, year = media.year, rating = media.rating)
+            PlayerPanel(
+                media = media, season = season, episode = episode,
+                overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
+            )
             if (resolveErr != null) {
                 Row(
                     Modifier.fillMaxWidth().padding(16.dp),
@@ -519,8 +530,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 AppLog.d("player error ${error.errorCodeName} http=${cause?.responseCode} pos=${exo.currentPosition / 1000}s buf=${exo.bufferedPosition / 1000}s dur=${exo.duration / 1000}s")
                 AppLog.d("player cause $chain")
                 AppLog.d("player stack ${android.util.Log.getStackTraceString(error).take(3000)}")
-                if (cause?.responseCode == 429 || cause?.responseCode == 403) {
-                    Torrents.DeadHosts.mark(stream.url)
+                if (cause?.responseCode == 429 || cause?.responseCode == 403 || chain.contains("UnknownHostException")) {
+                    // a dead DNS entry is not transient; ban briefly so fallback stops re-picking it
+                    val ttl = if (chain.contains("UnknownHostException")) 1L else 24L
+                    Torrents.DeadHosts.mark(stream.url, ttl)
                     AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(stream.url)}")
                 }
                 if (chain.contains("FileNotFound") || chain.contains("ENOENT")) {
@@ -1396,7 +1409,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     @Composable
     fun stage(seekInset: androidx.compose.ui.unit.Dp, matchH: Boolean, fsUi: Boolean) {
         PlayerStage(
-            title = title,
+            title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
         fullscreen = fsUi,
         isPlaying = playing,
         stalled = stalled,
@@ -1551,7 +1564,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
                     stage(0.dp, videoAspect < 16f / 9f, false)
                 }
-                PlayerPanel(title = media.title, year = media.year, rating = media.rating)
+                PlayerPanel(
+                    media = media, season = season, episode = episode,
+                    overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
+                )
             }
         }
     }
