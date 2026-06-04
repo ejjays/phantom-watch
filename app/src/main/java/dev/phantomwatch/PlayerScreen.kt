@@ -1709,7 +1709,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                             barsInset = false,
                             lockButton = false,
                             subStyle = subStyle,
-                            onFullscreen = ::reopen,
+                            onFullscreen = {
+                                if (theater) reopen() else { toggleFullscreen(); poke() }
+                            },
                         )
                     }
                     Box(
