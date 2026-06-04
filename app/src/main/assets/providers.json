@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+  "legs": {
+    "love": {
+      "enabled": true,
+      "api": "https://api.vidlove.cc",
+      "player": "https://player.vidlove.cc",
+      "sources": ["", "vidapi", "moviebox", "dcloud", "tcloud", "moviebox2"]
+    },
+    "rock": {
+      "enabled": true,
+      "api": "https://vidrock.net/api",
+      "referer": "https://vidrock.net/",
+      "key": "7f3e9c2a8b5d1f4e6a9c3b7d2e5f8a1c4b6d9e2f5a8c1b4d7e9f2a5c8b1d4e7f",
+      "candidates": ["flix", "hind", "telugu", "tamil", "hindi"]
+    },
+    "vix": {
+      "enabled": true,
+      "site": "https://vixsrc.to"
+    },
+    "zee": {
+      "enabled": true,
+      "api": "https://core.vidzee.wtf",
+      "origin": "https://player.vidzee.wtf",
+      "source": "dcloud"
+    },
+    "paradise": {
+      "enabled": true,
+      "api": "https://api.animeparadise.moe",
+      "stream": "https://stream.animeparadise.moe",
+      "origin": "https://animeparadise.moe"
+    },
+    "vap": {
+      "enabled": true,
+      "api": "https://streamdata.vaplayer.ru/api.php",
+      "origin": "https://nextgencloudfabric.com"
+    },
+    "vidlink": {
+      "enabled": true,
+      "api": "https://vidlink.pro/api/b",
+      "enc": "https://enc-dec.app/api/enc-vidlink?text=",
+      "referer": "https://vidlink.pro/"
+    },
+    "hianime": {
+      "enabled": true,
+      "origin": "https://megaplay.buzz",
+      "key": "i?LMTAx0Q6,:}50U",
+      "iv": "hlsMediaAttached"
+    }
+  }
+}

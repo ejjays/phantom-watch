@@ -20,31 +20,37 @@ import org.json.JSONObject
 data class VFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false)
 
 object Providers {
-    private const val ROCK_API = "https://vidrock.net/api"
-    private const val ROCK_REFERER = "https://vidrock.net/"
-    private const val ROCK_KEY =
-        "7f3e9c2a8b5d1f4e6a9c3b7d2e5f8a1c4b6d9e2f5a8c1b4d7e9f2a5c8b1d4e7f"
-    private const val LOVE_API = "https://api.vidlove.cc"
-    private const val LOVE_PLAYER = "https://player.vidlove.cc"
-    private const val LOVE_ORIGIN = "https://player.vidlove.cc"
-    private const val VIX_REFERER = "https://vixsrc.to/"
-    private const val VIX_ORIGIN = "https://vixsrc.to"
-    private const val ZEE_API = "https://core.vidzee.wtf"
-    private const val ZEE_ORIGIN = "https://player.vidzee.wtf"
-    private const val PARA_API = "https://api.animeparadise.moe"
-    private const val PARA_STREAM = "https://stream.animeparadise.moe"
-    private const val PARA_ORIGIN = "https://animeparadise.moe"
-    private const val VAPLAYER_API = "https://streamdata.vaplayer.ru/api.php"
-    private const val VAPLAYER_ORIGIN = "https://nextgencloudfabric.com"
-    private const val VL_API = "https://vidlink.pro/api/b"
-    private const val VL_ENC = "https://enc-dec.app/api/enc-vidlink?text="
-    private const val VL_REFERER = "https://vidlink.pro/"
-    private const val MEGA_ORIGIN = "https://megaplay.buzz"
+    private val UA get() = RemoteConfig.top("ua", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
+    private fun cfg(leg: String, field: String, def: String) = RemoteConfig.s(leg, field, def)
+
+    private val ROCK_API get() = cfg("rock", "api", "https://vidrock.net/api")
+    private val ROCK_REFERER get() = cfg("rock", "referer", "https://vidrock.net/")
+    private val ROCK_KEY get() = cfg(
+        "rock", "key",
+        "7f3e9c2a8b5d1f4e6a9c3b7d2e5f8a1c4b6d9e2f5a8c1b4d7e9f2a5c8b1d4e7f",
+    )
+    private val ROCK_NAMES get() = RemoteConfig.list("rock", "candidates", listOf("flix", "hind", "telugu", "tamil", "hindi"))
+    private val LOVE_API get() = cfg("love", "api", "https://api.vidlove.cc")
+    private val LOVE_PLAYER get() = cfg("love", "player", "https://player.vidlove.cc")
+    private val LOVE_SOURCES get() = RemoteConfig.list("love", "sources", listOf("", "vidapi", "moviebox", "dcloud", "tcloud", "moviebox2"))
+    private val VIX_SITE get() = cfg("vix", "site", "https://vixsrc.to")
+    private val VIX_REFERER get() = "$VIX_SITE/"
+    private val ZEE_API get() = cfg("zee", "api", "https://core.vidzee.wtf")
+    private val ZEE_ORIGIN get() = cfg("zee", "origin", "https://player.vidzee.wtf")
+    private val ZEE_SOURCE get() = cfg("zee", "source", "dcloud")
+    private val PARA_API get() = cfg("paradise", "api", "https://api.animeparadise.moe")
+    private val PARA_STREAM get() = cfg("paradise", "stream", "https://stream.animeparadise.moe")
+    private val PARA_ORIGIN get() = cfg("paradise", "origin", "https://animeparadise.moe")
+    private val VAPLAYER_API get() = cfg("vap", "api", "https://streamdata.vaplayer.ru/api.php")
+    private val VAPLAYER_ORIGIN get() = cfg("vap", "origin", "https://nextgencloudfabric.com")
+    private val VL_API get() = cfg("vidlink", "api", "https://vidlink.pro/api/b")
+    private val VL_ENC get() = cfg("vidlink", "enc", "https://enc-dec.app/api/enc-vidlink?text=")
+    private val VL_REFERER get() = cfg("vidlink", "referer", "https://vidlink.pro/")
+    private val MEGA_ORIGIN get() = cfg("hianime", "origin", "https://megaplay.buzz")
     // megaplay player JS crypto; breaks when they bump lib/e1-player (see probe.py)
-    private val MEGA_KEY = MEGA_KEY_S.toByteArray().copyOf(32)
-    private val MEGA_IV = "hlsMediaAttached".toByteArray()
-    private const val MEGA_KEY_S = "i?LMTAx0Q6,:}50U"
-    private const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
+    private val MEGA_KEY get() = MEGA_KEY_S.toByteArray().copyOf(32)
+    private val MEGA_IV get() = cfg("hianime", "iv", "hlsMediaAttached").toByteArray()
+    private val MEGA_KEY_S get() = cfg("hianime", "key", "i?LMTAx0Q6,:}50U")
 
     private fun hexBytes(hex: String): ByteArray {
         val c = hex.trim()
@@ -167,6 +173,7 @@ object Providers {
 
     private suspend fun vidrock(tmdbId: String, kind: String, season: String, episode: String): List<VFormat> =
         coroutineScope {
+            if (!RemoteConfig.on("rock")) return@coroutineScope emptyList()
             val path = if (kind == "movie") "movie/$tmdbId" else "tv/$tmdbId/$season/$episode"
             val (code, body) = fetch("$ROCK_API/$path", ROCK_REFERER) ?: return@coroutineScope emptyList()
             if (code != 200) return@coroutineScope emptyList()
@@ -175,7 +182,7 @@ object Providers {
             } catch (_: Exception) {
                 return@coroutineScope emptyList()
             }
-            val keys = listOf("flix", "hind", "telugu", "tamil", "hindi").flatMap { listOf(it, "${it}_dub", "${it}_sub") }
+            val keys = ROCK_NAMES.flatMap { listOf(it, "${it}_dub", "${it}_sub") }
             val names = (api.keys().asSequence().toList() + keys).distinct()
             val cands = names.take(6).mapNotNull { name ->
                 val e = api.optJSONObject(name) ?: return@mapNotNull null
@@ -196,12 +203,13 @@ object Providers {
 
     private suspend fun vidlove(tmdbId: String, kind: String, season: String, episode: String): Pair<List<VFormat>, List<Sub>> =
         coroutineScope {
+            if (!RemoteConfig.on("love")) return@coroutineScope emptyList<VFormat>() to emptyList()
             val base = if (kind == "movie") "$LOVE_API/movie?id=$tmdbId&mode=json"
             else "$LOVE_API/tv?id=$tmdbId&season=$season&episode=$episode&mode=json"
             val embed = if (kind == "movie") "$LOVE_PLAYER/embed/movie/$tmdbId"
             else "$LOVE_PLAYER/embed/tv/$tmdbId/$season/$episode"
             val referer = embed
-            val urls = listOf(base, "$base&sources=vidapi", "$base&sources=moviebox", "$base&sources=dcloud", "$base&sources=tcloud", "$base&sources=moviebox2")
+            val urls = LOVE_SOURCES.map { if (it.isEmpty()) base else "$base&sources=$it" }
             val bodies: List<String> = urls.map { u ->
                 async {
                     fetch(u, referer, 10)?.takeIf { it.first == 200 }?.second
@@ -246,6 +254,7 @@ object Providers {
                     }
                 }
             }
+            if (formats.isEmpty()) AppLog.d("leg love empty ${bodies.size}/${urls.size} bodies")
             val enSubs = subs.any { it.label.contains("english", true) }
             formats.sortedByDescending { it.height }.map { it.copy(referer = embed, enSubs = enSubs) } to subs
         }
@@ -253,8 +262,9 @@ object Providers {
     // dcloud is the only live variant: tik serves png, ipcloud 403 (re-tested 2026-10-16)
     private suspend fun vidzee(tmdbId: String, kind: String, season: String, episode: String): List<VFormat> =
         withContext(Dispatchers.IO) {
+            if (!RemoteConfig.on("zee")) return@withContext emptyList()
             val path = if (kind == "movie") "/streams/movie/$tmdbId" else "/streams/tv/$tmdbId/$season/$episode"
-            val (code, body) = fetch("$ZEE_API$path?s=dcloud&e=0", "$ZEE_ORIGIN/", 8) ?: return@withContext emptyList()
+            val (code, body) = fetch("$ZEE_API$path?s=$ZEE_SOURCE&e=0", "$ZEE_ORIGIN/", 8) ?: return@withContext emptyList()
             if (code != 200) return@withContext emptyList()
             val url = try {
                 JSONObject(body).optString("url")
@@ -267,8 +277,9 @@ object Providers {
 
     private suspend fun vixsrc(tmdbId: String, kind: String, season: String, episode: String): List<VFormat> =
         withContext(Dispatchers.IO) {
-            val api = if (kind == "movie") "https://vixsrc.to/api/movie/$tmdbId"
-            else "https://vixsrc.to/api/tv/$tmdbId/$season/$episode"
+            if (!RemoteConfig.on("vix")) return@withContext emptyList()
+            val api = if (kind == "movie") "$VIX_SITE/api/movie/$tmdbId"
+            else "$VIX_SITE/api/tv/$tmdbId/$season/$episode"
             val (c1, t1) = fetch(api, VIX_REFERER, 8) ?: return@withContext emptyList()
             if (c1 !in 200..299) return@withContext emptyList()
             val src = try {
@@ -277,7 +288,7 @@ object Providers {
                 return@withContext emptyList()
             }
             if (!src.startsWith("/embed/")) return@withContext emptyList()
-            val (_, html) = fetch("https://vixsrc.to$src", VIX_REFERER, 8) ?: return@withContext emptyList()
+            val (_, html) = fetch("$VIX_SITE$src", VIX_REFERER, 8) ?: return@withContext emptyList()
             val token = Regex("['\"]token['\"]:\\s?['\"]([^'\"]*)['\"]").find(html)?.groupValues?.get(1).orEmpty()
             val expires = Regex("['\"]expires['\"]:\\s?['\"]([^'\"]*)['\"]").find(html)?.groupValues?.get(1).orEmpty()
             val pageUrl = Regex("url:\\s?['\"]([^'\"]*)['\"]").find(html)?.groupValues?.get(1).orEmpty()
@@ -303,6 +314,7 @@ object Providers {
 
     private suspend fun vaplayer(imdb: String, kind: String, season: String, episode: String): List<VFormat> =
         withContext(Dispatchers.IO) {
+            if (!RemoteConfig.on("vap")) return@withContext emptyList()
             val query = if (kind == "movie") "imdb=$imdb&type=movie"
             else "imdb=$imdb&type=tv&season=$season&episode=$episode"
             val referer = if (kind == "movie") "$VAPLAYER_ORIGIN/embed/movie/$imdb"
@@ -329,6 +341,7 @@ object Providers {
 
     private suspend fun vidlink(tmdbId: String, kind: String, season: String, episode: String): Pair<List<VFormat>, List<Sub>> =
         withContext(Dispatchers.IO) {
+            if (!RemoteConfig.on("vidlink")) return@withContext (emptyList<VFormat>() to emptyList())
             val enc = fetch("$VL_ENC$tmdbId", VL_REFERER, 8)?.takeIf { it.first == 200 }?.second?.let {
                 try {
                     JSONObject(it).optString("result")
@@ -396,6 +409,7 @@ object Providers {
 
     private suspend fun hianime(tmdbId: String, kind: String, season: String, episode: String): Pair<List<VFormat>, List<Sub>> =
         withContext(Dispatchers.IO) {
+            if (!RemoteConfig.on("hianime")) return@withContext (emptyList<VFormat>() to emptyList())
             val ep = if (kind == "movie") "movie" else "tv"
             val meta = fetch("https://api.themoviedb.org/3/$ep/$tmdbId?api_key=${BuildConfig.TMDB_API_KEY}", "https://www.themoviedb.org/")?.takeIf { it.first == 200 }?.second
             val title = try {
@@ -453,6 +467,7 @@ object Providers {
 
     private suspend fun paradise(tmdbId: String, kind: String, season: String, episode: String, title: String): Pair<List<VFormat>, List<Sub>> =
         withContext(Dispatchers.IO) {
+            if (!RemoteConfig.on("paradise")) return@withContext (emptyList<VFormat>() to emptyList())
             if (kind != "tv" || season != "1" || title.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
             fun getJson(path: String): JSONObject? {
                 val (code, body) = fetch("$PARA_API$path", "$PARA_ORIGIN/", 8) ?: return null

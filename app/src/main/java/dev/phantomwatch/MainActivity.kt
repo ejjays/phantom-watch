@@ -63,6 +63,8 @@ class MainActivity : ComponentActivity() {
         setTheme(R.style.Theme_PhantomWatch)
         super.onCreate(savedInstanceState)
         PipCtl.inPip = false
+        RemoteConfig.load(this)
+        Thread { RemoteConfig.refresh(applicationContext) }.start()
         androidx.core.content.ContextCompat.registerReceiver(
             this, pipRecv,
             android.content.IntentFilter().apply {

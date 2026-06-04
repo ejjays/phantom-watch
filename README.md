@@ -18,6 +18,18 @@ then OpenSubtitles / AI.
   construction; the other providers are stream-only.
 - Best video is capped at 1080p; moviebox mp4 is last resort.
 
+## Provider config (fix hosts, keys and flags without an APK)
+
+`app/src/main/assets/providers.json` is the single source of truth for provider
+hosts, keys, source lists and per-leg `enabled` flags. It ships inside the APK,
+so a fresh install starts from the same values `probe.py` checks; a fetched
+config is cached in prefs and wins on later launches.
+
+Deploy: upload that file as `providers.json` at the root of a Cloudflare Pages
+project, add `CFG_URL=<that https url>` to `local.properties`, rebuild once.
+Every later edit reaches installs on next launch. `"enabled": false` kills a leg
+instantly. Hosts, keys and flags are remote; parsing changes still need an APK.
+
 ## Subtitle cache (Supabase, once)
 
 Sub hauls are cached per title so one opensubtitles fetch serves every

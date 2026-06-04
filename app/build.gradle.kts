@@ -29,6 +29,7 @@ android {
         buildConfigField("String", "SEEDBOX_URL", "\"${localProps.getProperty("SEEDBOX_URL", "")}\"")
         buildConfigField("String", "SEEDBOX_USER", "\"${localProps.getProperty("SEEDBOX_USER", "")}\"")
         buildConfigField("String", "SEEDBOX_PASS", "\"${localProps.getProperty("SEEDBOX_PASS", "")}\"")
+        buildConfigField("String", "CFG_URL", "\"${localProps.getProperty("CFG_URL", "")}\"")
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }

@@ -11,7 +11,26 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.join(ROOT, "probe_last.json")
-UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
+
+try:
+    CFG = json.load(open(os.path.join(ROOT, "app", "src", "main", "assets", "providers.json")))
+except (OSError, ValueError):
+    CFG = {}
+
+
+def L(leg, field, default):
+    return (CFG.get("legs", {}).get(leg) or {}).get(field, default)
+
+
+def T(field, default):
+    return CFG.get(field, default)
+
+
+def on(leg):
+    return L(leg, "enabled", True)
+
+
+UA = T("ua", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
 MOVIES = ("1560520", "980431", "1108427", "969681")  # Batman Knightfall, Avatar Aang, Moana, Spider-Man BND
 TVS = (("127532", "1", "1"), ("62715", "1", "1"))  # Solo Leveling, Dragon Ball Super
 S = requests.Session()
@@ -35,13 +54,15 @@ def res(tag, ok, formats=0, maxh=None, en=False, ms=0, err=""):
 def love(tid, kind, s, e):
     t = time.time()
     try:
+        api = L("love", "api", "https://api.vidlove.cc").rstrip("/")
+        pl = L("love", "player", "https://player.vidlove.cc").rstrip("/")
         if kind == "movie":
-            base, ref = f"https://api.vidlove.cc/movie?id={tid}&mode=json", f"https://player.vidlove.cc/embed/movie/{tid}"
+            base, ref = f"{api}/movie?id={tid}&mode=json", f"{pl}/embed/movie/{tid}"
         else:
-            base, ref = f"https://api.vidlove.cc/tv?id={tid}&season={s}&episode={e}&mode=json", f"https://player.vidlove.cc/embed/tv/{tid}/{s}/{e}"
+            base, ref = f"{api}/tv?id={tid}&season={s}&episode={e}&mode=json", f"{pl}/embed/tv/{tid}/{s}/{e}"
         fm, subs, mx = [], [], 0
-        for u in (base, base + "&sources=vidapi", base + "&sources=moviebox",
-                   base + "&sources=dcloud", base + "&sources=tcloud", base + "&sources=moviebox2"):
+        srcs = L("love", "sources", ["", "vidapi", "moviebox", "dcloud", "tcloud", "moviebox2"])
+        for u in [base if not x else base + "&sources=" + x for x in srcs]:
             c, b, _ = get(u, ref)
             if c != 200:
                 continue
@@ -62,17 +83,19 @@ def love(tid, kind, s, e):
     except Exception as ex:
         return res("love", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
-ROCK_KEY = bytes.fromhex("7f3e9c2a8b5d1f4e6a9c3b7d2e5f8a1c4b6d9e2f5a8c1b4d7e9f2a5c8b1d4e7f")
+ROCK_KEY = bytes.fromhex(L("rock", "key",
+                              "7f3e9c2a8b5d1f4e6a9c3b7d2e5f8a1c4b6d9e2f5a8c1b4d7e9f2a5c8b1d4e7f"))
 
 def rock(tid, kind, s, e):
     t = time.time()
     try:
         path = f"movie/{tid}" if kind == "movie" else f"tv/{tid}/{s}/{e}"
-        c, b, _ = get(f"https://vidrock.net/api/{path}", "https://vidrock.net/")
+        c, b, _ = get(f"{L('rock', 'api', 'https://vidrock.net/api')}/{path}", L("rock", "referer", "https://vidrock.net/"))
         if c != 200:
             return res("rock", False, err=f"http={c}", ms=int((time.time() - t) * 1000))
         api = json.loads(b)
-        keys = [k for k in api] + [f"{x}_{y}" for x in ("flix", "hind", "telugu", "tamil", "hindi") for y in ("", "dub", "sub")]
+        names = L("rock", "candidates", ["flix", "hind", "telugu", "tamil", "hindi"])
+        keys = [k for k in api] + [f"{x}_{y}" for x in names for y in ("", "dub", "sub")]
         n = 0
         for k in keys[:8]:
             enc = (api.get(k) or {}).get("url", "")
@@ -89,26 +112,31 @@ def zee(tid, kind, s, e):
     t = time.time()
     try:
         path = f"/streams/movie/{tid}" if kind == "movie" else f"/streams/tv/{tid}/{s}/{e}"
-        c, b, _ = get(f"https://core.vidzee.wtf{path}?s=dcloud&e=0", "https://player.vidzee.wtf/")
+        zee_origin = L("zee", "origin", "https://player.vidzee.wtf")
+        c, b, _ = get(f"{L('zee', 'api', 'https://core.vidzee.wtf')}{path}?s={L('zee', 'source', 'dcloud')}&e=0",
+                      zee_origin + "/")
         url = json.loads(b).get("url", "") if c == 200 else ""
         if not url.startswith("http"):
             return res("zee", False, 0, None, False, int((time.time() - t) * 1000), f"http={c}")
-        c2, man, _ = get(url, "https://player.vidzee.wtf/")
+        c2, man, _ = get(url, zee_origin + "/")
         hs = heights_m3u8(man) if c2 == 200 and "#EXTM3U" in man else []
-        return res("zee", bool(hs), len(hs), max(hs) if hs else None, en_media(man),
-                   int((time.time() - t) * 1000), "" if hs else f"no video rungs (http={c2})")
+        segs = man.count("#EXTINF") if c2 == 200 else 0
+        ok = bool(hs) or segs > 0
+        return res("zee", ok, len(hs) or (1 if segs else 0), max(hs) if hs else None, en_media(man),
+                   int((time.time() - t) * 1000), "" if ok else f"no rungs or segments (http={c2})")
     except Exception as ex:
         return res("zee", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
 def vix(tid, kind, s, e):
     t = time.time()
     try:
-        api = f"https://vixsrc.to/api/movie/{tid}" if kind == "movie" else f"https://vixsrc.to/api/tv/{tid}/{s}/{e}"
-        c, b, _ = get(api, "https://vixsrc.to/")
+        site = L("vix", "site", "https://vixsrc.to").rstrip("/")
+        api = f"{site}/api/movie/{tid}" if kind == "movie" else f"{site}/api/tv/{tid}/{s}/{e}"
+        c, b, _ = get(api, site + "/")
         src = json.loads(b).get("src", "") if c == 200 else ""
         if not src.startswith("/embed/"):
             return res("vix", False, err="no src", ms=int((time.time() - t) * 1000))
-        _, html, _ = get(f"https://vixsrc.to{src}", "https://vixsrc.to/")
+        _, html, _ = get(f"{site}{src}", site + "/")
         tok = re.search(r"""['"]token['"]:\s?['"]([^'"]*)['"]""", html)
         exp = re.search(r"""['"]expires['"]:\s?['"]([^'"]*)['"]""", html)
         pg = re.search(r"""url:\s?['"]([^'"]*)['"]""", html)
@@ -117,7 +145,7 @@ def vix(tid, kind, s, e):
         base = urllib.parse.urlparse(pg.group(1))
         q = (base.query + "&" if base.query else "") + f"token={tok.group(1)}&expires={exp.group(1)}&h=1"
         master = f"{base.scheme}://{base.netloc}{base.path}.m3u8?{q}"
-        c2, m3u8, _ = get(master, "https://vixsrc.to/")
+        c2, m3u8, _ = get(master, site + "/")
         hs = heights_m3u8(m3u8) if c2 == 200 else []
         return res("vix", bool(hs), len(hs), max(hs) if hs else None, en_media(m3u8),
                    int((time.time() - t) * 1000), "" if hs else f"m3u8 http={c2}")
@@ -144,12 +172,13 @@ def vap(tid, kind, s, e, key):
         if not imdb:
             return res("vap", False, err="no imdb", ms=int((time.time() - t) * 1000))
         q = f"imdb={imdb}&type=movie" if kind == "movie" else f"imdb={imdb}&type=tv&season={s}&episode={e}"
-        ref = f"https://nextgencloudfabric.com/embed/movie/{imdb}" if kind == "movie" else f"https://nextgencloudfabric.com/embed/tv/{imdb}/{s}/{e}"
-        c2, b2, _ = get(f"https://streamdata.vaplayer.ru/api.php?{q}", ref)
+        vap_origin = L("vap", "origin", "https://nextgencloudfabric.com")
+        ref = f"{vap_origin}/embed/movie/{imdb}" if kind == "movie" else f"{vap_origin}/embed/tv/{imdb}/{s}/{e}"
+        c2, b2, _ = get(f"{L('vap', 'api', 'https://streamdata.vaplayer.ru/api.php')}?{q}", ref)
         arr = (json.loads(b2).get("data") or {}).get("stream_urls") or []
         if not (c2 == 200 and arr and arr[0].startswith("http")):
             return res("vap", False, err=f"http={c2}", ms=int((time.time() - t) * 1000))
-        _, man, _ = get(arr[0], "https://nextgencloudfabric.com/")
+        _, man, _ = get(arr[0], vap_origin + "/")
         hs = heights_m3u8(man)
         return res("vap", bool(hs), len(hs), max(hs) if hs else None, en_media(man),
                    int((time.time() - t) * 1000), "" if hs else "empty manifest")
@@ -167,8 +196,10 @@ def paradise(tid, kind, s, e, key):
         title = ((json.loads(b).get("name") or "").split(":")[0].strip()) if c == 200 else ""
         if not title:
             return res("paradise", True, err="SKIP no title")
+        para_origin = L("paradise", "origin", "https://animeparadise.moe")
+
         def js(path):
-            c, b, _ = get(f"https://api.animeparadise.moe{path}", "https://animeparadise.moe/")
+            c, b, _ = get(f"{L('paradise', 'api', 'https://api.animeparadise.moe')}{path}", para_origin + "/")
             return json.loads(b) if c == 200 else None
         norm = lambda x: re.sub(r"[^a-z0-9]+", "", x.lower())
         want, show, link = norm(title), "", ""
@@ -187,8 +218,9 @@ def paradise(tid, kind, s, e, key):
         if not ep.get("streamLink"):
             return res("paradise", False, err="no streamLink", ms=int((time.time() - t) * 1000))
         en = any(x.get("type") == "vtt" and "english" in x.get("label", "").lower() for x in (ep.get("subData") or []))
-        mu = "https://stream.animeparadise.moe/m3u8?url=" + urllib.parse.quote(ep["streamLink"], safe="")
-        _, man, _ = get(mu, "https://animeparadise.moe/")
+        mu = L("paradise", "stream", "https://stream.animeparadise.moe").rstrip("/") + "/m3u8?url=" \
+             + urllib.parse.quote(ep["streamLink"], safe="")
+        _, man, _ = get(mu, para_origin + "/")
         hs = heights_m3u8(man) if "#EXTM3U" in man else []
         return res("paradise", bool(hs), len(hs), max(hs) if hs else None, en or en_media(man),
                    int((time.time() - t) * 1000), "" if hs else "empty manifest")
@@ -197,7 +229,8 @@ def paradise(tid, kind, s, e, key):
 
 def cdn_code(url):
     try:
-        r = S.get(url, headers={"User-Agent": UA, "Referer": "https://vidlink.pro/", "Range": "bytes=0-0"},
+        r = S.get(url, headers={"User-Agent": UA, "Referer": L("vidlink", "referer", "https://vidlink.pro/"),
+                             "Range": "bytes=0-0"},
                   timeout=10, stream=True)
         code = r.status_code
         r.close()
@@ -208,12 +241,13 @@ def cdn_code(url):
 def vidlink(tid, kind, s, e):
     t = time.time()
     try:
-        c, b, _ = get(f"https://enc-dec.app/api/enc-vidlink?text={tid}", "https://vidlink.pro/")
+        vl_ref = L("vidlink", "referer", "https://vidlink.pro/")
+        c, b, _ = get(f"{L('vidlink', 'enc', 'https://enc-dec.app/api/enc-vidlink?text=')}{tid}", vl_ref)
         enc = json.loads(b).get("result", "") if c == 200 else ""
         if not enc:
             return res("vidlink", False, err="enc failed", ms=int((time.time() - t) * 1000))
         path = f"movie/{enc}" if kind == "movie" else f"tv/{enc}/{s}/{e}"
-        c2, b2, _ = get(f"https://vidlink.pro/api/b/{path}", "https://vidlink.pro/")
+        c2, b2, _ = get(f"{L('vidlink', 'api', 'https://vidlink.pro/api/b')}/{path}", vl_ref)
         st = ((json.loads(b2) or {}).get("stream") or {}) if c2 == 200 else {}
         qs = st.get("qualities") or {}
         caps = st.get("captions") or []
@@ -231,9 +265,9 @@ def vidlink(tid, kind, s, e):
     except Exception as ex:
         return res("vidlink", False, err=f"{type(ex).__name__}: {ex}", ms=int((time.time() - t) * 1000))
 
-MEGA = "https://megaplay.buzz"
-MEGA_KEY = b"i?LMTAx0Q6,:}50U".ljust(32, b"\0")
-MEGA_IV = b"hlsMediaAttached"
+MEGA = L("hianime", "origin", "https://megaplay.buzz").rstrip("/")
+MEGA_KEY = L("hianime", "key", "i?LMTAx0Q6,:}50U").encode().ljust(32, b"\0")
+MEGA_IV = L("hianime", "iv", "hlsMediaAttached").encode()
 
 def hianime(tid, kind, s, e, key):
     t = time.time()
@@ -294,7 +328,7 @@ def main():
         def run(leg):
             return leg(tid, kind, s, e, key) if leg in (vap, hianime, paradise) else leg(tid, kind, s, e)
         for leg in LEGS:
-            r = run(leg)
+            r = res(leg.__name__, True, err="SKIP disabled") if not on(leg.__name__) else run(leg)
             if not r["ok"] and not str(r["err"]).startswith("SKIP"):
                 time.sleep(5)
                 r = run(leg)
@@ -327,4 +361,5 @@ def main():
     print(f"\n{len(rows) - fails}/{len(rows)} ok" + (" — baseline updated" if not prev else ""))
     sys.exit(1 if fails else 0)
 
-main()
+if __name__ == "__main__":
+    main()
