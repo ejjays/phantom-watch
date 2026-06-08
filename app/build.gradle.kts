@@ -49,9 +49,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            buildConfigField("boolean", "LOGUI", "false")
         }
         release {
             signingConfig = signingConfigs.getByName("sideload")
+            buildConfigField("boolean", "LOGUI", "true")
         }
     }
 

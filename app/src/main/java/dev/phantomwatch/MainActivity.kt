@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         PipCtl.inPip = false
         RemoteConfig.load(this)
+        JsProviders.init(applicationContext)
         Thread { RemoteConfig.refresh(applicationContext) }.start()
         androidx.core.content.ContextCompat.registerReceiver(
             this, pipRecv,
@@ -381,7 +382,7 @@ private fun App() {
                 }
             }
         }
-        if (BuildConfig.DEBUG && !PipCtl.inPip) LogFab()
+        if ((BuildConfig.DEBUG || BuildConfig.LOGUI) && !PipCtl.inPip) LogFab()
     }
 }
 

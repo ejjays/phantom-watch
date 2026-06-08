@@ -5,6 +5,8 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -20,7 +22,7 @@ import org.json.JSONObject
 data class VFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false)
 
 object Providers {
-    private val UA get() = RemoteConfig.top("ua", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
+    internal val UA get() = RemoteConfig.top("ua", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
     private fun cfg(leg: String, field: String, def: String) = RemoteConfig.s(leg, field, def)
 
     private val ROCK_API get() = cfg("rock", "api", "https://vidrock.net/api")
@@ -534,6 +536,76 @@ object Providers {
             (listOf(auto) + variants) to subs
         }
 
+    private fun jsArg(
+        tmdbId: String, kind: String, season: String, episode: String, title: String, imdb: String?,
+    ): JSONObject = JSONObject().apply {
+        put("tmdbId", tmdbId)
+        put("kind", kind)
+        put("season", season)
+        put("episode", episode)
+        put("title", title)
+        if (imdb != null) put("imdb", imdb)
+    }
+
+    private fun jsCfg(leg: String): JSONObject = JSONObject().apply {
+        when (leg) {
+            "love" -> {
+                put("api", LOVE_API)
+                put("player", LOVE_PLAYER)
+                put("sources", JSONArray(LOVE_SOURCES))
+            }
+            "rock" -> {
+                put("api", ROCK_API)
+                put("referer", ROCK_REFERER)
+                put("key", ROCK_KEY)
+                put("candidates", JSONArray(ROCK_NAMES))
+            }
+            "vix" -> put("site", VIX_SITE)
+            "zee" -> {
+                put("api", ZEE_API)
+                put("origin", ZEE_ORIGIN)
+                put("source", ZEE_SOURCE)
+            }
+            "paradise" -> {
+                put("api", PARA_API)
+                put("stream", PARA_STREAM)
+                put("origin", PARA_ORIGIN)
+            }
+            "vap" -> {
+                put("api", VAPLAYER_API)
+                put("origin", VAPLAYER_ORIGIN)
+            }
+            "vidlink" -> {
+                put("api", VL_API)
+                put("enc", VL_ENC)
+                put("referer", VL_REFERER)
+            }
+            "hianime" -> {
+                put("origin", MEGA_ORIGIN)
+                put("key", MEGA_KEY_S)
+                put("iv", cfg("hianime", "iv", "hlsMediaAttached"))
+            }
+        }
+    }
+
+    private fun CoroutineScope.jsLeg(
+        leg: String,
+        tmdbId: String,
+        kind: String,
+        season: String,
+        episode: String,
+        title: String,
+        imdb: String?,
+        extra: JSONObject.() -> Unit = {},
+    ): Deferred<JSONObject?>? {
+        if (!RemoteConfig.on(leg)) return null
+        val args = jsArg(tmdbId, kind, season, episode, title, imdb).apply {
+            put("cfg", jsCfg(leg))
+            extra()
+        }
+        return async { JsProviders.resolve(leg, args, 12) }
+    }
+
     suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Triple<List<VFormat>, List<Sub>, String?> =
         withContext(Dispatchers.IO) {
             withTimeoutOrNull(30000) {
@@ -545,28 +617,72 @@ object Providers {
                         AppLog.d("leg $name ${System.currentTimeMillis() - t0}ms")
                         return r
                     }
-                    val love = async { leg("love") { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } } }
-                    val rock = async { leg("rock") { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } } }
-                    val vix = async { leg("vix") { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } } }
-                    val zee = async { leg("zee") { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } } }
-                    val para = async { leg("para") { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } } }
-                    val vap = async {
-                        leg("vap") {
-                            withTimeoutOrNull(15000) {
-                                imdb.await()?.let { vaplayer(it, kind, season, episode) } ?: emptyList()
-                            }
-                        }
+                    val jsLove = jsLeg("love", tmdbId, kind, season, episode, title, null)
+                    val jsRock = jsLeg("rock", tmdbId, kind, season, episode, title, null)
+                    val jsVix = jsLeg("vix", tmdbId, kind, season, episode, title, null)
+                    val jsZee = jsLeg("zee", tmdbId, kind, season, episode, title, null)
+                    val jsPara = jsLeg("paradise", tmdbId, kind, season, episode, title, null)
+                    val jsVl = jsLeg("vidlink", tmdbId, kind, season, episode, title, null)
+                    val jsAni = jsLeg("hianime", tmdbId, kind, season, episode, title, null) {
+                        put("tmdbKey", BuildConfig.TMDB_API_KEY)
                     }
-                    val vl = async { leg("vl") { withTimeoutOrNull(15000) { vidlink(tmdbId, kind, season, episode) } } }
-                    val ani = async { leg("ani") { withTimeoutOrNull(15000) { hianime(tmdbId, kind, season, episode) } } }
-                    val (formats, subs) = love.await() ?: (emptyList<VFormat>() to emptyList())
-                    val rockF = rock.await() ?: emptyList()
-                    val vixF = vix.await() ?: emptyList()
-                    val zeeF = zee.await() ?: emptyList()
-                    val (paraF, paraSubs) = para.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
-                    val vapF = vap.await() ?: emptyList()
-                    val (vlF, vlSubs) = vl.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
-                    val (aniF, aniSubs) = ani.await() ?: (emptyList<VFormat>() to emptyList<Sub>())
+                    val jsVap = jsLeg("vap", tmdbId, kind, season, episode, title, imdb.await())
+                    val love = async {
+                        val j = jsLove?.await()
+                        formatsOf(j)?.let { it to subsOf(j) }
+                            ?: leg("love") { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } }
+                            ?: (emptyList<VFormat>() to emptyList())
+                    }
+                    val rock = async {
+                        formatsOf(jsRock?.await())
+                            ?: leg("rock") { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } }
+                            ?: emptyList()
+                    }
+                    val vix = async {
+                        formatsOf(jsVix?.await())
+                            ?: leg("vix") { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } }
+                            ?: emptyList()
+                    }
+                    val zee = async {
+                        formatsOf(jsZee?.await())
+                            ?: leg("zee") { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } }
+                            ?: emptyList()
+                    }
+                    val para = async {
+                        val j = jsPara?.await()
+                        formatsOf(j)?.let { it to subsOf(j) }
+                            ?: leg("para") { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } }
+                            ?: (emptyList<VFormat>() to emptyList<Sub>())
+                    }
+                    val vap = async {
+                        formatsOf(jsVap?.await())
+                            ?: leg("vap") {
+                                withTimeoutOrNull(15000) {
+                                    imdb.await()?.let { vaplayer(it, kind, season, episode) } ?: emptyList()
+                                }
+                            }
+                            ?: emptyList()
+                    }
+                    val vl = async {
+                        val j = jsVl?.await()
+                        formatsOf(j)?.let { it to subsOf(j) }
+                            ?: leg("vl") { withTimeoutOrNull(15000) { vidlink(tmdbId, kind, season, episode) } }
+                            ?: (emptyList<VFormat>() to emptyList<Sub>())
+                    }
+                    val ani = async {
+                        val j = jsAni?.await()
+                        formatsOf(j)?.let { it to subsOf(j) }
+                            ?: leg("ani") { withTimeoutOrNull(15000) { hianime(tmdbId, kind, season, episode) } }
+                            ?: (emptyList<VFormat>() to emptyList<Sub>())
+                    }
+                    val (formats, subs) = love.await()
+                    val rockF = rock.await()
+                    val vixF = vix.await()
+                    val zeeF = zee.await()
+                    val (paraF, paraSubs) = para.await()
+                    val vapF = vap.await()
+                    val (vlF, vlSubs) = vl.await()
+                    val (aniF, aniSubs) = ani.await()
                     AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} vap=${vapF.size} vl=${vlF.size} ani=${aniF.size} @${System.currentTimeMillis() - t0}ms")
                     val all = (formats + rockF + vixF + zeeF + paraF + vapF + vlF + aniF)
                     // bans outlive transient 403/429s; one 1-byte probe re-admits a host that recovered
@@ -588,6 +704,41 @@ object Providers {
                 }
             } ?: Triple(emptyList(), emptyList(), null)
         }
+
+    private fun formatsOf(j: JSONObject?): List<VFormat>? {
+        val a = j?.optJSONArray("formats") ?: return null
+        return buildList {
+            for (i in 0 until a.length()) {
+                val o = a.optJSONObject(i) ?: continue
+                val url = o.optString("url")
+                if (url.isEmpty()) continue
+                add(
+                    VFormat(
+                        url,
+                        o.optBoolean("isHls"),
+                        o.optString("label"),
+                        o.optInt("height"),
+                        o.optBoolean("english", true),
+                        o.optString("referer"),
+                        o.optBoolean("enSubs"),
+                        o.optBoolean("enAudio"),
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun subsOf(j: JSONObject?): List<Sub> {
+        val a = j?.optJSONArray("subs") ?: return emptyList()
+        return buildList {
+            for (i in 0 until a.length()) {
+                val o = a.optJSONObject(i) ?: continue
+                val url = o.optString("url")
+                if (url.isEmpty()) continue
+                add(Sub(o.optString("label").ifEmpty { "Unknown" }, url, o.optString("src")))
+            }
+        }
+    }
 
     // own-provider subs fit this cut; others drift, so they're only a fallback
     fun subsFor(f: VFormat, subs: List<Sub>): List<Sub> {
