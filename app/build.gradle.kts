@@ -53,7 +53,7 @@ android {
         }
         release {
             signingConfig = signingConfigs.getByName("sideload")
-            buildConfigField("boolean", "LOGUI", "true")
+            buildConfigField("boolean", "LOGUI", "false")
         }
     }
 
