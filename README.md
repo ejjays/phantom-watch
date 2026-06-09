@@ -33,6 +33,8 @@ then upload `build/pages-config/providers.json` alone to the `CFG_URL` from
 `assets/ota_pub.pem`. Never upload the repo root.
 
 `node probe.js` health-checks every leg by running that same `providers.js`.
+The signing key has an encrypted backup at `backup/ota-key-backup.tar.gz.enc`
+(AES-256/PBKDF2); its passphrase is deliberately not in this repo.
 
 ## Subtitle cache (Supabase, once)
 
