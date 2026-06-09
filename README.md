@@ -18,17 +18,21 @@ then OpenSubtitles / AI.
   construction; the other providers are stream-only.
 - Best video is capped at 1080p; moviebox mp4 is last resort.
 
-## Provider config (fix hosts, keys and flags without an APK)
+## Providers (hosts, keys and extractors without an APK)
 
-`app/src/main/assets/providers.json` is the single source of truth for provider
-hosts, keys, source lists and per-leg `enabled` flags. It ships inside the APK,
-so a fresh install starts from the same values `probe.py` checks; a fetched
-config is cached in prefs and wins on later launches.
+`app/src/main/assets/providers.js` holds the extractors and `providers.json`
+the hosts, keys, source lists and per-leg `enabled` flags. Both ship inside the
+APK as the trusted fallback and together form one signed bundle: ECDSA P-256
+over the payload, strictly increasing `version`, cached in prefs. Installs pick
+up a newer bundle on next launch, so parsing, crypto and new providers ship the
+same way as host changes. Kotlin legs remain as a fallback.
 
-Deploy: upload that file as `providers.json` at the root of a Cloudflare Pages
-project, add `CFG_URL=<that https url>` to `local.properties`, rebuild once.
-Every later edit reaches installs on next launch. `"enabled": false` kills a leg
-instantly. Hosts, keys and flags are remote; parsing changes still need an APK.
+Deploy: `python3 sign_config.py --version N` (N above the deployed version),
+then upload `build/pages-config/providers.json` alone to the `CFG_URL` from
+`local.properties`. Signing needs the private key; the app verifies with
+`assets/ota_pub.pem`. Never upload the repo root.
+
+`node probe.js` health-checks every leg by running that same `providers.js`.
 
 ## Subtitle cache (Supabase, once)
 

@@ -49,7 +49,7 @@ object Providers {
     private val VL_ENC get() = cfg("vidlink", "enc", "https://enc-dec.app/api/enc-vidlink?text=")
     private val VL_REFERER get() = cfg("vidlink", "referer", "https://vidlink.pro/")
     private val MEGA_ORIGIN get() = cfg("hianime", "origin", "https://megaplay.buzz")
-    // megaplay player JS crypto; breaks when they bump lib/e1-player (see probe.py)
+    // megaplay player JS crypto; breaks when they bump lib/e1-player (see probe.js)
     private val MEGA_KEY get() = MEGA_KEY_S.toByteArray().copyOf(32)
     private val MEGA_IV get() = cfg("hianime", "iv", "hlsMediaAttached").toByteArray()
     private val MEGA_KEY_S get() = cfg("hianime", "key", "i?LMTAx0Q6,:}50U")
