@@ -1,0 +1,29 @@
+name: sign-config
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Config version; must exceed the deployed version
+        required: true
+permissions:
+  contents: read
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography
+      - name: sign
+        env:
+          OTA_KEY: ${{ secrets.OTA_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$OTA_KEY" > "$RUNNER_TEMP/ota-key.pem"
+          python3 sign_config.py --version "${{ inputs.version }}" --key "$RUNNER_TEMP/ota-key.pem"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-config-v${{ inputs.version }}
+          path: build/pages-config/providers.json
