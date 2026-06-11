@@ -5,8 +5,6 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -547,48 +545,7 @@ object Providers {
         if (imdb != null) put("imdb", imdb)
     }
 
-    private fun jsCfg(leg: String): JSONObject = JSONObject().apply {
-        when (leg) {
-            "love" -> {
-                put("api", LOVE_API)
-                put("player", LOVE_PLAYER)
-                put("sources", JSONArray(LOVE_SOURCES))
-            }
-            "rock" -> {
-                put("api", ROCK_API)
-                put("referer", ROCK_REFERER)
-                put("key", ROCK_KEY)
-                put("candidates", JSONArray(ROCK_NAMES))
-            }
-            "vix" -> put("site", VIX_SITE)
-            "zee" -> {
-                put("api", ZEE_API)
-                put("origin", ZEE_ORIGIN)
-                put("source", ZEE_SOURCE)
-            }
-            "paradise" -> {
-                put("api", PARA_API)
-                put("stream", PARA_STREAM)
-                put("origin", PARA_ORIGIN)
-            }
-            "vap" -> {
-                put("api", VAPLAYER_API)
-                put("origin", VAPLAYER_ORIGIN)
-            }
-            "vidlink" -> {
-                put("api", VL_API)
-                put("enc", VL_ENC)
-                put("referer", VL_REFERER)
-            }
-            "hianime" -> {
-                put("origin", MEGA_ORIGIN)
-                put("key", MEGA_KEY_S)
-                put("iv", cfg("hianime", "iv", "hlsMediaAttached"))
-            }
-        }
-    }
-
-    private fun CoroutineScope.jsLeg(
+    private fun jsArgs(
         leg: String,
         tmdbId: String,
         kind: String,
@@ -596,14 +553,9 @@ object Providers {
         episode: String,
         title: String,
         imdb: String?,
-        extra: JSONObject.() -> Unit = {},
-    ): Deferred<JSONObject?>? {
-        if (!RemoteConfig.on(leg)) return null
-        val args = jsArg(tmdbId, kind, season, episode, title, imdb).apply {
-            put("cfg", jsCfg(leg))
-            extra()
-        }
-        return async { JsProviders.resolve(leg, args, 12) }
+    ): JSONObject = jsArg(tmdbId, kind, season, episode, title, imdb).apply {
+        put("cfg", RemoteConfig.legJson(leg))
+        put("tmdbKey", BuildConfig.TMDB_API_KEY)
     }
 
     suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Triple<List<VFormat>, List<Sub>, String?> =
@@ -617,74 +569,39 @@ object Providers {
                         AppLog.d("leg $name ${System.currentTimeMillis() - t0}ms")
                         return r
                     }
-                    val jsLove = jsLeg("love", tmdbId, kind, season, episode, title, null)
-                    val jsRock = jsLeg("rock", tmdbId, kind, season, episode, title, null)
-                    val jsVix = jsLeg("vix", tmdbId, kind, season, episode, title, null)
-                    val jsZee = jsLeg("zee", tmdbId, kind, season, episode, title, null)
-                    val jsPara = jsLeg("paradise", tmdbId, kind, season, episode, title, null)
-                    val jsVl = jsLeg("vidlink", tmdbId, kind, season, episode, title, null)
-                    val jsAni = jsLeg("hianime", tmdbId, kind, season, episode, title, null) {
-                        put("tmdbKey", BuildConfig.TMDB_API_KEY)
-                    }
-                    val jsVap = jsLeg("vap", tmdbId, kind, season, episode, title, imdb.await())
-                    val love = async {
-                        val j = jsLove?.await()
-                        formatsOf(j)?.let { it to subsOf(j) }
-                            ?: leg("love") { withTimeoutOrNull(15000) { vidlove(tmdbId, kind, season, episode) } }
-                            ?: (emptyList<VFormat>() to emptyList())
-                    }
-                    val rock = async {
-                        formatsOf(jsRock?.await())
-                            ?: leg("rock") { withTimeoutOrNull(18000) { vidrock(tmdbId, kind, season, episode) } }
-                            ?: emptyList()
-                    }
-                    val vix = async {
-                        formatsOf(jsVix?.await())
-                            ?: leg("vix") { withTimeoutOrNull(15000) { vixsrc(tmdbId, kind, season, episode) } }
-                            ?: emptyList()
-                    }
-                    val zee = async {
-                        formatsOf(jsZee?.await())
-                            ?: leg("zee") { withTimeoutOrNull(15000) { vidzee(tmdbId, kind, season, episode) } }
-                            ?: emptyList()
-                    }
-                    val para = async {
-                        val j = jsPara?.await()
-                        formatsOf(j)?.let { it to subsOf(j) }
-                            ?: leg("para") { withTimeoutOrNull(15000) { paradise(tmdbId, kind, season, episode, title) } }
-                            ?: (emptyList<VFormat>() to emptyList<Sub>())
-                    }
-                    val vap = async {
-                        formatsOf(jsVap?.await())
-                            ?: leg("vap") {
-                                withTimeoutOrNull(15000) {
-                                    imdb.await()?.let { vaplayer(it, kind, season, episode) } ?: emptyList()
-                                }
+                    val order = listOf("love", "rock", "vix", "zee", "paradise", "vap", "vidlink", "hianime")
+                    val names = order + RemoteConfig.legNames().filter { it !in order }
+                    val kt: Map<String, suspend () -> Pair<List<VFormat>, List<Sub>>> = mapOf(
+                        "love" to { vidlove(tmdbId, kind, season, episode) },
+                        "rock" to { vidrock(tmdbId, kind, season, episode).orEmpty() to emptyList<Sub>() },
+                        "vix" to { vixsrc(tmdbId, kind, season, episode).orEmpty() to emptyList<Sub>() },
+                        "zee" to { vidzee(tmdbId, kind, season, episode).orEmpty() to emptyList<Sub>() },
+                        "paradise" to { paradise(tmdbId, kind, season, episode, title) },
+                        "vap" to { imdb.await()?.let { vaplayer(it, kind, season, episode) }.orEmpty() to emptyList<Sub>() },
+                        "vidlink" to { vidlink(tmdbId, kind, season, episode) },
+                        "hianime" to { hianime(tmdbId, kind, season, episode) },
+                    )
+                    val results = names.map { name ->
+                        async {
+                            if (RemoteConfig.on(name)) {
+                                val imdbArg = if (name == "vap") imdb.await() else null
+                                val js = JsProviders.resolve(name, jsArgs(name, tmdbId, kind, season, episode, title, imdbArg), 12)
+                                val pair = formatsOf(js)?.let { it to subsOf(js) }
+                                    ?: kt[name]?.let { f -> leg(name) { withTimeoutOrNull(15000) { f() } } }
+                                    ?: (emptyList<VFormat>() to emptyList<Sub>())
+                                if (pair.first.isEmpty() && name !in kt) AppLog.d("leg $name empty")
+                                name to pair
+                            } else {
+                                name to (emptyList<VFormat>() to emptyList<Sub>())
                             }
-                            ?: emptyList()
-                    }
-                    val vl = async {
-                        val j = jsVl?.await()
-                        formatsOf(j)?.let { it to subsOf(j) }
-                            ?: leg("vl") { withTimeoutOrNull(15000) { vidlink(tmdbId, kind, season, episode) } }
-                            ?: (emptyList<VFormat>() to emptyList<Sub>())
-                    }
-                    val ani = async {
-                        val j = jsAni?.await()
-                        formatsOf(j)?.let { it to subsOf(j) }
-                            ?: leg("ani") { withTimeoutOrNull(15000) { hianime(tmdbId, kind, season, episode) } }
-                            ?: (emptyList<VFormat>() to emptyList<Sub>())
-                    }
-                    val (formats, subs) = love.await()
-                    val rockF = rock.await()
-                    val vixF = vix.await()
-                    val zeeF = zee.await()
-                    val (paraF, paraSubs) = para.await()
-                    val vapF = vap.await()
-                    val (vlF, vlSubs) = vl.await()
-                    val (aniF, aniSubs) = ani.await()
-                    AppLog.d("direct legs rock=${rockF.size} love=${formats.size} vix=${vixF.size} zee=${zeeF.size} para=${paraF.size} vap=${vapF.size} vl=${vlF.size} ani=${aniF.size} @${System.currentTimeMillis() - t0}ms")
-                    val all = (formats + rockF + vixF + zeeF + paraF + vapF + vlF + aniF)
+                        }
+                    }.awaitAll()
+                    AppLog.d(
+                        "direct legs " + results.joinToString(" ") { "${it.first}=${it.second.first.size}" } +
+                            " @${System.currentTimeMillis() - t0}ms",
+                    )
+                    val all = results.flatMap { it.second.first }
+                    val subs = results.flatMap { it.second.second }
                     // bans outlive transient 403/429s; one 1-byte probe re-admits a host that recovered
                     all.filter { Torrents.DeadHosts.blocked(it.url) }
                         .distinctBy { Torrents.DeadHosts.hostOf(it.url) }
@@ -700,7 +617,7 @@ object Providers {
                                 .thenByDescending { if (it.english) 1 else 0 }
                                 .thenByDescending { it.height },
                         )
-                    Triple(live.distinctBy { it.url }, (subs + paraSubs + vlSubs + aniSubs).distinctBy { it.url }, imdb.await())
+                    Triple(live.distinctBy { it.url }, subs.distinctBy { it.url }, imdb.await())
                 }
             } ?: Triple(emptyList(), emptyList(), null)
         }

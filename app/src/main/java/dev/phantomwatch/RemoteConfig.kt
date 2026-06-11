@@ -73,6 +73,11 @@ object RemoteConfig {
 
     fun on(leg: String): Boolean = leg(leg)?.optBoolean("enabled", true) ?: true
 
+    fun legNames(): List<String> = root.optJSONObject("legs")?.keys()?.asSequence()?.toList().orEmpty()
+
+    fun legJson(name: String): JSONObject =
+        leg(name)?.let { JSONObject(it.toString()).apply { remove("enabled") } } ?: JSONObject()
+
     fun s(leg: String, field: String, def: String): String =
         leg(leg)?.optString(field).orEmpty().ifEmpty { def }
 

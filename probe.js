@@ -180,10 +180,10 @@ async function run(leg, job, info) {
     season: job.season,
     episode: job.episode,
     title: info.title,
-    imdb: info.imdb,
     tmdbKey: KEY,
     cfg: cfg.legs[leg],
   };
+  if (leg === 'vap') args.imdb = info.imdb;
   const { r, trace, err } = await runLeg(leg, args);
   const ms = Date.now() - t0;
   if (err) return { provider: leg, ok: false, formats: 0, max: null, enSubs: false, ms, err: 'js ' + err + note(trace) };
