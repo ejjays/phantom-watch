@@ -135,17 +135,50 @@ function note(trace) {
   return bad.error ? ` ${bad.error} ${host}` : ` http=${bad.code} ${host}`;
 }
 
+function fmtH(f) {
+  return Number.isFinite(f.height) ? f.height : 0;
+}
+
+function fmtRank(f) {
+  const h = fmtH(f);
+  return [
+    h < 0 ? 0 : 1,
+    f.enSubs && h >= 1080 ? 1 : 0,
+    String(f.label || '').endsWith('-auto') ? 1 : 0,
+    f.enSubs ? 1 : 0,
+    f.english !== false ? 1 : 0,
+    h,
+  ];
+}
+
+function appPick(formats) {
+  return formats.slice().sort((a, b) => {
+    const x = fmtRank(a), y = fmtRank(b);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return y[i] - x[i];
+    return 0;
+  })[0] || null;
+}
+
+function pickText(f) {
+  if (!f) return '-';
+  const h = fmtH(f);
+  return `${h < 0 ? 'auto' : h + 'p'}${f.enSubs ? '/en' : ''}${String(f.label || '').endsWith('-auto') ? '/auto' : ''}${f.english !== false ? '/eng' : ''}`;
+}
+
 async function check(r) {
   const formats = (r && r.formats) || [];
   const subs = (r && r.subs) || [];
   let en = formats.some((f) => f.enSubs) || subs.some((s) => /english/i.test(s.label || ''));
-  const heightsFmt = formats.map((f) => f.height || 0);
+  const heightsFmt = formats.map((f) => fmtH(f));
   const maxFmt = heightsFmt.length ? Math.max(...heightsFmt) : 0;
-  if (!formats.length) return { ok: false, formats: 0, max: null, enSubs: en, err: 'empty' };
-  const top = formats.reduce((a, b) => ((b.height || 0) > (a.height || 0) ? b : a));
-  if (top.isHls) {
-    const res = await get(top.url, top.referer, 12);
-    if (res.code !== 200) return { ok: false, formats: formats.length, max: maxFmt || null, enSubs: en, err: `manifest http=${res.code || res.error}` };
+  if (!formats.length) return { ok: false, formats: 0, max: null, enSubs: en, pick: null, unbound: 0, err: 'empty' };
+  const pick = appPick(formats);
+  const unbound = subs.filter((s) => s.src && !formats.some((f) => String(f.label || '').startsWith(s.src))).length;
+  if (pick.isHls) {
+    const res = await get(pick.url, pick.referer, 12);
+    if (res.code !== 200) {
+      return { ok: false, formats: formats.length, max: maxFmt || null, enSubs: en, pick, unbound, err: `manifest http=${res.code || res.error}` };
+    }
     const rungs = heights(res.body);
     const ok = rungs.length > 0 || /#EXTINF/.test(res.body);
     return {
@@ -153,12 +186,14 @@ async function check(r) {
       formats: formats.length,
       max: rungs.length ? Math.max(...rungs) : maxFmt || null,
       enSubs: en || enMedia(res.body),
+      pick,
+      unbound,
       err: ok ? '' : 'no rungs',
     };
   }
-  const res = await get(top.url, top.referer, 10, 'bytes=0-0');
+  const res = await get(pick.url, pick.referer, 10, 'bytes=0-0');
   const ok = res.code >= 200 && res.code < 300;
-  return { ok, formats: formats.length, max: maxFmt || null, enSubs: en, err: ok ? '' : `cdn http=${res.code || res.error}` };
+  return { ok, formats: formats.length, max: maxFmt || null, enSubs: en, pick, unbound, err: ok ? '' : `cdn http=${res.code || res.error}` };
 }
 
 function skipFor(leg, job, info) {
@@ -188,7 +223,16 @@ async function run(leg, job, info) {
   const ms = Date.now() - t0;
   if (err) return { provider: leg, ok: false, formats: 0, max: null, enSubs: false, ms, err: 'js ' + err + note(trace) };
   const c = await check(r);
-  return { provider: leg, ok: c.ok, formats: c.formats, max: c.max, enSubs: c.enSubs, ms, err: c.err + (c.ok ? '' : note(trace)) };
+  return {
+    provider: leg,
+    ok: c.ok,
+    formats: c.formats,
+    max: c.max,
+    enSubs: c.enSubs,
+    ms,
+    best: pickText(c.pick),
+    err: c.err + (c.ok ? '' : note(trace)) + (c.unbound ? ` subs-unbound=${c.unbound}` : ''),
+  };
 }
 
 async function meta(job) {
@@ -236,12 +280,12 @@ async function main() {
       if (!r.ok && !r.skip) fails++;
     }
   }
-  console.log(`${'provider'.padEnd(9)} ${'title'.padEnd(16)} ${'ms'.padStart(6)} ${'fmts'.padStart(4)} ${'max'.padStart(5)} en ${'st'.padEnd(6)} note`);
+  console.log(`${'provider'.padEnd(9)} ${'title'.padEnd(16)} ${'ms'.padStart(6)} ${'fmts'.padStart(4)} ${'max'.padStart(5)} en ${'st'.padEnd(6)} ${'best'.padEnd(16)} note`);
   for (const r of rows) {
-    const mx = r.max ? `${r.max}p` : '-';
+    const mx = r.max && r.max > 0 ? `${r.max}p` : '-';
     const st = r.skip ? 'skip' : r.ok ? 'ok' : 'FAIL';
     const noteText = [r.flag, r.skip, r.err, r.retry ? 'retry' : ''].filter(Boolean).join(' ');
-    console.log(`${r.provider.padEnd(9)} ${r.title.padEnd(16)} ${String(r.ms).padStart(6)} ${String(r.formats).padStart(4)} ${mx.padStart(5)} ${r.enSubs ? 'Y' : '-'} ${st.padEnd(6)} ${noteText}`);
+    console.log(`${r.provider.padEnd(9)} ${r.title.padEnd(16)} ${String(r.ms).padStart(6)} ${String(r.formats).padStart(4)} ${mx.padStart(5)} ${r.enSubs ? 'Y' : '-'} ${st.padEnd(6)} ${(r.best || '-').padEnd(16)} ${noteText}`);
   }
   fs.writeFileSync(BASE, JSON.stringify(cur, null, 1));
   console.log(`\n${rows.length - fails}/${rows.length} ok` + (Object.keys(prev).length ? '' : ' — baseline updated'));
