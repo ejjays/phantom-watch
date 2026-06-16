@@ -74,6 +74,7 @@ data class Stream(
     val subKey: String = "",
     val auth: String? = null,
     val imdb: String? = null,
+    val headers: Map<String, String> = emptyMap(),
 )
 
 private const val VIDLOVE_API = "https://api.vidlove.cc"
@@ -159,7 +160,7 @@ object VidLove {
         try {
             val path = if (kind == "movie") "movie" else "tv"
             val data = get(
-                "https://api.themoviedb.org/3/$path/$tmdb/external_ids?api_key=$key",
+                "${RemoteConfig.tmdbBase()}/$path/$tmdb/external_ids?api_key=$key",
                 "https://www.themoviedb.org/",
             ) ?: return@withContext null
             data.optString("imdb_id").takeIf { it.startsWith("tt") }
@@ -169,7 +170,7 @@ object VidLove {
     }
 
     private fun img(path: String?, size: String): String? =
-        path?.takeIf { it.startsWith("/") }?.let { "https://image.tmdb.org/t/p/$size$it" }
+        path?.takeIf { it.startsWith("/") }?.let { "${RemoteConfig.tmdbImage()}$size$it" }
 
     private fun titleOf(e: JSONObject): Title? {
         val type = e.optString("media_type").ifEmpty {
@@ -190,7 +191,7 @@ object VidLove {
 
     fun trending(apiKey: String): List<Title> {
         val data = get(
-            "https://api.themoviedb.org/3/trending/all/week?api_key=$apiKey",
+            "${RemoteConfig.tmdbBase()}/trending/all/week?api_key=$apiKey",
             "https://www.themoviedb.org/",
         ) ?: return emptyList()
         val results = data.optJSONArray("results") ?: return emptyList()
@@ -210,7 +211,7 @@ object VidLove {
     fun rail(apiKey: String, path: String, page: Int = 1): RailPage {
         return try {
             val data = get(
-                "https://api.themoviedb.org/3/$path?api_key=$apiKey&page=$page",
+                "${RemoteConfig.tmdbBase()}/$path?api_key=$apiKey&page=$page",
                 "https://www.themoviedb.org/",
             ) ?: return RailPage(emptyList(), 1)
             val results = data.optJSONArray("results") ?: return RailPage(emptyList(), 1)
@@ -228,7 +229,7 @@ object VidLove {
         return try {
             val path = if (kind == "movie") "movie" else "tv"
             val e = get(
-                "https://api.themoviedb.org/3/$path/$id?api_key=$apiKey&append_to_response=credits,content_ratings,release_dates",
+                "${RemoteConfig.tmdbBase()}/$path/$id?api_key=$apiKey&append_to_response=credits,content_ratings,release_dates",
                 "https://www.themoviedb.org/",
             ) ?: return null
             val name = e.optString("title").ifEmpty { e.optString("name") }
@@ -321,7 +322,7 @@ object VidLove {
         return try {
             val path = if (kind == "movie") "movie" else "tv"
             val data = get(
-                "https://api.themoviedb.org/3/$path/$id/similar?api_key=$apiKey",
+                "${RemoteConfig.tmdbBase()}/$path/$id/similar?api_key=$apiKey",
                 "https://www.themoviedb.org/",
             ) ?: return emptyList()
             val results = data.optJSONArray("results") ?: return emptyList()
@@ -338,7 +339,7 @@ object VidLove {
     fun season(apiKey: String, tvId: String, season: Int): List<Episode> {
         return try {
             val e = get(
-                "https://api.themoviedb.org/3/tv/$tvId/season/$season?api_key=$apiKey",
+                "${RemoteConfig.tmdbBase()}/tv/$tvId/season/$season?api_key=$apiKey",
                 "https://www.themoviedb.org/",
             ) ?: return emptyList()
             val out = mutableListOf<Episode>()

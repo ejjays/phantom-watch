@@ -89,8 +89,8 @@ import coil3.compose.AsyncImage
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
-import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
+import dev.phantomwatch.RemoteConfig
 import dev.phantomwatch.Title
 import dev.phantomwatch.VidLove
 import dev.reicon.ChevronRight
@@ -140,7 +140,7 @@ internal class BrowseState {
 
 @Composable
 internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
-    val key = BuildConfig.TMDB_API_KEY
+    val key = RemoteConfig.tmdbKey()
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current

@@ -67,7 +67,7 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
                 Providers.directAll(title.id, title.kind, season, episode, title.title)
             }
             val imdbJob = async(Dispatchers.IO) {
-                VidLove.imdbOf(title.id, title.kind, BuildConfig.TMDB_API_KEY)?.removePrefix("tt")
+                VidLove.imdbOf(title.id, title.kind, RemoteConfig.tmdbKey())?.removePrefix("tt")
             }
             val all = directJob.await()
             val imdbDigits = imdbJob.await()
@@ -97,7 +97,7 @@ internal fun TorrentsScreen(title: Title, season: String, episode: String, autop
                 err = "No direct streams found"
                 return@LaunchedEffect
             }
-            val key = BuildConfig.TMDB_API_KEY
+            val key = RemoteConfig.tmdbKey()
             val imdb = withContext(Dispatchers.IO) { VidLove.imdbOf(title.id, title.kind, key) }
             if (imdb == null) {
                 err = "no imdb id"

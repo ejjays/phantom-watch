@@ -200,10 +200,15 @@ private fun detectLang(cues: List<VidLove.Cue>): String? {
 }
 
 private fun mediaHeaders(stream: Stream): Map<String, String> {
-    val ref = if (stream.url.startsWith("file")) emptyMap() else mapOf(
-        "Referer" to stream.referer,
-        "Origin" to "https://${Uri.parse(stream.referer).host}",
-    )
+    val ref = when {
+        stream.url.startsWith("file") -> emptyMap()
+        stream.headers.isNotEmpty() -> stream.headers
+        stream.referer.isNotEmpty() -> mapOf(
+            "Referer" to stream.referer,
+            "Origin" to "https://${Uri.parse(stream.referer).host}",
+        )
+        else -> emptyMap()
+    }
     return mapOf("User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36") +
         ref + (stream.auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
 }
@@ -321,7 +326,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             val best = live.first()
             val streamSubs = Providers.subsFor(best, bundle.subs)
             AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
-            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb)
+            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -688,7 +693,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                                 AppLog.d("player relink none")
                                 return@launch
                             }
-                            live = live.copy(url = fresh.url, isHls = fresh.isHls, referer = fresh.referer, subs = Providers.subsFor(fresh, live.subs))
+                            live = live.copy(url = fresh.url, isHls = fresh.isHls, referer = fresh.referer, subs = Providers.subsFor(fresh, live.subs), headers = fresh.headers)
                             AppLog.d("player relink ${fresh.label} hls=${fresh.isHls} at ${errPos / 1000}s")
                             attach(errPos)
                         }

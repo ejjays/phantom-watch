@@ -27,24 +27,31 @@ function tmdbKey() {
 function request(req) {
   const headers = { 'user-agent': UA };
   if (req.referer) headers.referer = req.referer;
+  if (req.headers) {
+    for (const k of Object.keys(req.headers)) headers[k.toLowerCase()] = req.headers[k];
+  }
+  const method = String(req.method || 'GET').toUpperCase();
   const init = {
     headers,
+    method,
     redirect: 'follow',
     signal: AbortSignal.timeout(Math.min(20, Math.max(1, req.timeout || 10)) * 1000),
   };
-  if ((req.method || 'GET') === 'POST') {
-    init.method = 'POST';
-    init.body = req.body || '';
-    headers['content-type'] = 'application/json';
+  if (method !== 'GET' && method !== 'HEAD' && req.body != null) {
+    init.body = req.body;
+    if (!headers['content-type']) headers['content-type'] = req.contentType || 'application/json';
   }
   return init;
 }
 
-async function get(url, referer, timeout, range) {
+async function get(url, referer, timeout, range, extraHeaders) {
   try {
     const headers = { 'user-agent': UA };
     if (referer) headers.referer = referer;
     if (range) headers.range = range;
+    if (extraHeaders) {
+      for (const k of Object.keys(extraHeaders)) headers[k.toLowerCase()] = extraHeaders[k];
+    }
     const r = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout((timeout || 10) * 1000) });
     const body = range ? '' : await r.text();
     if (range && r.body) await r.body.cancel().catch(() => {});
@@ -74,8 +81,10 @@ globalThis.pw = {
     fetch(req.url, request(req))
       .then(async (r) => {
         const body = await r.text();
+        const headers = {};
+        r.headers.forEach((v, k) => { (headers[k] ||= []).push(v); });
         if (trace) trace.push({ code: r.status, url: req.url });
-        window.__pwBridge.httpDone(id, JSON.stringify({ code: r.status, body }));
+        window.__pwBridge.httpDone(id, JSON.stringify({ code: r.status, headers, body }));
       })
       .catch((e) => {
         if (trace) trace.push({ code: 0, url: req.url, error: e.name || 'ERR' });
@@ -175,7 +184,7 @@ async function check(r) {
   const pick = appPick(formats);
   const unbound = subs.filter((s) => s.src && !formats.some((f) => String(f.label || '').startsWith(s.src))).length;
   if (pick.isHls) {
-    const res = await get(pick.url, pick.referer, 12);
+    const res = await get(pick.url, pick.referer, 12, null, pick.headers);
     if (res.code !== 200) {
       return { ok: false, formats: formats.length, max: maxFmt || null, enSubs: en, pick, unbound, err: `manifest http=${res.code || res.error}` };
     }
@@ -191,7 +200,7 @@ async function check(r) {
       err: ok ? '' : 'no rungs',
     };
   }
-  const res = await get(pick.url, pick.referer, 10, 'bytes=0-0');
+  const res = await get(pick.url, pick.referer, 10, 'bytes=0-0', pick.headers);
   const ok = res.code >= 200 && res.code < 300;
   return { ok, formats: formats.length, max: maxFmt || null, enSubs: en, pick, unbound, err: ok ? '' : `cdn http=${res.code || res.error}` };
 }

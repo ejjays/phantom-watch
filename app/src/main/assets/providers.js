@@ -1,5 +1,5 @@
 // contract: __pwRun(id, leg, argsJson); window.pw = { http, done, fail, log }
-// resolve(ctx) -> { formats: [{url,isHls,label,height,english,referer,enSubs}], subs: [{label,url,src}] }
+// resolve(ctx) -> { formats: [{url,isHls,label,height,english,referer,headers?,enSubs}], subs: [{label,url,src}] }
 (function () {
   var pending = new Map();
   var seq = 0;
@@ -285,7 +285,6 @@
     if (manifest === null) return empty();
     var rungs = masterVariants(manifest, master).map(function (v) {
       var f = fmt(v.url, true, 'vix-' + v.label, v.height);
-      f.referer = referer;
       return f;
     });
     if (!rungs.length) return empty();
@@ -365,7 +364,7 @@
       var h = parseInt(key, 10);
       if (isNaN(h)) h = 0;
       var f = fmt(u, false, 'vidlink-' + (h > 0 ? h + 'p' : 'src'), h);
-      f.referer = referer;
+      f.headers = { 'User-Agent': 'okhttp/4.12.0' };
       f.enSubs = enSubs;
       formats.push(f);
     });

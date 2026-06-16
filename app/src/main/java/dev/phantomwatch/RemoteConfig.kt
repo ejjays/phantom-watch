@@ -89,7 +89,16 @@ object RemoteConfig {
 
     fun top(field: String, def: String): String = root.optString(field).ifEmpty { def }
 
+    fun tmdbKey(): String = svc("tmdb", "key") ?: BuildConfig.TMDB_API_KEY
+
+    fun tmdbBase(): String = (svc("tmdb", "base") ?: "https://api.themoviedb.org/3").trimEnd('/')
+
+    fun tmdbImage(): String = (svc("tmdb", "image") ?: "https://image.tmdb.org/t/p/").trimEnd('/') + "/"
+
     fun script(): String? = script
+
+    private fun svc(name: String, field: String): String? =
+        root.optJSONObject("services")?.optJSONObject(name)?.optString(field)?.trim()?.takeIf { it.isNotEmpty() }
 
     private fun leg(name: String): JSONObject? = root.optJSONObject("legs")?.optJSONObject(name)
 

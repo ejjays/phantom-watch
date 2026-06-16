@@ -18,6 +18,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 
 object JsProviders {
@@ -114,14 +115,21 @@ object JsProviders {
                     val req = JSONObject(reqJson)
                     val b = Request.Builder().url(req.optString("url"))
                         .header("User-Agent", Providers.UA)
-                        .header("Referer", req.optString("referer"))
-                    if (req.optString("method", "GET") == "POST") {
-                        b.post(req.optString("body").toRequestBody("application/json".toMediaType()))
+                    req.optString("referer").takeIf { it.isNotEmpty() }?.let { b.header("Referer", it) }
+                    req.optJSONObject("headers")?.let { h ->
+                        h.keys().forEach { k -> b.header(k, h.optString(k)) }
                     }
+                    val method = req.optString("method", "GET").trim().uppercase().ifEmpty { "GET" }
+                    val body = req.optString("body")
+                    val type = req.optString("contentType", "application/json").ifEmpty { "application/json" }
+                    if (method == "GET" || method == "HEAD") b.method(method, null)
+                    else b.method(method, body.toRequestBody(type.toMediaType()))
                     val call = VidLove.client().newCall(b.build())
                     call.timeout().deadline(req.optLong("timeout", 10).coerceIn(1, 20), TimeUnit.SECONDS)
                     call.execute().use { r ->
-                        JSONObject().put("code", r.code).put("body", r.body?.string().orEmpty())
+                        val hs = JSONObject()
+                        r.headers.toMultimap().forEach { (k, v) -> hs.put(k, JSONArray(v)) }
+                        JSONObject().put("code", r.code).put("headers", hs).put("body", r.body?.string().orEmpty())
                     }
                 } catch (e: Exception) {
                     JSONObject().put("error", e.javaClass.simpleName)

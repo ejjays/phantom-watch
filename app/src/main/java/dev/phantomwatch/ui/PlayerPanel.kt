@@ -54,7 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.phantomwatch.BuildConfig
+import dev.phantomwatch.RemoteConfig
 import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
 import dev.phantomwatch.Episode
@@ -77,7 +77,7 @@ fun PlayerPanel(
     onOpenTitle: ((Title) -> Unit)? = null,
     onHeaderBottom: ((Float) -> Unit)? = null,
 ) {
-    val key = BuildConfig.TMDB_API_KEY
+    val key = RemoteConfig.tmdbKey()
     var detail by remember(media.id) { mutableStateOf(DetailCache.detail(media.id)) }
     LaunchedEffect(media.id) {
         if (detail != null) return@LaunchedEffect

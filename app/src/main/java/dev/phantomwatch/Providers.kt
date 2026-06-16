@@ -17,7 +17,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class VFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false)
+data class VFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap())
 
 object Providers {
     internal val UA get() = RemoteConfig.top("ua", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
@@ -90,14 +90,15 @@ object Providers {
         }
     }
 
-    private fun alive(url: String, referer: String): Boolean {
+    private fun alive(f: VFormat): Boolean {
         return try {
-            val req = Request.Builder().url(url)
-                .header("User-Agent", UA)
-                .header("Referer", referer)
-                .header("Range", "bytes=0-0")
-                .build()
-            val call = VidLove.client().newCall(req)
+            val b = Request.Builder().url(f.url).header("User-Agent", UA)
+            if (f.headers.isNotEmpty()) {
+                f.headers.forEach { (k, v) -> b.header(k, v) }
+            } else if (f.referer.isNotEmpty()) {
+                b.header("Referer", f.referer)
+            }
+            val call = VidLove.client().newCall(b.header("Range", "bytes=0-0").build())
             call.timeout().deadline(6, java.util.concurrent.TimeUnit.SECONDS)
             call.execute().use { it.code in 200..299 }
         } catch (_: Exception) {
@@ -411,7 +412,7 @@ object Providers {
         withContext(Dispatchers.IO) {
             if (!RemoteConfig.on("hianime")) return@withContext (emptyList<VFormat>() to emptyList())
             val ep = if (kind == "movie") "movie" else "tv"
-            val meta = fetch("https://api.themoviedb.org/3/$ep/$tmdbId?api_key=${BuildConfig.TMDB_API_KEY}", "https://www.themoviedb.org/")?.takeIf { it.first == 200 }?.second
+            val meta = fetch("${RemoteConfig.tmdbBase()}/$ep/$tmdbId?api_key=${RemoteConfig.tmdbKey()}", "https://www.themoviedb.org/")?.takeIf { it.first == 200 }?.second
             val title = try {
                 val o = JSONObject(meta.orEmpty())
                 (o.optString("name").ifEmpty { o.optString("title") }).substringBefore(':').trim()
@@ -555,7 +556,7 @@ object Providers {
         imdb: String?,
     ): JSONObject = jsArg(tmdbId, kind, season, episode, title, imdb).apply {
         put("cfg", RemoteConfig.legJson(leg))
-        put("tmdbKey", BuildConfig.TMDB_API_KEY)
+        put("tmdbKey", RemoteConfig.tmdbKey())
     }
 
     suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Triple<List<VFormat>, List<Sub>, String?> =
@@ -563,7 +564,7 @@ object Providers {
             withTimeoutOrNull(30000) {
                 coroutineScope {
                     val t0 = System.currentTimeMillis()
-                    val imdb = async { VidLove.imdbOf(tmdbId, kind, BuildConfig.TMDB_API_KEY) }
+                    val imdb = async { VidLove.imdbOf(tmdbId, kind, RemoteConfig.tmdbKey()) }
                     suspend fun <T> leg(name: String, block: suspend () -> T): T {
                         val r = block()
                         AppLog.d("leg $name ${System.currentTimeMillis() - t0}ms")
@@ -603,9 +604,11 @@ object Providers {
                     val all = results.flatMap { it.second.first }
                     val subs = results.flatMap { it.second.second }
                     // bans outlive transient 403/429s; one 1-byte probe re-admits a host that recovered
+                    val blocked = all.count { Torrents.DeadHosts.blocked(it.url) }
+                    if (blocked > 0) AppLog.d("direct dead hosts $blocked")
                     all.filter { Torrents.DeadHosts.blocked(it.url) }
                         .distinctBy { Torrents.DeadHosts.hostOf(it.url) }
-                        .forEach { f -> if (alive(f.url, f.referer)) Torrents.DeadHosts.forgive(f.url) }
+                        .forEach { f -> if (alive(f)) Torrents.DeadHosts.forgive(f.url) }
                     val live = all
                         .filter { it.url !in Torrents.DeadReleases.urls && !Torrents.DeadHosts.blocked(it.url) }
                         // 1080p+ with EN subs first, then adaptive masters, then height
@@ -629,6 +632,9 @@ object Providers {
                 val o = a.optJSONObject(i) ?: continue
                 val url = o.optString("url")
                 if (url.isEmpty()) continue
+                val headers = o.optJSONObject("headers")?.let { h ->
+                    buildMap { h.keys().forEach { k -> put(k, h.optString(k)) } }
+                }.orEmpty()
                 add(
                     VFormat(
                         url,
@@ -639,6 +645,7 @@ object Providers {
                         o.optString("referer"),
                         o.optBoolean("enSubs"),
                         o.optBoolean("enAudio"),
+                        headers,
                     ),
                 )
             }

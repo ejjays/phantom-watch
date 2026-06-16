@@ -1,6 +1,12 @@
 {
   "version": 1,
   "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+  "services": {
+    "tmdb": {
+      "base": "https://api.themoviedb.org/3",
+      "image": "https://image.tmdb.org/t/p/"
+    }
+  },
   "legs": {
     "love": {
       "enabled": true,

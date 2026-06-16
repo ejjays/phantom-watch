@@ -68,6 +68,7 @@ import coil3.request.ImageRequest
 import dev.phantomwatch.AppLog
 import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
+import dev.phantomwatch.RemoteConfig
 import dev.phantomwatch.Resolve
 import dev.phantomwatch.Episode
 import dev.phantomwatch.Person
@@ -101,7 +102,7 @@ fun MovieDetail(
     startEpisodes: Boolean = false,
     onEpisodesExit: (() -> Unit)? = null,
 ) {
-    val key = BuildConfig.TMDB_API_KEY
+    val key = RemoteConfig.tmdbKey()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var detail by remember(item.id) { mutableStateOf(DetailCache.detail(item.id)) }
@@ -479,7 +480,7 @@ private fun Avatar(person: Person, size: androidx.compose.ui.unit.Dp, loadPhoto:
 
 @Composable
 private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (String, String) -> Unit, onViewAll: () -> Unit) {
-    val key = BuildConfig.TMDB_API_KEY
+    val key = RemoteConfig.tmdbKey()
     val seasons = detail.seasons
     var seasonIdx by remember(detail.id) { mutableStateOf(seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0) }
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
@@ -602,7 +603,7 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
 
 @Composable
 internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> Unit, onEpisode: (String, String) -> Unit) {
-    val key = BuildConfig.TMDB_API_KEY
+    val key = RemoteConfig.tmdbKey()
     val seasons = detail?.seasons.orEmpty()
     var seasonIdx by remember(detail?.id) {
         val def = seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0
