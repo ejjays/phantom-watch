@@ -1,0 +1,61 @@
+name: config-check
+on:
+  push:
+    paths:
+      - app/src/main/assets/providers.js
+      - app/src/main/assets/providers.json
+      - probe.js
+      - sign_config.py
+      - .github/workflows/config-check.yml
+  pull_request:
+    paths:
+      - app/src/main/assets/providers.js
+      - app/src/main/assets/providers.json
+      - probe.js
+      - sign_config.py
+      - .github/workflows/config-check.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: JS syntax
+        run: |
+          node --check app/src/main/assets/providers.js
+          node --check probe.js
+      - name: Config schema
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          cfg = json.loads(pathlib.Path('app/src/main/assets/providers.json').read_text())
+          assert isinstance(cfg.get('version'), int), 'version is not an int'
+          legs = cfg.get('legs')
+          assert isinstance(legs, dict) and legs, 'legs missing or empty'
+          enabled = []
+          for name, leg in legs.items():
+              assert isinstance(leg, dict), f'{name}: leg is not an object'
+              on = leg.get('enabled', True)
+              assert isinstance(on, bool), f'{name}: enabled is not a bool'
+              enabled.append(on)
+          assert any(enabled), 'no enabled legs'
+          services = cfg.get('services', {})
+          assert isinstance(services, dict), 'services is not an object'
+          tmdb = services.get('tmdb', {})
+          assert isinstance(tmdb, dict), 'services.tmdb is not an object'
+          for field in ('base', 'image'):
+              if field in tmdb:
+                  assert isinstance(tmdb[field], str) and tmdb[field].startswith('http'), f'services.tmdb.{field}'
+          if 'key' in tmdb:
+              assert isinstance(tmdb['key'], str), 'services.tmdb.key is not a string'
+          js = pathlib.Path('app/src/main/assets/providers.js').read_text()
+          assert js.strip(), 'providers.js is empty'
+          print(f'providers.json ok: {len(legs)} legs, {sum(enabled)} enabled')
+          PY
+      - name: Python syntax
+        run: python3 -m py_compile sign_config.py
