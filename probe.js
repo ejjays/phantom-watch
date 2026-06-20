@@ -136,6 +136,18 @@ function enMedia(text) {
   return ((text || '').match(/#EXT-X-MEDIA:[^\r\n]*/g) || []).some((m) => /TYPE=SUBTITLES/.test(m) && /LANGUAGE="?en/.test(m));
 }
 
+async function subCheck(sub, pick) {
+  const headers = Object.assign({}, pick.headers || {});
+  let referer = pick.referer || '';
+  if (Object.keys(headers).length) referer = '';
+  else if (referer) {
+    try { headers.Origin = `https://${new URL(referer).host}`; } catch (e) {}
+  }
+  const res = await get(sub.url, referer, 12, null, headers);
+  if (res.code < 200 || res.code >= 300) return `sub http=${res.code || res.error}`;
+  return /-->|Dialogue:/.test(res.body || '') ? '' : 'sub no cues';
+}
+
 function note(trace) {
   const bad = trace.find((x) => x.error || x.code < 200 || x.code >= 300);
   if (!bad) return '';
@@ -177,32 +189,51 @@ function pickText(f) {
 async function check(r) {
   const formats = (r && r.formats) || [];
   const subs = (r && r.subs) || [];
-  let en = formats.some((f) => f.enSubs) || subs.some((s) => /english/i.test(s.label || ''));
+  const enAny = formats.some((f) => f.enSubs) || subs.some((s) => /english/i.test(s.label || ''));
   const heightsFmt = formats.map((f) => fmtH(f));
   const maxFmt = heightsFmt.length ? Math.max(...heightsFmt) : 0;
-  if (!formats.length) return { ok: false, formats: 0, max: null, enSubs: en, pick: null, unbound: 0, err: 'empty' };
+  if (!formats.length) return { ok: false, formats: 0, max: null, enSubs: enAny, pick: null, h: null, unbound: 0, err: 'empty' };
   const pick = appPick(formats);
+  const usable = subs.filter((s) => !s.src || String(pick.label || '').startsWith(s.src));
+  let en = pick.enSubs || usable.some((s) => /english/i.test(s.label || ''));
+  const enSub = usable.find((s) => /english/i.test(s.label || ''));
+  let subErr = '';
+  if (enSub) {
+    subErr = await subCheck(enSub, pick);
+    if (subErr) en = false;
+  }
+  const pickH = fmtH(pick) > 0 ? fmtH(pick) : null;
   const unbound = subs.filter((s) => s.src && !formats.some((f) => String(f.label || '').startsWith(s.src))).length;
   if (pick.isHls) {
     const res = await get(pick.url, pick.referer, 12, null, pick.headers);
     if (res.code !== 200) {
-      return { ok: false, formats: formats.length, max: maxFmt || null, enSubs: en, pick, unbound, err: `manifest http=${res.code || res.error}` };
+      return { ok: false, formats: formats.length, max: maxFmt || null, enSubs: en, pick, h: pickH, unbound, err: [subErr, `manifest http=${res.code || res.error}`].filter(Boolean).join(' ') };
     }
     const rungs = heights(res.body);
-    const ok = rungs.length > 0 || /#EXTINF/.test(res.body);
+    const ok = /#EXTM3U/.test(res.body) && (rungs.length > 0 || /#EXTINF/.test(res.body));
     return {
-      ok,
+      ok: ok && !subErr,
       formats: formats.length,
       max: rungs.length ? Math.max(...rungs) : maxFmt || null,
       enSubs: en || enMedia(res.body),
       pick,
+      h: rungs.length ? Math.max(...rungs) : pickH,
       unbound,
-      err: ok ? '' : 'no rungs',
+      err: [subErr, ok ? '' : 'no rungs'].filter(Boolean).join(' '),
     };
   }
   const res = await get(pick.url, pick.referer, 10, 'bytes=0-0', pick.headers);
   const ok = res.code >= 200 && res.code < 300;
-  return { ok, formats: formats.length, max: maxFmt || null, enSubs: en, pick, unbound, err: ok ? '' : `cdn http=${res.code || res.error}` };
+  return {
+    ok: ok && !subErr,
+    formats: formats.length,
+    max: maxFmt || null,
+    enSubs: en,
+    pick,
+    h: pickH,
+    unbound,
+    err: [subErr, ok ? '' : `cdn http=${res.code || res.error}`].filter(Boolean).join(' '),
+  };
 }
 
 function skipFor(leg, job, info) {
@@ -238,6 +269,7 @@ async function run(leg, job, info) {
     formats: c.formats,
     max: c.max,
     enSubs: c.enSubs,
+    h: c.h,
     ms,
     best: pickText(c.pick),
     err: c.err + (c.ok ? '' : note(trace)) + (c.unbound ? ` subs-unbound=${c.unbound}` : ''),
@@ -279,12 +311,14 @@ async function main() {
       r.title = `${job.kind}/${job.tmdbId}` + (job.kind === 'tv' ? ` s${job.season}e${job.episode}` : '');
       rows.push(r);
       const k = `${r.provider}:${r.title}`;
-      cur[k] = { ok: r.ok, formats: r.formats, max: r.max, enSubs: r.enSubs };
+      cur[k] = { ok: r.ok, formats: r.formats, max: r.max, enSubs: r.enSubs, h: r.h ?? null };
       const p = prev[k];
       if (r.skip) r.flag = 'skip';
       else if (!p) r.flag = '';
       else if (p.ok !== r.ok) r.flag = r.ok ? 'recovered' : 'REGRESSED';
       else if (p.enSubs && !r.enSubs) r.flag = 'en lost';
+      else if (p.h > 0 && r.h > 0 && r.h < p.h) r.flag = `pick ${p.h}->${r.h}`;
+      else if (p.max > 0 && r.max > 0 && r.max < p.max) r.flag = `max ${p.max}->${r.max}`;
       else r.flag = '';
       if (!r.ok && !r.skip) fails++;
     }
