@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.Uri
 import android.os.SystemClock
+import android.widget.Toast
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -36,8 +37,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -94,12 +98,16 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import com.frostwire.jlibtorrent.TorrentHandle
+import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.ui.DetailCache
 import dev.phantomwatch.ui.PlayerPanel
 import dev.phantomwatch.ui.PlayerStage
 import dev.phantomwatch.ui.SeekMark
 import dev.phantomwatch.ui.SeekSide
+import dev.phantomwatch.ui.WatchRed
 import dev.phantomwatch.ui.ZoneTap
+import dev.reicon.Download
+import dev.reicon.ReiconIcon
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -1163,6 +1171,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var videoH by remember { mutableStateOf(0) }
     var playing by remember { mutableStateOf(false) }
     var stalled by remember { mutableStateOf(true) }
+    var downloadOpen by remember { mutableStateOf(false) }
+    var downloadInstall by remember { mutableStateOf(false) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
     var seekMark by remember { mutableStateOf<SeekMark?>(null) }
     var hideJob: Job? by remember { mutableStateOf(null) }
     var lastTapAt by remember { mutableStateOf(0L) }
@@ -1605,6 +1616,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         )
     }
     val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    Box(Modifier.fillMaxSize()) {
     if (PipCtl.inPip) {
         stage(0.dp, videoAspect < 16f / 9f, false)
     } else if (wide) {
@@ -1746,5 +1758,86 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 }
             }
         }
+    }
+        if (!PipCtl.inPip && WatchDownload.isHttpUrl(stream.url)) {
+            SmallFloatingActionButton(
+                onClick = {
+                    downloadInstall = false
+                    downloadError = null
+                    downloadOpen = true
+                },
+                modifier = Modifier.align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp)
+                    .navigationBarsPadding(),
+                containerColor = Color(0xE61E293B),
+                contentColor = Cyan,
+            ) {
+                ReiconIcon(
+                    Download.Outline,
+                    contentDescription = "Download",
+                    tint = Cyan,
+                    size = 20.dp,
+                )
+            }
+        }
+    }
+    if (downloadOpen) {
+        val installed = remember(downloadOpen) { WatchDownload.isInstalled(context) }
+        val useInstall = downloadInstall || !installed
+        AlertDialog(
+            onDismissRequest = { downloadOpen = false },
+            title = { Text("Download with Phantom") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(WatchDownload.baseName(media.title, season, episode))
+                    Text(if (videoH > 0) "${videoH}p" else "Auto quality", color = Cyan)
+                    Text(
+                        when {
+                            WatchDownload.englishSub(stream.subs) != null -> "English subtitle included."
+                            stream.isHls -> "English subtitle added if the stream provides one."
+                            else -> "No separate English subtitle found."
+                        },
+                    )
+                    Text("Saves to Movies/PhantomWatch.")
+                    downloadError?.let { Text(it, color = WatchRed) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (useInstall) {
+                        WatchDownload.openInstall(context)
+                        downloadOpen = false
+                        return@TextButton
+                    }
+                    val job = WatchDownload.build(
+                        media = media,
+                        season = season,
+                        episode = episode,
+                        stream = stream,
+                        headers = mediaHeaders(stream),
+                        height = videoH,
+                        durationMs = durationMs,
+                    )
+                    if (job == null || !WatchDownload.send(context, job)) {
+                        downloadInstall = true
+                        downloadError = "Phantom needs an update. Install the latest version and try again."
+                    } else {
+                        downloadOpen = false
+                        Toast.makeText(context, "Opening Phantom…", Toast.LENGTH_SHORT).show()
+                    }
+                }) {
+                    Text(
+                        if (useInstall) {
+                            if (installed) "Update Phantom" else "Install Phantom"
+                        } else {
+                            "Open Phantom"
+                        }
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { downloadOpen = false }) { Text("Cancel") }
+            },
+        )
     }
 }
