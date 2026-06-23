@@ -881,23 +881,25 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 }
                 osStatus = "OS…"
                 val headers = mediaHeaders(stream)
-                val hh = withContext(Dispatchers.IO) { OsSubs.hashOf(stream.url, headers) }
-                if (hh != null) {
-                    val (hash, size) = hh
-                    AppLog.d("os hash $hash $size")
-                    val hf = OsSubs.cached(context.cacheDir, hash)
-                        ?: withContext(Dispatchers.IO) {
-                            OsSubs.search(key, hash, size)?.let { id ->
-                                OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, hash) }
+                if (!stream.isHls) {
+                    val hh = withContext(Dispatchers.IO) { OsSubs.hashOf(stream.url, headers) }
+                    if (hh != null) {
+                        val (hash, size) = hh
+                        AppLog.d("os hash $hash $size")
+                        val hf = OsSubs.cached(context.cacheDir, hash)
+                            ?: withContext(Dispatchers.IO) {
+                                OsSubs.search(key, hash, size)?.let { id ->
+                                    OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, hash) }
+                                }
                             }
+                        if (hf != null) {
+                            showOsSub(hf, hash)
+                            return@launch
                         }
-                    if (hf != null) {
-                        showOsSub(hf, hash)
-                        return@launch
+                        AppLog.d("os no hash match")
+                    } else {
+                        AppLog.d("os unhashable")
                     }
-                    AppLog.d("os no hash match")
-                } else {
-                    AppLog.d("os unhashable")
                 }
                 if (stream.imdb.isNullOrEmpty()) {
                     AppLog.d("os no imdb, stop")
@@ -1412,7 +1414,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     DisposableEffect(subView) {
         val v = subView ?: return@DisposableEffect onDispose {}
         val l = object : Player.Listener {
+            private var logged = false
             override fun onCues(cues: List<Cue>) {
+                if (!logged && cues.isNotEmpty()) {
+                    logged = true
+                    AppLog.d("subs cues ${cues.size}")
+                }
                 v.setCues(cues)
             }
         }
