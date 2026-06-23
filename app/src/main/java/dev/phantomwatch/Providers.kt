@@ -587,9 +587,14 @@ object Providers {
                             if (RemoteConfig.on(name)) {
                                 val imdbArg = if (name == "vap") imdb.await() else null
                                 val js = JsProviders.resolve(name, jsArgs(name, tmdbId, kind, season, episode, title, imdbArg), 12)
-                                val pair = formatsOf(js)?.let { it to subsOf(js) }
-                                    ?: kt[name]?.let { f -> leg(name) { withTimeoutOrNull(15000) { f() } } }
-                                    ?: (emptyList<VFormat>() to emptyList<Sub>())
+                                val jf = formatsOf(js)
+                                val jsubs = subsOf(js)
+                                val pair = if (jf != null && (jf.isNotEmpty() || jsubs.isNotEmpty())) {
+                                    jf to jsubs
+                                } else {
+                                    kt[name]?.let { f -> leg(name) { withTimeoutOrNull(15000) { f() } } }
+                                        ?: (jf.orEmpty() to jsubs)
+                                }
                                 if (pair.first.isEmpty() && name !in kt) AppLog.d("leg $name empty")
                                 name to pair
                             } else {
