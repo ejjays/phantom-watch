@@ -75,6 +75,7 @@ data class Stream(
     val auth: String? = null,
     val imdb: String? = null,
     val headers: Map<String, String> = emptyMap(),
+    val enSubs: Boolean = false,
 )
 
 private const val VIDLOVE_API = "https://api.vidlove.cc"

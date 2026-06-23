@@ -334,7 +334,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             val best = live.first()
             val streamSubs = Providers.subsFor(best, bundle.subs)
             AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
-            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers)
+            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -450,6 +450,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         if (flat.isEmpty()) return@LaunchedEffect
         val names = flat.map { it.third }
         var wi = rankEmbed(names)
+        if (osTrack != null) {
+            val nonOs = names.indexOfFirst { it != osTrack }
+            if (nonOs >= 0) wi = nonOs
+        }
         if (wi < 0 && names.size == 1) wi = 0
         val dg = if (wi >= 0) flat[wi].first else flat.first().first
         val dnames = (0 until dg.length).map { i -> nameOf(dg.getFormat(i)) }
@@ -461,7 +465,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             if (wi >= 0) {
                 val (g, idx) = flat[wi]
                 val sel = exo.trackSelector as? DefaultTrackSelector
-                if (sel != null && names.getOrNull(wi) != osTrack) {
+                if (sel != null) {
                     embedIdx = idx
                     sel.parameters = sel.buildUponParameters()
                         .setOverrideForType(
@@ -835,8 +839,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         }
     }
     fun showOsSub(f: java.io.File, hash: String) {
-        val merged = (stream.subs + Sub("English", Uri.fromFile(f).toString())).distinctBy { it.url }
-        osTrack = "en:English"
+        val label = "English (OpenSubtitles)"
+        val merged = (stream.subs + Sub(label, Uri.fromFile(f).toString())).distinctBy { it.url }
+        osTrack = "en:$label"
         val pos = exo.currentPosition
         val wasPlaying = exo.isPlaying
         exo.setMediaSource(sourceFor(context, stream, merged, null, ctl, meta), pos)
@@ -853,6 +858,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 val key = BuildConfig.OS_API_KEY
                 if (key.isEmpty()) {
                     AppLog.d("os no api key")
+                    return@launch
+                }
+                if (stream.enSubs) {
+                    AppLog.d("os skipped, provider en subs")
                     return@launch
                 }
                 delay(8000)
