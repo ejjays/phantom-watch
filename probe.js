@@ -9,6 +9,7 @@ const ROOT = __dirname;
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'app/src/main/assets/providers.json'), 'utf8'));
 const UA = cfg.ua || 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36';
 const BASE = path.join(ROOT, 'probe_last.json');
+const HIST = path.join(ROOT, 'probe_history.jsonl');
 const MOVIES = ['1560520', '980431', '1108427', '969681'];
 const TVS = [['127532', '1', '1'], ['62715', '1', '1']];
 const LEGS = Object.keys(cfg.legs || {});
@@ -331,8 +332,28 @@ async function main() {
     console.log(`${r.provider.padEnd(9)} ${r.title.padEnd(16)} ${String(r.ms).padStart(6)} ${String(r.formats).padStart(4)} ${mx.padStart(5)} ${r.enSubs ? 'Y' : '-'} ${st.padEnd(6)} ${(r.best || '-').padEnd(16)} ${noteText}`);
   }
   fs.writeFileSync(BASE, JSON.stringify(cur, null, 1));
+  fs.appendFileSync(HIST, JSON.stringify({ date: new Date().toLocaleDateString('sv'), ok: rows.length - fails, total: rows.length, legs: cur }) + '\n');
   console.log(`\n${rows.length - fails}/${rows.length} ok` + (Object.keys(prev).length ? '' : ' — baseline updated'));
   process.exit(fails ? 1 : 0);
+}
+
+function history() {
+  let lines = [];
+  try { lines = fs.readFileSync(HIST, 'utf8').split('\n').filter(Boolean); } catch (e) {}
+  for (const line of lines) {
+    let h;
+    try { h = JSON.parse(line); } catch (e) { continue; }
+    const cells = Object.keys(cfg.legs || {}).map((l) => {
+      const keys = Object.keys(h.legs || {}).filter((k) => k.startsWith(l + ':'));
+      return `${l} ${keys.filter((k) => h.legs[k].ok).length}/${keys.length}`;
+    });
+    console.log(`${h.date}  ${h.ok}/${h.total}  ${cells.join('  ')}`);
+  }
+}
+
+if (process.argv.includes('--history')) {
+  history();
+  process.exit(0);
 }
 
 main();
