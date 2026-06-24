@@ -1,0 +1,14 @@
+name = "phantomwatch-telemetry"
+main = "telemetry.mjs"
+compatibility_date = "2026-10-01"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[vars]
+DIGEST_UTC_HOUR = "1"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "phantomwatch-telemetry"
+database_id = "c06c9bec-65f5-48dc-bde4-94d5c8bb425f"

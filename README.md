@@ -36,6 +36,13 @@ then upload `build/pages-config/providers.json` alone to the `CFG_URL` from
 The signing key lives in the `OTA_KEY` Actions secret; `gh workflow run sign-config.yml
 -f version=N` produces a signed bundle without the original device.
 
+## Provider telemetry (Telegram alerts)
+
+`worker/` is a Cloudflare Worker (D1 + hourly cron) that stores one event per
+resolve — per-leg format counts and timings, TMDB ids only — and messages
+Telegram when a leg collapses. Agents read it with
+`GET /health?k=...&days=7`. Setup: `worker/README.md`.
+
 ## Subtitle cache (Supabase, once)
 
 Sub hauls are cached per title so one opensubtitles fetch serves every

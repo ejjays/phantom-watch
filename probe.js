@@ -16,13 +16,36 @@ const LEGS = Object.keys(cfg.legs || {});
 const KEY = tmdbKey();
 const als = new AsyncLocalStorage();
 
-function tmdbKey() {
+function localProp(name) {
   try {
-    const m = fs.readFileSync(path.join(ROOT, 'local.properties'), 'utf8').match(/^TMDB_API_KEY=(.+)$/m);
+    const m = fs.readFileSync(path.join(ROOT, 'local.properties'), 'utf8').match(new RegExp(`^${name}=(.+)$`, 'm'));
     return m ? m[1].trim() : '';
   } catch (e) {
     return '';
   }
+}
+
+function tmdbKey() {
+  return localProp('TMDB_API_KEY');
+}
+
+async function push(posts) {
+  const url = localProp('TELEMETRY_URL');
+  if (!url) return;
+  const key = localProp('TELEMETRY_KEY');
+  let sent = 0;
+  for (const p of posts) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(Object.assign({ k: key, src: 'probe', v: 'probe' }, p)),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (r.ok) sent++;
+    } catch (e) {}
+  }
+  console.log(`telemetry ${sent}/${posts.length}`);
 }
 
 function request(req) {
@@ -298,10 +321,14 @@ async function main() {
     .concat(TVS.map(([t, s, e]) => ({ kind: 'tv', tmdbId: t, season: s, episode: e })));
   const rows = [];
   const cur = {};
+  const posts = [];
   let fails = 0;
   for (const job of jobs) {
     const info = await meta(job);
     const got = await Promise.all(LEGS.map((leg) => run(leg, job, info)));
+    const legs = {};
+    let formats = 0;
+    let pick = '';
     for (let i = 0; i < got.length; i++) {
       let r = got[i];
       if (!r.ok && !r.skip) {
@@ -311,6 +338,11 @@ async function main() {
       }
       r.title = `${job.kind}/${job.tmdbId}` + (job.kind === 'tv' ? ` s${job.season}e${job.episode}` : '');
       rows.push(r);
+      if (!r.skip) {
+        legs[r.provider] = [r.formats, r.ms, r.max || 0, r.enSubs ? 1 : 0];
+        formats += r.formats;
+        if (!pick && r.ok && r.best) pick = r.best;
+      }
       const k = `${r.provider}:${r.title}`;
       cur[k] = { ok: r.ok, formats: r.formats, max: r.max, enSubs: r.enSubs, h: r.h ?? null };
       const p = prev[k];
@@ -323,6 +355,16 @@ async function main() {
       else r.flag = '';
       if (!r.ok && !r.skip) fails++;
     }
+    posts.push({
+      kind: job.kind,
+      id: job.tmdbId,
+      s: job.season,
+      e: job.episode,
+      ms: Object.values(legs).reduce((a, v) => a + v[1], 0),
+      f: formats,
+      pick,
+      legs,
+    });
   }
   console.log(`${'provider'.padEnd(9)} ${'title'.padEnd(16)} ${'ms'.padStart(6)} ${'fmts'.padStart(4)} ${'max'.padStart(5)} en ${'st'.padEnd(6)} ${'best'.padEnd(16)} note`);
   for (const r of rows) {
@@ -334,6 +376,7 @@ async function main() {
   fs.writeFileSync(BASE, JSON.stringify(cur, null, 1));
   fs.appendFileSync(HIST, JSON.stringify({ date: new Date().toLocaleDateString('sv'), ok: rows.length - fails, total: rows.length, legs: cur }) + '\n');
   console.log(`\n${rows.length - fails}/${rows.length} ok` + (Object.keys(prev).length ? '' : ' — baseline updated'));
+  await push(posts);
   process.exit(fails ? 1 : 0);
 }
 

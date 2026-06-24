@@ -30,6 +30,8 @@ android {
         buildConfigField("String", "SEEDBOX_USER", "\"${localProps.getProperty("SEEDBOX_USER", "")}\"")
         buildConfigField("String", "SEEDBOX_PASS", "\"${localProps.getProperty("SEEDBOX_PASS", "")}\"")
         buildConfigField("String", "CFG_URL", "\"${localProps.getProperty("CFG_URL", "")}\"")
+        buildConfigField("String", "TELEMETRY_URL", "\"${localProps.getProperty("TELEMETRY_URL", "")}\"")
+        buildConfigField("String", "TELEMETRY_KEY", "\"${localProps.getProperty("TELEMETRY_KEY", "")}\"")
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
