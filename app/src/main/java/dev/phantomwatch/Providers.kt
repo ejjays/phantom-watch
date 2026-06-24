@@ -1,14 +1,18 @@
 package dev.phantomwatch
 
+import android.net.Uri
 import java.net.URL
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -74,18 +78,22 @@ object Providers {
         return String(pt, Charsets.UTF_8)
     }
 
+    private val longHttp by lazy { VidLove.client().newBuilder().readTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build() }
+
     private fun fetch(url: String, referer: String, timeoutSec: Long = 10): Pair<Int, String>? {
         return try {
             val req = Request.Builder().url(url)
                 .header("User-Agent", UA)
                 .header("Referer", referer)
                 .build()
-            val call = VidLove.client().newCall(req)
+            val call = (if (timeoutSec > 10) longHttp else VidLove.client()).newCall(req)
             call.timeout().deadline(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
             call.execute().use { res ->
+                if (res.code !in 200..299) AppLog.d("fetch ${Uri.parse(url).host} ${res.code}")
                 res.code to (res.body?.string().orEmpty())
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            AppLog.d("fetch ${Uri.parse(url).host} ${e.toString().take(80)}")
             null
         }
     }
@@ -388,7 +396,7 @@ object Providers {
                 .header("Referer", referer)
                 .post(json.toRequestBody("application/json".toMediaType()))
                 .build()
-            val call = VidLove.client().newCall(req)
+            val call = (if (timeoutSec > 10) longHttp else VidLove.client()).newCall(req)
             call.timeout().deadline(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
             call.execute().use { res ->
                 if (res.code != 200) null else JSONObject(res.body?.string().orEmpty())
@@ -471,7 +479,7 @@ object Providers {
             if (!RemoteConfig.on("paradise")) return@withContext (emptyList<VFormat>() to emptyList())
             if (kind != "tv" || season != "1" || title.isEmpty()) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
             fun getJson(path: String): JSONObject? {
-                val (code, body) = fetch("$PARA_API$path", "$PARA_ORIGIN/", 8) ?: return null
+                val (code, body) = fetch("$PARA_API$path", "$PARA_ORIGIN/", 15) ?: return null
                 if (code != 200) return null
                 return try {
                     JSONObject(body)
@@ -524,7 +532,7 @@ object Providers {
                 }
             }
             val masterUrl = "$PARA_STREAM/m3u8?url=${java.net.URLEncoder.encode(streamLink, "UTF-8")}"
-            val (_, manifest) = fetch(masterUrl, "$PARA_ORIGIN/", 8) ?: return@withContext (emptyList<VFormat>() to emptyList<Sub>())
+            val (_, manifest) = fetch(masterUrl, "$PARA_ORIGIN/", 20) ?: return@withContext (emptyList<VFormat>() to emptyList<Sub>())
             if (!manifest.contains("#EXTM3U")) return@withContext (emptyList<VFormat>() to emptyList<Sub>())
             val (rSubs, rAudio) = enRenditions(manifest)
             val enSubs = rSubs || subs.isNotEmpty()
@@ -561,7 +569,8 @@ object Providers {
 
     suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Triple<List<VFormat>, List<Sub>, String?> =
         withContext(Dispatchers.IO) {
-            withTimeoutOrNull(30000) {
+            AppLog.d("direct $kind/$tmdbId s=$season e=$episode \"$title\"")
+            withTimeoutOrNull(35000) {
                 coroutineScope {
                     val t0 = System.currentTimeMillis()
                     val imdb = async { VidLove.imdbOf(tmdbId, kind, RemoteConfig.tmdbKey()) }
@@ -584,22 +593,24 @@ object Providers {
                     )
                     val results = names.map { name ->
                         async {
-                            if (RemoteConfig.on(name)) {
+                            val tLeg = System.currentTimeMillis()
+                            val pair: Pair<List<VFormat>, List<Sub>> = if (!RemoteConfig.on(name)) {
+                                emptyList<VFormat>() to emptyList<Sub>()
+                            } else {
                                 val imdbArg = if (name == "vap") imdb.await() else null
-                                val js = JsProviders.resolve(name, jsArgs(name, tmdbId, kind, season, episode, title, imdbArg), 12)
+                                val js = JsProviders.resolve(name, jsArgs(name, tmdbId, kind, season, episode, title, imdbArg), if (name == "paradise") 28 else 12)
                                 val jf = formatsOf(js)
                                 val jsubs = subsOf(js)
-                                val pair = if (jf != null && (jf.isNotEmpty() || jsubs.isNotEmpty())) {
+                                val p = if (jf != null && (jf.isNotEmpty() || jsubs.isNotEmpty())) {
                                     jf to jsubs
                                 } else {
-                                    kt[name]?.let { f -> leg(name) { withTimeoutOrNull(15000) { f() } } }
+                                    kt[name]?.let { f -> leg(name) { withTimeoutOrNull(if (name == "paradise") 25000 else 15000) { f() } } }
                                         ?: (jf.orEmpty() to jsubs)
                                 }
-                                if (pair.first.isEmpty() && name !in kt) AppLog.d("leg $name empty")
-                                name to pair
-                            } else {
-                                name to (emptyList<VFormat>() to emptyList<Sub>())
+                                if (p.first.isEmpty() && name !in kt) AppLog.d("leg $name empty")
+                                p
                             }
+                            Triple(name, pair, System.currentTimeMillis() - tLeg)
                         }
                     }.awaitAll()
                     AppLog.d(
@@ -626,9 +637,61 @@ object Providers {
                                 .thenByDescending { it.height },
                         )
                     Triple(live.distinctBy { it.url }, subs.distinctBy { it.url }, imdb.await())
+                        .also { report(tmdbId, kind, season, episode, System.currentTimeMillis() - t0, live.size, live.firstOrNull(), results) }
                 }
             } ?: Triple(emptyList(), emptyList(), null)
         }
+
+    private val telemetryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private fun report(
+        tmdbId: String,
+        kind: String,
+        season: String,
+        episode: String,
+        ms: Long,
+        formats: Int,
+        best: VFormat?,
+        results: List<Triple<String, Pair<List<VFormat>, List<Sub>>, Long>>,
+    ) {
+        val url = BuildConfig.TELEMETRY_URL
+        if (url.isEmpty()) return
+        telemetryScope.launch {
+            runCatching {
+                val legs = JSONObject()
+                results.forEach { (name, pair, legMs) ->
+                    if (RemoteConfig.on(name)) {
+                        legs.put(
+                            name,
+                            JSONArray().put(pair.first.size).put(legMs)
+                                .put(pair.first.maxOfOrNull { it.height } ?: 0)
+                                .put(if (pair.first.any { it.enSubs }) 1 else 0),
+                        )
+                    }
+                }
+                val body = JSONObject()
+                    .put("k", BuildConfig.TELEMETRY_KEY)
+                    .put("v", BuildConfig.VERSION_NAME)
+                    .put("cfg", RemoteConfig.version())
+                    .put("kind", kind)
+                    .put("id", tmdbId)
+                    .put("s", season)
+                    .put("e", episode)
+                    .put("ms", ms)
+                    .put("f", formats)
+                    .put("pick", best?.label.orEmpty())
+                    .put("h", best?.height ?: 0)
+                    .put("ens", best?.enSubs == true)
+                    .put("ena", best?.enAudio == true)
+                    .put("hls", best?.isHls == true)
+                    .put("legs", legs)
+                val req = Request.Builder().url(url)
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                VidLove.client().newCall(req).execute().close()
+            }
+        }
+    }
 
     private fun formatsOf(j: JSONObject?): List<VFormat>? {
         val a = j?.optJSONArray("formats") ?: return null

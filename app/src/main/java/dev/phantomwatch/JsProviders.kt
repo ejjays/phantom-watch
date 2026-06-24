@@ -29,6 +29,7 @@ object JsProviders {
     private val created = CompletableDeferred<Unit>()
     private val ready = CompletableDeferred<Unit>()
     private val waiting = ConcurrentHashMap<String, CompletableDeferred<JSONObject?>>()
+    private val longClient by lazy { VidLove.client().newBuilder().readTimeout(30, TimeUnit.SECONDS).build() }
 
     private var app: Context? = null
     private var script = ""
@@ -124,14 +125,19 @@ object JsProviders {
                     val type = req.optString("contentType", "application/json").ifEmpty { "application/json" }
                     if (method == "GET" || method == "HEAD") b.method(method, null)
                     else b.method(method, body.toRequestBody(type.toMediaType()))
-                    val call = VidLove.client().newCall(b.build())
-                    call.timeout().deadline(req.optLong("timeout", 10).coerceIn(1, 20), TimeUnit.SECONDS)
+                    val sec = req.optLong("timeout", 10).coerceIn(1, 20)
+                    val call = (if (sec > 10) longClient else VidLove.client()).newCall(b.build())
+                    call.timeout().deadline(sec, TimeUnit.SECONDS)
                     call.execute().use { r ->
+                        val body = r.body?.string().orEmpty()
+                        val host = req.optString("url").substringAfter("://").substringBefore('/')
+                        if (r.code !in 200..299) AppLog.d("http $host ${r.code}")
                         val hs = JSONObject()
                         r.headers.toMultimap().forEach { (k, v) -> hs.put(k, JSONArray(v)) }
-                        JSONObject().put("code", r.code).put("headers", hs).put("body", r.body?.string().orEmpty())
+                        JSONObject().put("code", r.code).put("headers", hs).put("body", body)
                     }
                 } catch (e: Exception) {
+                    AppLog.d("http ${reqJson.take(80)} ${e.toString().take(80)}")
                     JSONObject().put("error", e.javaClass.simpleName)
                 }
                 JsProviders.eval(

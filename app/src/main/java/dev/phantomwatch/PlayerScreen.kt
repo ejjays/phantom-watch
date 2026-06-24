@@ -165,6 +165,7 @@ internal fun rankEmbed(names: List<String>): Int {
         var s = 0
         if ("dialog" in l || "full" in l || "complete" in l) s += 10
         if ("sign" in l || "song" in l || "s&s" in l) s -= 10
+        if ("forced" in l) s -= 20
         if (s > bestScore) {
             bestScore = s
             best = i
@@ -250,11 +251,14 @@ private fun buildMediaFactory(
             },
         ).setLoadErrorHandlingPolicy(retry)
     }
-    return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-        DefaultHttpDataSource.Factory()
-            .setUserAgent(headers.getValue("User-Agent"))
-            .setDefaultRequestProperties(headers),
-    ).setLoadErrorHandlingPolicy(retry)
+    val http = DefaultHttpDataSource.Factory()
+        .setUserAgent(headers.getValue("User-Agent"))
+        .setDefaultRequestProperties(headers)
+    if (stream.url.contains("animeparadise.moe")) {
+        http.setConnectTimeoutMs(15000).setReadTimeoutMs(30000)
+    }
+    return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(http)
+        .setLoadErrorHandlingPolicy(retry)
 }
 
 @OptIn(UnstableApi::class)
@@ -1338,6 +1342,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     LaunchedEffect(stream.url) {
         locked = false
         poke()
+        var stallAt = 0L
+        var stalls = 0
         while (true) {
             positionMs = exo.currentPosition
             durationMs = exo.duration.coerceAtLeast(0)
@@ -1347,6 +1353,21 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             playing = exo.isPlaying
             PipCtl.playing = exo.isPlaying
             stalled = exo.playbackState == Player.STATE_BUFFERING
+            val now = SystemClock.elapsedRealtime()
+            if (stalled) {
+                if (stallAt == 0L) stallAt = now
+            } else if (stallAt != 0L) {
+                if (now - stallAt >= 3000) stalls++
+                stallAt = 0L
+                if (stalls >= 3) {
+                    stalls = 0
+                    val sel = exo.trackSelector as? DefaultTrackSelector
+                    if (sel != null && sel.parameters.forceHighestSupportedBitrate) {
+                        sel.parameters = sel.buildUponParameters().setForceHighestSupportedBitrate(false).build()
+                        AppLog.d("player abr on")
+                    }
+                }
+            }
             delay(250)
         }
     }

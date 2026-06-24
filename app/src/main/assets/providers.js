@@ -469,7 +469,7 @@
     var ref = origin + '/';
 
     async function getJson(path) {
-      var r = await http({ url: api + path, referer: ref, timeout: 8 });
+      var r = await http({ url: api + path, referer: ref, timeout: 15 });
       if (!r || r.error || r.code !== 200) return null;
       try { return JSON.parse(r.body); } catch (e) { return null; }
     }
@@ -516,7 +516,7 @@
       }
     });
     var masterUrl = stream + '/m3u8?url=' + urlencode(streamLink);
-    var manifest = await raw(masterUrl, ref, 8);
+    var manifest = await raw(masterUrl, ref, 20);
     if (manifest === null || manifest.indexOf('#EXTM3U') < 0) return empty();
     var e2 = enRenditions(manifest);
     var enSubs = e2.subs || subs.length > 0;
