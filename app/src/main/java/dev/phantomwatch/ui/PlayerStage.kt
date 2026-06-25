@@ -359,6 +359,7 @@ private fun PlayerTopBar(
     onFullscreen: () -> Unit,
     onToggleSubs: () -> Unit,
 ) {
+    val subsActive = subsOn && canSubs
     Column(
         Modifier.fillMaxWidth()
             .then(if (fullscreen && barsInset) Modifier.statusBarsPadding() else Modifier)
@@ -391,8 +392,8 @@ private fun PlayerTopBar(
                 Modifier.padding(10.dp).clickable(enabled = canSubs) { onToggleSubs() },
             ) {
                 Icon(
-                    painterResource(if (subsOn) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
-                    contentDescription = if (subsOn) "Turn subtitles off" else "Turn subtitles on",
+                    painterResource(if (subsActive) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
+                    contentDescription = if (subsActive) "Turn subtitles off" else "Turn subtitles on",
                     tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
                     modifier = Modifier.size(20.dp),
                 )

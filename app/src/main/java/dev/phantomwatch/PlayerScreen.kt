@@ -116,6 +116,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val DOWNLOAD_BUTTON_ENABLED = false
+
 private fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.SubtitleConfiguration> {
     return VidLove.englishFirst(subs).mapIndexed { i, sub ->
         val uri = if (i == 0 && firstUri != null) firstUri else Uri.parse(sub.url)
@@ -1084,6 +1086,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         }
     }
     LaunchedEffect(stream.url) {
+        if (stream.auth == null && ctl == null) return@LaunchedEffect
         while (true) {
             try {
                 val dur = exo.duration.takeIf { it > 0 } ?: 0L
@@ -1103,7 +1106,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                                 -1.0
                             }
                         } else {
-                            1.0
+                            -1.0
                         }
                     }
                     if (frac >= 0) {
@@ -1514,7 +1517,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         lockButton = lockButton,
         locked = locked,
         subsOn = !subsOff,
-        canSubs = stream.subs.isNotEmpty() || embedNames.isNotEmpty(),
+        canSubs = stream.subs.isNotEmpty() || live.subs.isNotEmpty() || embedNames.isNotEmpty() || osTrack != null || aiSubUrl != null,
         muted = muted,
         onScrub = ::scrubTo,
         preview = { mod ->
@@ -1743,7 +1746,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 val subStyle =
                     videoHpx * SubtitleView.DEFAULT_TEXT_SIZE_FRACTION to
                         if (theater) -(letterbox - with(density) { 10.dp.toPx() })
-                        else -(letterbox + with(density) { (if (controls) 36.dp else 14.dp).toPx() })
+                        else -with(density) { (panelH / 2 + 14.dp).toPx() }
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().padding(top = statusTop)) {
                         stage(
@@ -1796,7 +1799,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             }
         }
     }
-        if (!PipCtl.inPip && WatchDownload.isHttpUrl(stream.url)) {
+        if (DOWNLOAD_BUTTON_ENABLED && !PipCtl.inPip && WatchDownload.isHttpUrl(stream.url)) {
             SmallFloatingActionButton(
                 onClick = {
                     downloadInstall = false

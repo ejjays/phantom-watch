@@ -601,11 +601,11 @@ object Providers {
                                 val js = JsProviders.resolve(name, jsArgs(name, tmdbId, kind, season, episode, title, imdbArg), if (name == "paradise") 28 else 12)
                                 val jf = formatsOf(js)
                                 val jsubs = subsOf(js)
-                                val p = if (jf != null && (jf.isNotEmpty() || jsubs.isNotEmpty())) {
-                                    jf to jsubs
+                                val p = if (js != null) {
+                                    jf.orEmpty() to jsubs
                                 } else {
                                     kt[name]?.let { f -> leg(name) { withTimeoutOrNull(if (name == "paradise") 25000 else 15000) { f() } } }
-                                        ?: (jf.orEmpty() to jsubs)
+                                        ?: (emptyList<VFormat>() to emptyList<Sub>())
                                 }
                                 if (p.first.isEmpty() && name !in kt) AppLog.d("leg $name empty")
                                 p
@@ -743,7 +743,7 @@ object Providers {
         f.label.startsWith("rock-") -> "VidRock"
         f.label.startsWith("vix-") -> "VixSrc"
         f.label.startsWith("zee-") -> "VidZee"
-        f.label.startsWith("para-") -> "AnimeParadise"
+        f.label.startsWith("paradise-") -> "AnimeParadise"
         f.label.startsWith("vap-") -> "VAPlayer"
         f.label.startsWith("vidlink-") -> "VidLink"
         f.label.startsWith("hianime-") -> "HiAnime"

@@ -122,6 +122,7 @@ object AiSubs {
             val numbered = texts.mapIndexed { i, t -> "${i + 1}. $t" }.joinToString("\n")
             val payload = JSONObject()
                 .put("model", model)
+                .put("reasoning_effort", "none")
                 .put("temperature", 0.2)
                 .put("max_tokens", 400)
                 .put(

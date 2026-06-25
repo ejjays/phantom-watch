@@ -113,12 +113,14 @@ fun PlayerPanel(
         loadingEpisodes = false
     }
 
-    var similar by remember(media.id) { mutableStateOf(emptyList<Title>()) }
+    var similar by remember(media.id) { mutableStateOf(DetailCache.similar(media.id).orEmpty()) }
     LaunchedEffect(media.id) {
-        if (onOpenTitle == null) return@LaunchedEffect
-        similar = withContext(Dispatchers.IO) {
+        if (onOpenTitle == null || DetailCache.similar(media.id) != null) return@LaunchedEffect
+        val list = withContext(Dispatchers.IO) {
             runCatching { VidLove.similar(key, media.kind, media.id) }.getOrDefault(emptyList())
         }
+        if (list.isNotEmpty()) DetailCache.putSimilar(media.id, list)
+        similar = list
     }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {

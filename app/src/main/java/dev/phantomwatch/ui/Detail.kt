@@ -252,7 +252,7 @@ fun MovieDetail(
                             .clip(RoundedCornerShape(32.dp)).background(Surface).padding(20.dp),
                     ) {
                         Row(verticalAlignment = Alignment.Bottom) {
-                            if (d.poster != null) {
+                            if ((item.poster ?: d.poster) != null) {
                                 AsyncImage(model = item.poster ?: d.poster, contentDescription = null, modifier = Modifier.size(120.dp, 176.dp).clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("detail poster ok +${ms()}ms") }, onError = { AppLog.d("detail poster err +${ms()}ms") })
                                 Spacer(Modifier.width(12.dp))
                             }
@@ -838,6 +838,7 @@ internal object DetailCache {
     private var last: TitleDetail? = null
     private var lastSeason = -1
     private val bySeason = mutableMapOf<Pair<String, Int>, List<Episode>>()
+    private val similarById = mutableMapOf<String, List<Title>>()
 
     fun detail(id: String): TitleDetail? = last?.takeIf { this.id == id }
 
@@ -859,5 +860,11 @@ internal object DetailCache {
 
     fun putEpisodes(id: String, n: Int, eps: List<Episode>) {
         bySeason[id to n] = eps
+    }
+
+    fun similar(id: String): List<Title>? = similarById[id]
+
+    fun putSimilar(id: String, list: List<Title>) {
+        similarById[id] = list
     }
 }
