@@ -14,7 +14,13 @@ CREATE TABLE IF NOT EXISTS event (
   h INTEGER,
   ens INTEGER,
   ena INTEGER,
-  hls INTEGER
+  hls INTEGER,
+  ev TEXT,
+  startMs INTEGER,
+  stalls INTEGER,
+  stallMs INTEGER,
+  pos INTEGER,
+  err TEXT
 );
 
 CREATE INDEX IF NOT EXISTS event_ts ON event(ts);

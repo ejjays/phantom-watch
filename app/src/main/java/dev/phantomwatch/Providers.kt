@@ -6,13 +6,10 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -642,8 +639,6 @@ object Providers {
             } ?: Triple(emptyList(), emptyList(), null)
         }
 
-    private val telemetryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     private fun report(
         tmdbId: String,
         kind: String,
@@ -654,43 +649,34 @@ object Providers {
         best: VFormat?,
         results: List<Triple<String, Pair<List<VFormat>, List<Sub>>, Long>>,
     ) {
-        val url = BuildConfig.TELEMETRY_URL
-        if (url.isEmpty()) return
-        telemetryScope.launch {
-            runCatching {
-                val legs = JSONObject()
-                results.forEach { (name, pair, legMs) ->
-                    if (RemoteConfig.on(name)) {
-                        legs.put(
-                            name,
-                            JSONArray().put(pair.first.size).put(legMs)
-                                .put(pair.first.maxOfOrNull { it.height } ?: 0)
-                                .put(if (pair.first.any { it.enSubs }) 1 else 0),
-                        )
-                    }
-                }
-                val body = JSONObject()
-                    .put("k", BuildConfig.TELEMETRY_KEY)
-                    .put("v", BuildConfig.VERSION_NAME)
-                    .put("cfg", RemoteConfig.version())
-                    .put("kind", kind)
-                    .put("id", tmdbId)
-                    .put("s", season)
-                    .put("e", episode)
-                    .put("ms", ms)
-                    .put("f", formats)
-                    .put("pick", best?.label.orEmpty())
-                    .put("h", best?.height ?: 0)
-                    .put("ens", best?.enSubs == true)
-                    .put("ena", best?.enAudio == true)
-                    .put("hls", best?.isHls == true)
-                    .put("legs", legs)
-                val req = Request.Builder().url(url)
-                    .post(body.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-                VidLove.client().newCall(req).execute().close()
+        val legs = JSONObject()
+        results.forEach { (name, pair, legMs) ->
+            if (RemoteConfig.on(name)) {
+                legs.put(
+                    name,
+                    JSONArray().put(pair.first.size).put(legMs)
+                        .put(pair.first.maxOfOrNull { it.height } ?: 0)
+                        .put(if (pair.first.any { it.enSubs }) 1 else 0),
+                )
             }
         }
+        Telemetry.send(
+            JSONObject()
+                .put("ev", "resolve")
+                .put("cfg", RemoteConfig.version())
+                .put("kind", kind)
+                .put("id", tmdbId)
+                .put("s", season)
+                .put("e", episode)
+                .put("ms", ms)
+                .put("f", formats)
+                .put("pick", best?.label.orEmpty())
+                .put("h", best?.height ?: 0)
+                .put("ens", best?.enSubs == true)
+                .put("ena", best?.enAudio == true)
+                .put("hls", best?.isHls == true)
+                .put("legs", legs),
+        )
     }
 
     private fun formatsOf(j: JSONObject?): List<VFormat>? {

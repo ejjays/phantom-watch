@@ -27,8 +27,10 @@ An empty `TELEMETRY_URL` disables reporting.
 
 ## Endpoints
 
-- `POST /e` `{k, src, v, cfg, kind, id, s, e, ms, f, pick, h, ens, ena, hls, legs:{name:[formats,ms,maxH,enSubs]}}` → 204, `k` must equal the `KEY` secret. `f` = formats the app would serve, `pick` = the format it picked first (label, height, EN subs/audio, HLS).
-- `GET /health?k=...&days=7` → `{days, resolves, zero, legs:{name:{ok,total,h,en}}, noSource}` — `h` best height seen, `en` samples with EN subs
+- `POST /e` `{k, src, v, cfg, ev, kind, id, s, e, …}` → 204, `k` must equal the `KEY` secret.
+  - `ev` omitted or `resolve`: `ms, f, pick, h, ens, ena, hls, legs:{name:[formats,ms,maxH,enSubs]}`.
+  - `ev:"play"`: `startMs, stalls, stallMs, pos, err` — one row per playback session, sent when the player closes.
+- `GET /health?k=...&days=7` → `{days, resolves, zero, hd, en, plays, stalled, stallMs, legs:{name:{ok,total,h,en}}, noSource}` — `hd` resolves picked at 1080+, `en` with EN subs, `stalled` plays with at least one stall
 - `GET /events?k=...&days=7&limit=100` → raw rows, newest first
 - `GET /test?k=...` → one Telegram message, to confirm the bot works
 

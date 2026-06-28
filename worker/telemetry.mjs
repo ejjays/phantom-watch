@@ -12,7 +12,7 @@ export default {
       const b = await req.json().catch(() => null);
       if (!b || b.k !== env.KEY) return new Response(null, { status: 403 });
       await env.DB.prepare(
-        'INSERT INTO event(ts,src,v,cfg,kind,tmdb,season,episode,ms,formats,pick,legs,h,ens,ena,hls) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO event(ts,src,v,cfg,kind,tmdb,season,episode,ms,formats,pick,legs,h,ens,ena,hls,ev,startMs,stalls,stallMs,pos,err) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       )
         .bind(
           Date.now(),
@@ -31,6 +31,12 @@ export default {
           b.ens ? 1 : 0,
           b.ena ? 1 : 0,
           b.hls ? 1 : 0,
+          str(b.ev || 'resolve', 8),
+          b.startMs | 0,
+          b.stalls | 0,
+          b.stallMs | 0,
+          b.pos | 0,
+          str(b.err, 120),
         )
         .run();
       return new Response(null, { status: 204 });
@@ -47,7 +53,7 @@ export default {
       const days = Math.min(31, Math.max(1, Number(url.searchParams.get('days')) || 7));
       const limit = url.pathname === '/events' ? Math.min(500, Number(url.searchParams.get('limit')) || 100) : 5000;
       const { results } = await env.DB.prepare(
-        `SELECT ts,src,v,cfg,kind,tmdb,season,episode,ms,formats,pick,legs,h,ens,ena,hls FROM event WHERE ts>? ORDER BY ts DESC LIMIT ${limit}`,
+        `SELECT ts,src,v,cfg,kind,tmdb,season,episode,ms,formats,pick,legs,h,ens,ena,hls,ev,startMs,stalls,stallMs,pos,err FROM event WHERE ts>? ORDER BY ts DESC LIMIT ${limit}`,
       )
         .bind(Date.now() - days * 24 * HOUR)
         .all();
@@ -61,7 +67,7 @@ export default {
   async scheduled(controller, env) {
     const now = controller.scheduledTime;
     const { results: rows } = await env.DB.prepare(
-      'SELECT ts,kind,tmdb,season,episode,formats,legs,h,ens FROM event WHERE ts>? ORDER BY ts DESC LIMIT 5000',
+      'SELECT ts,kind,tmdb,season,episode,formats,legs,h,ens,ev,stalls,stallMs FROM event WHERE ts>? ORDER BY ts DESC LIMIT 5000',
     )
       .bind(now - 8 * 24 * HOUR)
       .all();
@@ -111,14 +117,23 @@ function aggregate(rows) {
   let zero = 0;
   let hd = 0;
   let en = 0;
+  let plays = 0;
+  let stalled = 0;
+  let stallMs = 0;
   const noSource = [];
   for (const r of rows) {
-    if (!r.formats) {
-      zero++;
-      if (noSource.length < 5) noSource.push(`${r.kind}/${r.tmdb} s${r.season}e${r.episode}`);
+    if (r.ev === 'play') {
+      plays++;
+      if (r.stalls > 0) stalled++;
+      stallMs += r.stallMs || 0;
+    } else {
+      if (!r.formats) {
+        zero++;
+        if (noSource.length < 5) noSource.push(`${r.kind}/${r.tmdb} s${r.season}e${r.episode}`);
+      }
+      if (r.h >= 1080) hd++;
+      if (r.ens) en++;
     }
-    if (r.h >= 1080) hd++;
-    if (r.ens) en++;
     let parsed = {};
     try {
       parsed = JSON.parse(r.legs || '{}');
@@ -136,14 +151,14 @@ function aggregate(rows) {
     }
   }
   const ordered = Object.fromEntries(Object.entries(legs).sort(([x], [y]) => x.localeCompare(y)));
-  return { resolves: rows.length, zero, hd, en, legs: ordered, noSource };
+  return { resolves: rows.length - plays, zero, hd, en, plays, stalled, stallMs, legs: ordered, noSource };
 }
 
 function digest(label, a) {
   const legs = Object.entries(a.legs).map(([n, s]) => `${n} ${s.ok}/${s.total}` + (s.h > 0 ? ` ${s.h}` : '') + (s.en ? ` en${s.en}` : ''));
   return [
     `phantomwatch · ${label}`,
-    `resolves ${a.resolves} · no source ${a.zero} · 1080+ ${a.hd} · en ${a.en}`,
+    `resolves ${a.resolves} · no source ${a.zero} · 1080+ ${a.hd} · en ${a.en}` + (a.plays ? ` · plays ${a.plays} · stalled ${a.stalled}` : ''),
     legs.join(' · ') || 'no legs reported',
     ...(a.noSource.length ? [`empty: ${a.noSource.join(', ')}`] : []),
   ].join('\n');

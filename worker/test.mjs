@@ -37,10 +37,13 @@ assert.equal(inserted[5], '5');
 assert.equal(inserted[11], '{"love":[0,200]}');
 assert.equal(inserted[12], 0);
 
-env.DB = db([row(0, { love: [0, 200, 0, 0], vix: [2, 400, 1080, 1] })]);
+env.DB = db([row(0, { love: [0, 200, 0, 0], vix: [2, 400, 1080, 1] }), { ts: Date.now(), kind: 'tv', tmdb: '9', season: '1', episode: '1', formats: 0, legs: '{}', ev: 'play', stalls: 2, stallMs: 4000 }]);
 r = await worker.fetch(new Request('https://x/health?k=k&days=7'), env);
 const health = await r.json();
 assert.equal(health.resolves, 1);
+assert.equal(health.plays, 1);
+assert.equal(health.stalled, 1);
+assert.equal(health.stallMs, 4000);
 assert.deepEqual(health.legs, { love: { ok: 0, total: 1, h: 0, en: 0 }, vix: { ok: 1, total: 1, h: 1080, en: 1 } });
 
 const base5 = [row(-10, { love: [2, 100], vix: [2, 100] }), row(-11, { love: [2, 100], vix: [2, 100] }), row(-12, { love: [2, 100], vix: [2, 100] }), row(-13, { love: [2, 100], vix: [2, 100] }), row(-14, { love: [2, 100], vix: [2, 100] })];

@@ -115,8 +115,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
-private const val DOWNLOAD_BUTTON_ENABLED = false
+private const val DOWNLOAD_BUTTON_ENABLED = true
 
 private fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.SubtitleConfiguration> {
     return VidLove.englishFirst(subs).mapIndexed { i, sub ->
@@ -156,6 +157,16 @@ private fun itemFor(
 internal fun looksEnglish(name: String): Boolean {
     val l = name.lowercase()
     return l.substringBefore(":").startsWith("en") || "english" in l
+}
+
+private class PlayStats {
+    var attachAt = 0L
+    var startup = 0L
+    var bufAt = 0L
+    var lastSeekAt = 0L
+    var stalls = 0
+    var stallMs = 0L
+    var err = ""
 }
 
 internal fun rankEmbed(names: List<String>): Int {
@@ -424,6 +435,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     val stream = rs
     var live by remember { mutableStateOf(rs) }
     val exo = player
+    val stats = remember { PlayStats() }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var gestureNote by remember { mutableStateOf<String?>(null) }
     var volAcc by remember { mutableStateOf(0f) }
@@ -440,6 +452,21 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         onDispose {
             PipCtl.active = false
             if (PipCtl.player === exo) PipCtl.player = null
+            if (stats.startup > 0 || stats.err.isNotEmpty()) {
+                Telemetry.send(
+                    JSONObject()
+                        .put("ev", "play")
+                        .put("kind", media.kind)
+                        .put("id", media.id)
+                        .put("s", season)
+                        .put("e", episode)
+                        .put("startMs", stats.startup)
+                        .put("stalls", stats.stalls)
+                        .put("stallMs", stats.stallMs)
+                        .put("pos", exo.currentPosition / 1000)
+                        .put("err", stats.err),
+                )
+            }
             exo.stop() // leaving the player screen ends playback; background playback stays in the media session
         }
     }
@@ -485,6 +512,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     fun attach(pos: Long) {
         try {
+            stats.attachAt = SystemClock.elapsedRealtime()
             val subs = live.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
             exo.setMediaSource(sourceFor(context, live, subs, null, ctl, meta), pos)
             exo.prepare()
@@ -545,6 +573,19 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
 
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) netErr = false
+                val now = SystemClock.elapsedRealtime()
+                if (state == Player.STATE_READY) {
+                    if (stats.startup == 0L && stats.attachAt > 0) stats.startup = now - stats.attachAt
+                    if (stats.bufAt > 0) {
+                        if (now - stats.lastSeekAt > 5000) {
+                            stats.stallMs += now - stats.bufAt
+                            stats.stalls++
+                        }
+                        stats.bufAt = 0
+                    }
+                } else if (state == Player.STATE_BUFFERING && stats.startup > 0 && now - stats.lastSeekAt > 5000) {
+                    stats.bufAt = now
+                }
                 val name = when (state) {
                     Player.STATE_IDLE -> "idle"
                     Player.STATE_BUFFERING -> "buffering"
@@ -557,6 +598,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
 
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    stats.lastSeekAt = SystemClock.elapsedRealtime()
                     AppLog.d("seek ${oldPosition.positionMs / 1000}s to ${newPosition.positionMs / 1000}s")
                 }
                 if (reason != Player.DISCONTINUITY_REASON_SEEK) return
@@ -571,6 +613,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
 
             override fun onPlayerError(error: PlaybackException) {
                 val cause = error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+                stats.err = "${error.errorCodeName} http=${cause?.responseCode ?: 0}".take(80)
                 val chain = generateSequence<Throwable>(error) { it.cause }.take(3).joinToString(" <- ") {
                     "${it.javaClass.simpleName}: ${it.message}"
                 }
