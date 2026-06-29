@@ -1101,7 +1101,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     fun applySubs() {
         val sel = exo.trackSelector as? DefaultTrackSelector ?: return
         sel.parameters = sel.buildUponParameters()
-            .setRendererDisabled(C.TRACK_TYPE_TEXT, subsOff)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subsOff)
             .build()
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
     }
