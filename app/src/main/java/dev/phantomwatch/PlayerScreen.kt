@@ -82,6 +82,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -158,6 +159,9 @@ internal fun looksEnglish(name: String): Boolean {
     val l = name.lowercase()
     return l.substringBefore(":").startsWith("en") || "english" in l
 }
+
+internal fun <B : TrackSelectionParameters.Builder> B.textTrack(disabled: Boolean): B =
+    apply { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, disabled) }
 
 private class PlayStats {
     var attachAt = 0L
@@ -1100,9 +1104,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     fun applySubs() {
         val sel = exo.trackSelector as? DefaultTrackSelector ?: return
-        sel.parameters = sel.buildUponParameters()
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subsOff)
-            .build()
+        sel.parameters = sel.buildUponParameters().textTrack(subsOff).build()
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
     }
     LaunchedEffect(stream.url) {

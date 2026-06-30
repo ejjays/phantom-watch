@@ -1,13 +1,26 @@
 package dev.phantomwatch
 
+import androidx.media3.common.C
+import androidx.media3.common.TrackSelectionParameters
 import dev.phantomwatch.ui.airLabel
 import dev.phantomwatch.ui.playerClock
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubsTest {
+    @Test
+    fun ccOffDisablesTextTrackType() {
+        val off = TrackSelectionParameters.DEFAULT.buildUpon().textTrack(true).build()
+        assertTrue(off.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT))
+        assertFalse(off.disabledTrackTypes.contains(C.TRACK_TYPE_AUDIO))
+
+        val on = off.buildUpon().textTrack(false).build()
+        assertFalse(on.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT))
+    }
+
     @Test
     fun rankPrefersDialogueOverSigns() {
         val names = listOf(
