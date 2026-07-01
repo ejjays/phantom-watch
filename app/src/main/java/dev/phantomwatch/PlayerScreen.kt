@@ -35,10 +35,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.SmallFloatingActionButton
@@ -107,6 +105,7 @@ import dev.phantomwatch.ui.SeekMark
 import dev.phantomwatch.ui.SeekSide
 import dev.phantomwatch.ui.WatchRed
 import dev.phantomwatch.ui.ZoneTap
+import dev.phantomwatch.ui.playerVideoShift
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -116,9 +115,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private const val DOWNLOAD_BUTTON_ENABLED = true
+private const val DOWNLOAD_BUTTON_ENABLED = false
 
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: DlCtl?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit, onEpisode: (String, String) -> Unit = { _, _ -> }, onOpenTitle: (Title) -> Unit = {}) {
     val context = LocalContext.current
@@ -1093,10 +1092,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         activity?.requestedOrientation ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
     val cfg = LocalConfiguration.current
-    val statusInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val statusTop = remember { statusInset }
-    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val navBottom = remember { navInset }
+    // hidden bars must still reserve space, or an immersive first composition freezes the inset at 0
+    val statusTop = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    val navBottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
     var keepTheater by remember { mutableStateOf(false) }
     val smallScreen = cfg.smallestScreenWidthDp < 600
     fun rotationEnabled() = try {
@@ -1308,6 +1306,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         matchH: Boolean,
         fsUi: Boolean,
         shiftPx: () -> Float = { 0f },
+        videoShiftPx: () -> Float = shiftPx,
         sheetZoneTopPx: () -> Float = { Float.MAX_VALUE },
         onSheetDrag: (Float) -> Unit = {},
         onSheetDragEnd: (Float) -> Unit = {},
@@ -1330,6 +1329,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         seekMark = seekMark,
         seekInset = seekInset,
         shiftPx = shiftPx,
+        videoShiftPx = videoShiftPx,
         sheetZoneTopPx = sheetZoneTopPx,
         onSheetDrag = onSheetDrag,
         onSheetDragEnd = onSheetDragEnd,
@@ -1513,6 +1513,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 }
                 val scope = rememberCoroutineScope()
                 val sheetJob = remember(sheet) { arrayOfNulls<Job>(1) }
+                fun sheetShift() = panelPx - (sheet.offset.takeUnless { it.isNaN() } ?: (if (keepTheater) panelPx else 0f))
                 fun glide(target: Float) {
                     sheetJob[0]?.cancel()
                     sheetJob[0] = scope.launch { sheet.animateTo(target, tween(240)) }
@@ -1559,24 +1560,20 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     fullscreenBars(theater && !controls)
                 }
                 BackHandler(theater, ::reopen)
-                val stageHpx = with(density) { (maxHeight - statusTop).toPx() }
-                val videoHpx = with(density) {
-                    (portraitW / videoAspect.coerceAtLeast(0.1f)).dp.toPx()
-                }.coerceAtMost(stageHpx)
+                val stageTop = if (theater) 0.dp else statusTop
+                val stageHpx = with(density) { (maxHeight - stageTop).toPx() }
+                val videoHpx = with(density) { (portraitW / videoAspect.coerceAtLeast(0.1f)).dp.toPx() }.coerceAtMost(stageHpx)
                 val letterbox = ((stageHpx - videoHpx) / 2f).coerceAtLeast(0f)
                 val subStyle =
                     videoHpx * SubtitleView.DEFAULT_TEXT_SIZE_FRACTION to
                         if (theater) -(letterbox - with(density) { 10.dp.toPx() })
                         else -with(density) { (panelH / 2 + 14.dp).toPx() }
                 Box(Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize().padding(top = statusTop)) {
+                    Box(Modifier.fillMaxSize().padding(top = stageTop)) {
                         stage(
                             if (theater) navBottom else 0.dp, false, theater,
-                            shiftPx = {
-                                val o = sheet.offset.takeUnless { it.isNaN() }
-                                    ?: (if (keepTheater) panelPx else 0f)
-                                panelPx - o
-                            },
+                            shiftPx = { sheetShift() },
+                            videoShiftPx = { playerVideoShift(sheetShift(), stageHpx, videoHpx) },
                             onSheetDrag = { dy -> sheetJob[0]?.cancel(); sheet.dispatchRawDelta(dy) },
                             onSheetDragEnd = ::settleSheet,
                             sheetZoneTopPx = {
@@ -1584,7 +1581,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                                 else Float.MAX_VALUE
                             },
                             titleBelow = theater,
-                            barsInset = false,
                             lockButton = false,
                             subStyle = subStyle,
                             onFullscreen = {

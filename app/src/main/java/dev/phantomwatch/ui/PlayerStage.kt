@@ -96,6 +96,7 @@ fun PlayerStage(
     seekMark: SeekMark?,
     seekInset: Dp = 0.dp,
     shiftPx: () -> Float = { 0f },
+    videoShiftPx: () -> Float = shiftPx,
     sheetZoneTopPx: () -> Float = { Float.MAX_VALUE },
     onSheetDrag: (Float) -> Unit = {},
     onSheetDragEnd: (Float) -> Unit = {},
@@ -169,7 +170,7 @@ fun PlayerStage(
                 )
             },
     ) {
-        video(Modifier.fillMaxSize().offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) })
+        video(Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) })
         Row(Modifier.fillMaxSize()) {
             ZoneTap.entries.forEach { side ->
                 Box(
@@ -259,7 +260,7 @@ fun PlayerStage(
             exit = fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.9f),
         ) {
             Box(
-                Modifier.fillMaxSize().offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) },
+                Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -327,7 +328,7 @@ fun PlayerStage(
         if (seekMark != null) {
             Box(
                 Modifier.fillMaxSize().padding(horizontal = 28.dp)
-                    .offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) },
+                    .offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
                 contentAlignment = if (seekMark.side == SeekSide.Left) Alignment.CenterStart else Alignment.CenterEnd,
             ) {
                 Icon(
@@ -338,7 +339,7 @@ fun PlayerStage(
         }
         if (stalled && showSpinner) {
             Box(
-                Modifier.fillMaxSize().offset { IntOffset(0, -(shiftPx() / 2f).roundToInt()) },
+                Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
