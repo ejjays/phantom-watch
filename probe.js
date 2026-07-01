@@ -137,11 +137,12 @@ new Function(fs.readFileSync(path.join(ROOT, 'app/src/main/assets/providers.js')
 function runLeg(leg, args) {
   const id = 'p' + ++seq;
   const trace = [];
+  const budget = leg === 'paradise' ? 32000 : leg === 'hianime' ? 30000 : 20000;
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       pending.delete(id);
       resolve({ r: null, trace, err: 'timeout' });
-    }, 20000);
+    }, budget);
     pending.set(id, {
       ok: (r) => { clearTimeout(timer); resolve({ r, trace }); },
       bad: (e) => { clearTimeout(timer); resolve({ r: null, trace, err: e }); },
@@ -184,24 +185,9 @@ function fmtH(f) {
   return Number.isFinite(f.height) ? f.height : 0;
 }
 
-function fmtRank(f) {
-  const h = fmtH(f);
-  return [
-    h < 0 ? 0 : 1,
-    f.enSubs && h >= 1080 ? 1 : 0,
-    String(f.label || '').endsWith('-auto') ? 1 : 0,
-    f.enSubs ? 1 : 0,
-    f.english !== false ? 1 : 0,
-    h,
-  ];
-}
-
+// the pick order lives in providers.js; the app uses the same function
 function appPick(formats) {
-  return formats.slice().sort((a, b) => {
-    const x = fmtRank(a), y = fmtRank(b);
-    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return y[i] - x[i];
-    return 0;
-  })[0] || null;
+  return (window.__pwRank(formats) || [])[0] || null;
 }
 
 function pickText(f) {
@@ -262,10 +248,11 @@ async function check(r) {
 
 function skipFor(leg, job, info) {
   if ((cfg.legs[leg] || {}).enabled === false) return 'disabled';
-  if (leg === 'vap' && !info.imdb) return 'no imdb';
   if (leg === 'hianime' && !KEY) return 'no TMDB key';
-  if (leg === 'paradise' && (job.kind !== 'tv' || job.season !== '1' || !info.title)) return 'tv-s1 only';
-  if (leg === 'hianime' && job.kind !== 'tv') return 'tv only';
+  // the app and the probe share these rules
+  if (window.__pwSkip(leg, { kind: job.kind, season: job.season, title: info.title, imdb: info.imdb })) {
+    return 'not applicable';
+  }
   return '';
 }
 
@@ -280,12 +267,14 @@ async function run(leg, job, info) {
     episode: job.episode,
     title: info.title,
     tmdbKey: KEY,
+    tmdbBase: (cfg.services && cfg.services.tmdb && cfg.services.tmdb.base) || 'https://api.themoviedb.org/3',
     cfg: cfg.legs[leg],
   };
   if (leg === 'vap') args.imdb = info.imdb;
   const { r, trace, err } = await runLeg(leg, args);
   const ms = Date.now() - t0;
   if (err) return { provider: leg, ok: false, formats: 0, max: null, enSubs: false, ms, err: 'js ' + err + note(trace) };
+  if (r && r.skipped) return { provider: leg, ok: true, skip: 'not applicable', formats: 0, max: null, enSubs: false, ms, err: '' };
   const c = await check(r);
   return {
     provider: leg,

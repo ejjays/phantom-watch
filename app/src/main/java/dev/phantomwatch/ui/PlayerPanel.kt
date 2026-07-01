@@ -59,9 +59,6 @@ import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
 import dev.phantomwatch.Episode
 import dev.phantomwatch.VidLove
-import dev.reicon.ChevronRight
-import dev.reicon.ReiconIcon
-import dev.reicon.X
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -173,7 +170,7 @@ fun PlayerPanel(
                                 "Full", color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
                                 fontWeight = FontWeight.Medium,
                             )
-                            ReiconIcon(ChevronRight.Outline, contentDescription = "All episodes", tint = Slate200, size = 15.dp)
+                            ChevronRightIcon(contentDescription = "All episodes", tint = Slate200, size = 15.dp)
                         }
                     }
                 }
@@ -277,7 +274,7 @@ fun PlayerPanel(
                                 }
                             }.padding(6.dp),
                         ) {
-                            ReiconIcon(X.Outline, contentDescription = "Close", tint = Slate200, size = 22.dp)
+                            CloseIcon(contentDescription = "Close", tint = Slate200, size = 22.dp)
                         }
                     }
                     Spacer(Modifier.height(10.dp))

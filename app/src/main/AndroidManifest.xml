@@ -11,6 +11,7 @@
     </queries>
 
     <application
+        android:name=".PhantomApp"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher"

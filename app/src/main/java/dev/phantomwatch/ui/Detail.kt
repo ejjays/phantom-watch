@@ -76,9 +76,6 @@ import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
 import dev.phantomwatch.VidLove
 import dev.phantomwatch.isWifi
-import dev.reicon.ChevronRight
-import dev.reicon.ReiconIcon
-import dev.reicon.X
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -527,7 +524,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("View all $total episodes", color = Cyan, fontSize = 13.sp, fontFamily = Rubik)
-        ReiconIcon(ChevronRight.Outline, contentDescription = null, tint = Cyan, size = 15.dp)
+        ChevronRightIcon(contentDescription = null, tint = Cyan, size = 15.dp)
     }
 }
 
@@ -752,7 +749,7 @@ internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> 
                         },
                     )
                     IconButton(onClick = { searching = false; query = "" }) {
-                        ReiconIcon(X.Outline, contentDescription = "Close", tint = Slate200, size = 20.dp)
+                        CloseIcon(contentDescription = "Close", tint = Slate200, size = 20.dp)
                     }
                 } else {
                     Column(Modifier.weight(1f)) {

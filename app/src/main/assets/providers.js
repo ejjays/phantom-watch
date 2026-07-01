@@ -1,8 +1,46 @@
 // contract: __pwRun(id, leg, argsJson); window.pw = { http, done, fail, log }
 // resolve(ctx) -> { formats: [{url,isHls,label,height,english,referer,headers?,enSubs}], subs: [{label,url,src}] }
+// a leg that cannot serve the title returns { formats: [], subs: [], skipped: true }
 (function () {
   var pending = new Map();
   var seq = 0;
+
+  function skipped() {
+    return { formats: [], subs: [], skipped: true };
+  }
+
+  // canonical pick order: real height first, then 1080p+ with EN subs, adaptive
+  // masters, EN subs, english audio, then height
+  function rankOf(f) {
+    var h = typeof f.height === 'number' ? f.height : 0;
+    return [
+      h < 0 ? 0 : 1,
+      (f.enSubs && h >= 1080) ? 1 : 0,
+      /-auto$/.test(f.label || '') ? 1 : 0,
+      f.enSubs ? 1 : 0,
+      f.english !== false ? 1 : 0,
+      h
+    ];
+  }
+
+  function pwRank(formats) {
+    return (formats || []).slice().sort(function (a, b) {
+      var x = rankOf(a);
+      var y = rankOf(b);
+      for (var i = 0; i < x.length; i++) {
+        if (x[i] !== y[i]) return y[i] - x[i];
+      }
+      return 0;
+    });
+  }
+
+  // legs that cannot serve this title at all; the app and probe.js share this
+  function pwSkip(name, ctx) {
+    ctx = ctx || {};
+    if (name === 'vap') return !ctx.imdb;
+    if (name === 'paradise') return ctx.kind !== 'tv' || String(ctx.season) !== '1' || !ctx.title;
+    return false;
+  }
 
   function http(req) {
     return new Promise(function (resolve, reject) {
@@ -297,6 +335,7 @@
   }
 
   async function vap(ctx) {
+    if (pwSkip('vap', ctx)) return skipped();
     if (!ctx.imdb) return empty();
     var cfg = ctx.cfg || {};
     var api = cfg.api || 'https://streamdata.vaplayer.ru/api.php';
@@ -393,7 +432,8 @@
     var key = cfg.key || 'i?LMTAx0Q6,:}50U';
     var iv = cfg.iv || 'hlsMediaAttached';
     var ep = ctx.kind === 'movie' ? 'movie' : 'tv';
-    var meta = await get('https://api.themoviedb.org/3/' + ep + '/' + ctx.tmdbId +
+    var base = ctx.tmdbBase || 'https://api.themoviedb.org/3';
+    var meta = await get(base + '/' + ep + '/' + ctx.tmdbId +
       '?api_key=' + ctx.tmdbKey, 'https://www.themoviedb.org/');
     if (meta === null) return empty();
     var title = '';
@@ -461,6 +501,7 @@
   }
 
   async function paradise(ctx) {
+    if (pwSkip('paradise', ctx)) return skipped();
     if (ctx.kind !== 'tv' || String(ctx.season) !== '1' || !ctx.title) return empty();
     var cfg = ctx.cfg || {};
     var api = cfg.api || 'https://api.animeparadise.moe';
@@ -542,6 +583,14 @@
     pw.log('subtle=' + !!(window.crypto && window.crypto.subtle) + ' secure=' + window.isSecureContext);
   } catch (e) {}
   window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail };
+  window.__pwRank = pwRank;
+  window.__pwSkip = pwSkip;
+  window.__pwSort = function (id, formatsJson) {
+    var list;
+    try { list = JSON.parse(formatsJson); } catch (e) { pw.fail(id, 'sort args'); return; }
+    var order = pwRank(list).map(function (f) { return f.url; });
+    pw.done(id, JSON.stringify({ order: order }));
+  };
   window.__pwRun = function (id, name, argsJson) {
     var args;
     try { args = JSON.parse(argsJson); } catch (e) { pw.fail(id, 'args ' + e); return; }

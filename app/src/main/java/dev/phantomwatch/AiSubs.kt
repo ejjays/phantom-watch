@@ -59,7 +59,7 @@ object AiSubs {
         return out
     }
 
-    private fun parseNumberedLines(text: String, count: Int): List<String>? {
+    internal fun parseNumberedLines(text: String, count: Int): List<String>? {
         val byNumber = mutableMapOf<Int, String>()
         for (raw in text.split('\n')) {
             val m = Regex("^[(\\[]?\\*{0,2}(\\d+)\\W+(.+)$").find(raw.trim()) ?: continue

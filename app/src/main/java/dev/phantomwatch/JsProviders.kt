@@ -36,6 +36,10 @@ object JsProviders {
     @Volatile
     private var view: WebView? = null
 
+    @Volatile
+    var engineDown = false
+        private set
+
     fun init(ctx: Context) {
         app = ctx.applicationContext
         script = try {
@@ -66,6 +70,46 @@ object JsProviders {
         return out
     }
 
+    // canonical pick order lives in providers.js; this asks for it
+    suspend fun sortOrder(formats: List<VFormat>): List<VFormat>? {
+        if (formats.size < 2) return formats
+        val arr = JSONArray()
+        formats.forEach { f ->
+            arr.put(
+                JSONObject()
+                    .put("url", f.url)
+                    .put("isHls", f.isHls)
+                    .put("label", f.label)
+                    .put("height", f.height)
+                    .put("english", f.english)
+                    .put("enSubs", f.enSubs)
+                    .put("enAudio", f.enAudio),
+            )
+        }
+        val out = withTimeoutOrNull(8000) {
+            val w = view() ?: return@withTimeoutOrNull null
+            ready.await()
+            val id = "s" + seq.incrementAndGet()
+            val d = CompletableDeferred<JSONObject?>()
+            waiting[id] = d
+            val js = "window.__pwSort(${JSONObject.quote(id)}, ${JSONObject.quote(arr.toString())})"
+            main.post { w.evaluateJavascript(js, null) }
+            try {
+                d.await()
+            } finally {
+                waiting.remove(id)
+            }
+        }
+        val order = out?.optJSONArray("order") ?: return null
+        val byUrl = formats.associateBy { it.url }.toMutableMap()
+        val sorted = mutableListOf<VFormat>()
+        for (i in 0 until order.length()) {
+            byUrl.remove(order.optString(i))?.let { sorted.add(it) }
+        }
+        sorted.addAll(byUrl.values)
+        return sorted
+    }
+
     private suspend fun view(): WebView? {
         if (started.compareAndSet(false, true)) {
             main.post {
@@ -79,9 +123,12 @@ object JsProviders {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun build(): WebView? {
-        val ctx = app ?: return null
+        val ctx = app ?: run { engineDown = true; return null }
         val src = RemoteConfig.script() ?: script
-        if (src.isEmpty()) return null
+        if (src.isEmpty()) {
+            engineDown = true
+            return null
+        }
         val w = WebView(ctx)
         w.settings.apply {
             javaScriptEnabled = true

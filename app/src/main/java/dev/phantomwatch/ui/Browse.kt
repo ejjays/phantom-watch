@@ -93,8 +93,6 @@ import dev.phantomwatch.R
 import dev.phantomwatch.RemoteConfig
 import dev.phantomwatch.Title
 import dev.phantomwatch.VidLove
-import dev.reicon.ChevronRight
-import dev.reicon.ReiconIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -532,7 +530,7 @@ private fun BrowseBody(
                             Text(rail.title, color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                             Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
                                 Text("See all", color = Cyan, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                                ReiconIcon(ChevronRight.Outline, contentDescription = null, tint = Cyan, size = 15.dp)
+                                ChevronRightIcon(contentDescription = null, tint = Cyan, size = 15.dp)
                             }
                         }
                         val rowState = rememberLazyListState()

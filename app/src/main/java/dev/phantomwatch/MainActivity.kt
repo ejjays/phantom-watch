@@ -236,6 +236,7 @@ private fun App() {
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var crash by remember { mutableStateOf(CrashReport.pending(context)) }
     LaunchedEffect(screen, PipCtl.playing) {
         (context as? MainActivity)?.armPip(screen is Screen.Player, PipCtl.playing)
     }
@@ -383,6 +384,39 @@ private fun App() {
             }
         }
         if ((BuildConfig.DEBUG || BuildConfig.LOGUI) && !PipCtl.inPip) LogFab()
+    }
+    crash?.let { text ->
+        AlertDialog(
+            onDismissRequest = { crash = null; CrashReport.clear(context) },
+            title = { Text("Last crash") },
+            text = {
+                Text(
+                    text.take(700),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, text)
+                    }
+                    val sent = runCatching {
+                        context.startActivity(
+                            android.content.Intent.createChooser(send, "Send crash report"),
+                        )
+                    }.isSuccess
+                    if (sent) {
+                        crash = null
+                        CrashReport.clear(context)
+                    }
+                }) { Text("Send") }
+            },
+            dismissButton = {
+                TextButton(onClick = { crash = null; CrashReport.clear(context) }) { Text("Dismiss") }
+            },
+        )
     }
 }
 

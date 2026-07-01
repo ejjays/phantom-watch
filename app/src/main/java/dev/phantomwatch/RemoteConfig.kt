@@ -57,8 +57,10 @@ object RemoteConfig {
                     return
                 }
                 val body = res.body?.string().orEmpty()
+                // the bundled asset can be newer than what is deployed, so the floor is
+                // what we already trust - not one above it
                 val seen = root.optInt("version")
-                if (!applySigned(body, seen + 1)) {
+                if (!applySigned(body, seen)) {
                     AppLog.d("cfg remote skipped v$seen")
                     return
                 }
@@ -71,6 +73,10 @@ object RemoteConfig {
         }
     }
 
+    // the bundled asset can be newer than the deployed bundle, so a remote of the
+    // same version is fine; only an older one is refused
+    internal fun acceptsRemote(have: Int, remote: Int): Boolean = remote >= have
+
     fun on(leg: String): Boolean = leg(leg)?.optBoolean("enabled", true) ?: true
 
     fun version(): Int = root.optInt("version")
@@ -79,15 +85,6 @@ object RemoteConfig {
 
     fun legJson(name: String): JSONObject =
         leg(name)?.let { JSONObject(it.toString()).apply { remove("enabled") } } ?: JSONObject()
-
-    fun s(leg: String, field: String, def: String): String =
-        leg(leg)?.optString(field).orEmpty().ifEmpty { def }
-
-    fun list(leg: String, field: String, def: List<String>): List<String> {
-        val a = leg(leg)?.optJSONArray(field) ?: return def
-        val out = buildList { for (i in 0 until a.length()) add(a.optString(i)) }
-        return out.ifEmpty { def }
-    }
 
     fun top(field: String, def: String): String = root.optString(field).ifEmpty { def }
 
@@ -106,7 +103,7 @@ object RemoteConfig {
 
     private fun applyBare(raw: String): Boolean = try {
         val cfg = JSONObject(raw)
-        if (!accept(cfg)) return false
+        if (!acceptConfig(cfg)) return false
         root = cfg
         script = cfg.optString("script").ifEmpty { null }
         true
@@ -125,7 +122,7 @@ object RemoteConfig {
             return false
         }
         val cfg = JSONObject(String(payload, Charsets.UTF_8))
-        if (!accept(cfg) || cfg.optInt("version") < minVersion) return false
+        if (!acceptConfig(cfg) || !acceptsRemote(minVersion, cfg.optInt("version"))) return false
         root = cfg
         script = cfg.optString("script").ifEmpty { null }
         true
@@ -155,7 +152,7 @@ object RemoteConfig {
     }
 
     // a config that switches every leg off would leave the app with no sources at all
-    private fun accept(cfg: JSONObject): Boolean {
+    internal fun acceptConfig(cfg: JSONObject): Boolean {
         val legs = cfg.optJSONObject("legs") ?: return false
         if (legs.length() == 0) return false
         return legs.keys().asSequence().any { legs.optJSONObject(it)?.optBoolean("enabled", true) == true }

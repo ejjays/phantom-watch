@@ -115,24 +115,39 @@ object OsSubs {
                 if (res.code != 200) return null
                 res.body?.string() ?: return null
             }
-            val data = JSONObject(body).optJSONArray("data") ?: return null
-            var best: Long? = null
-            var bestDl = -1
-            for (i in 0 until data.length()) {
-                val a = data.optJSONObject(i)?.optJSONObject("attributes") ?: continue
-                val files = a.optJSONArray("files") ?: continue
-                if (files.length() == 0) continue
-                val dl = a.optInt("download_count", 0)
-                if (dl > bestDl) {
-                    bestDl = dl
-                    best = files.optJSONObject(0)?.optLong("file_id")?.takeIf { it > 0 }
-                }
-            }
-            best
+            pickFileId(body)
         } catch (_: Exception) {
             null
         }
     }
+
+    internal fun pickFileId(body: String): Long? {
+        val data = try {
+            JSONObject(body).optJSONArray("data") ?: return null
+        } catch (_: Exception) {
+            return null
+        }
+        var best: Long? = null
+        var bestDl = -1
+        for (i in 0 until data.length()) {
+            val a = data.optJSONObject(i)?.optJSONObject("attributes") ?: continue
+            val files = a.optJSONArray("files") ?: continue
+            if (files.length() == 0) continue
+            val dl = a.optInt("download_count", 0)
+            if (dl > bestDl) {
+                bestDl = dl
+                best = files.optJSONObject(0)?.optLong("file_id")?.takeIf { it > 0 }
+            }
+        }
+        return best
+    }
+
+    internal fun linkOf(body: String): String? =
+        try {
+            JSONObject(body).optString("link").takeIf { it.startsWith("http") }
+        } catch (_: Exception) {
+            null
+        }
 
     fun downloadText(apiKey: String, fileId: Long): String? {
         return try {
@@ -145,7 +160,7 @@ object OsSubs {
                 .header("Accept", "application/json")
             val link = VidLove.client().newCall(b.build()).execute().use { res ->
                 if (res.code != 200) return null
-                JSONObject(res.body?.string().orEmpty()).optString("link").takeIf { it.startsWith("http") }
+                linkOf(res.body?.string().orEmpty())
             } ?: return null
             VidLove.client().newCall(
                 Request.Builder().url(link).header("User-Agent", UA).build(),

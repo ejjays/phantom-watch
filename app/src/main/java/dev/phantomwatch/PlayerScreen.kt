@@ -107,8 +107,6 @@ import dev.phantomwatch.ui.SeekMark
 import dev.phantomwatch.ui.SeekSide
 import dev.phantomwatch.ui.WatchRed
 import dev.phantomwatch.ui.ZoneTap
-import dev.reicon.Download
-import dev.reicon.ReiconIcon
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -119,205 +117,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 private const val DOWNLOAD_BUTTON_ENABLED = true
-
-private fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.SubtitleConfiguration> {
-    return VidLove.englishFirst(subs).mapIndexed { i, sub ->
-        val uri = if (i == 0 && firstUri != null) firstUri else Uri.parse(sub.url)
-        MediaItem.SubtitleConfiguration.Builder(uri)
-            .setMimeType(VidLove.mimeOf(uri.toString()))
-            .setLanguage("en")
-            .setLabel(sub.label)
-            .apply {
-                if (sub.label.contains("english", true)) {
-                    setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                }
-            }
-            .build()
-    }
-}
-
-@OptIn(UnstableApi::class)
-private fun itemFor(
-    url: String,
-    hls: Boolean,
-    cfgs: List<MediaItem.SubtitleConfiguration>,
-    meta: MediaMetadata? = null,
-): MediaItem {
-    val low = url.lowercase()
-    val b = MediaItem.Builder()
-        .setUri(url)
-        .setSubtitleConfigurations(cfgs)
-    when {
-        hls || ".m3u8" in low -> b.setMimeType(MimeTypes.APPLICATION_M3U8)
-        else -> Unit
-    }
-    if (meta != null) b.setMediaMetadata(meta)
-    return b.build()
-}
-
-internal fun looksEnglish(name: String): Boolean {
-    val l = name.lowercase()
-    return l.substringBefore(":").startsWith("en") || "english" in l
-}
-
-internal fun <B : TrackSelectionParameters.Builder> B.textTrack(disabled: Boolean): B =
-    apply { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, disabled) }
-
-private class PlayStats {
-    var attachAt = 0L
-    var startup = 0L
-    var bufAt = 0L
-    var lastSeekAt = 0L
-    var stalls = 0
-    var stallMs = 0L
-    var err = ""
-}
-
-internal fun rankEmbed(names: List<String>): Int {
-    var best = -1
-    var bestScore = Int.MIN_VALUE
-    names.forEachIndexed { i, n ->
-        if (!looksEnglish(n)) return@forEachIndexed
-        val l = n.lowercase()
-        var s = 0
-        if ("dialog" in l || "full" in l || "complete" in l) s += 10
-        if ("sign" in l || "song" in l || "s&s" in l) s -= 10
-        if ("forced" in l) s -= 20
-        if (s > bestScore) {
-            bestScore = s
-            best = i
-        }
-    }
-    return best
-}
-
-private fun detectLang(cues: List<VidLove.Cue>): String? {
-    if (cues.isEmpty()) return null
-    val step = maxOf(1, cues.size / 60)
-    var ja = 0
-    var ko = 0
-    var zh = 0
-    var en = 0
-    var th = 0
-    var ar = 0
-    var ru = 0
-    var n = 0
-    var i = 0
-    while (i < cues.size && n < 60) {
-        val t = cues[i].text.replace(Regex("\\{[^}]*\\}"), "")
-        if (t.isNotBlank()) {
-            n++
-            when {
-                t.contains(Regex("[\u3040-\u30ff]")) -> ja++
-                Regex("[\uac00-\ud7af]").containsMatchIn(t) -> ko++
-                t.contains(Regex("[\u0e00-\u0e7f]")) -> th++
-                t.contains(Regex("[\u0600-\u06ff]")) -> ar++
-                t.contains(Regex("[\u0400-\u04ff]")) -> ru++
-                t.contains(Regex("[\u4e00-\u9fff]")) -> zh++
-                t.contains(Regex("[a-zA-Z]")) -> en++
-            }
-        }
-        i += step
-    }
-    if (n == 0) return null
-    val best = mapOf("ja" to ja, "ko" to ko, "th" to th, "ar" to ar, "ru" to ru, "zh" to zh, "en" to en)
-        .maxByOrNull { it.value }
-    return best?.takeIf { it.value > 0 }?.key
-}
-
-private fun mediaHeaders(stream: Stream): Map<String, String> {
-    val ref = when {
-        stream.url.startsWith("file") -> emptyMap()
-        stream.headers.isNotEmpty() -> stream.headers
-        stream.referer.isNotEmpty() -> mapOf(
-            "Referer" to stream.referer,
-            "Origin" to "https://${Uri.parse(stream.referer).host}",
-        )
-        else -> emptyMap()
-    }
-    return mapOf("User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36") +
-        ref + (stream.auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
-}
-
-private fun buildMediaFactory(
-    context: android.content.Context,
-    stream: Stream,
-    headers: Map<String, String>,
-    ctl: DlCtl?,
-): androidx.media3.exoplayer.source.DefaultMediaSourceFactory {
-    val retry = androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(3)
-    if (stream.url.startsWith("file")) {
-        // incomplete torrent file: hide the length so Exo plays progressively
-        // instead of seeking cue tables that are not downloaded yet
-        return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-            DataSource.Factory {
-                val inner = FileDataSource()
-                object : DataSource {
-                    override fun open(dataSpec: DataSpec): Long {
-                        inner.open(dataSpec)
-                        return C.LENGTH_UNSET.toLong()
-                    }
-                    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
-                        inner.read(buffer, offset, length)
-                    override fun getUri(): android.net.Uri? = inner.uri
-                    override fun getResponseHeaders(): Map<String, List<String>> = inner.responseHeaders
-                    override fun close() = inner.close()
-                    override fun addTransferListener(transferListener: TransferListener) =
-                        inner.addTransferListener(transferListener)
-                }
-            },
-        ).setLoadErrorHandlingPolicy(retry)
-    }
-    val http = DefaultHttpDataSource.Factory()
-        .setUserAgent(headers.getValue("User-Agent"))
-        .setDefaultRequestProperties(headers)
-    if (stream.url.contains("animeparadise.moe")) {
-        http.setConnectTimeoutMs(15000).setReadTimeoutMs(30000)
-    }
-    return androidx.media3.exoplayer.source.DefaultMediaSourceFactory(http)
-        .setLoadErrorHandlingPolicy(retry)
-}
-
-@OptIn(UnstableApi::class)
-private fun sourceFor(
-    context: android.content.Context,
-    stream: Stream,
-    subs: List<Sub>,
-    firstUri: Uri?,
-    ctl: DlCtl?,
-    meta: MediaMetadata?,
-): MediaSource = buildMediaFactory(context, stream, mediaHeaders(stream), ctl)
-    .createMediaSource(itemFor(stream.url, stream.isHls, configsFor(subs, firstUri), meta))
-
-@OptIn(UnstableApi::class)
-private fun buildPreviewPlayer(context: android.content.Context, stream: Stream): ExoPlayer {
-    val headers = mediaHeaders(stream)
-    val selector = DefaultTrackSelector(context).apply {
-        parameters = buildUponParameters()
-            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-            .build()
-    }
-    val loadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(2000, 5000, 1000, 1000)
-        .build()
-    return ExoPlayer.Builder(context)
-        .setTrackSelector(selector)
-        .setMediaSourceFactory(buildMediaFactory(context, stream, headers, null))
-        .setLoadControl(loadControl)
-        .build()
-        .apply {
-            volume = 0f
-            setScrubbingModeParameters(ScrubbingModeParameters.Builder().setUseDecodeOnlyFlag(false).build())
-            addListener(object : Player.Listener {
-                override fun onPlayerError(error: PlaybackException) {
-                    AppLog.d("preview err ${error.errorCodeName}")
-                }
-            })
-            setMediaItem(itemFor(stream.url, stream.isHls, emptyList()))
-            prepare()
-        }
-}
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -349,7 +148,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             val live = bundle.formats.filter { it.url !in Torrents.DeadReleases.urls }
             AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
-                resolveErr = "No direct streams found"
+                resolveErr = if (JsProviders.engineDown) "Provider engine unavailable" else "No direct streams found"
                 return@LaunchedEffect
             }
             val best = live.first()
@@ -393,47 +192,22 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     if (rs == null || player == null) {
         if (player == null && buildError != null) {
-            Column(
-                Modifier.fillMaxSize().statusBarsPadding().padding(16.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Player failed: $buildError")
-                Button(onClick = onBack) { Text("Back") }
-            }
+            PlayerBuildFailed(buildError!!, onBack)
             return
         }
-        BackHandler(onBack = onBack)
-        val cfg = LocalConfiguration.current
-        val stageH = (minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat() * 9 / 16).dp
-        Column(Modifier.fillMaxSize().background(Color.Black)) {
-            Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
-                PlayerStage(
-                    title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
-                    fullscreen = false, isPlaying = false, stalled = true,
-                    positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
-                    flash = resolveErr, seekMark = null, seekInset = 0.dp, locked = false,
-                    subsOn = false, canSubs = false,
-                    onBack = onBack, onFullscreen = {}, onTogglePlay = {}, onToggleLock = {},
-                    onSeek = {}, onInteract = {}, onZoneTap = {}, onToggleSubs = {},
-                    onSwipe = { _, _ -> }, onSwipeEnd = {},
-                    video = { mod -> Box(mod.fillMaxSize().background(Color.Black)) },
-                )
-            }
-            PlayerPanel(
-                media = media, season = season, episode = episode,
-                overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
-            )
-            if (resolveErr != null) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                ) {
-                    Button(onClick = { resolveErr = null; retryN++ }) { Text("Retry") }
-                    TextButton(onClick = onPickList) { Text("Choose") }
-                }
-            }
-        }
+        PlayerResolving(
+            title = title,
+            season = season,
+            episode = episode,
+            resolveErr = resolveErr,
+            media = media,
+            overview = overview,
+            onBack = onBack,
+            onRetry = { resolveErr = null; retryN++ },
+            onPickList = onPickList,
+            onEpisode = onEpisode,
+            onOpenTitle = onOpenTitle,
+        )
         return
     }
     val stream = rs
@@ -471,6 +245,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                         .put("err", stats.err),
                 )
             }
+            if (stats.startup > 0) Resume.save(context, media.kind, media.id, season, episode, exo.currentPosition, exo.duration)
             exo.stop() // leaving the player screen ends playback; background playback stays in the media session
         }
     }
@@ -514,22 +289,34 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             }
         }
     }
-    fun attach(pos: Long) {
+    fun attachSubs(
+        subs: List<Sub>,
+        firstUri: Uri? = null,
+        src: Stream = stream,
+        pos: Long = exo.currentPosition,
+        autoplay: Boolean = true,
+    ) {
         try {
-            stats.attachAt = SystemClock.elapsedRealtime()
-            val subs = live.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-            exo.setMediaSource(sourceFor(context, live, subs, null, ctl, meta), pos)
+            exo.setMediaSource(sourceFor(context, src, subs, firstUri, ctl, meta), pos)
             exo.prepare()
-            exo.play()
+            if (autoplay) exo.play()
         } catch (e: Exception) {
             AppLog.d("attach fail ${e.message}")
         }
+    }
+    fun attach(pos: Long) {
+        stats.attachAt = SystemClock.elapsedRealtime()
+        val subs = live.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
+        attachSubs(subs, null, live, pos)
     }
     LaunchedEffect(resolved) {
         val r = resolved ?: return@LaunchedEffect
         val same = exo.currentMediaItem?.localConfiguration?.uri?.toString() == r.url
         if (same && exo.playbackState != Player.STATE_IDLE) return@LaunchedEffect
-        attach(if (same) exo.currentPosition else 0L)
+        val saved = if (same) Resume.startAt(exo.currentPosition, exo.duration)
+        else Resume.position(context, media.kind, media.id, season, episode)
+        if (saved > 0) AppLog.d("resume at ${saved / 1000}s")
+        attach(saved)
     }
     fun netResume(src: String) {
         if (exo.playbackState != Player.STATE_IDLE) return
@@ -722,9 +509,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                             }
                             AppLog.d("player resume at ${pos / 1000}s dl=${dl}MB")
                             val subs = stream.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-                            exo.setMediaSource(sourceFor(context, stream, subs, null, ctl, meta), pos)
-                            exo.prepare()
-                            exo.play()
+                            attachSubs(subs, null, stream, pos)
                         } catch (_: Exception) {
                         }
                     }
@@ -854,11 +639,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 AppLog.d("subs shift failed")
                 return@launch
             }
-            val pos = exo.currentPosition
-            val wasPlaying = exo.isPlaying
-            exo.setMediaSource(sourceFor(context, stream, stream.subs, Uri.fromFile(f), ctl, meta), pos)
-            exo.prepare()
-            if (wasPlaying) exo.play()
+            attachSubs(stream.subs, Uri.fromFile(f), stream, exo.currentPosition, autoplay = exo.isPlaying)
         }
     }
     fun nudge(delta: Long) {
@@ -880,11 +661,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         aiStatus = "AI ✓ ${all.size}"
         AppLog.d("ai cues=${all.size}")
         val merged = (stream.subs + Sub("AI English", Uri.fromFile(f).toString())).distinctBy { it.url }
-        val pos = exo.currentPosition
-        val wasPlaying = exo.isPlaying
-        exo.setMediaSource(sourceFor(context, stream, merged, null, ctl, meta), pos)
-        exo.prepare()
-        if (wasPlaying) exo.play()
+        attachSubs(merged, null, stream, exo.currentPosition, autoplay = exo.isPlaying)
         if (stream.subKey.isNotEmpty() && all.size >= 5) {
             withContext(Dispatchers.IO) {
                 SubsApi.store(stream.subKey, "AI English", VidLove.renderCues(all), "ai")
@@ -895,11 +672,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         val label = "English (OpenSubtitles)"
         val merged = (stream.subs + Sub(label, Uri.fromFile(f).toString())).distinctBy { it.url }
         osTrack = "en:$label"
-        val pos = exo.currentPosition
-        val wasPlaying = exo.isPlaying
-        exo.setMediaSource(sourceFor(context, stream, merged, null, ctl, meta), pos)
-        exo.prepare()
-        if (wasPlaying) exo.play()
+        attachSubs(merged, null, stream, exo.currentPosition, autoplay = exo.isPlaying)
         osStatus = "OS ✓"
         AppLog.d("subs source=OpenSubtitles $hash")
     }
@@ -1235,10 +1008,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var playing by remember { mutableStateOf(false) }
     var stalled by remember { mutableStateOf(true) }
     var downloadOpen by remember { mutableStateOf(false) }
-    var downloadInstall by remember { mutableStateOf(false) }
-    var downloadError by remember { mutableStateOf<String?>(null) }
     var seekMark by remember { mutableStateOf<SeekMark?>(null) }
     var hideJob: Job? by remember { mutableStateOf(null) }
+    var lastSaveAt by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
     var lastTapAt by remember { mutableStateOf(0L) }
     var lastTapSide by remember { mutableStateOf<ZoneTap?>(null) }
     var tapId by remember { mutableStateOf(0) }
@@ -1401,6 +1173,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             playing = exo.isPlaying
             PipCtl.playing = exo.isPlaying
             stalled = exo.playbackState == Player.STATE_BUFFERING
+            if (stats.startup > 0 && SystemClock.elapsedRealtime() - lastSaveAt > 10000) {
+                lastSaveAt = SystemClock.elapsedRealtime()
+                Resume.save(context, media.kind, media.id, season, episode, positionMs, durationMs)
+            }
             val now = SystemClock.elapsedRealtime()
             if (stalled) {
                 if (stallAt == 0L) stallAt = now
@@ -1844,85 +1620,21 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             }
         }
     }
-        if (DOWNLOAD_BUTTON_ENABLED && !PipCtl.inPip && WatchDownload.isHttpUrl(stream.url)) {
-            SmallFloatingActionButton(
-                onClick = {
-                    downloadInstall = false
-                    downloadError = null
-                    downloadOpen = true
-                },
-                modifier = Modifier.align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 16.dp)
-                    .navigationBarsPadding(),
-                containerColor = Color(0xE61E293B),
-                contentColor = Cyan,
-            ) {
-                ReiconIcon(
-                    Download.Outline,
-                    contentDescription = "Download",
-                    tint = Cyan,
-                    size = 20.dp,
-                )
-            }
+        if (DOWNLOAD_BUTTON_ENABLED && !PipCtl.inPip) {
+            PlayerDownloadFab(stream, onOpen = {
+                downloadOpen = true
+            })
         }
     }
     if (downloadOpen) {
-        val installed = remember(downloadOpen) { WatchDownload.isInstalled(context) }
-        val useInstall = downloadInstall || !installed
-        AlertDialog(
-            onDismissRequest = { downloadOpen = false },
-            title = { Text("Download with Phantom") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(WatchDownload.baseName(media.title, season, episode))
-                    Text(if (videoH > 0) "${videoH}p" else "Auto quality", color = Cyan)
-                    Text(
-                        when {
-                            WatchDownload.englishSub(stream.subs) != null -> "English subtitle included."
-                            stream.isHls -> "English subtitle added if the stream provides one."
-                            else -> "No separate English subtitle found."
-                        },
-                    )
-                    Text("Saves to Movies/PhantomWatch.")
-                    downloadError?.let { Text(it, color = WatchRed) }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (useInstall) {
-                        WatchDownload.openInstall(context)
-                        downloadOpen = false
-                        return@TextButton
-                    }
-                    val job = WatchDownload.build(
-                        media = media,
-                        season = season,
-                        episode = episode,
-                        stream = stream,
-                        headers = mediaHeaders(stream),
-                        height = videoH,
-                        durationMs = durationMs,
-                    )
-                    if (job == null || !WatchDownload.send(context, job)) {
-                        downloadInstall = true
-                        downloadError = "Phantom needs an update. Install the latest version and try again."
-                    } else {
-                        downloadOpen = false
-                        Toast.makeText(context, "Opening Phantom…", Toast.LENGTH_SHORT).show()
-                    }
-                }) {
-                    Text(
-                        if (useInstall) {
-                            if (installed) "Update Phantom" else "Install Phantom"
-                        } else {
-                            "Open Phantom"
-                        }
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { downloadOpen = false }) { Text("Cancel") }
-            },
+        PlayerDownloadDialog(
+            media = media,
+            season = season,
+            episode = episode,
+            stream = stream,
+            videoH = videoH,
+            durationMs = durationMs,
+            onDismiss = { downloadOpen = false },
         )
     }
 }

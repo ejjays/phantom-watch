@@ -3,7 +3,7 @@ package dev.phantomwatch
 object MkvSubs {
     data class Track(val codec: String, val cues: List<VidLove.Cue>)
 
-    private data class Raw(val start: Long, val dur: Long, val bytes: ByteArray)
+    internal data class Raw(val start: Long, val dur: Long, val bytes: ByteArray)
     private data class Elem(val id: Long, val data: Long, val end: Long)
 
     fun extract(path: String): List<Track> {
@@ -219,7 +219,7 @@ object MkvSubs {
         return "%d:%02d:%02d.%02d".format(v / 3600000, (v / 60000) % 60, (v / 1000) % 60, (v % 1000) / 10)
     }
 
-    private fun assCues(raws: List<Raw>): List<VidLove.Cue> {
+    internal fun assCues(raws: List<Raw>): List<VidLove.Cue> {
         val sb = StringBuilder()
         for (r in raws.sortedBy { it.start }) {
             val text = String(r.bytes, Charsets.UTF_8)
@@ -236,7 +236,7 @@ object MkvSubs {
         return clamp(parsed)
     }
 
-    private fun srtCues(raws: List<Raw>): List<VidLove.Cue> {
+    internal fun srtCues(raws: List<Raw>): List<VidLove.Cue> {
         val cues = mutableListOf<VidLove.Cue>()
         for (r in raws.sortedBy { it.start }) {
             val body = String(r.bytes, Charsets.UTF_8)
@@ -249,7 +249,7 @@ object MkvSubs {
         return clamp(cues.sortedBy { it.start })
     }
 
-    private fun clamp(cues: List<VidLove.Cue>): List<VidLove.Cue> {
+    internal fun clamp(cues: List<VidLove.Cue>): List<VidLove.Cue> {
         return cues.mapIndexed { i, c ->
             val next = cues.getOrNull(i + 1)?.start ?: (c.start + 4000)
             c.copy(end = minOf(c.end, next, c.start + 8000))

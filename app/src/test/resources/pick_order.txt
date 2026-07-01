@@ -1,0 +1,17 @@
+u-1080-en|love-dcloud-1080p|1080|true|true
+u-1080-auto|vix-auto|1080|true|false
+u-2160|love-dcloud-2160p|2160|true|false
+u-1080|love-dcloud-1080p|1080|true|false
+u-720|love-dcloud-720p|720|true|false
+u-1080-nonen|rock-hind-1080p|1080|false|false
+u-auto|love-moviebox-auto|-1080|true|true
+u-480|love-moviebox-480p|-480|true|true
+order
+u-1080-en
+u-1080-auto
+u-2160
+u-1080
+u-720
+u-1080-nonen
+u-auto
+u-480

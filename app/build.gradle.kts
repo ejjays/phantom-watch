@@ -6,6 +6,20 @@ val localProps = Properties().apply {
     if (f.exists()) FileInputStream(f).use { load(it) }
 }
 
+// CI builds against the last published platform; the phone uses the hand-made 37
+val compileSdkVersion = (project.findProperty("compileSdk")?.toString()?.toIntOrNull() ?: 37)
+val targetSdkVersion = (project.findProperty("targetSdk")?.toString()?.toIntOrNull() ?: 37)
+
+fun gitCommitCount(): Int = try {
+    providers.exec {
+        commandLine("git", "rev-list", "--count", "HEAD")
+        workingDir(rootProject.projectDir)
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().toIntOrNull() ?: 1
+} catch (e: Exception) {
+    1
+}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -13,13 +27,13 @@ plugins {
 
 android {
     namespace = "dev.phantomwatch"
-    compileSdk = 37
+    compileSdk = compileSdkVersion
 
     defaultConfig {
         applicationId = "dev.phantomwatch"
         minSdk = 26
-        targetSdk = 37
-        versionCode = 1
+        targetSdk = targetSdkVersion
+        versionCode = gitCommitCount()
         versionName = "1.0"
         buildConfigField("String", "TMDB_API_KEY", "\"${localProps.getProperty("TMDB_API_KEY", "")}\"")
         buildConfigField("String", "OS_API_KEY", "\"${localProps.getProperty("OS_API_KEY", "")}\"")
@@ -56,6 +70,9 @@ android {
         release {
             signingConfig = signingConfigs.getByName("sideload")
             buildConfigField("boolean", "LOGUI", "false")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -98,7 +115,7 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta09")
     implementation("com.airbnb.android:lottie-compose:6.7.1")
-    // JitPack: release tags fail to build; snapshot publishes repo-level artifact, not the reicon-compose module
-    implementation("com.github.dqev:reicon:main-SNAPSHOT")
     testImplementation("junit:junit:4.13.2")
+    // real org.json on the unit-test classpath; android.jar only ships stubs
+    testImplementation("org.json:json:20260814")
 }
