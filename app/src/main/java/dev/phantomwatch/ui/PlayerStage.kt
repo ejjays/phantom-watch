@@ -103,6 +103,7 @@ fun PlayerStage(
     titleBelow: Boolean = false,
     barsInset: Boolean = true,
     lockButton: Boolean = true,
+    rotateButton: Boolean = false,
     locked: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
@@ -115,6 +116,7 @@ fun PlayerStage(
     onFullscreen: () -> Unit,
     onTogglePlay: () -> Unit,
     onToggleLock: () -> Unit,
+    onRotate: () -> Unit = {},
     onSeek: (Float) -> Unit,
     onInteract: () -> Unit,
     onZoneTap: (ZoneTap) -> Unit,
@@ -295,6 +297,29 @@ fun PlayerStage(
                 Icon(
                     painterResource(if (locked) R.drawable.ic_lock else R.drawable.ic_unlock),
                     contentDescription = if (locked) "Locked" else "Unlocked",
+                    tint = Color.White, modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        AnimatedVisibility(
+            visible = fullscreen && rotateButton && controlsVisible,
+            enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
+            exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
+            modifier = Modifier.align(Alignment.CenterEnd)
+                .windowInsetsPadding(WindowInsets.displayCutout)
+                .padding(end = 8.dp),
+        ) {
+            Box(
+                Modifier.size(44.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onRotate() },
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_rotate_screen),
+                    contentDescription = "Rotate to landscape",
                     tint = Color.White, modifier = Modifier.size(20.dp),
                 )
             }

@@ -1313,6 +1313,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         titleBelow: Boolean = false,
         barsInset: Boolean = true,
         lockButton: Boolean = true,
+        rotateButton: Boolean = false, onRotate: () -> Unit = {},
         subStyle: Pair<Float, Float>? = null,
         onFullscreen: () -> Unit = { toggleFullscreen(); poke() },
     ) {
@@ -1336,6 +1337,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         titleBelow = titleBelow,
         barsInset = barsInset,
         lockButton = lockButton,
+        rotateButton = rotateButton, onRotate = onRotate,
         locked = locked,
         subsOn = !subsOff,
         canSubs = stream.subs.isNotEmpty() || live.subs.isNotEmpty() || embedNames.isNotEmpty() || osTrack != null || aiSubUrl != null,
@@ -1582,6 +1584,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                             },
                             titleBelow = theater,
                             lockButton = false,
+                            rotateButton = theater, onRotate = { toggleFullscreen(); poke() },
                             subStyle = subStyle,
                             onFullscreen = {
                                 if (theater) reopen() else { toggleFullscreen(); poke() }
