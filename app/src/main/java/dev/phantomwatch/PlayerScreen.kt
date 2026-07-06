@@ -244,7 +244,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                         .put("err", stats.err),
                 )
             }
-            if (stats.startup > 0) Resume.save(context, media.kind, media.id, season, episode, exo.currentPosition, exo.duration)
+            if (stats.startup > 0) Resume.save(context, media, season, episode, exo.currentPosition, exo.duration)
             exo.stop() // leaving the player screen ends playback; background playback stays in the media session
         }
     }
@@ -1173,7 +1173,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             stalled = exo.playbackState == Player.STATE_BUFFERING
             if (stats.startup > 0 && SystemClock.elapsedRealtime() - lastSaveAt > 10000) {
                 lastSaveAt = SystemClock.elapsedRealtime()
-                Resume.save(context, media.kind, media.id, season, episode, positionMs, durationMs)
+                Resume.save(context, media, season, episode, positionMs, durationMs)
             }
             val now = SystemClock.elapsedRealtime()
             if (stalled) {
@@ -1480,6 +1480,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     }
     val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     Box(Modifier.fillMaxSize()) {
+    NextUpHost(exo, media, season, episode, onEpisode)
     if (PipCtl.inPip) {
         stage(0.dp, videoAspect < 16f / 9f, false)
     } else if (wide) {

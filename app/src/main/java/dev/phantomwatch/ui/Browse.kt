@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -91,6 +92,7 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import dev.phantomwatch.R
 import dev.phantomwatch.RemoteConfig
+import dev.phantomwatch.Resume
 import dev.phantomwatch.Title
 import dev.phantomwatch.VidLove
 import kotlinx.coroutines.Dispatchers
@@ -121,12 +123,14 @@ internal class BrowseState {
     var openTitle by mutableStateOf<Title?>(null)
     var backToEpisodes by mutableStateOf(false)
     var searchOpen by mutableStateOf(false)
+    var historyOpen by mutableStateOf(false)
     var query by mutableStateOf("")
     var results by mutableStateOf<List<Title>>(emptyList())
     var resultsFor by mutableStateOf("")
     var railKey by mutableStateOf<String?>(null)
     var trending by mutableStateOf<List<Title>>(emptyList())
     var rails by mutableStateOf<List<RailState>>(emptyList())
+    var recent by mutableStateOf<List<Resume.Recent>>(emptyList())
     var exploreItems by mutableStateOf<List<Title>>(emptyList())
     var explorePage by mutableStateOf(0)
     var exploreTotal by mutableStateOf(1)
@@ -139,6 +143,7 @@ internal class BrowseState {
 @Composable
 internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
     val key = RemoteConfig.tmdbKey()
+    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -223,6 +228,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
         }
     }
 
+    LaunchedEffect(Unit) { browse.recent = withContext(Dispatchers.IO) { Resume.recent(ctx) } }
     LaunchedEffect(Unit) { if (!browse.loaded) loadBrowse() }
     LaunchedEffect(browse.query) {
         val term = browse.query.trim()
@@ -262,13 +268,15 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
 
     val inSearch = browse.query.trim().length >= 2
     val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
-    val navOpen = browse.searchOpen || browse.railKey != null
+    val navOpen = browse.searchOpen || browse.railKey != null || browse.historyOpen
     BackHandler(enabled = navOpen) {
-        if (browse.searchOpen) {
-            browse.searchOpen = false
-            browse.query = ""
-        } else {
-            browse.railKey = null
+        when {
+            browse.searchOpen -> {
+                browse.searchOpen = false
+                browse.query = ""
+            }
+            browse.railKey != null -> browse.railKey = null
+            else -> browse.historyOpen = false
         }
     }
     val screenW = LocalConfiguration.current.screenWidthDp.dp
@@ -276,7 +284,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize()) {
-            if (openRail == null) {
+            if (openRail == null && !browse.historyOpen) {
                 if (browse.searchOpen) {
                     SearchHeader(
                         query = browse.query,
@@ -286,11 +294,17 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
                 } else {
                     BrowseHeader(
                         onSearch = { browse.searchOpen = true },
+                        onHistory = { browse.historyOpen = true },
                     )
                 }
             }
             AnimatedContent(
-                targetState = if (browse.searchOpen) 1 else if (openRail != null) 2 else 0,
+                targetState = when {
+                    browse.searchOpen -> 1
+                    openRail != null -> 2
+                    browse.historyOpen -> 3
+                    else -> 0
+                },
                 transitionSpec = {
                     fadeIn(tween(280)) togetherWith fadeOut(tween(280)) using SizeTransform(clip = false)
                 },
@@ -314,6 +328,18 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
                             onEnd = { loadMoreRail(it.key) },
                         )
                     } ?: Box(Modifier.fillMaxSize())
+                    3 -> HistoryScreen(
+                        recent = browse.recent,
+                        gridW = gridW,
+                        onBack = { browse.historyOpen = false },
+                        onPlay = { r ->
+                            onWatch(
+                                Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster),
+                                r.season,
+                                r.episode,
+                            )
+                        },
+                    )
                     else -> BrowseBody(
                         trending = browse.trending,
                         rails = browse.rails,
@@ -357,7 +383,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
 }
 
 @Composable
-private fun BrowseHeader(onSearch: () -> Unit) {
+private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -374,6 +400,13 @@ private fun BrowseHeader(onSearch: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(painterResource(R.drawable.ic_search_normal), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onHistory),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_history), contentDescription = "History", tint = Color.White, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -416,7 +449,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
 }
 
 @Composable
-private fun Modifier.pressClick(onClick: () -> Unit): Modifier {
+internal fun Modifier.pressClick(onClick: () -> Unit): Modifier {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.96f else 1f, label = "press")
@@ -720,7 +753,7 @@ private fun SearchBody(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(results, key = { "${it.kind}-${it.id}" }) { item ->
-                        PosterCard(item = item, width = gridW - 12.dp, height = (gridW - 12.dp) * 1.5f, onOpen = onOpen)
+                        PosterCard(item = item, width = gridW, height = gridW * 1.5f, onOpen = onOpen)
                     }
                 }
             }
@@ -766,10 +799,9 @@ private fun RailGrid(rail: RailState, onBack: () -> Unit, onOpen: (Title) -> Uni
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-                Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Slate400, modifier = Modifier.size(18.dp))
+                Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
             }
             Text(rail.title, color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Text("${rail.items.size} titles", color = Slate500, fontSize = 11.sp, fontFamily = Mono)
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -780,7 +812,7 @@ private fun RailGrid(rail: RailState, onBack: () -> Unit, onOpen: (Title) -> Uni
             modifier = Modifier.fillMaxSize(),
         ) {
             items(rail.items, key = { "${it.kind}-${it.id}" }) { item ->
-                PosterCard(item = item, width = gridW - 12.dp, height = (gridW - 12.dp) * 1.5f, onOpen = onOpen)
+                PosterCard(item = item, width = gridW, height = gridW * 1.5f, onOpen = onOpen)
             }
             if (rail.loadingMore) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
