@@ -101,6 +101,7 @@ import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.ui.DetailCache
 import dev.phantomwatch.ui.PlayerPanel
 import dev.phantomwatch.ui.PlayerStage
+import dev.phantomwatch.ui.PlayerVideo
 import dev.phantomwatch.ui.SeekMark
 import dev.phantomwatch.ui.SeekSide
 import dev.phantomwatch.ui.WatchRed
@@ -1409,73 +1410,15 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             volAcc = 0f
         },
         video = { mod ->
-            Box(mod.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (enhSession != null) {
-                    AndroidView(
-                        factory = { ctx ->
-                            SurfaceView(ctx).apply {
-                                holder.addCallback(object : SurfaceHolder.Callback {
-                                    override fun surfaceCreated(h: SurfaceHolder) {
-                                        enhOut = h.surface
-                                    }
-
-                                    override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {}
-
-                                    override fun surfaceDestroyed(h: SurfaceHolder) {
-                                        enhOut = null
-                                        enhBound = null
-                                    }
-                                })
-                            }
-                        },
-                        modifier = Modifier.aspectRatio(videoAspect, matchH),
-                    )
-                } else {
-                    AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                this.player = exo
-                                useController = false
-                                layoutParams = ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                )
-                            }
-                        },
-                        update = {
-                            it.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            val sub = subStyle
-                            it.subtitleView?.let { sv ->
-                                if (sub == null) {
-                                    sv.visibility = View.VISIBLE
-                                    sv.translationY = -(14 * it.resources.displayMetrics.density)
-                                } else {
-                                    sv.visibility = View.GONE
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                if (subStyle != null || enhSession != null) {
-                    AndroidView(
-                        factory = { ctx -> SubtitleView(ctx).also { subView = it } },
-                        onRelease = { if (subView === it) subView = null },
-                        update = {
-                            val sub = subStyle
-                            if (sub != null) {
-                                it.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sub.first)
-                                it.setBottomPaddingFraction(0f)
-                                it.translationY = sub.second
-                            } else {
-                                it.translationY = -(14 * it.resources.displayMetrics.density)
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-            },
+            PlayerVideo(
+                exo = exo, enhSession = enhSession, videoAspect = videoAspect, matchH = matchH,
+                subStyle = subStyle, fullscreen = fsUi,
+                onEnhSurface = { enhOut = it; if (it == null) enhBound = null },
+                onSubView = { subView = it },
+                onSubViewReleased = { if (subView === it) subView = null },
+                modifier = mod,
+            )
+        },
         )
     }
     val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
