@@ -151,6 +151,17 @@ fun PlayerPanel(
                         lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ActionIcon { LikeIcon(contentDescription = "Like", tint = Slate300, size = 24.dp) }
+                    ActionIcon { DislikeIcon(contentDescription = "Dislike", tint = Slate300, size = 24.dp) }
+                    ActionIcon { CommentIcon(contentDescription = "Comments", tint = Slate300, size = 24.dp) }
+                    Spacer(Modifier.weight(1f))
+                    ActionIcon { ShareIcon(contentDescription = "Share", tint = Slate300, size = 24.dp) }
+                }
             }
             if (isTv) {
                 Spacer(Modifier.height(22.dp))
@@ -350,6 +361,14 @@ private fun compactCount(n: Int): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0)
     n >= 1_000 -> "%.1fK".format(n / 1_000.0)
     else -> n.toString()
+}
+
+@Composable
+private fun ActionIcon(content: @Composable () -> Unit) {
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).clickable {},
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 @Composable
