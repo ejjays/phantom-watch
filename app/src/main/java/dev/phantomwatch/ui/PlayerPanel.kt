@@ -4,8 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -229,12 +229,12 @@ fun PlayerPanel(
         }
         AnimatedVisibility(
             visible = showEpisodes,
-            enter = slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { it },
-            exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { it },
+            enter = slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it },
+            exit = slideOutVertically(tween(280, easing = FastOutSlowInEasing)) { it },
         ) {
             EpisodesScreen(
                 detail = d,
-                title = media.title,
+                topInset = 0.dp,
                 onClose = { showEpisodes = false },
                 onEpisode = { s, e -> onEpisode?.invoke(s, e) },
             )

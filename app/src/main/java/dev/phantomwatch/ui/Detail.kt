@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,8 +36,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -60,6 +63,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -431,7 +435,6 @@ fun MovieDetail(
             if (episodesOpen) {
                 EpisodesScreen(
                     detail = detail,
-                    title = item.title,
                     // back from a post-player return skips the detail view
                     onClose = { if (startEpisodes && onEpisodesExit != null) onEpisodesExit() else episodesOpen = false },
                     onEpisode = { s, e ->
@@ -448,8 +451,8 @@ fun MovieDetail(
 private fun EpisodesGate(isOpen: () -> Boolean, content: @Composable AnimatedVisibilityScope.() -> Unit) {
     AnimatedVisibility(
         visible = isOpen(),
-        enter = slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { it },
-        exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { it },
+        enter = slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it },
+        exit = slideOutVertically(tween(280, easing = FastOutSlowInEasing)) { it },
     ) {
         content()
     }
@@ -599,7 +602,12 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
 }
 
 @Composable
-internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> Unit, onEpisode: (String, String) -> Unit) {
+internal fun EpisodesScreen(
+    detail: TitleDetail?,
+    topInset: Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+    onClose: () -> Unit,
+    onEpisode: (String, String) -> Unit,
+) {
     val key = RemoteConfig.tmdbKey()
     val seasons = detail?.seasons.orEmpty()
     var seasonIdx by remember(detail?.id) {
@@ -727,13 +735,13 @@ internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> 
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 32.dp, bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(top = topInset).padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onClose, modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.05f))) {
-                    Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+                IconButton(onClick = onClose, modifier = Modifier.size(38.dp)) {
+                    Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(6.dp))
                 if (searching) {
                     BasicTextField(
                         value = query,
@@ -752,10 +760,7 @@ internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> 
                         CloseIcon(contentDescription = "Close", tint = Slate200, size = 20.dp)
                     }
                 } else {
-                    Column(Modifier.weight(1f)) {
-                        Text("Episodes", color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
-                        Text(detail?.title ?: title, color = Slate400, fontSize = 12.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                    Text("Episodes", color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = { searching = true }) {
                         Icon(painterResource(R.drawable.ic_search_normal), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
                     }
@@ -778,7 +783,7 @@ internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> 
                 }
             }
             when {
-                loading -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                loading -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
                     items(6) {                                Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
                             ShimmerBox(Modifier.fillMaxWidth(0.46f).aspectRatio(16f / 9f))
                             Spacer(Modifier.width(12.dp))
@@ -799,7 +804,7 @@ internal fun EpisodesScreen(detail: TitleDetail?, title: String, onClose: () -> 
                     if (query.isNotEmpty()) {
                         Text("${shown.size} matches", color = Slate500, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                     }
-                    LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                    LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
                         items(shown, key = { it.n }) { ep ->
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
