@@ -1112,8 +1112,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         if (smallScreen) activity?.requestedOrientation =
             if (fullscreen) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
-        fullscreenBars(fullscreen)
     }
+    LaunchedEffect(fullscreen, cfg.orientation) { fullscreenBars(fullscreen) }
     var orientJob: Job? by remember { mutableStateOf(null) }
     val fsNow = rememberUpdatedState(fullscreen)
     val lockedNow = rememberUpdatedState(locked)
@@ -1412,7 +1412,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         video = { mod ->
             PlayerVideo(
                 exo = exo, enhSession = enhSession, videoAspect = videoAspect, matchH = matchH,
-                subStyle = subStyle, fullscreen = fsUi,
+                subStyle = subStyle,
                 onEnhSurface = { enhOut = it; if (it == null) enhBound = null },
                 onSubView = { subView = it },
                 onSubViewReleased = { if (subView === it) subView = null },

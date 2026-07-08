@@ -30,7 +30,6 @@ fun PlayerVideo(
     videoAspect: Float,
     matchH: Boolean,
     subStyle: Pair<Float, Float>?,
-    fullscreen: Boolean,
     onEnhSurface: (Surface?) -> Unit,
     onSubView: (SubtitleView?) -> Unit,
     onSubViewReleased: (SubtitleView) -> Unit,
@@ -38,9 +37,7 @@ fun PlayerVideo(
 ) {
     var videoSurface by remember { mutableStateOf<SurfaceView?>(null) }
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        if (fullscreen) {
-            AmbientGlow(videoSurface, videoAspect, matchH, Modifier.fillMaxSize())
-        }
+        AmbientGlow(videoSurface, videoAspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
                 factory = { ctx ->
