@@ -31,7 +31,7 @@ import kotlin.math.abs
 import kotlin.math.min
 
 private const val FADE = 0.75f
-private const val MAX_LUMA = 28f
+private const val MAX_LUMA = 56f
 private const val MAX_STEP = 0.02f
 private const val DEAD_ZONE = 0.012f
 
