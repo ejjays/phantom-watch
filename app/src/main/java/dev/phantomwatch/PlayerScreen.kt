@@ -104,6 +104,7 @@ import dev.phantomwatch.ui.PlayerStage
 import dev.phantomwatch.ui.PlayerVideo
 import dev.phantomwatch.ui.SeekMark
 import dev.phantomwatch.ui.SeekSide
+import dev.phantomwatch.ui.SwipeHud
 import dev.phantomwatch.ui.WatchRed
 import dev.phantomwatch.ui.ZoneTap
 import dev.phantomwatch.ui.playerVideoShift
@@ -215,8 +216,15 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     val exo = player
     val stats = remember { PlayStats() }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
-    var gestureNote by remember { mutableStateOf<String?>(null) }
+    var swipeHud by remember { mutableStateOf<SwipeHud?>(null) }
+    var swipeActive by remember { mutableStateOf(false) }
     var volAcc by remember { mutableStateOf(0f) }
+    LaunchedEffect(swipeActive) {
+        if (!swipeActive && swipeHud != null) {
+            delay(500)
+            swipeHud = null
+        }
+    }
     var enhReady by remember { mutableStateOf(false) }
     var enhSession by remember { mutableStateOf<com.google.android.gms.media.effect.enhancement.EnhancementSession?>(null) }
     var enhSize by remember { mutableStateOf(0 to 0) }
@@ -1327,7 +1335,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         durationMs = durationMs,
         bufferedMs = bufferedMs,
         controlsVisible = controls && !PipCtl.inPip,
-        flash = gestureNote ?: fillNote,
+        flash = fillNote,
+        swipeHud = swipeHud,
         seekMark = seekMark,
         seekInset = seekInset,
         shiftPx = shiftPx,
@@ -1377,36 +1386,47 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             applySubs()
             poke()
         },
-        onSwipe = { xFrac, dy ->
-            if (xFrac < 0.4f) {
+        onSwipe = { bright, dy ->
+            swipeActive = true
+            val d = context.resources.displayMetrics.density
+            if (bright) {
                 val w = (context as? android.app.Activity)?.window
                 if (w != null) {
                     val lp = w.attributes
-                    val cur = lp.screenBrightness.takeIf { it >= 0f } ?: 0.5f
-                    val nb = (cur - dy / 900f).coerceIn(0.05f, 1f)
+                    val cur = lp.screenBrightness.takeIf { it >= 0f }
+                        ?: (android.provider.Settings.System.getInt(
+                            context.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, 128,
+                        ) / 255f)
+                    val nb = (cur - dy / (100f * d)).coerceIn(0.05f, 1f)
                     lp.screenBrightness = nb
                     w.attributes = lp
-                    gestureNote = "Brightness ${(nb * 100).roundToInt()}%"
+                    swipeHud = SwipeHud(true, nb)
                 }
-            } else if (xFrac > 0.6f && audio != null) {
+            } else if (audio != null) {
                 volAcc -= dy
                 val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                val min = if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    audio.getStreamMinVolume(AudioManager.STREAM_MUSIC)
+                } else {
+                    0
+                }
                 var v = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-                while (volAcc > 40) {
-                    volAcc -= 40
+                val unit = 10f * d
+                while (volAcc > unit) {
+                    volAcc -= unit
                     v += 1
                 }
-                while (volAcc < -40) {
-                    volAcc += 40
+                while (volAcc < -unit) {
+                    volAcc += unit
                     v -= 1
                 }
-                v = v.coerceIn(0, max)
+                v = v.coerceIn(min, max)
                 audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
-                gestureNote = "Volume ${v * 100 / max}%"
+                swipeHud = SwipeHud(false, (v - min).toFloat() / (max - min).coerceAtLeast(1))
             }
         },
         onSwipeEnd = {
-            gestureNote = null
+            swipeActive = false
             volAcc = 0f
         },
         video = { mod ->
@@ -1445,12 +1465,13 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 val restPx = with(density) { restTop.toPx() }
 
                 val flingPx = with(density) { 125.dp.toPx() }
+                val snap = tween<Float>(240)
                 val sheet = remember(panelPx) {
                     AnchoredDraggableState(
                         initialValue = if (keepTheater) panelPx else 0f,
                         positionalThreshold = { it * 0.5f },
                         velocityThreshold = { flingPx },
-                        snapAnimationSpec = tween(240),
+                        snapAnimationSpec = snap,
                         decayAnimationSpec = exponentialDecay(),
                     )
                 }
@@ -1462,7 +1483,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 fun sheetShift() = panelPx - (sheet.offset.takeUnless { it.isNaN() } ?: (if (keepTheater) panelPx else 0f))
                 fun glide(target: Float) {
                     sheetJob[0]?.cancel()
-                    sheetJob[0] = scope.launch { sheet.animateTo(target, tween(240)) }
+                    sheetJob[0] = scope.launch { sheet.animateTo(target, snap) }
                 }
                 val panelTop = remember { floatArrayOf(0f) }
                 val downY = remember { floatArrayOf(Float.MAX_VALUE) }
@@ -1495,18 +1516,22 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                         if (o.isNaN()) keepTheater else o >= panelPx - 0.5f
                     }
                 }
+                val sheetProg by remember(sheet, panelPx) {
+                    derivedStateOf {
+                        val o = sheet.offset.takeUnless { it.isNaN() } ?: (if (keepTheater) panelPx else 0f)
+                        if (panelPx <= 0f) 0f else (o / panelPx).coerceIn(0f, 1f)
+                    }
+                }
                 fun reopen() = glide(0f)
                 fun settleSheet(v: Float) {
                     val o = sheet.offset
                     if (o.isNaN()) return
                     glide(if (v < -flingPx || o < panelPx / 2f) 0f else panelPx)
                 }
-                LaunchedEffect(theater, controls) {
-                    keepTheater = theater
-                    fullscreenBars(theater && !controls)
-                }
+                LaunchedEffect(theater) { keepTheater = theater }
+                LaunchedEffect(sheetProg > 0.5f, controls) { fullscreenBars(sheetProg > 0.5f && !controls) }
                 BackHandler(theater, ::reopen)
-                val stageTop = if (theater) 0.dp else statusTop
+                val stageTop = statusTop * (1f - sheetProg)
                 val stageHpx = with(density) { (maxHeight - stageTop).toPx() }
                 val videoHpx = with(density) { (portraitW / videoAspect.coerceAtLeast(0.1f)).dp.toPx() }.coerceAtMost(stageHpx)
                 val letterbox = ((stageHpx - videoHpx) / 2f).coerceAtLeast(0f)
@@ -1517,7 +1542,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().padding(top = stageTop)) {
                         stage(
-                            if (theater) navBottom else 0.dp, false, theater,
+                            navBottom * sheetProg, false, theater,
                             shiftPx = { sheetShift() },
                             videoShiftPx = { playerVideoShift(sheetShift(), stageHpx, videoHpx) },
                             onSheetDrag = { dy -> sheetJob[0]?.cancel(); sheet.dispatchRawDelta(dy) },

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,6 +75,8 @@ enum class SeekSide { Left, Right }
 
 data class SeekMark(val side: SeekSide, val total: Int)
 
+data class SwipeHud(val brightness: Boolean, val frac: Float)
+
 fun playerClock(ms: Long): String {
     val s = (ms / 1000).toInt().coerceAtLeast(0)
     val h = s / 3600
@@ -93,6 +96,7 @@ fun PlayerStage(
     bufferedMs: Long,
     controlsVisible: Boolean,
     flash: String?,
+    swipeHud: SwipeHud? = null,
     seekMark: SeekMark?,
     seekInset: Dp = 0.dp,
     shiftPx: () -> Float = { 0f },
@@ -121,17 +125,15 @@ fun PlayerStage(
     onInteract: () -> Unit,
     onZoneTap: (ZoneTap) -> Unit,
     onToggleSubs: () -> Unit,
-    onSwipe: (Float, Float) -> Unit,
+    onSwipe: (Boolean, Float) -> Unit,
     onSwipeEnd: () -> Unit,
     video: @Composable (Modifier) -> Unit,
 ) {
-    var stageW by remember { mutableStateOf(0) }
     val zone = rememberUpdatedState(sheetZoneTopPx)
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.Black)
-            .onGloballyPositioned { stageW = it.size.width }
-            .pointerInput(locked, stageW) {
-                var startX = 0f
+            .pointerInput(locked) {
+                var startSide = 0
                 var accX = 0f
                 var accY = 0f
                 var vertical = false
@@ -139,7 +141,13 @@ fun PlayerStage(
                 val vel = VelocityTracker()
                 detectDragGestures(
                     onDragStart = {
-                        startX = if (stageW > 0) it.x / stageW else 0.5f
+                        val mid = size.width / 2f
+                        val dead = 40.dp.toPx()
+                        startSide = when {
+                            it.x < mid - dead -> 1
+                            it.x > mid + dead -> 2
+                            else -> 0
+                        }
                         accX = 0f
                         accY = 0f
                         vertical = false
@@ -163,9 +171,9 @@ fun PlayerStage(
                             accX += drag.x
                             accY += drag.y
                             if (!vertical && abs(accY) > abs(accX) * 1.5f && abs(accY) > 24f) vertical = true
-                            if (vertical) {
+                            if (vertical && startSide != 0) {
                                 change.consume()
-                                onSwipe(startX, drag.y)
+                                onSwipe(startSide == 1, drag.y)
                             }
                         }
                     },
@@ -348,6 +356,13 @@ fun PlayerStage(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = maxHeight / 8)
                     .clip(CircleShape).background(Color.Black.copy(alpha = 0.7f))
                     .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+        if (swipeHud != null) {
+            SwipeHudPill(
+                swipeHud,
+                Modifier.align(if (swipeHud.brightness) Alignment.CenterStart else Alignment.CenterEnd)
+                    .padding(horizontal = 40.dp),
             )
         }
         if (seekMark != null) {
@@ -597,6 +612,48 @@ private fun ScrubPreview(
             }
             Box(
                 Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(Cyan),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SwipeHudPill(hud: SwipeHud, modifier: Modifier = Modifier) {
+    Box(
+        modifier.width(40.dp).height(150.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                painterResource(
+                    when {
+                        hud.brightness -> R.drawable.ic_brightness
+                        hud.frac <= 0f -> R.drawable.ic_volume_off
+                        else -> R.drawable.ic_volume_on
+                    },
+                ),
+                contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier.weight(1f).width(3.dp).clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Box(
+                    Modifier.fillMaxWidth().fillMaxHeight(hud.frac.coerceIn(0f, 1f))
+                        .clip(RoundedCornerShape(2.dp)).background(Color.White),
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "${(hud.frac * 100).roundToInt()}",
+                color = Color.White, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
             )
         }
     }
