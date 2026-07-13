@@ -1548,8 +1548,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                             onSheetDrag = { dy -> sheetJob[0]?.cancel(); sheet.dispatchRawDelta(dy) },
                             onSheetDragEnd = ::settleSheet,
                             sheetZoneTopPx = {
-                                if (theater) stageHpx - letterbox + with(density) { 8.dp.toPx() }
-                                else Float.MAX_VALUE
+                                if (theater) {
+                                    (stageHpx - with(density) { 120.dp.toPx() })
+                                        .coerceAtLeast(stageHpx - letterbox)
+                                } else {
+                                    Float.MAX_VALUE
+                                }
                             },
                             titleBelow = theater,
                             lockButton = false,

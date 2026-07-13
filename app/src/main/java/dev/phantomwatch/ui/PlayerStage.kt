@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -85,6 +87,7 @@ fun playerClock(ms: Long): String {
     return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun PlayerStage(
     title: String,
@@ -130,6 +133,8 @@ fun PlayerStage(
     video: @Composable (Modifier) -> Unit,
 ) {
     val zone = rememberUpdatedState(sheetZoneTopPx)
+    val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    val edgePx = with(LocalDensity.current) { (topInset + 12.dp).toPx() }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.Black)
             .pointerInput(locked) {
@@ -138,12 +143,15 @@ fun PlayerStage(
                 var accY = 0f
                 var vertical = false
                 var sheetZone = false
+                var fromEdge = false
                 val vel = VelocityTracker()
                 detectDragGestures(
                     onDragStart = {
                         val mid = size.width / 2f
                         val dead = 40.dp.toPx()
+                        fromEdge = it.y < edgePx
                         startSide = when {
+                            fromEdge -> 0
                             it.x < mid - dead -> 1
                             it.x > mid + dead -> 2
                             else -> 0
@@ -151,7 +159,7 @@ fun PlayerStage(
                         accX = 0f
                         accY = 0f
                         vertical = false
-                        sheetZone = it.y >= zone.value()
+                        sheetZone = !fromEdge && it.y >= zone.value()
                         vel.resetTracking()
                     },
                     onDragEnd = {
@@ -163,17 +171,19 @@ fun PlayerStage(
                         else if (vertical) onSwipeEnd()
                     },
                     onDrag = { change, drag ->
-                        if (sheetZone) {
-                            vel.addPointerInputChange(change)
-                            change.consume()
-                            onSheetDrag(drag.y)
-                        } else if (!locked) {
-                            accX += drag.x
-                            accY += drag.y
-                            if (!vertical && abs(accY) > abs(accX) * 1.5f && abs(accY) > 24f) vertical = true
-                            if (vertical && startSide != 0) {
+                        if (!fromEdge) {
+                            if (sheetZone) {
+                                vel.addPointerInputChange(change)
                                 change.consume()
-                                onSwipe(startSide == 1, drag.y)
+                                onSheetDrag(drag.y)
+                            } else if (!locked) {
+                                accX += drag.x
+                                accY += drag.y
+                                if (!vertical && abs(accY) > abs(accX) * 1.5f && abs(accY) > 24f) vertical = true
+                                if (vertical && startSide != 0) {
+                                    change.consume()
+                                    onSwipe(startSide == 1, drag.y)
+                                }
                             }
                         }
                     },
