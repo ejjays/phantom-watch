@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import dev.phantomwatch.PipCtl
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -77,7 +78,7 @@ fun PlayerVideo(
                     it.subtitleView?.let { sv ->
                         if (sub == null) {
                             sv.visibility = View.VISIBLE
-                            sv.translationY = -(14 * it.resources.displayMetrics.density)
+                            sv.translationY = if (PipCtl.inPip) 0f else -(14 * it.resources.displayMetrics.density)
                         } else {
                             sv.visibility = View.GONE
                         }

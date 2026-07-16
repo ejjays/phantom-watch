@@ -216,6 +216,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     val exo = player
     val stats = remember { PlayStats() }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
+    var cueLines by remember { mutableStateOf(1) }
     var swipeHud by remember { mutableStateOf<SwipeHud?>(null) }
     var swipeActive by remember { mutableStateOf(false) }
     var volAcc by remember { mutableStateOf(0f) }
@@ -1273,6 +1274,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     AppLog.d("subs cues ${cues.size}")
                 }
                 v.setCues(cues)
+                val wpx = v.width.takeIf { it > 0 } ?: v.resources.displayMetrics.widthPixels
+                cueLines = cueLineCount(cues, wpx, v.context.resources.displayMetrics.scaledDensity * 16f)
             }
         }
         exo.addListener(l)
@@ -1535,10 +1538,16 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 val stageHpx = with(density) { (maxHeight - stageTop).toPx() }
                 val videoHpx = with(density) { (portraitW / videoAspect.coerceAtLeast(0.1f)).dp.toPx() }.coerceAtMost(stageHpx)
                 val letterbox = ((stageHpx - videoHpx) / 2f).coerceAtLeast(0f)
-                val subStyle =
-                    videoHpx * SubtitleView.DEFAULT_TEXT_SIZE_FRACTION to
-                        if (theater) -(letterbox - with(density) { 10.dp.toPx() })
-                        else -with(density) { (panelH / 2 + 14.dp).toPx() }
+                val subPx = maxOf(
+                    videoHpx * SubtitleView.DEFAULT_TEXT_SIZE_FRACTION,
+                    with(density) { (if (theater) 15.dp else 13.dp).toPx() },
+                )
+                val subStyle = subPx to
+                    if (theater) {
+                        -(letterbox - cueLines * subPx * 1.25f - with(density) { 6.dp.toPx() }).coerceAtLeast(0f)
+                    } else {
+                        -with(density) { (panelH / 2 + 14.dp).toPx() }
+                    }
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().padding(top = stageTop)) {
                         stage(
@@ -1609,4 +1618,13 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             onDismiss = { downloadOpen = false },
         )
     }
+}
+
+private fun cueLineCount(cues: List<Cue>, widthPx: Int, textPx: Float): Int {
+    val text = cues.joinToString("\n") { it.text?.toString() ?: "" }.trim()
+    if (text.isEmpty()) return 1
+    val paint = android.text.TextPaint().apply { textSize = textPx }
+    val w = (widthPx * 0.92f).toInt().coerceAtLeast(1)
+    return android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, w)
+        .build().lineCount.coerceIn(1, 4)
 }
