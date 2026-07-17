@@ -216,7 +216,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     val exo = player
     val stats = remember { PlayStats() }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
-    var cueLines by remember { mutableStateOf(1) }
     var swipeHud by remember { mutableStateOf<SwipeHud?>(null) }
     var swipeActive by remember { mutableStateOf(false) }
     var volAcc by remember { mutableStateOf(0f) }
@@ -231,7 +230,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var enhSize by remember { mutableStateOf(0 to 0) }
     var enhOut by remember { mutableStateOf<Surface?>(null) }
     var enhBound by remember { mutableStateOf<Surface?>(null) }
-    var subView by remember { mutableStateOf<SubtitleView?>(null) }
+    var subCues by remember { mutableStateOf("") }
     LaunchedEffect(stream.url) { Enhance.probe(context) { enhReady = it } }
     DisposableEffect(exo) {
         PipCtl.active = true
@@ -1264,8 +1263,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             }
         }
     }
-    DisposableEffect(subView) {
-        val v = subView ?: return@DisposableEffect onDispose {}
+    DisposableEffect(exo) {
         val l = object : Player.Listener {
             private var logged = false
             override fun onCues(cues: List<Cue>) {
@@ -1273,9 +1271,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                     logged = true
                     AppLog.d("subs cues ${cues.size}")
                 }
-                v.setCues(cues)
-                val wpx = v.width.takeIf { it > 0 } ?: v.resources.displayMetrics.widthPixels
-                cueLines = cueLineCount(cues, wpx, v.context.resources.displayMetrics.scaledDensity * 16f)
+                subCues = cues.joinToString("\n") { it.text?.toString().orEmpty() }.trim()
             }
         }
         exo.addListener(l)
@@ -1327,6 +1323,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         lockButton: Boolean = true,
         rotateButton: Boolean = false, onRotate: () -> Unit = {},
         subStyle: Pair<Float, Float>? = null,
+        subTopPx: Float? = null,
         onFullscreen: () -> Unit = { toggleFullscreen(); poke() },
     ) {
         PlayerStage(
@@ -1435,10 +1432,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         video = { mod ->
             PlayerVideo(
                 exo = exo, enhSession = enhSession, videoAspect = videoAspect, matchH = matchH,
+                subCues = subCues,
                 subStyle = subStyle,
+                subTopPx = subTopPx,
                 onEnhSurface = { enhOut = it; if (it == null) enhBound = null },
-                onSubView = { subView = it },
-                onSubViewReleased = { if (subView === it) subView = null },
                 modifier = mod,
             )
         },
@@ -1544,10 +1541,15 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 )
                 val subStyle = subPx to
                     if (theater) {
-                        -(letterbox - cueLines * subPx * 1.25f - with(density) { 6.dp.toPx() }).coerceAtLeast(0f)
+                        0f
                     } else {
                         -with(density) { (panelH / 2 + 14.dp).toPx() }
                     }
+                val subTopPx = if (theater) {
+                    letterbox + videoHpx + with(density) { 6.dp.toPx() }
+                } else {
+                    null
+                }
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().padding(top = stageTop)) {
                         stage(
@@ -1568,6 +1570,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                             lockButton = false,
                             rotateButton = theater, onRotate = { toggleFullscreen(); poke() },
                             subStyle = subStyle,
+                            subTopPx = subTopPx,
                             onFullscreen = {
                                 if (theater) reopen() else { toggleFullscreen(); poke() }
                             },
@@ -1618,13 +1621,4 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             onDismiss = { downloadOpen = false },
         )
     }
-}
-
-private fun cueLineCount(cues: List<Cue>, widthPx: Int, textPx: Float): Int {
-    val text = cues.joinToString("\n") { it.text?.toString() ?: "" }.trim()
-    if (text.isEmpty()) return 1
-    val paint = android.text.TextPaint().apply { textSize = textPx }
-    val w = (widthPx * 0.92f).toInt().coerceAtLeast(1)
-    return android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, w)
-        .build().lineCount.coerceIn(1, 4)
 }
