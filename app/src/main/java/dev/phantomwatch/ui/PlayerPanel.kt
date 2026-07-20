@@ -21,15 +21,21 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,12 +54,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.phantomwatch.Community
 import dev.phantomwatch.RemoteConfig
 import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
@@ -90,6 +100,13 @@ fun PlayerPanel(
     val synopsis = overview?.takeIf { it.isNotBlank() } ?: d?.overview?.takeIf { it.isNotBlank() }
     var showSheet by remember { mutableStateOf(false) }
     var showEpisodes by remember { mutableStateOf(false) }
+    val tmdbId = media.id.toIntOrNull() ?: 0
+    var showComments by remember { mutableStateOf(false) }
+    var stats by remember(media.kind, media.id) { mutableStateOf(Community.Stats()) }
+    val scopeUi = rememberCoroutineScope()
+    LaunchedEffect(media.kind, media.id) {
+        if (tmdbId > 0) Community.stats(media.kind, tmdbId)?.let { stats = it }
+    }
 
     val isTv = media.kind != "movie"
     val playingSeason = season.toIntOrNull() ?: 1
@@ -156,9 +173,58 @@ fun PlayerPanel(
                     Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ActionIcon { LikeIcon(contentDescription = "Like", tint = Slate300, size = 24.dp) }
-                    ActionIcon { DislikeIcon(contentDescription = "Dislike", tint = Slate300, size = 24.dp) }
-                    ActionIcon { CommentIcon(contentDescription = "Comments", tint = Slate300, size = 24.dp) }
+                    val cast: (Int) -> Unit = { v ->
+                        val prev = stats
+                        if (Community.enabled && tmdbId > 0) {
+                            stats = if (prev.mine == v) {
+                                prev.copy(
+                                    mine = 0,
+                                    likes = (prev.likes - if (v == Community.LIKE) 1 else 0).coerceAtLeast(0),
+                                    dislikes = (prev.dislikes - if (v == Community.DISLIKE) 1 else 0).coerceAtLeast(0),
+                                )
+                            } else {
+                                prev.copy(
+                                    mine = v,
+                                    likes = (prev.likes + (if (v == Community.LIKE) 1 else 0) -
+                                        (if (prev.mine == Community.LIKE) 1 else 0)).coerceAtLeast(0),
+                                    dislikes = (prev.dislikes + (if (v == Community.DISLIKE) 1 else 0) -
+                                        (if (prev.mine == Community.DISLIKE) 1 else 0)).coerceAtLeast(0),
+                                )
+                            }
+                            scopeUi.launch {
+                                Community.vote(media.kind, tmdbId, v)?.let { stats = it } ?: run { stats = prev }
+                            }
+                        }
+                    }
+                    ActionIcon(onClick = { cast(Community.LIKE) }) {
+                        LikeIcon(
+                            contentDescription = "Like",
+                            tint = if (stats.mine == Community.LIKE) Cyan else Slate300,
+                            size = 24.dp,
+                        )
+                        if (stats.likes > 0) {
+                            Text(
+                                compactCount(stats.likes), color = Slate200, fontSize = 13.sp,
+                                fontFamily = Rubik, modifier = Modifier.padding(start = 6.dp),
+                            )
+                        }
+                    }
+                    ActionIcon(onClick = { cast(Community.DISLIKE) }) {
+                        DislikeIcon(
+                            contentDescription = "Dislike",
+                            tint = if (stats.mine == Community.DISLIKE) Cyan else Slate300,
+                            size = 24.dp,
+                        )
+                        if (stats.dislikes > 0) {
+                            Text(
+                                compactCount(stats.dislikes), color = Slate200, fontSize = 13.sp,
+                                fontFamily = Rubik, modifier = Modifier.padding(start = 6.dp),
+                            )
+                        }
+                    }
+                    ActionIcon(onClick = { showComments = true }) {
+                        CommentIcon(contentDescription = "Comments", tint = Slate300, size = 24.dp)
+                    }
                     Spacer(Modifier.weight(1f))
                     ActionIcon { ShareIcon(contentDescription = "Share", tint = Slate300, size = 24.dp) }
                 }
@@ -340,6 +406,17 @@ fun PlayerPanel(
                 }
             }
         }
+        AnimatedVisibility(
+            visible = showComments && tmdbId > 0,
+            enter = slideInVertically(tween(240, easing = FastOutSlowInEasing)) { it },
+            exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it },
+        ) {
+            CommentsPanel(
+                kind = media.kind,
+                id = tmdbId,
+                onDismiss = { showComments = false },
+            )
+        }
     }
     BackHandler(enabled = showSheet) { showSheet = false }
 }
@@ -364,14 +441,181 @@ private fun compactCount(n: Int): String = when {
 }
 
 @Composable
-private fun ActionIcon(content: @Composable () -> Unit) {
-    Box(
-        Modifier.size(48.dp).clip(CircleShape).clickable {},
-        contentAlignment = Alignment.Center,
+private fun ActionIcon(onClick: () -> Unit = {}, content: @Composable () -> Unit) {
+    Row(
+        Modifier.height(48.dp).clip(CircleShape).clickable(onClick = onClick)
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) { content() }
 }
 
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+}
+
+@Composable
+private fun CommentsPanel(kind: String, id: Int, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var page by remember { mutableStateOf<Community.Page?>(null) }
+    var input by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(kind, id) { page = Community.comments(kind, id) }
+
+    val submit = {
+        val body = input.trim()
+        if (body.isNotEmpty() && !sending) {
+            sending = true
+            error = null
+            scope.launch {
+                val err = Community.post(kind, id, body)
+                sending = false
+                if (err == null) {
+                    input = ""
+                    page = Community.comments(kind, id)
+                } else {
+                    error = err
+                }
+            }
+        }
+        Unit
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(Bg).navigationBarsPadding().imePadding(),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Comments", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                    fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
+                )
+                page?.let {
+                    Text(
+                        if (it.total == 1) "1 comment" else "${compactCount(it.total)} comments",
+                        color = Slate400, fontSize = 12.sp, fontFamily = Rubik,
+                    )
+                }
+            }
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) {
+                CloseIcon(contentDescription = "Close comments", tint = Slate300, size = 20.dp)
+            }
+        }
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            val p = page
+            when {
+                p == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Cyan, modifier = Modifier.size(20.dp))
+                }
+                p.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No comments yet", color = Slate500, fontSize = 13.sp, fontFamily = Rubik)
+                }
+                else -> LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    items(p.items) { c -> CommentRow(c) }
+                }
+            }
+        }
+        error?.let {
+            Text(
+                it, color = Color(0xFFE06C75), fontSize = 12.sp, fontFamily = Rubik,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+        }
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Avatar(Community.me().orEmpty(), 32.dp)
+            Spacer(Modifier.size(12.dp))
+            Row(
+                Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                BasicTextField(
+                    value = input,
+                    onValueChange = { input = it.take(500) },
+                    modifier = Modifier.weight(1f),
+                    textStyle = TextStyle(color = Color.White, fontSize = 14.sp, fontFamily = Rubik),
+                    cursorBrush = SolidColor(Cyan),
+                    maxLines = 4,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { submit() }),
+                    decorationBox = { field ->
+                        Box {
+                            if (input.isEmpty()) {
+                                Text(
+                                    "Add a comment…", color = Slate500, fontSize = 14.sp,
+                                    fontFamily = Rubik,
+                                )
+                            }
+                            field()
+                        }
+                    },
+                )
+                Box(
+                    Modifier.size(30.dp).clip(CircleShape).clickable(enabled = input.isNotBlank() && !sending) {
+                        submit()
+                    },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    SendIcon(
+                        contentDescription = "Post comment",
+                        tint = if (input.isBlank() || sending) Slate500 else Cyan,
+                        size = 20.dp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommentRow(c: Community.Comment) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Avatar(c.author, 40.dp)
+        Spacer(Modifier.size(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "@${c.author}", color = Slate300, fontSize = 12.sp, fontFamily = Rubik,
+                    fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text("  ·  ", color = Slate500, fontSize = 12.sp, fontFamily = Rubik)
+                Text(Community.ago(c.at), color = Slate500, fontSize = 12.sp, fontFamily = Rubik)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                c.body, color = Color(0xFFE8EAED), fontSize = 14.sp, fontFamily = Rubik,
+                lineHeight = 20.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Avatar(handle: String, size: androidx.compose.ui.unit.Dp) {
+    Box(
+        Modifier.size(size).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            handle.trimStart('@').firstOrNull()?.uppercase() ?: "?",
+            color = Slate300, fontSize = (size.value * 0.36f).sp, fontFamily = Rubik,
+            fontWeight = FontWeight.Medium,
+        )
+    }
 }

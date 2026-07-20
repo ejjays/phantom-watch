@@ -61,6 +61,16 @@ internal fun DislikeIcon(contentDescription: String?, tint: Color, size: Dp) {
 }
 
 @Composable
+internal fun SendIcon(contentDescription: String?, tint: Color, size: Dp) {
+    Icon(
+        painter = painterResource(R.drawable.ic_send),
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = Modifier.size(size),
+    )
+}
+
+@Composable
 internal fun CommentIcon(contentDescription: String?, tint: Color, size: Dp) {
     Icon(
         painter = painterResource(R.drawable.ic_comment),
