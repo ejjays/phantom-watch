@@ -13,7 +13,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal object Community {
+internal object Social {
     const val LIKE = 1
     const val DISLIKE = -1
 

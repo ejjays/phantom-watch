@@ -63,7 +63,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.phantomwatch.Community
+import dev.phantomwatch.Social
 import dev.phantomwatch.RemoteConfig
 import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
@@ -102,10 +102,10 @@ fun PlayerPanel(
     var showEpisodes by remember { mutableStateOf(false) }
     val tmdbId = media.id.toIntOrNull() ?: 0
     var showComments by remember { mutableStateOf(false) }
-    var stats by remember(media.kind, media.id) { mutableStateOf(Community.Stats()) }
+    var stats by remember(media.kind, media.id) { mutableStateOf(Social.Stats()) }
     val scopeUi = rememberCoroutineScope()
     LaunchedEffect(media.kind, media.id) {
-        if (tmdbId > 0) Community.stats(media.kind, tmdbId)?.let { stats = it }
+        if (tmdbId > 0) Social.stats(media.kind, tmdbId)?.let { stats = it }
     }
 
     val isTv = media.kind != "movie"
@@ -175,31 +175,31 @@ fun PlayerPanel(
                 ) {
                     val cast: (Int) -> Unit = { v ->
                         val prev = stats
-                        if (Community.enabled && tmdbId > 0) {
+                        if (Social.enabled && tmdbId > 0) {
                             stats = if (prev.mine == v) {
                                 prev.copy(
                                     mine = 0,
-                                    likes = (prev.likes - if (v == Community.LIKE) 1 else 0).coerceAtLeast(0),
-                                    dislikes = (prev.dislikes - if (v == Community.DISLIKE) 1 else 0).coerceAtLeast(0),
+                                    likes = (prev.likes - if (v == Social.LIKE) 1 else 0).coerceAtLeast(0),
+                                    dislikes = (prev.dislikes - if (v == Social.DISLIKE) 1 else 0).coerceAtLeast(0),
                                 )
                             } else {
                                 prev.copy(
                                     mine = v,
-                                    likes = (prev.likes + (if (v == Community.LIKE) 1 else 0) -
-                                        (if (prev.mine == Community.LIKE) 1 else 0)).coerceAtLeast(0),
-                                    dislikes = (prev.dislikes + (if (v == Community.DISLIKE) 1 else 0) -
-                                        (if (prev.mine == Community.DISLIKE) 1 else 0)).coerceAtLeast(0),
+                                    likes = (prev.likes + (if (v == Social.LIKE) 1 else 0) -
+                                        (if (prev.mine == Social.LIKE) 1 else 0)).coerceAtLeast(0),
+                                    dislikes = (prev.dislikes + (if (v == Social.DISLIKE) 1 else 0) -
+                                        (if (prev.mine == Social.DISLIKE) 1 else 0)).coerceAtLeast(0),
                                 )
                             }
                             scopeUi.launch {
-                                Community.vote(media.kind, tmdbId, v)?.let { stats = it } ?: run { stats = prev }
+                                Social.vote(media.kind, tmdbId, v)?.let { stats = it } ?: run { stats = prev }
                             }
                         }
                     }
-                    ActionIcon(onClick = { cast(Community.LIKE) }) {
+                    ActionIcon(onClick = { cast(Social.LIKE) }) {
                         LikeIcon(
                             contentDescription = "Like",
-                            tint = if (stats.mine == Community.LIKE) Cyan else Slate300,
+                            tint = if (stats.mine == Social.LIKE) Cyan else Slate300,
                             size = 24.dp,
                         )
                         if (stats.likes > 0) {
@@ -209,10 +209,10 @@ fun PlayerPanel(
                             )
                         }
                     }
-                    ActionIcon(onClick = { cast(Community.DISLIKE) }) {
+                    ActionIcon(onClick = { cast(Social.DISLIKE) }) {
                         DislikeIcon(
                             contentDescription = "Dislike",
-                            tint = if (stats.mine == Community.DISLIKE) Cyan else Slate300,
+                            tint = if (stats.mine == Social.DISLIKE) Cyan else Slate300,
                             size = 24.dp,
                         )
                         if (stats.dislikes > 0) {
@@ -457,11 +457,11 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun CommentsPanel(kind: String, id: Int, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var page by remember { mutableStateOf<Community.Page?>(null) }
+    var page by remember { mutableStateOf<Social.Page?>(null) }
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(kind, id) { page = Community.comments(kind, id) }
+    LaunchedEffect(kind, id) { page = Social.comments(kind, id) }
 
     val submit = {
         val body = input.trim()
@@ -469,11 +469,11 @@ private fun CommentsPanel(kind: String, id: Int, onDismiss: () -> Unit) {
             sending = true
             error = null
             scope.launch {
-                val err = Community.post(kind, id, body)
+                val err = Social.post(kind, id, body)
                 sending = false
                 if (err == null) {
                     input = ""
-                    page = Community.comments(kind, id)
+                    page = Social.comments(kind, id)
                 } else {
                     error = err
                 }
@@ -537,7 +537,7 @@ private fun CommentsPanel(kind: String, id: Int, onDismiss: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            Avatar(Community.me().orEmpty(), 32.dp)
+            Avatar(Social.me().orEmpty(), 32.dp)
             Spacer(Modifier.size(12.dp))
             Row(
                 Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp))
@@ -584,7 +584,7 @@ private fun CommentsPanel(kind: String, id: Int, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun CommentRow(c: Community.Comment) {
+private fun CommentRow(c: Social.Comment) {
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Avatar(c.author, 40.dp)
         Spacer(Modifier.size(12.dp))
@@ -595,7 +595,7 @@ private fun CommentRow(c: Community.Comment) {
                     fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text("  ·  ", color = Slate500, fontSize = 12.sp, fontFamily = Rubik)
-                Text(Community.ago(c.at), color = Slate500, fontSize = 12.sp, fontFamily = Rubik)
+                Text(Social.ago(c.at), color = Slate500, fontSize = 12.sp, fontFamily = Rubik)
             }
             Spacer(Modifier.height(4.dp))
             Text(

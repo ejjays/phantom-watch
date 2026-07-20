@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
         PipCtl.inPip = false
         RemoteConfig.load(this)
         JsProviders.init(applicationContext)
-        Community.init(applicationContext)
+        Social.init(applicationContext)
         Thread { RemoteConfig.refresh(applicationContext) }.start()
         androidx.core.content.ContextCompat.registerReceiver(
             this, pipRecv,
