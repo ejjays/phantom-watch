@@ -8,9 +8,9 @@ import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.exoplayer.ExoPlayer
@@ -39,7 +40,7 @@ fun PlayerVideo(
     exo: ExoPlayer,
     enhSession: EnhancementSession?,
     videoAspect: Float,
-    matchH: Boolean,
+    maxVideoH: Dp?,
     subCues: String,
     subStyle: Pair<Float, Float>?,
     subTopPx: Float?,
@@ -47,7 +48,9 @@ fun PlayerVideo(
     modifier: Modifier = Modifier,
 ) {
     var videoSurface by remember { mutableStateOf<SurfaceView?>(null) }
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val vh = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / videoAspect)
+        val vw = vh * videoAspect
         AmbientGlow(videoSurface, videoAspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
@@ -67,7 +70,7 @@ fun PlayerVideo(
                     }
                 },
                 update = { videoSurface = it },
-                modifier = Modifier.aspectRatio(videoAspect, matchH),
+                modifier = Modifier.size(vw, vh),
             )
         } else {
             AndroidView(
@@ -86,7 +89,7 @@ fun PlayerVideo(
                     videoSurface = it.videoSurfaceView as? SurfaceView
                     it.subtitleView?.visibility = View.GONE
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.size(vw, vh),
             )
         }
         SubtitleLayer(subCues, subStyle, subTopPx)

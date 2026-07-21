@@ -1311,7 +1311,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     @Composable
     fun stage(
         seekInset: androidx.compose.ui.unit.Dp,
-        matchH: Boolean,
         fsUi: Boolean,
         shiftPx: () -> Float = { 0f },
         videoShiftPx: () -> Float = shiftPx,
@@ -1325,6 +1324,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         subStyle: Pair<Float, Float>? = null,
         subTopPx: Float? = null,
         onFullscreen: () -> Unit = { toggleFullscreen(); poke() },
+        maxVideoH: androidx.compose.ui.unit.Dp? = null,
     ) {
         PlayerStage(
             title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
@@ -1431,7 +1431,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         },
         video = { mod ->
             PlayerVideo(
-                exo = exo, enhSession = enhSession, videoAspect = videoAspect, matchH = matchH,
+                exo = exo, enhSession = enhSession, videoAspect = videoAspect, maxVideoH = maxVideoH,
                 subCues = subCues,
                 subStyle = subStyle,
                 subTopPx = subTopPx,
@@ -1445,17 +1445,19 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     Box(Modifier.fillMaxSize()) {
     NextUpHost(exo, media, season, episode, onEpisode)
     if (PipCtl.inPip) {
-        stage(0.dp, videoAspect < 16f / 9f, false)
+        stage(0.dp, false)
     } else if (wide) {
         val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val fsVideoH = if (videoAspect >= fsW / fsH) fsW / videoAspect else fsH
         AnimatedVisibility(visible = true, enter = fadeIn()) {
-            stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, videoAspect < fsW / fsH, true)
+            stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, true)
         }
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
-        val stageH = (portraitW * 9 / 16).dp
+        val portraitH = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
+        val stageH = (portraitW / videoAspect.coerceIn(0.4f, 16f / 9f)).dp
+            .coerceAtMost((portraitH * 0.6f).dp)
         val density = LocalDensity.current
         AnimatedVisibility(visible = true, enter = fadeIn()) {
             BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
@@ -1533,7 +1535,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 BackHandler(theater, ::reopen)
                 val stageTop = statusTop * (1f - sheetProg)
                 val stageHpx = with(density) { (maxHeight - stageTop).toPx() }
-                val videoHpx = with(density) { (portraitW / videoAspect.coerceAtLeast(0.1f)).dp.toPx() }.coerceAtMost(stageHpx)
+                val videoCap = stageH + (maxHeight - stageH) * sheetProg
+                val videoHpx = minOf(
+                    with(density) { (portraitW / videoAspect.coerceAtLeast(0.1f)).dp.toPx() },
+                    with(density) { videoCap.toPx() },
+                )
                 val letterbox = ((stageHpx - videoHpx) / 2f).coerceAtLeast(0f)
                 val subPx = maxOf(
                     videoHpx * SubtitleView.DEFAULT_TEXT_SIZE_FRACTION,
@@ -1553,8 +1559,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().padding(top = stageTop)) {
                         stage(
-                            navBottom * sheetProg, false, theater,
+                            navBottom * sheetProg, theater,
                             shiftPx = { sheetShift() },
+                            maxVideoH = videoCap,
                             videoShiftPx = { playerVideoShift(sheetShift(), stageHpx, videoHpx) },
                             onSheetDrag = { dy -> sheetJob[0]?.cancel(); sheet.dispatchRawDelta(dy) },
                             onSheetDragEnd = ::settleSheet,
