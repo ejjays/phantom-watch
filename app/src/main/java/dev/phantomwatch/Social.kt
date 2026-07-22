@@ -18,14 +18,23 @@ internal object Social {
     const val DISLIKE = -1
 
     data class Stats(val likes: Int = 0, val dislikes: Int = 0, val mine: Int = 0)
-    data class Comment(val body: String, val at: Long, val author: String)
+    data class Comment(
+        val id: Long,
+        val body: String,
+        val at: Long,
+        val author: String,
+        val parent: Long,
+    )
     data class Page(val items: List<Comment>, val total: Int)
 
     private class Resp(val code: Int, val body: String, val headers: Map<String, String>)
 
     private val json = "application/json".toMediaType()
     private val lock = Mutex()
+    private val statsCache = HashMap<String, Stats>()
     private var prefs: SharedPreferences? = null
+
+    fun cachedStats(kind: String, id: Int): Stats? = statsCache["$kind:$id"]
 
     val enabled: Boolean
         get() = BuildConfig.SUPABASE_URL.startsWith("https://") && BuildConfig.SUPABASE_ANON_KEY.isNotEmpty()
@@ -57,6 +66,7 @@ internal object Social {
         if (r.code !in 200..299) return null
         val row = runCatching { JSONArray(r.body).optJSONObject(0) }.getOrNull() ?: return null
         return Stats(row.optInt("likes"), row.optInt("dislikes"), row.optInt("mine"))
+            .also { statsCache["$kind:$id"] = it }
     }
 
     suspend fun vote(kind: String, id: Int, value: Int): Stats? {
@@ -68,31 +78,39 @@ internal object Social {
         if (r.code !in 200..299) return null
         val row = runCatching { JSONArray(r.body).optJSONObject(0) }.getOrNull() ?: return null
         return Stats(row.optInt("likes"), row.optInt("dislikes"), row.optInt("mine"))
+            .also { statsCache["$kind:$id"] = it }
     }
 
     suspend fun comments(kind: String, id: Int): Page? {
         val (at, _) = session() ?: return null
-        val query = "/rest/v1/comments?select=body,created_at,user_id&kind=eq.$kind&tmdb_id=eq.$id" +
-            "&hidden=eq.false&order=created_at.desc&limit=50"
-        val r = call(query, "GET", at, headers = mapOf("Prefer" to "count=exact"))
+        val base = "/rest/v1/comments?kind=eq.$kind&tmdb_id=eq.$id" +
+            "&hidden=eq.false&order=created_at.desc&limit=200"
+        val headers = mapOf("Prefer" to "count=exact")
+        // parent_id is absent until the reply migration lands: fall back to the flat shape
+        val r = call("$base&select=id,body,created_at,user_id,parent_id", "GET", at, headers = headers)
+            .takeIf { it.code in 200..299 }
+            ?: call("$base&select=id,body,created_at,user_id", "GET", at, headers = headers)
         if (r.code !in 200..299) return null
         val arr = runCatching { JSONArray(r.body) }.getOrNull() ?: return null
         val items = (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             Comment(
-                o.optString("body"),
-                parseTime(o.optString("created_at")),
-                o.optString("user_id").take(4),
+                id = o.optLong("id"),
+                body = o.optString("body"),
+                at = parseTime(o.optString("created_at")),
+                author = o.optString("user_id").take(4),
+                parent = o.optLong("parent_id"),
             )
         }
         val total = r.headers["content-range"]?.substringAfter('/')?.toIntOrNull() ?: items.size
         return Page(items, total)
     }
 
-    suspend fun post(kind: String, id: Int, text: String): String? {
+    suspend fun post(kind: String, id: Int, text: String, parent: Long = 0): String? {
         val (at, uid) = session() ?: return "Sign-in unavailable"
         val payload = JSONObject()
             .put("user_id", uid).put("kind", kind).put("tmdb_id", id).put("body", text.trim())
+        if (parent > 0) payload.put("parent_id", parent)
         val r = call(
             "/rest/v1/comments", "POST", at, payload.toString(),
             mapOf("Prefer" to "return=minimal"),

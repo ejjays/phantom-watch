@@ -170,7 +170,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var lastErrPos by remember { mutableStateOf(-1L) }
     var lastErrDl by remember { mutableStateOf(0L) }
     var sameSpotStreak by remember { mutableStateOf(0) }
-    var buildError by remember { mutableStateOf<String?>(null) }
     var forcedNames by remember { mutableStateOf<List<String>?>(null) }
     var latestTracks by remember { mutableStateOf<androidx.media3.common.Tracks?>(null) }
     var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -182,18 +181,17 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var fillNote by remember { mutableStateOf<String?>(null) }
     var lastSubSel by remember { mutableStateOf("") }
     LaunchedEffect(title) { AppLog.d("screen $title") }
-    val player: ExoPlayer? = remember {
-        try {
-            Playback.ensure(context).also { AppLog.d("built") }
-        } catch (e: Exception) {
-            buildError = "${e.javaClass.simpleName}: ${e.message}"
-            AppLog.d("build crash ${e.javaClass.simpleName}: ${e.message}")
-            null
-        }
+    val build = remember {
+        runCatching { Playback.ensure(context) }
+    }
+    val player = build.getOrNull()
+    val buildError = build.exceptionOrNull()?.let { "${it.javaClass.simpleName}: ${it.message}" }
+    LaunchedEffect(player, buildError) {
+        if (buildError != null) AppLog.d("build crash $buildError") else AppLog.d("built")
     }
     if (rs == null || player == null) {
         if (player == null && buildError != null) {
-            PlayerBuildFailed(buildError!!, onBack)
+            PlayerBuildFailed(buildError, onBack)
             return
         }
         PlayerResolving(
@@ -1105,6 +1103,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     val statusTop = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val navBottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
     var keepTheater by remember { mutableStateOf(false) }
+    var sheetLocked by remember { mutableStateOf(false) }
     val smallScreen = cfg.smallestScreenWidthDp < 600
     fun rotationEnabled() = try {
         android.provider.Settings.System.getInt(
@@ -1490,7 +1489,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                 val panelTop = remember { floatArrayOf(0f) }
                 val downY = remember { floatArrayOf(Float.MAX_VALUE) }
                 val headerBottom = remember { floatArrayOf(Float.MAX_VALUE) }
-                fun inHeader() = downY[0] < headerBottom[0]
+                fun inHeader() = !sheetLocked && downY[0] < headerBottom[0]
                 val nested = remember(sheet) {
                     object : NestedScrollConnection {
                         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -1605,6 +1604,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
                             media = media, season = season, episode = episode,
                             overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
                             onHeaderBottom = { headerBottom[0] = it },
+                            onSheetLock = { sheetLocked = it },
                         )
                     }
                 }

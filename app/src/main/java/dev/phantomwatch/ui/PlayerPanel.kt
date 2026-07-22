@@ -2,7 +2,10 @@ package dev.phantomwatch.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -21,25 +24,21 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -54,20 +53,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.phantomwatch.Social
+import dev.phantomwatch.Episode
+import dev.phantomwatch.R
 import dev.phantomwatch.RemoteConfig
+import dev.phantomwatch.Social
 import dev.phantomwatch.Title
 import dev.phantomwatch.TitleDetail
-import dev.phantomwatch.Episode
 import dev.phantomwatch.VidLove
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,6 +83,7 @@ fun PlayerPanel(
     onEpisode: ((String, String) -> Unit)? = null,
     onOpenTitle: ((Title) -> Unit)? = null,
     onHeaderBottom: ((Float) -> Unit)? = null,
+    onSheetLock: ((Boolean) -> Unit)? = null,
 ) {
     val key = RemoteConfig.tmdbKey()
     var detail by remember(media.id) { mutableStateOf(DetailCache.detail(media.id)) }
@@ -102,7 +103,11 @@ fun PlayerPanel(
     var showEpisodes by remember { mutableStateOf(false) }
     val tmdbId = media.id.toIntOrNull() ?: 0
     var showComments by remember { mutableStateOf(false) }
-    var stats by remember(media.kind, media.id) { mutableStateOf(Social.Stats()) }
+    LaunchedEffect(showComments) { onSheetLock?.invoke(showComments) }
+    var stats by remember(media.kind, media.id) {
+        mutableStateOf(Social.cachedStats(media.kind, tmdbId) ?: Social.Stats())
+    }
+    var voted by remember(media.kind, media.id) { mutableStateOf(false) }
     val scopeUi = rememberCoroutineScope()
     LaunchedEffect(media.kind, media.id) {
         if (tmdbId > 0) Social.stats(media.kind, tmdbId)?.let { stats = it }
@@ -170,10 +175,11 @@ fun PlayerPanel(
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val cast: (Int) -> Unit = { v ->
+                        voted = true
                         val prev = stats
                         if (Social.enabled && tmdbId > 0) {
                             stats = if (prev.mine == v) {
@@ -196,32 +202,8 @@ fun PlayerPanel(
                             }
                         }
                     }
-                    ActionIcon(onClick = { cast(Social.LIKE) }) {
-                        LikeIcon(
-                            contentDescription = "Like",
-                            tint = if (stats.mine == Social.LIKE) Cyan else Slate300,
-                            size = 24.dp,
-                        )
-                        if (stats.likes > 0) {
-                            Text(
-                                compactCount(stats.likes), color = Slate200, fontSize = 13.sp,
-                                fontFamily = Rubik, modifier = Modifier.padding(start = 6.dp),
-                            )
-                        }
-                    }
-                    ActionIcon(onClick = { cast(Social.DISLIKE) }) {
-                        DislikeIcon(
-                            contentDescription = "Dislike",
-                            tint = if (stats.mine == Social.DISLIKE) Cyan else Slate300,
-                            size = 24.dp,
-                        )
-                        if (stats.dislikes > 0) {
-                            Text(
-                                compactCount(stats.dislikes), color = Slate200, fontSize = 13.sp,
-                                fontFamily = Rubik, modifier = Modifier.padding(start = 6.dp),
-                            )
-                        }
-                    }
+                    ThumbButton(true, stats, 24.dp, 14, voted) { cast(Social.LIKE) }
+                    ThumbButton(false, stats, 24.dp, 14, voted) { cast(Social.DISLIKE) }
                     ActionIcon(onClick = { showComments = true }) {
                         CommentIcon(contentDescription = "Comments", tint = Slate300, size = 24.dp)
                     }
@@ -406,17 +388,7 @@ fun PlayerPanel(
                 }
             }
         }
-        AnimatedVisibility(
-            visible = showComments && tmdbId > 0,
-            enter = slideInVertically(tween(240, easing = FastOutSlowInEasing)) { it },
-            exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it },
-        ) {
-            CommentsPanel(
-                kind = media.kind,
-                id = tmdbId,
-                onDismiss = { showComments = false },
-            )
-        }
+        if (showComments) CommentsSheet(media) { showComments = false }
     }
     BackHandler(enabled = showSheet) { showSheet = false }
 }
@@ -434,18 +406,65 @@ private fun StatCard(value: String, label: String, modifier: Modifier = Modifier
     }
 }
 
-private fun compactCount(n: Int): String = when {
+internal fun compactCount(n: Int): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0)
     n >= 1_000 -> "%.1fK".format(n / 1_000.0)
     else -> n.toString()
 }
 
 @Composable
+private fun ThumbButton(
+    up: Boolean, stats: Social.Stats, size: Dp, countSize: Int, animate: Boolean,
+    onVote: (Int) -> Unit,
+) {
+    val active = stats.mine == if (up) Social.LIKE else Social.DISLIKE
+    val count = if (up) stats.likes else stats.dislikes
+    val fillSpec = if (animate) tween(180) else snap<Float>()
+    val tintSpec = if (animate) tween(180) else snap<Color>()
+    val fill by animateFloatAsState(if (active) 1f else 0f, fillSpec, label = "thumb")
+    val tint by animateColorAsState(if (active) Color.White else Slate300, tintSpec, label = "tint")
+    val slot = 40.dp
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (count > 0) compactCount(count) else "", color = tint, fontSize = countSize.sp,
+            fontFamily = Rubik, fontWeight = FontWeight.SemiBold, lineHeight = (countSize + 2).sp,
+        )
+        Box(
+            Modifier.size(slot).clip(CircleShape)
+                .clickable { onVote(if (up) Social.LIKE else Social.DISLIKE) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(if (up) R.drawable.ic_like else R.drawable.ic_dislike),
+                contentDescription = if (up) "Like" else "Dislike",
+                tint = tint,
+                modifier = Modifier.size(size).graphicsLayer {
+                    alpha = 1f - fill
+                    if (!up) scaleX = -1f
+                },
+            )
+            Icon(
+                painter = painterResource(
+                    if (up) R.drawable.ic_like_filled else R.drawable.ic_dislike_filled,
+                ),
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(size).graphicsLayer {
+                    alpha = fill
+                    val s = 0.72f + 0.28f * fill
+                    scaleX = if (up) s else -s
+                    scaleY = s
+                },
+            )
+        }
+    }
+}
+
+@Composable
 private fun ActionIcon(onClick: () -> Unit = {}, content: @Composable () -> Unit) {
-    Row(
-        Modifier.height(48.dp).clip(CircleShape).clickable(onClick = onClick)
-            .padding(horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) { content() }
 }
 
@@ -454,168 +473,3 @@ private fun SectionTitle(text: String) {
     Text(text, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
 }
 
-@Composable
-private fun CommentsPanel(kind: String, id: Int, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var page by remember { mutableStateOf<Social.Page?>(null) }
-    var input by remember { mutableStateOf("") }
-    var sending by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(kind, id) { page = Social.comments(kind, id) }
-
-    val submit = {
-        val body = input.trim()
-        if (body.isNotEmpty() && !sending) {
-            sending = true
-            error = null
-            scope.launch {
-                val err = Social.post(kind, id, body)
-                sending = false
-                if (err == null) {
-                    input = ""
-                    page = Social.comments(kind, id)
-                } else {
-                    error = err
-                }
-            }
-        }
-        Unit
-    }
-
-    Column(
-        Modifier.fillMaxSize().background(Bg).navigationBarsPadding().imePadding(),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "Comments", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
-                    fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
-                )
-                page?.let {
-                    Text(
-                        if (it.total == 1) "1 comment" else "${compactCount(it.total)} comments",
-                        color = Slate400, fontSize = 12.sp, fontFamily = Rubik,
-                    )
-                }
-            }
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onDismiss),
-                contentAlignment = Alignment.Center,
-            ) {
-                CloseIcon(contentDescription = "Close comments", tint = Slate300, size = 20.dp)
-            }
-        }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            val p = page
-            when {
-                p == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Cyan, modifier = Modifier.size(20.dp))
-                }
-                p.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No comments yet", color = Slate500, fontSize = 13.sp, fontFamily = Rubik)
-                }
-                else -> LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                ) {
-                    items(p.items) { c -> CommentRow(c) }
-                }
-            }
-        }
-        error?.let {
-            Text(
-                it, color = Color(0xFFE06C75), fontSize = 12.sp, fontFamily = Rubik,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-            )
-        }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Avatar(Social.me().orEmpty(), 32.dp)
-            Spacer(Modifier.size(12.dp))
-            Row(
-                Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                BasicTextField(
-                    value = input,
-                    onValueChange = { input = it.take(500) },
-                    modifier = Modifier.weight(1f),
-                    textStyle = TextStyle(color = Color.White, fontSize = 14.sp, fontFamily = Rubik),
-                    cursorBrush = SolidColor(Cyan),
-                    maxLines = 4,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { submit() }),
-                    decorationBox = { field ->
-                        Box {
-                            if (input.isEmpty()) {
-                                Text(
-                                    "Add a comment…", color = Slate500, fontSize = 14.sp,
-                                    fontFamily = Rubik,
-                                )
-                            }
-                            field()
-                        }
-                    },
-                )
-                Box(
-                    Modifier.size(30.dp).clip(CircleShape).clickable(enabled = input.isNotBlank() && !sending) {
-                        submit()
-                    },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    SendIcon(
-                        contentDescription = "Post comment",
-                        tint = if (input.isBlank() || sending) Slate500 else Cyan,
-                        size = 20.dp,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CommentRow(c: Social.Comment) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-        Avatar(c.author, 40.dp)
-        Spacer(Modifier.size(12.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "@${c.author}", color = Slate300, fontSize = 12.sp, fontFamily = Rubik,
-                    fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Text("  ·  ", color = Slate500, fontSize = 12.sp, fontFamily = Rubik)
-                Text(Social.ago(c.at), color = Slate500, fontSize = 12.sp, fontFamily = Rubik)
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                c.body, color = Color(0xFFE8EAED), fontSize = 14.sp, fontFamily = Rubik,
-                lineHeight = 20.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun Avatar(handle: String, size: androidx.compose.ui.unit.Dp) {
-    Box(
-        Modifier.size(size).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            handle.trimStart('@').firstOrNull()?.uppercase() ?: "?",
-            color = Slate300, fontSize = (size.value * 0.36f).sp, fontFamily = Rubik,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
