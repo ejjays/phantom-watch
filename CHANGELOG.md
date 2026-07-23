@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- refactor: the flat `dev.phantomwatch` package is split into `core`, `data`,
+  `provider`, `player`, `subs`, `social`, `torrent` and `ui`; files, tests and
+  drawables are named after what they contain, and the config schema has one
+  shared validator (`checks/config_rules.py`) for CI and signing.
 - home: a history icon next to search opens what you were part way through
   and resumes it at the saved position; a finished episode drops off the list.
 - player: when an episode ends, a 10 s card offers the next one and plays it

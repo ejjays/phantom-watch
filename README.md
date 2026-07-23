@@ -12,14 +12,22 @@ and adaptive masters, and resumes where you left off.
 
 | Path | What lives there |
 |---|---|
-| `app/src/main/java/dev/phantomwatch/` | app: navigation, player, resolver, subs, telemetry |
-| `app/src/main/java/dev/phantomwatch/ui/` | Compose screens (browse, detail, player chrome) |
+| `app/src/main/java/dev/phantomwatch/` | app shell: activity, navigation, crash entry |
+| `app/src/main/java/dev/phantomwatch/core/` | HTTP, logging, remote config, telemetry, crash reports |
+| `app/src/main/java/dev/phantomwatch/data/` | models, TMDB, search, resume and detail caches |
+| `app/src/main/java/dev/phantomwatch/provider/` | JS bridge, resolve cache, fallback format order |
+| `app/src/main/java/dev/phantomwatch/player/` | player screen, media, stage/panel chrome, PiP, next-up |
+| `app/src/main/java/dev/phantomwatch/subs/` | subtitle parsing, MKV/OpenSubtitles/AI sources |
+| `app/src/main/java/dev/phantomwatch/social/` | comments API |
+| `app/src/main/java/dev/phantomwatch/torrent/` | seedbox download control (torrents disabled) |
+| `app/src/main/java/dev/phantomwatch/ui/` | browse/detail/history screens, icons, theme |
 | `app/src/main/assets/providers.js` | **the only** provider implementation, plus the pick order and skip rules |
 | `app/src/main/assets/providers.json` | hosts, keys, per-leg `enabled` flags (signed and OTA-updatable) |
 | `worker/` | Cloudflare Worker: telemetry ingest, provider alerts, daily digest |
 | `probe.js` | live provider health check; runs the same `providers.js` |
 | `sign_config.py` | signs a config bundle for the OTA endpoint |
 | `checks/quality.py` | repo invariants enforced in CI |
+| `checks/config_rules.py` | shared `providers.json`/`providers.js` validator for CI and signing |
 
 Details: [docs/architecture.md](docs/architecture.md),
 [docs/provider-contract.md](docs/provider-contract.md),

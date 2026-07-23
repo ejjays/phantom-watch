@@ -16,13 +16,15 @@ TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
 
 | Layer | Files | Rule |
 |---|---|---|
-| app shell | `MainActivity.kt` | navigation state, PiP, crash dialog |
-| screens | `ui/Browse.kt`, `ui/Detail.kt`, `ui/PlayerStage.kt`, `ui/PlayerPanel.kt` | rendering only |
-| player | `PlayerScreen.kt`, `PlayerMedia.kt`, `PlayerLoading.kt`, `PlayerDownload.kt` | playback state machine |
-| resolver | `Resolve.kt`, `Providers.kt`, `JsProviders.kt`, `FormatOrder.kt` | formats, ordering, cache |
+| app shell | `MainActivity.kt`, `AppRoot.kt`, `PhantomApp.kt` | navigation state, PiP, crash dialog |
+| screens | `ui/Browse.kt`, `ui/Detail.kt`, `ui/History.kt`, `player/PlayerStage.kt`, `player/PlayerPanel.kt` | rendering only |
+| player | `player/PlayerScreen.kt`, `PlayerMedia.kt`, `PlayerLoading.kt`, `PlayerDownload.kt`, `PlayerLayout.kt`, `PlayerVideo.kt` | playback state machine |
+| resolver | `provider/Resolve.kt`, `Providers.kt`, `JsProviders.kt`, `FormatOrder.kt` | formats, ordering, cache |
 | providers | `assets/providers.js`, `assets/providers.json` | the only provider implementation |
-| subs | `VidLove.kt`, `OsSubs.kt`, `SubsApi.kt`, `AiSubs.kt`, `MkvSubs.kt` | subtitle sources |
-| infra | `RemoteConfig.kt`, `Telemetry.kt`, `Resume.kt`, `CrashReport.kt`, `WatchDownload.kt` | config, telemetry, state |
+| subs | `subs/Subtitles.kt`, `OsSubs.kt`, `SubsApi.kt`, `AiSubs.kt`, `MkvSubs.kt` | subtitle sources |
+| data | `data/Models.kt`, `Tmdb.kt`, `Search.kt`, `Resume.kt`, `DetailCache.kt` | catalog and watch state |
+| infra | `core/RemoteConfig.kt`, `core/Telemetry.kt`, `core/CrashReport.kt`, `core/Http.kt` | config, telemetry, transport |
+| torrent | `torrent/Torrent.kt`, `Seedbox.kt`, `DownloadControl.kt` | seedbox and download control (disabled) |
 
 Dependencies point down only: screens never talk to providers directly, the
 resolver never touches Compose, `providers.js` never knows about the app.
@@ -50,9 +52,9 @@ health check and the app report the same thing.
 **State stays on the screen.** The activity handles `configChanges`, so a
 rotation does not recreate it and Compose state survives. Screen-local state
 lives in the composable; only what must outlive the screen (resume position,
-crash report, cached config) goes to storage. `PlayerScreen.kt` is still the
-biggest file in the repo - it is the player state machine - and is capped at
-its current size by `checks/quality.py` until it is split further.
+crash report, cached config) goes to storage. `player/PlayerScreen.kt` is
+still the biggest file in the repo - it is the player state machine - and is
+capped at its current size by `checks/quality.py` until it is split further.
 
 **Signing stays on the debug keystore.** The audience is family and a few
 friends who sideload. A private keystore only matters once the APK leaves
@@ -61,9 +63,11 @@ does.
 
 ## Testing seams
 
-Pure logic is unit tested (`app/src/test`): the resolver cache, subtitle
-parsing and ranking, the oshash vector, the MKV cue conversion, the config
-acceptance rules, the pick order and the OpenSubtitles response parsing.
+Pure logic is unit tested in the package of the code it covers
+(`app/src/test/java/dev/phantomwatch/{core,data,player,provider,subs,torrent,ui}`):
+the resolver cache, subtitle parsing and ranking, the oshash vector, the MKV
+cue conversion, the config acceptance rules, the pick order and the
+OpenSubtitles response parsing.
 `org.json` is a stub in `android.jar`, so the unit tests depend on the real
 `org.json` artifact (test-only, not shipped).
 

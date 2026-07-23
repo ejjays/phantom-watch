@@ -2,11 +2,13 @@
 """Wrap providers.json + providers.js into the signed OTA envelope.
 Usage: python3 sign_config.py --version N
 Writes build/pages-config/providers.json (deploy that dir, never the repo)."""
-import argparse, base64, json, os, pathlib
+import argparse, base64, json, os, pathlib, sys
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 ROOT = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "checks"))
+from config_rules import problems  # noqa: E402
 CFG = ROOT / "app/src/main/assets/providers.json"
 JS = ROOT / "app/src/main/assets/providers.js"
 OUT = ROOT / "build/pages-config/providers.json"
@@ -24,24 +26,9 @@ def tmdb_key():
 
 
 def validate(cfg, script):
-    legs = cfg.get("legs")
-    if not isinstance(legs, dict) or not legs:
-        raise SystemExit("config: no legs")
-    enabled = []
-    for name, leg in legs.items():
-        if not isinstance(leg, dict):
-            raise SystemExit(f"config: leg {name} is not an object")
-        on = leg.get("enabled", True)
-        if not isinstance(on, bool):
-            raise SystemExit(f"config: leg {name} enabled is not bool")
-        enabled.append(on)
-    if not any(enabled):
-        raise SystemExit("config: no enabled legs")
-    if not script.strip():
-        raise SystemExit("config: empty script")
-    services = cfg.get("services")
-    if services is not None and not isinstance(services, dict):
-        raise SystemExit("config: services is not an object")
+    errs = problems(cfg, script)
+    if errs:
+        raise SystemExit("config: " + "; ".join(errs))
 
 
 def main():

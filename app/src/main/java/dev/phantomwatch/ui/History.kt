@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.phantomwatch.R
-import dev.phantomwatch.Resume
+import dev.phantomwatch.data.Resume
 
 @Composable
 internal fun HistoryScreen(
@@ -48,7 +48,7 @@ internal fun HistoryScreen(
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-                Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
+                Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
             }
             Text("History", color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         }
@@ -78,7 +78,7 @@ internal fun HistoryScreen(
 private fun ContinueCard(r: Resume.Recent, width: Dp, onPlay: (Resume.Recent) -> Unit) {
     val frac = if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else 0f
     Column(Modifier.width(width).pressClick { onPlay(r) }) {
-        Box(Modifier.size(width, width * 1.5f).clip(RoundedCornerShape(width * 0.24f)).background(Surface)) {
+        Box(Modifier.size(width, width * 1.5f).clip(RoundedCornerShape(width * 0.24f)).background(SurfaceColor)) {
             if (r.poster != null) {
                 AsyncImage(model = r.poster, contentDescription = r.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }

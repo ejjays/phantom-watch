@@ -7,11 +7,10 @@ import androidx.compose.ui.text.font.FontWeight
 import dev.phantomwatch.R
 
 val Bg = Color(0xFF121011)
-val Surface = Color(0xFF1E1E1E)
+val SurfaceColor = Color(0xFF1E1E1E)
 val Cyan = Color(0xFF22D3EE)
 val WatchRed = Color(0xFFEB2F3D)
 val StarYellow = Color(0xFFFACC15)
-val SavedGreen = Color(0xFF34D399)
 val Slate100 = Color(0xFFF1F5F9)
 val Slate200 = Color(0xFFE2E8F0)
 val Slate300 = Color(0xFFCBD5E1)

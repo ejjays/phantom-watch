@@ -1,12 +1,13 @@
 package dev.phantomwatch.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -30,8 +31,8 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -78,7 +79,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.activity.compose.BackHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -91,10 +91,11 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import dev.phantomwatch.R
-import dev.phantomwatch.RemoteConfig
-import dev.phantomwatch.Resume
-import dev.phantomwatch.Title
-import dev.phantomwatch.VidLove
+import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.data.Resume
+import dev.phantomwatch.data.Search
+import dev.phantomwatch.data.Title
+import dev.phantomwatch.data.Tmdb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -141,7 +142,7 @@ internal class BrowseState {
 }
 
 @Composable
-internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
+internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
     val key = RemoteConfig.tmdbKey()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -157,10 +158,10 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
         scope.launch {
             browse.loading = true
             try {
-                val foundTrending = withContext(Dispatchers.IO) { VidLove.trending(key) }
+                val foundTrending = withContext(Dispatchers.IO) { Tmdb.trending(key) }
                 val foundRails = withContext(Dispatchers.IO) {
                     RailDefs.map { def ->
-                        val r = VidLove.rail(key, def.third, 1)
+                        val r = Tmdb.rail(key, def.third, 1)
                         RailState(def.first, def.second, def.third, r.items, 1, r.totalPages)
                     }
                 }
@@ -185,7 +186,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
         scope.launch {
             browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = true) else it }
             try {
-                val r = withContext(Dispatchers.IO) { VidLove.rail(key, rail.path, rail.page + 1) }
+                val r = withContext(Dispatchers.IO) { Tmdb.rail(key, rail.path, rail.page + 1) }
                 val known = rail.items.map { "${it.kind}-${it.id}" }.toSet()
                 browse.rails = browse.rails.map {
                     if (it.key != railKey) it
@@ -212,7 +213,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
                 var total = browse.exploreTotal
                 var fresh = emptyList<Title>()
                 while (page < minOf(total, 10)) {
-                    val r = withContext(Dispatchers.IO) { VidLove.rail(key, "movie/popular", page + 1) }
+                    val r = withContext(Dispatchers.IO) { Tmdb.rail(key, "movie/popular", page + 1) }
                     page += 1
                     total = r.totalPages
                     fresh = r.items.filter { "${it.kind}-${it.id}" !in seen }
@@ -244,7 +245,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
         searchSeq += 1
         val mine = searchSeq
         try {
-            val found = withContext(Dispatchers.IO) { VidLove.search(term) }
+            val found = withContext(Dispatchers.IO) { Search.titles(term) }
             if (mine == searchSeq) {
                 browse.results = found
                 browse.resultsFor = term
@@ -366,7 +367,7 @@ internal fun MoviesHome(browse: BrowseState, onWatch: (Title, String, String) ->
             exit = slideOutVertically(tween(350), targetOffsetY = { it }) + fadeOut(tween(350)),
         ) {
             selected?.let { item ->
-                MovieDetail(
+                DetailScreen(
                     item = item,
                     onClose = { browse.openTitle = null; browse.backToEpisodes = false },
                     startEpisodes = browse.backToEpisodes,
@@ -396,14 +397,14 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit) {
         Spacer(Modifier.width(8.dp))
         Text("Phantom", color = Color.White, fontSize = 24.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onSearch),
+            Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onSearch),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_search_normal), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(painterResource(R.drawable.ic_search), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(8.dp))
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onHistory),
+            Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onHistory),
             contentAlignment = Alignment.Center,
         ) {
             Icon(painterResource(R.drawable.ic_history), contentDescription = "History", tint = Color.White, modifier = Modifier.size(22.dp))
@@ -422,14 +423,14 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(Surface).clickable(onClick = onBack),
+            Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(8.dp))
         Row(
-            Modifier.weight(1f).height(48.dp).clip(CircleShape).background(Surface).padding(horizontal = 16.dp),
+            Modifier.weight(1f).height(48.dp).clip(CircleShape).background(SurfaceColor).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
@@ -479,11 +480,11 @@ fun PosterCard(
                         .padding(end = width * 0.12f, bottom = height * 0.08f)
                         .clip(CircleShape).background(Color(0xCC1E1E1E)).padding(badgePad),
                 ) {
-                    Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Color.White, modifier = Modifier.size(playSize))
+                    Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Color.White, modifier = Modifier.size(playSize))
                 }
             } else {
                 Box(Modifier.size(width, height), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
+                    Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
                 }
             }
         }
@@ -652,7 +653,7 @@ private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Ti
                 Box(Modifier.fillMaxWidth().height(bannerH + 32.dp)) {
                     Box(
                         Modifier.fillMaxWidth().height(bannerH)
-                            .clip(RoundedCornerShape(48.dp)).background(Surface).clickable { onOpen(item) },
+                            .clip(RoundedCornerShape(48.dp)).background(SurfaceColor).clickable { onOpen(item) },
                     ) {
                         if (item.poster != null) {
                             AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -664,7 +665,7 @@ private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Ti
                     }
                     Row(
                         Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
-                            .clip(RoundedCornerShape(32.dp)).background(Surface)
+                            .clip(RoundedCornerShape(32.dp)).background(SurfaceColor)
                             .padding(horizontal = 20.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -673,7 +674,7 @@ private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Ti
                             Spacer(Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (item.rating != null && item.rating > 0) {
-                                    Icon(painterResource(R.drawable.ic_star2), contentDescription = null, tint = StarYellow, modifier = Modifier.size(12.dp))
+                                    Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(12.dp))
                                     Spacer(Modifier.width(4.dp))
                                 }
                                 Text(
@@ -799,7 +800,7 @@ private fun RailGrid(rail: RailState, onBack: () -> Unit, onOpen: (Title) -> Uni
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-                Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
+                Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
             }
             Text(rail.title, color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         }

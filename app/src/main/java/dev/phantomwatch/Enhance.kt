@@ -2,6 +2,7 @@ package dev.phantomwatch
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.google.android.gms.common.api.Status
 import com.google.android.gms.media.effect.enhancement.Enhancement
 import com.google.android.gms.media.effect.enhancement.EnhancementCallback
 import com.google.android.gms.media.effect.enhancement.EnhancementClient
@@ -9,7 +10,7 @@ import com.google.android.gms.media.effect.enhancement.EnhancementMode
 import com.google.android.gms.media.effect.enhancement.EnhancementOptions
 import com.google.android.gms.media.effect.enhancement.EnhancementSession
 import com.google.android.gms.media.effect.enhancement.EnhancementSessionCallback
-import com.google.android.gms.common.api.Status
+import dev.phantomwatch.core.AppLog
 
 object Enhance {
     fun options(w: Int, h: Int) =

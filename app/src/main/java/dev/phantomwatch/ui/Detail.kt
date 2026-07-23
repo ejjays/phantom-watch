@@ -1,19 +1,26 @@
 package dev.phantomwatch.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,9 +28,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -32,12 +39,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -59,27 +60,28 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
-import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import coil3.SingletonImageLoader
+import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import dev.phantomwatch.AppLog
 import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
-import dev.phantomwatch.RemoteConfig
-import dev.phantomwatch.Resolve
-import dev.phantomwatch.Episode
-import dev.phantomwatch.Person
-import dev.phantomwatch.Title
-import dev.phantomwatch.TitleDetail
-import dev.phantomwatch.VidLove
-import dev.phantomwatch.isWifi
+import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.core.isWifi
+import dev.phantomwatch.data.DetailCache
+import dev.phantomwatch.data.Episode
+import dev.phantomwatch.data.Person
+import dev.phantomwatch.data.Search
+import dev.phantomwatch.data.Title
+import dev.phantomwatch.data.TitleDetail
+import dev.phantomwatch.data.Tmdb
+import dev.phantomwatch.provider.Resolve
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -96,7 +98,7 @@ private fun ShimmerBox(modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun MovieDetail(
+fun DetailScreen(
     item: Title,
     onClose: () -> Unit,
     onWatch: (Title, String, String) -> Unit,
@@ -193,7 +195,7 @@ fun MovieDetail(
         AppLog.d("detail fetch start ${item.kind}/${item.id}")
         var result: TitleDetail? = null
         try {
-            result = withContext(Dispatchers.IO) { VidLove.detail(key, item.kind, item.id) }
+            result = withContext(Dispatchers.IO) { Tmdb.detail(key, item.kind, item.id) }
         } catch (_: Exception) {
         }
         val elapsed = (System.nanoTime() - start) / 1000000
@@ -250,7 +252,7 @@ fun MovieDetail(
                     }
                     Column(
                         Modifier.padding(horizontal = 16.dp).offset(y = (-120).dp)
-                            .clip(RoundedCornerShape(32.dp)).background(Surface).padding(20.dp),
+                            .clip(RoundedCornerShape(32.dp)).background(SurfaceColor).padding(20.dp),
                     ) {
                         Row(verticalAlignment = Alignment.Bottom) {
                             if ((item.poster ?: d.poster) != null) {
@@ -275,7 +277,7 @@ fun MovieDetail(
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(painterResource(R.drawable.ic_star2), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
+                                    Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
                                     Spacer(Modifier.width(4.dp))
                                     if (d.rating > 0) {
                                         Text(String.format("%.1f", d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
@@ -411,7 +413,7 @@ fun MovieDetail(
                     onClick = onClose,
                     modifier = Modifier.statusBarsPadding().padding(start = 16.dp, top = 8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
                 ) {
-                    Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 WatchBar(
                     isTv = d.kind != "movie",
@@ -489,7 +491,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
         AppLog.d("detail season start")
         val n = seasons.getOrNull(seasonIdx)?.number ?: 1
         try {
-            val all = withContext(Dispatchers.IO) { VidLove.season(key, detail.id, n) }
+            val all = withContext(Dispatchers.IO) { Tmdb.season(key, detail.id, n) }
             if (all.isNotEmpty()) {
                 DetailCache.putSeason(detail.id, n)
                 DetailCache.putEpisodes(detail.id, n, all)
@@ -551,7 +553,7 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
             AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
         } else {
             Box(Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.05f)), contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
+                Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
             }
         }
         Spacer(Modifier.width(12.dp))
@@ -570,7 +572,7 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
                 Text("PLAYING", color = Cyan, fontSize = 9.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
             }
         } else {
-            Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
+            Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -580,7 +582,7 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
     Box(modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().clip(CircleShape)
-                .background(Surface).border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape).padding(12.dp),
+                .background(SurfaceColor).border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
@@ -592,7 +594,7 @@ private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modi
                 if (checking) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
                 } else {
-                    Icon(painterResource(R.drawable.ic_play3_filled), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ic_play_filled), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(if (isTv) "Episodes" else "Watch Now", color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
                 }
@@ -699,7 +701,7 @@ internal fun EpisodesScreen(
         var result = emptyList<Episode>()
         try {
             result = withContext(Dispatchers.IO) {
-                VidLove.season(key, d.id, n)
+                Tmdb.season(key, d.id, n)
             }
         } catch (_: Exception) {
             result = emptyList()
@@ -739,14 +741,14 @@ internal fun EpisodesScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose, modifier = Modifier.size(38.dp)) {
-                    Icon(painterResource(R.drawable.ic_arrow_left2), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(6.dp))
                 if (searching) {
                     BasicTextField(
                         value = query,
                         onValueChange = { query = it },
-                        modifier = Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp)).background(Surface).padding(horizontal = 12.dp),
+                        modifier = Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp)).background(SurfaceColor).padding(horizontal = 12.dp),
                         textStyle = TextStyle(color = Color.White, fontSize = 15.sp, fontFamily = Rubik),
                         singleLine = true,
                         decorationBox = { inner ->
@@ -762,7 +764,7 @@ internal fun EpisodesScreen(
                 } else {
                     Text("Episodes", color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = { searching = true }) {
-                        Icon(painterResource(R.drawable.ic_search_normal), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
+                        Icon(painterResource(R.drawable.ic_search), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -817,7 +819,7 @@ internal fun EpisodesScreen(
                                     if (thumb != null) {
                                         AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("ep still ok E${ep.n}") }, onError = { AppLog.d("ep still err E${ep.n}") })
                                     } else {
-                                        Icon(painterResource(R.drawable.ic_play3), contentDescription = null, tint = Slate200, modifier = Modifier.align(Alignment.Center).size(18.dp))
+                                        Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.align(Alignment.Center).size(18.dp))
                                     }
                                 }
                                 Spacer(Modifier.width(12.dp))
@@ -832,41 +834,5 @@ internal fun EpisodesScreen(
                 }
             }
         }
-    }
-}
-
-internal object DetailCache {
-    private var id: String? = null
-    private var last: TitleDetail? = null
-    private var lastSeason = -1
-    private val bySeason = mutableMapOf<Pair<String, Int>, List<Episode>>()
-    private val similarById = mutableMapOf<String, List<Title>>()
-
-    fun detail(id: String): TitleDetail? = last?.takeIf { this.id == id }
-
-    fun put(d: TitleDetail) {
-        if (d.id != id) {
-            id = d.id
-            lastSeason = -1
-        }
-        last = d
-    }
-
-    fun season(id: String): Int = lastSeason.takeIf { this.id == id } ?: -1
-
-    fun putSeason(id: String, n: Int) {
-        if (this.id == id) lastSeason = n
-    }
-
-    fun episodes(id: String, n: Int): List<Episode>? = bySeason[id to n]
-
-    fun putEpisodes(id: String, n: Int, eps: List<Episode>) {
-        bySeason[id to n] = eps
-    }
-
-    fun similar(id: String): List<Title>? = similarById[id]
-
-    fun putSimilar(id: String, list: List<Title>) {
-        similarById[id] = list
     }
 }

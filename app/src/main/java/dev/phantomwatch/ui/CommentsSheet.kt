@@ -78,10 +78,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.phantomwatch.Social
-import dev.phantomwatch.Title
-import kotlinx.coroutines.launch
+import dev.phantomwatch.data.Title
+import dev.phantomwatch.social.Social
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 private val BodyInk = Slate200
 private val LineInk = Color.White.copy(alpha = 0.12f)
