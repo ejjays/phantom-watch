@@ -115,6 +115,21 @@ def check_permissions():
             fail(f"AndroidManifest.xml: unexpected permission {full}")
 
 
+def check_package_dirs(files):
+    for f in files:
+        if not f.startswith(("app/src/main/java", "app/src/test/java")) or not f.endswith(".kt"):
+            continue
+        p = ROOT / f
+        if not p.is_file():
+            continue
+        m = re.search(r"^package\s+([\w.]+)", p.read_text(errors="replace"), re.M)
+        want = f.split("/java/", 1)[1].rpartition("/")[0].replace("/", ".")
+        if not m:
+            fail(f"{f}: no package declaration (expected {want})")
+        elif m.group(1) != want:
+            fail(f"{f}: package {m.group(1)} != directory {want}")
+
+
 def check_no_committed_secrets(files):
     pat = re.compile(
         r"(?i)\b(api[_-]?key|secret|password|token)\b\s*[:=]\s*[\"'][A-Za-z0-9_\-]{20,}[\"']"
@@ -138,6 +153,7 @@ def main():
     check_no_dynamic_deps()
     check_providers_config()
     check_permissions()
+    check_package_dirs(files)
     check_no_committed_secrets(files)
     if failures:
         for f in failures:
