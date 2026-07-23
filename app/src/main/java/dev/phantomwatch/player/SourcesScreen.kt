@@ -219,7 +219,8 @@ internal fun SourcesScreen(
         }
         return
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    val listPad = ((LocalConfiguration.current.screenWidthDp.dp - 720.dp) / 2).coerceAtLeast(0.dp)
+    Column(Modifier.fillMaxSize().padding(horizontal = listPad).statusBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,

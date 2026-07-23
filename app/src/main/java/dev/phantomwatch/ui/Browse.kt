@@ -84,6 +84,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -281,10 +282,22 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
         }
     }
     val screenW = LocalConfiguration.current.screenWidthDp.dp
-    val gridW = (screenW - 56.dp) / 3
+    val expanded = isExpanded(screenW)
+    val split = expanded && selected != null
+    val detailW = if (split) detailPaneWidth(screenW) else 0.dp
+    val contentW = screenW - detailW
+    val gridW = gridCell(contentW, gridColumns(contentW))
+    val closeDetail = {
+        browse.openTitle = null
+        browse.backToEpisodes = false
+    }
+    val watchFromDetail = { t: Title, s: String, e: String ->
+        selected = null
+        onWatch(t, s, e)
+    }
 
     Box(Modifier.fillMaxSize().background(Bg)) {
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(end = detailW)) {
             if (openRail == null && !browse.historyOpen) {
                 if (browse.searchOpen) {
                     SearchHeader(
@@ -324,6 +337,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                     2 -> openRail?.let {
                         RailGrid(
                             rail = it,
+                            width = contentW,
                             onBack = { browse.railKey = null },
                             onOpen = ::openDetail,
                             onEnd = { loadMoreRail(it.key) },
@@ -351,7 +365,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                         failed = browse.failed,
                         detailOpen = selected != null,
                         listState = browse.homeScroll,
-                        
+                        width = contentW,
                         onOpen = ::openDetail,
                         onSeeAll = { browse.railKey = it },
                         onRailEnd = ::loadMoreRail,
@@ -361,23 +375,18 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                 }
             }
         }
-        AnimatedVisibility(
-            visible = selected != null,
-            enter = slideInVertically(tween(350), initialOffsetY = { it }) + fadeIn(tween(350)),
-            exit = slideOutVertically(tween(350), targetOffsetY = { it }) + fadeOut(tween(350)),
-        ) {
-            selected?.let { item ->
-                DetailScreen(
-                    item = item,
-                    onClose = { browse.openTitle = null; browse.backToEpisodes = false },
-                    startEpisodes = browse.backToEpisodes,
-                    onEpisodesExit = { browse.openTitle = null; browse.backToEpisodes = false },
-                    onWatch = { t, s, e ->
-                        selected = null
-                        onWatch(t, s, e)
-                    },
-                    
-                )
+        if (split) {
+            Box(Modifier.align(Alignment.CenterEnd).width(detailW).fillMaxSize()) {
+                DetailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes, closeDetail)
+            }
+        }
+        if (!expanded) {
+            AnimatedVisibility(
+                visible = selected != null,
+                enter = slideInVertically(tween(350), initialOffsetY = { it }) + fadeIn(tween(350)),
+                exit = slideOutVertically(tween(350), targetOffsetY = { it }) + fadeOut(tween(350)),
+            ) {
+                DetailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes, closeDetail)
             }
         }
     }
@@ -511,15 +520,16 @@ private fun BrowseBody(
     failed: Boolean,
     detailOpen: Boolean,
     listState: LazyListState,
+    width: Dp,
     onOpen: (Title) -> Unit,
     onSeeAll: (String) -> Unit,
     onRailEnd: (String) -> Unit,
     onGridEnd: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    val screenW = LocalConfiguration.current.screenWidthDp.dp
-    val gridW = (screenW - 56.dp) / 3
-    val exploreRows = remember(exploreItems) { exploreItems.chunked(3) }
+    val cols = gridColumns(width)
+    val gridW = gridCell(width, cols)
+    val exploreRows = remember(exploreItems, cols) { exploreItems.chunked(cols) }
     LaunchedEffect(listState, exploreRows.size) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { idx ->
@@ -553,7 +563,7 @@ private fun BrowseBody(
         item {
             Column {
                 Text("Trending this week", color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp))
-                TrendingCarousel(trending = trending, paused = detailOpen, onOpen = onOpen)
+                TrendingCarousel(trending = trending, paused = detailOpen, onOpen = onOpen, width = width)
                 rails.forEach { rail ->
                     if (rail.items.isNotEmpty()) {
                         Spacer(Modifier.height(28.dp))
@@ -613,11 +623,13 @@ private fun BrowseBody(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Title) -> Unit) {
+private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Title) -> Unit, width: Dp) {
     if (trending.isEmpty()) return
-    val screenW = LocalConfiguration.current.screenWidthDp.dp
-    val pageW = minOf(screenW - 64.dp, 560.dp)
-    val bannerH = (pageW - 32.dp) * 310f / 353f
+    val pageW = minOf(width - 64.dp, 720.dp)
+    val bannerH = minOf(
+        (pageW - 32.dp) * 310f / 353f,
+        LocalConfiguration.current.screenHeightDp.dp * 0.5f,
+    )
     val pages = remember(trending) {
         if (trending.isEmpty()) emptyList() else List(trending.size * 3) { trending[it % trending.size] }
     }
@@ -647,7 +659,7 @@ private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Ti
             }
     }
     Column {
-        HorizontalPager(state = state, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = (screenW - pageW) / 2), pageSpacing = 0.dp) { page ->
+        HorizontalPager(state = state, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = (width - pageW) / 2), pageSpacing = 0.dp) { page ->
             val item = pages[page]
             Column(Modifier.width(pageW).padding(horizontal = 16.dp)) {
                 Box(Modifier.fillMaxWidth().height(bannerH + 32.dp)) {
@@ -747,7 +759,7 @@ private fun SearchBody(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
+                    columns = GridCells.Adaptive(gridW),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -789,9 +801,9 @@ private fun SearchBody(
 }
 
 @Composable
-private fun RailGrid(rail: RailState, onBack: () -> Unit, onOpen: (Title) -> Unit, onEnd: () -> Unit) {
-    val screenW = LocalConfiguration.current.screenWidthDp.dp
-    val gridW = (screenW - 56.dp) / 3
+private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Title) -> Unit, onEnd: () -> Unit) {
+    val cols = gridColumns(width)
+    val gridW = gridCell(width, cols)
     val state = rememberLazyGridState()
     LaunchedEffect(state) {
         snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
@@ -805,7 +817,7 @@ private fun RailGrid(rail: RailState, onBack: () -> Unit, onOpen: (Title) -> Uni
             Text(rail.title, color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         }
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Fixed(cols),
             state = state,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

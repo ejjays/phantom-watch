@@ -1150,11 +1150,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     if (Pip.inPip) {
         stage(0.dp, false)
     } else if (wide) {
-        val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
-        val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
-        val fsVideoH = if (videoAspect >= fsW / fsH) fsW / videoAspect else fsH
-        AnimatedVisibility(visible = true, enter = fadeIn()) {
-            stage((((fsH - fsVideoH) / 2).coerceAtLeast(0f)).dp, true)
+        PlayerWide(media, season, episode, overview, videoAspect, onEpisode, onOpenTitle) { inset ->
+            stage(inset, true)
         }
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()

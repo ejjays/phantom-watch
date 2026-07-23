@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -58,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -219,6 +222,7 @@ fun DetailScreen(
         AppLog.d("detail applied +${ms()}ms")
     }
 
+    val heroH = minOf(413f, LocalConfiguration.current.screenHeightDp * 0.5f).dp
     Box(Modifier.fillMaxSize().background(Bg)) {
         val d = detail ?: TitleDetail(
             id = item.id, kind = item.kind, title = item.title, overview = "",
@@ -243,7 +247,7 @@ fun DetailScreen(
                 )
             }
             else -> {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                Column(Modifier.widthIn(max = 720.dp).fillMaxSize().verticalScroll(rememberScrollState()).align(Alignment.TopCenter)) {
                     Box(
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(bottomStart = 55.dp, bottomEnd = 55.dp))
@@ -251,7 +255,7 @@ fun DetailScreen(
                     ) {
                         val hero = (item.backdrop ?: item.poster) ?: (d.backdrop ?: d.poster)
                         if (hero != null) {
-                            AsyncImage(model = hero, contentDescription = null, modifier = Modifier.fillMaxWidth().height(413.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, onSuccess = { AppLog.d("detail hero ok +${ms()}ms") }, onError = { AppLog.d("detail hero err +${ms()}ms") })
+                            AsyncImage(model = hero, contentDescription = null, modifier = Modifier.fillMaxWidth().height(heroH), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, onSuccess = { AppLog.d("detail hero ok +${ms()}ms") }, onError = { AppLog.d("detail hero err +${ms()}ms") })
                         } else {
                             Spacer(Modifier.fillMaxWidth().height(120.dp))
                         }
@@ -435,7 +439,7 @@ fun DetailScreen(
                             }
                         }
                     },
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 720.dp),
                 )
             }
         }
@@ -740,7 +744,8 @@ internal fun EpisodesScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Bg)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {
+        val thumbW = (maxWidth * 0.46f).coerceAtMost(200.dp)
         Column(Modifier.fillMaxSize()) {
             Row(
                 Modifier.fillMaxWidth().padding(top = topInset).padding(horizontal = 12.dp),
@@ -793,7 +798,7 @@ internal fun EpisodesScreen(
             when {
                 loading -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
                     items(6) {                                Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
-                            ShimmerBox(Modifier.fillMaxWidth(0.46f).aspectRatio(16f / 9f))
+                            ShimmerBox(Modifier.width(thumbW).aspectRatio(16f / 9f))
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 ShimmerBox(Modifier.fillMaxWidth(0.95f).height(16.dp))
@@ -821,7 +826,7 @@ internal fun EpisodesScreen(
                                 verticalAlignment = Alignment.Top,
                             ) {
                                 val thumb = ep.still ?: (detail?.backdrop ?: detail?.poster)
-                                Box(Modifier.fillMaxWidth(0.46f).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.05f))) {
+                                Box(Modifier.width(thumbW).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.05f))) {
                                     if (thumb != null) {
                                         AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("ep still ok E${ep.n}") }, onError = { AppLog.d("ep still err E${ep.n}") })
                                     } else {

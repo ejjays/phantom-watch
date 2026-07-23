@@ -19,6 +19,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_PhantomWatch)
         super.onCreate(savedInstanceState)
+        // phones stay portrait; tablets and desktop windows follow the display
+        if (resources.configuration.smallestScreenWidthDp < 600) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
         Pip.inPip = false
         RemoteConfig.load(this)
         JsProviders.init(applicationContext)
