@@ -97,10 +97,8 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import com.frostwire.jlibtorrent.TorrentHandle
-import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.Enhance
 import dev.phantomwatch.core.AppLog
-import dev.phantomwatch.core.Http
 import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Stream
@@ -109,12 +107,7 @@ import dev.phantomwatch.data.Title
 import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.provider.Providers
 import dev.phantomwatch.provider.Resolve
-import dev.phantomwatch.subs.AiSubs
 import dev.phantomwatch.subs.MkvSubs
-import dev.phantomwatch.subs.OsSubs
-import dev.phantomwatch.subs.SubsApi
-import dev.phantomwatch.subs.SubtitleCue
-import dev.phantomwatch.subs.Subtitles
 import dev.phantomwatch.torrent.DownloadControl
 import dev.phantomwatch.torrent.Seedbox
 import dev.phantomwatch.torrent.TORRENTS_ENABLED
@@ -145,10 +138,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             .build()
     }
     val epMeta = remember(media.id, season, episode) {
-        DetailCache.episodes(media.id, season.toIntOrNull() ?: -1)?.firstOrNull { it.n.toString() == episode }
+        DetailCache.episodes(media.kind, media.id, season.toIntOrNull() ?: -1)?.firstOrNull { it.n.toString() == episode }
     }
     val overview = remember(media.id, epMeta) {
-        epMeta?.overview?.ifBlank { null } ?: DetailCache.detail(media.id)?.overview?.ifBlank { null }
+        epMeta?.overview?.ifBlank { null } ?: DetailCache.detail(media.kind, media.id)?.overview?.ifBlank { null }
     }
     var resolved by remember { mutableStateOf(initial) }
     var resolveErr by remember { mutableStateOf<String?>(null) }
@@ -187,12 +180,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var latestTracks by remember { mutableStateOf<androidx.media3.common.Tracks?>(null) }
     var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var embedIdx by remember { mutableStateOf(-1) }
-    var osTrack by remember { mutableStateOf<String?>(null) }
-    var aiSubUrl by remember { mutableStateOf<String?>(null) }
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
     var frontierMs by remember { mutableStateOf(0L) }
     var fillNote by remember { mutableStateOf<String?>(null) }
-    var lastSubSel by remember { mutableStateOf("") }
     LaunchedEffect(title) { AppLog.d("screen $title") }
     val build = remember {
         runCatching { Playback.ensure(context) }
@@ -247,9 +237,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         Pip.active = true
         Pip.player = exo
         onDispose {
-            Pip.active = false
-            if (Pip.player === exo) Pip.player = null
-            if (stats.startup > 0 || stats.err.isNotEmpty()) {
+            val mine = exo.currentMediaItem?.localConfiguration?.uri?.toString() == live.url
+            if (mine) { Pip.active = false; if (Pip.player === exo) Pip.player = null }
+            if (mine && (stats.startup > 0 || stats.err.isNotEmpty())) {
                 Telemetry.send(
                     JSONObject()
                         .put("ev", "play")
@@ -264,9 +254,38 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                         .put("err", stats.err),
                 )
             }
-            if (stats.startup > 0) Resume.save(context, media, season, episode, exo.currentPosition, exo.duration)
-            exo.stop() // leaving the player screen ends playback; background playback stays in the media session
+            if (mine && stats.startup > 0) Resume.save(context, media, season, episode, exo.currentPosition, exo.duration)
+            if (mine) exo.stop() // leaving the player screen ends playback; background playback stays in the media session
         }
+    }
+    fun attachSubs(
+        subs: List<Sub>,
+        firstUri: Uri? = null,
+        src: Stream = stream,
+        pos: Long = exo.currentPosition,
+        autoplay: Boolean = true,
+    ) {
+        try {
+            exo.setMediaSource(sourceFor(context, src, subs, firstUri, download, meta), pos)
+            exo.prepare()
+            if (autoplay) exo.play()
+        } catch (e: Exception) {
+            AppLog.d("attach fail ${e.message}")
+        }
+    }
+    val subsScope = rememberCoroutineScope()
+    val subs = remember(exo, stream, download) {
+        SubsController(
+            context = context,
+            exo = exo,
+            stream = stream,
+            season = season,
+            episode = episode,
+            download = download,
+            scope = subsScope,
+            tracks = { latestTracks },
+            attach = { s, u, p, a -> attachSubs(s, u, live, p, a) },
+        )
     }
     LaunchedEffect(latestTracks) {
         val t = latestTracks ?: return@LaunchedEffect
@@ -281,8 +300,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         if (flat.isEmpty()) return@LaunchedEffect
         val names = flat.map { it.third }
         var wi = rankEmbed(names)
-        if (osTrack != null) {
-            val nonOs = names.indexOfFirst { it != osTrack }
+        if (subs.osTrack != null) {
+            val nonOs = names.indexOfFirst { it != subs.osTrack }
             if (nonOs >= 0) wi = nonOs
         }
         if (wi < 0 && names.size == 1) wi = 0
@@ -308,25 +327,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             }
         }
     }
-    fun attachSubs(
-        subs: List<Sub>,
-        firstUri: Uri? = null,
-        src: Stream = stream,
-        pos: Long = exo.currentPosition,
-        autoplay: Boolean = true,
-    ) {
-        try {
-            exo.setMediaSource(sourceFor(context, src, subs, firstUri, download, meta), pos)
-            exo.prepare()
-            if (autoplay) exo.play()
-        } catch (e: Exception) {
-            AppLog.d("attach fail ${e.message}")
-        }
-    }
     fun attach(pos: Long) {
         stats.attachAt = SystemClock.elapsedRealtime()
-        val subs = live.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-        attachSubs(subs, null, live, pos)
+        val all = live.subs + subs.aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
+        attachSubs(all, null, live, pos)
     }
     LaunchedEffect(resolved) {
         val r = resolved ?: return@LaunchedEffect
@@ -338,7 +342,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         attach(saved)
     }
     fun netResume(src: String) {
-        if (exo.playbackState != Player.STATE_IDLE) return
+        if (exo.currentMediaItem == null || exo.playbackState != Player.STATE_IDLE) return
         netErr = false
         val pos = exo.currentPosition
         AppLog.d("net resume $src at ${pos / 1000}s")
@@ -382,7 +386,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             }
 
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) netErr = false
+                if (exo.currentMediaItem?.localConfiguration?.uri?.toString() != live.url) return
+                if (state == Player.STATE_READY) { netErr = false; directErrs = 0 }
                 val now = SystemClock.elapsedRealtime()
                 if (state == Player.STATE_READY) {
                     if (stats.startup == 0L && stats.attachAt > 0) stats.startup = now - stats.attachAt
@@ -407,6 +412,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             }
 
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (exo.currentMediaItem?.localConfiguration?.uri?.toString() != live.url) return
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                     stats.lastSeekAt = SystemClock.elapsedRealtime()
                     AppLog.d("seek ${oldPosition.positionMs / 1000}s to ${newPosition.positionMs / 1000}s")
@@ -422,6 +428,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                if (exo.currentMediaItem?.localConfiguration?.uri?.toString() != live.url) return
                 val cause = error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
                 stats.err = "${error.errorCodeName} http=${cause?.responseCode ?: 0}".take(80)
                 val chain = generateSequence<Throwable>(error) { it.cause }.take(3).joinToString(" <- ") {
@@ -433,8 +440,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 if (cause?.responseCode == 429 || cause?.responseCode == 403 || chain.contains("UnknownHostException")) {
                     // a dead DNS entry is not transient; ban briefly so fallback stops re-picking it
                     val ttl = if (chain.contains("UnknownHostException")) 1L else 24L
-                    Torrents.DeadHosts.mark(stream.url, ttl)
-                    AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(stream.url)}")
+                    Torrents.DeadHosts.mark(live.url, ttl)
+                    AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(live.url)}")
                 }
                 if (chain.contains("FileNotFound") || chain.contains("ENOENT")) {
                     try {
@@ -527,8 +534,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                                 -1
                             }
                             AppLog.d("player resume at ${pos / 1000}s dl=${dl}MB")
-                            val subs = stream.subs + aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-                            attachSubs(subs, null, stream, pos)
+                            val all = stream.subs + subs.aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
+                            attachSubs(all, null, stream, pos)
                         } catch (_: Exception) {
                         }
                     }
@@ -610,318 +617,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             }
         }
     }
-    var subsOff by remember { mutableStateOf(false) }
-    var subDelayMs by remember { mutableStateOf(0L) }
-    var subRaw by remember { mutableStateOf<String?>(null) }
-    val nudgeScope = rememberCoroutineScope()
-    suspend fun readSubText(url: String): String? = withContext(Dispatchers.IO) {
-        try {
-            val path = try {
-                android.net.Uri.parse(url).path?.takeIf { url.startsWith("file") || it.startsWith("/") }
-            } catch (_: Exception) {
-                null
-            }
-            if (path != null) return@withContext try {
-                java.io.File(path).readText()
-            } catch (_: Exception) {
-                null
-            }
-            val req = okhttp3.Request.Builder().url(url)
-                .apply { mediaHeaders(stream).forEach { (k, v) -> header(k, v) } }
-                .build()
-            val call = Http.client.newCall(req)
-            call.timeout().deadline(30, java.util.concurrent.TimeUnit.SECONDS)
-            call.execute().use { res ->
-                if (res.code !in 200..299) return@withContext null
-                res.body?.string()
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-    fun applyDelay() {
-        if (stream.subs.isEmpty()) return
-        nudgeScope.launch {
-            var raw = subRaw
-            if (raw == null) {
-                raw = readSubText(Subtitles.englishFirst(stream.subs).first().url)
-                if (raw == null) {
-                    AppLog.d("subs download failed")
-                    return@launch
-                }
-                subRaw = raw
-            }
-            val f = withContext(Dispatchers.IO) {
-                Subtitles.shiftSubFile(raw, subDelayMs, context.cacheDir)
-            }
-            if (f == null) {
-                AppLog.d("subs shift failed")
-                return@launch
-            }
-            attachSubs(stream.subs, Uri.fromFile(f), stream, exo.currentPosition, autoplay = exo.isPlaying)
-        }
-    }
-    fun nudge(delta: Long) {
-        if (stream.subs.isEmpty()) return
-        subDelayMs += delta
-        AppLog.d("subs delay ${subDelayMs}ms")
-        applyDelay()
-    }
-    var aiStatus by remember { mutableStateOf<String?>(null) }
-    var aiRunning by remember { mutableStateOf(false) }
-    var osStatus by remember { mutableStateOf<String?>(null) }
-    var osRunning by remember { mutableStateOf(false) }
-    var aiCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
-    var lastNeed by remember { mutableStateOf(0) }
-    suspend fun showAi() {
-        val all = aiCues.sortedBy { it.start }
-        val f = withContext(Dispatchers.IO) { Subtitles.cuesToFile(all, context.cacheDir) } ?: return
-        aiSubUrl = Uri.fromFile(f).toString()
-        aiStatus = "AI ✓ ${all.size}"
-        AppLog.d("ai cues=${all.size}")
-        val merged = (stream.subs + Sub("AI English", Uri.fromFile(f).toString())).distinctBy { it.url }
-        attachSubs(merged, null, stream, exo.currentPosition, autoplay = exo.isPlaying)
-        if (stream.subKey.isNotEmpty() && all.size >= 5) {
-            withContext(Dispatchers.IO) {
-                SubsApi.store(stream.subKey, "AI English", Subtitles.renderCues(all), "ai")
-            }
-        }
-    }
-    fun showOsSub(f: java.io.File, hash: String) {
-        val label = "English (OpenSubtitles)"
-        val merged = (stream.subs + Sub(label, Uri.fromFile(f).toString())).distinctBy { it.url }
-        osTrack = "en:$label"
-        attachSubs(merged, null, stream, exo.currentPosition, autoplay = exo.isPlaying)
-        osStatus = "OS ✓"
-        AppLog.d("subs source=OpenSubtitles $hash")
-    }
-    fun runOsSubs() {
-        if (osRunning) return
-        osRunning = true
-        nudgeScope.launch {
-            try {
-                val key = BuildConfig.OS_API_KEY
-                if (key.isEmpty()) {
-                    AppLog.d("os no api key")
-                    return@launch
-                }
-                if (stream.enSubs) {
-                    AppLog.d("os skipped, provider en subs")
-                    return@launch
-                }
-                delay(8000)
-                if (stream.subs.isNotEmpty()) {
-                    AppLog.d("os skipped, stream subs")
-                    return@launch
-                }
-                val hasEnEmbed = latestTracks?.groups?.any { g ->
-                    g.type == C.TRACK_TYPE_TEXT && (0 until g.length).any { i ->
-                        val f = g.getTrackFormat(i)
-                        looksEnglish("${f.language ?: "und"}:${f.label ?: ""}")
-                    }
-                } == true
-                if (hasEnEmbed) {
-                    AppLog.d("os skipped, embed subs")
-                    return@launch
-                }
-                osStatus = "OS…"
-                val headers = mediaHeaders(stream)
-                if (!stream.isHls) {
-                    val hh = withContext(Dispatchers.IO) { OsSubs.hashOf(stream.url, headers) }
-                    if (hh != null) {
-                        val (hash, size) = hh
-                        AppLog.d("os hash $hash $size")
-                        val hf = OsSubs.cached(context.cacheDir, hash)
-                            ?: withContext(Dispatchers.IO) {
-                                OsSubs.search(key, hash, size)?.let { id ->
-                                    OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, hash) }
-                                }
-                            }
-                        if (hf != null) {
-                            showOsSub(hf, hash)
-                            return@launch
-                        }
-                        AppLog.d("os no hash match")
-                    } else {
-                        AppLog.d("os unhashable")
-                    }
-                }
-                if (stream.imdb.isNullOrEmpty()) {
-                    AppLog.d("os no imdb, stop")
-                    osStatus = null
-                    return@launch
-                }
-                AppLog.d("os imdb ${stream.imdb}")
-                val im = stream.imdb
-                val ck = if (season.isEmpty()) "imdb-$im" else "imdb-$im-s$season-e$episode"
-                OsSubs.cached(context.cacheDir, ck)?.let { f ->
-                    showOsSub(f, ck)
-                    return@launch
-                }
-                val f = withContext(Dispatchers.IO) {
-                    OsSubs.searchImdb(key, im, season, episode)?.let { id ->
-                        OsSubs.downloadText(key, id)?.let { OsSubs.toFile(it, context.cacheDir, ck) }
-                    }
-                }
-                if (f == null) {
-                    AppLog.d("os imdb none")
-                    osStatus = null
-                    return@launch
-                }
-                showOsSub(f, ck)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                osStatus = null
-                AppLog.d("os crash ${e.javaClass.simpleName}: ${e.message}")
-            }
-        }
-    }
-    fun runQwenSubs() {
-        if (aiRunning || !stream.url.startsWith("file")) return
-        aiRunning = true
-        nudgeScope.launch {
-            try {
-                aiStatus = "Qwen…"
-                val keys = withContext(Dispatchers.IO) { AiSubs.keys() }
-                if (keys.isEmpty()) {
-                    aiStatus = null
-                    AppLog.d("ai qwen no groq keys, set GROQ_API_KEY")
-                    return@launch
-                }
-                val path = try {
-                    android.net.Uri.parse(stream.url).path?.takeIf { it.startsWith("/") }
-                } catch (_: Exception) {
-                    null
-                } ?: return@launch
-                val tracks = withContext(Dispatchers.IO) { MkvSubs.extract(path) }
-                lastNeed = maxOf(lastNeed, tracks.maxOfOrNull { it.cues.size } ?: 0)
-                var acted = false
-                var current = false
-                for (t in tracks) {
-                    if (t.cues.size < 5) continue
-                    val from = detectLang(t.cues)
-                    AppLog.d("ai embed ${t.codec} cues=${t.cues.size} lang=${from ?: "?"}")
-                    if (from == null || from == "en") continue
-                    val fresh = t.cues.filter { n -> aiCues.none { o -> o.start == n.start } }
-                    if (fresh.isEmpty()) {
-                        current = true
-                        continue
-                    }
-                    var added = 0
-                    for (chunk in fresh.chunked(40)) {
-                        val tr = withContext(Dispatchers.IO) { AiSubs.translateLines(chunk.map { it.text }, keys, from) }
-                        if (tr == null || tr.size != chunk.size) break
-                        val en = chunk.mapIndexed { j, c -> c.copy(text = tr[j]) }
-                        aiCues = (aiCues + en).sortedBy { it.start }
-                        added += en.size
-                        showAi()
-                    }
-                    if (added > 0) {
-                        aiStatus = "Qwen ✓"
-                        AppLog.d("ai qwen +$added from=$from total=${aiCues.size}")
-                        acted = true
-                        break
-                    }
-                }
-                if (!acted) {
-                    AppLog.d(if (current) "ai subs up to date" else "ai qwen no usable embed subs")
-                    if (!current) aiStatus = null
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                aiRunning = false
-                throw e
-            } catch (e: Exception) {
-                aiStatus = null
-                AppLog.d("ai qwen crash ${e.message}")
-            } finally {
-                aiRunning = false
-            }
-        }
-    }
-    var syncStatus by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(stream.url) {
-        try {
-            if (stream.inSync) {
-                syncStatus = "matched"
-                AppLog.d("sync skipped, same-release subs")
-                return@LaunchedEffect
-            }
-            runQwenSubs()
-            val c = download
-            if (c != null && !stream.inSync) {
-                var waited = 0
-                var lastAiDl = 0L
-                while (waited < 600000) {
-                    delay(15000)
-                    if (!c.active) return@LaunchedEffect
-                    val done = try {
-                        c.handle.status().totalDone()
-                    } catch (_: Exception) {
-                        -1L
-                    }
-                    val total = try {
-                        c.handle.status().totalWanted()
-                    } catch (_: Exception) {
-                        -1L
-                    }
-                    if (total > 0 && done >= total) {
-                        var tries = 0
-                        while (tries < 6 && aiCues.size < lastNeed) {
-                            AppLog.d("ai retry on complete file")
-                            runQwenSubs()
-                            var w = 0
-                            while (aiRunning && w < 12) {
-                                delay(15000)
-                                w++
-                            }
-                            tries++
-                        }
-                        return@LaunchedEffect
-                    }
-                    if (done > lastAiDl + 15000000) {
-                        lastAiDl = done
-                        AppLog.d("ai retry at ${done / 1048576}MB")
-                        runQwenSubs()
-                    }
-                    waited += 15000
-                }
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            AppLog.d("sync crash ${e.javaClass.simpleName}: ${e.message}")
-            syncStatus = null
-        }
-    }
-    fun applySubs() {
-        val sel = exo.trackSelector as? DefaultTrackSelector ?: return
-        sel.parameters = sel.buildUponParameters().textTrack(subsOff).build()
-        AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
-    }
-    LaunchedEffect(stream.url) {
-        runOsSubs()
-    }
-    LaunchedEffect(stream.url) {
-        while (true) {
-            try {
-                val sel = exo.currentTracks.groups
-                    .filter { it.type == C.TRACK_TYPE_TEXT }
-                    .flatMap { g ->
-                        (0 until g.mediaTrackGroup.length).map { i ->
-                            val f = g.mediaTrackGroup.getFormat(i)
-                            "${f.language}:${f.label}${if (g.isSelected) "*" else ""}"
-                        }
-                    }.joinToString()
-                if (sel != lastSubSel) {
-                    lastSubSel = sel
-                    AppLog.d("subs watch $sel @${exo.currentPosition / 1000}s")
-                }
-            } catch (_: Exception) {
-            }
-            delay(15000)
-        }
-    }
+    LaunchedEffect(stream.url) { subs.runOsSubs() }
+    LaunchedEffect(stream.url) { subs.sync() }
+    LaunchedEffect(stream.url) { subs.watchSelection() }
     LaunchedEffect(stream.url) {
         if (stream.auth == null && download == null) return@LaunchedEffect
         while (true) {
@@ -973,12 +671,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         } catch (e: Exception) {
             AppLog.d("embed pick fail ${e.message}")
         }
-    }
-    fun cycleEmbed() {
-        val n = embedNames.size
-        if (n == 0) return
-        val next = if (embedIdx < 0) (if (n > 1) 1 else 0) else (embedIdx + 1) % n
-        pickEmbed(next, "cycle")
     }
     var langDone by remember { mutableStateOf(false) }
     LaunchedEffect(embedNames) {
@@ -1361,8 +1053,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         lockButton = lockButton,
         rotateButton = rotateButton, onRotate = onRotate,
         locked = locked,
-        subsOn = !subsOff,
-        canSubs = stream.subs.isNotEmpty() || live.subs.isNotEmpty() || embedNames.isNotEmpty() || osTrack != null || aiSubUrl != null,
+        subsOn = !subs.subsOff,
+        canSubs = stream.subs.isNotEmpty() || live.subs.isNotEmpty() || embedNames.isNotEmpty() || subs.osTrack != null || subs.aiSubUrl != null,
         muted = muted,
         onScrub = ::scrubTo,
         preview = { mod ->
@@ -1394,8 +1086,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         onInteract = ::poke,
         onZoneTap = ::handleZone,
         onToggleSubs = {
-            subsOff = !subsOff
-            applySubs()
+            subs.toggle()
             poke()
         },
         onSwipe = { bright, dy ->
@@ -1629,6 +1320,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 downloadOpen = true
             })
         }
+        if (!Pip.inPip) PlayerFailedOverlay(netErr, onPickList, onBack)
     }
     if (downloadOpen) {
         PlayerDownloadDialog(

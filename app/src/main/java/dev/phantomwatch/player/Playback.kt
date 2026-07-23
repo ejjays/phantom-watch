@@ -3,6 +3,8 @@ package dev.phantomwatch.player
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -36,7 +38,17 @@ internal object Playback {
                 .setForceHighestSupportedBitrate(true)
                 .build()
         }
-        return ExoPlayer.Builder(context).setTrackSelector(selector).build()
+        return ExoPlayer.Builder(context)
+            .setTrackSelector(selector)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                true,
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .build()
     }
 }
 

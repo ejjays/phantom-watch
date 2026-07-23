@@ -7,13 +7,22 @@ import java.io.File
 data class SubtitleCue(var start: Long, var end: Long, val text: String)
 
 object Subtitles {
-    private val TIMING = Regex("""(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)""")
+    private val TIMING = Regex("""(?:(\d+):)?(\d+):(\d+)[,.](\d+)\s*-->\s*(?:(\d+):)?(\d+):(\d+)[,.](\d+)""")
 
     fun englishFirst(subs: List<Sub>): List<Sub> =
         subs.sortedBy { if (it.label.contains("english", true)) 0 else 1 }
 
     private fun ms(h: String, m: String, s: String, ms: String): Long =
-        h.toLong() * 3600000 + m.toLong() * 60000 + s.toLong() * 1000 + ms.padEnd(3, '0').take(3).toLong()
+        h.ifEmpty { "0" }.toLong() * 3600000 + m.toLong() * 60000 + s.toLong() * 1000 +
+            ms.padEnd(3, '0').take(3).toLong()
+
+    private fun decode(s: String): String = s
+        .replace("&nbsp;", " ")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
 
     fun parseAss(text: String): List<SubtitleCue> {
         val out = mutableListOf<SubtitleCue>()
@@ -23,8 +32,8 @@ object Subtitles {
             val s = stampToMs(m.groupValues[1].trim())
             val e = stampToMs(m.groupValues[2].trim())
             if (s == null || e == null || e <= s) continue
-            val body = m.groupValues[3].replace(Regex("\\{[^}]*\\}"), "")
-                .replace("\\N", "\n").replace("\\n", "\n").trim()
+            val body = decode(m.groupValues[3].replace(Regex("\\{[^}]*\\}"), "")
+                .replace("\\N", "\n").replace("\\n", "\n").trim())
             if (body.isEmpty()) continue
             out.add(SubtitleCue(s, e, body))
         }
@@ -46,13 +55,13 @@ object Subtitles {
 
     fun parseCues(text: String): List<SubtitleCue> {
         val out = mutableListOf<SubtitleCue>()
-        for (block in text.split(Regex("""\r?\n\r?\n"""))) {
+        for (block in text.removePrefix("\uFEFF").split(Regex("""\r?\n\r?\n"""))) {
             val lines = block.split(Regex("""\r?\n""")).map { it.trim() }.filter { it.isNotEmpty() }
             val ti = lines.indexOfFirst { TIMING.containsMatchIn(it) }
             if (ti < 0) continue
             val m = TIMING.find(lines[ti]) ?: continue
-            val body = lines.drop(ti + 1).joinToString("\n")
-                .replace(Regex("""<[^>]*>"""), "").trim()
+            val body = decode(lines.drop(ti + 1).joinToString("\n")
+                .replace(Regex("""<[^>]*>"""), "").trim())
             if (body.isEmpty()) continue
             val g = m.groupValues
             out.add(SubtitleCue(ms(g[1], g[2], g[3], g[4]), ms(g[5], g[6], g[7], g[8]), body))

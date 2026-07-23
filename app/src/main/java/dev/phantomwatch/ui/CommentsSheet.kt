@@ -98,6 +98,8 @@ internal fun CommentsSheet(media: Title, onDismiss: () -> Unit) {
     val closePx = with(density) { 120.dp.toPx() }
     var dragY by remember { mutableFloatStateOf(0f) }
     var page by remember { mutableStateOf<Social.Page?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    var attempt by remember { mutableStateOf(0) }
     var input by remember { mutableStateOf("") }
     var replyParent by remember { mutableStateOf(0L) }
     var sending by remember { mutableStateOf(false) }
@@ -106,7 +108,11 @@ internal fun CommentsSheet(media: Title, onDismiss: () -> Unit) {
     val focus = remember { FocusRequester() }
 
     BackHandler(enabled = state.currentState) { state.targetState = false }
-    LaunchedEffect(id) { page = Social.comments(media.kind, id) }
+    LaunchedEffect(id, attempt) {
+        failed = false
+        page = Social.comments(media.kind, id)
+        failed = page == null
+    }
     LaunchedEffect(state.isIdle, state.currentState) {
         if (state.isIdle && !state.currentState) onDismiss()
     }
@@ -210,6 +216,15 @@ internal fun CommentsSheet(media: Title, onDismiss: () -> Unit) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val p = page
                 when {
+                    p == null && failed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Comments unavailable", color = Slate500, fontSize = 13.sp, fontFamily = Rubik)
+                            Text(
+                                "Tap to retry", color = Cyan, fontSize = 12.sp, fontFamily = Rubik,
+                                modifier = Modifier.padding(top = 6.dp).clickable { attempt++ },
+                            )
+                        }
+                    }
                     p == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Cyan, modifier = Modifier.size(20.dp))
                     }

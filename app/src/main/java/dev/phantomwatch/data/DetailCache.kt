@@ -1,37 +1,50 @@
 package dev.phantomwatch.data
 
 object DetailCache {
-    private var id: String? = null
+    private var key: String? = null
     private var last: TitleDetail? = null
     private var lastSeason = -1
-    private val bySeason = mutableMapOf<Pair<String, Int>, List<Episode>>()
-    private val similarById = mutableMapOf<String, List<Title>>()
+    private val bySeason = mutableMapOf<Triple<String, String, Int>, List<Episode>>()
+    private val similarByKey = mutableMapOf<String, List<Title>>()
 
-    fun detail(id: String): TitleDetail? = last?.takeIf { this.id == id }
+    private fun k(kind: String, id: String) = "$kind:$id"
 
+    @Synchronized
+    fun detail(kind: String, id: String): TitleDetail? = last?.takeIf { key == k(kind, id) }
+
+    @Synchronized
     fun put(d: TitleDetail) {
-        if (d.id != id) {
-            id = d.id
+        val nk = k(d.kind, d.id)
+        if (nk != key) {
+            key = nk
             lastSeason = -1
         }
         last = d
     }
 
-    fun season(id: String): Int = lastSeason.takeIf { this.id == id } ?: -1
+    @Synchronized
+    fun season(kind: String, id: String): Int = lastSeason.takeIf { key == k(kind, id) } ?: -1
 
-    fun putSeason(id: String, n: Int) {
-        if (this.id == id) lastSeason = n
+    @Synchronized
+    fun putSeason(kind: String, id: String, n: Int) {
+        if (key == k(kind, id)) lastSeason = n
     }
 
-    fun episodes(id: String, n: Int): List<Episode>? = bySeason[id to n]
+    @Synchronized
+    fun episodes(kind: String, id: String, n: Int): List<Episode>? = bySeason[Triple(kind, id, n)]
 
-    fun putEpisodes(id: String, n: Int, eps: List<Episode>) {
-        bySeason[id to n] = eps
+    @Synchronized
+    fun putEpisodes(kind: String, id: String, n: Int, eps: List<Episode>) {
+        if (bySeason.size >= 40) bySeason.clear()
+        bySeason[Triple(kind, id, n)] = eps
     }
 
-    fun similar(id: String): List<Title>? = similarById[id]
+    @Synchronized
+    fun similar(kind: String, id: String): List<Title>? = similarByKey[k(kind, id)]
 
-    fun putSimilar(id: String, list: List<Title>) {
-        similarById[id] = list
+    @Synchronized
+    fun putSimilar(kind: String, id: String, list: List<Title>) {
+        if (similarByKey.size >= 40) similarByKey.clear()
+        similarByKey[k(kind, id)] = list
     }
 }

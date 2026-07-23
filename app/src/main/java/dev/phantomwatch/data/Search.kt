@@ -30,7 +30,7 @@ object Search {
                     if (res.code != 200) return@use null
                     res.body?.string()
                 } ?: continue
-                val results = JSONObject(body).optJSONArray("results") ?: return emptyList()
+                val results = JSONObject(body).optJSONArray("results") ?: continue
                 val out = mutableListOf<Title>()
                 for (i in 0 until results.length()) {
                     Tmdb.titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }

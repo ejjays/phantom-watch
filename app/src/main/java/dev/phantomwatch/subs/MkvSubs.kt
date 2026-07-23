@@ -224,14 +224,15 @@ object MkvSubs {
         val sb = StringBuilder()
         for (r in raws.sortedBy { it.start }) {
             val text = String(r.bytes, Charsets.UTF_8)
-            val parts = text.split(',', limit = 8)
+            val parts = text.split(',', limit = 9)
             val fields = when {
-                parts.size >= 8 -> listOf(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7])
-                parts.size == 7 -> listOf("0", parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6])
+                parts.size >= 9 -> parts.subList(2, 9)
+                parts.size == 8 -> parts.subList(1, 8)
                 else -> continue
             }
             val end = if (r.dur > 0) r.start + r.dur else r.start + 4000
-            sb.append("Dialogue: 0,${assStamp(r.start)},${assStamp(end)},${fields[1]},${fields[2]},${fields[3]},${fields[4]},${fields[5]},${fields[6]},${fields[7]}\n")
+            sb.append("Dialogue: 0,${assStamp(r.start)},${assStamp(end)},")
+            sb.append(fields.joinToString(",")).append('\n')
         }
         val parsed = Subtitles.parseAss(sb.toString())
         return clamp(parsed)

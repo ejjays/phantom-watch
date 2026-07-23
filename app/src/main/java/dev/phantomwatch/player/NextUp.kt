@@ -54,13 +54,13 @@ private fun findNextUp(id: String, season: String, episode: String): NextUp? {
     val s = season.toIntOrNull() ?: return null
     val e = episode.toIntOrNull() ?: return null
     val key = RemoteConfig.tmdbKey()
-    val eps = DetailCache.episodes(id, s)
-        ?: Tmdb.season(key, id, s).also { if (it.isNotEmpty()) DetailCache.putEpisodes(id, s, it) }
+    val eps = DetailCache.episodes("tv", id, s)
+        ?: Tmdb.season(key, id, s).also { if (it.isNotEmpty()) DetailCache.putEpisodes("tv", id, s, it) }
     val n = nextInSeason(eps.map { it.n }, e)
     if (n != null) return NextUp(s.toString(), n.toString(), eps.firstOrNull { it.n == n }?.name.orEmpty())
-    val next = DetailCache.detail(id)?.seasons?.firstOrNull { it.number > s } ?: return null
-    val more = DetailCache.episodes(id, next.number)
-        ?: Tmdb.season(key, id, next.number).also { if (it.isNotEmpty()) DetailCache.putEpisodes(id, next.number, it) }
+    val next = DetailCache.detail("tv", id)?.seasons?.firstOrNull { it.number > s } ?: return null
+    val more = DetailCache.episodes("tv", id, next.number)
+        ?: Tmdb.season(key, id, next.number).also { if (it.isNotEmpty()) DetailCache.putEpisodes("tv", id, next.number, it) }
     val first = more.firstOrNull() ?: return null
     return NextUp(next.number.toString(), first.n.toString(), first.name)
 }

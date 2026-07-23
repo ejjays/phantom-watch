@@ -26,7 +26,7 @@ import org.json.JSONObject
 
 object JsProviders {
     private val main = Handler(Looper.getMainLooper())
-    private val pool = Executors.newFixedThreadPool(4)
+    private val pool = Executors.newFixedThreadPool(8)
     private val seq = AtomicInteger()
     private val started = AtomicBoolean()
     private val created = CompletableDeferred<Unit>()

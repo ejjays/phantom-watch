@@ -520,7 +520,7 @@ private fun BrowseBody(
     val screenW = LocalConfiguration.current.screenWidthDp.dp
     val gridW = (screenW - 56.dp) / 3
     val exploreRows = remember(exploreItems) { exploreItems.chunked(3) }
-    LaunchedEffect(listState) {
+    LaunchedEffect(listState, exploreRows.size) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { idx ->
                 if (idx != null && idx >= exploreRows.size) onGridEnd()
@@ -751,7 +751,7 @@ private fun SearchBody(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().imePadding(),
                 ) {
                     items(results, key = { "${it.kind}-${it.id}" }) { item ->
                         PosterCard(item = item, width = gridW, height = gridW * 1.5f, onOpen = onOpen)

@@ -52,9 +52,10 @@ health check and the app report the same thing.
 **State stays on the screen.** The activity handles `configChanges`, so a
 rotation does not recreate it and Compose state survives. Screen-local state
 lives in the composable; only what must outlive the screen (resume position,
-crash report, cached config) goes to storage. `player/PlayerScreen.kt` is
-still the biggest file in the repo - it is the player state machine - and is
-capped at its current size by `checks/quality.py` until it is split further.
+crash report, cached config) goes to storage. Subtitle state and the
+OS/AI pipelines live in `player/SubsController.kt`; `player/PlayerScreen.kt`
+is still the biggest file in the repo - it is the player state machine - and
+is capped at its current size by `checks/quality.py` until it is split further.
 
 **Signing stays on the debug keystore.** The audience is family and a few
 friends who sideload. A private keystore only matters once the APK leaves

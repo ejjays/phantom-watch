@@ -29,8 +29,16 @@ class SubtitlesTest {
     }
 
     @Test
-    fun cuesRenderToWebVtt() {
-        val cues = listOf(SubtitleCue(1000L, 2000L, "Hi"))
+    fun shortTimingsAndEntitiesParse() {
+        val vtt = "WEBVTT\n\n01:02.500 --> 01:03.000\nFish &amp; chips &lt;3\n"
+        val cues = Subtitles.parseCues(vtt)
+        assertEquals(1, cues.size)
+        assertEquals(62500L, cues[0].start)
+        assertEquals("Fish & chips <3", cues[0].text)
+    }
+
+    @Test
+    fun cuesRenderToWebVtt() {        val cues = listOf(SubtitleCue(1000L, 2000L, "Hi"))
         val vtt = Subtitles.renderCues(cues)
         assertTrue(vtt.startsWith("WEBVTT"))
         assertTrue(vtt.contains("Hi"))

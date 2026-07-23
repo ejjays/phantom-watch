@@ -35,7 +35,12 @@ object Http {
                     .header("Origin", PLAYER)
                     .build()
                 client.newCall(req).execute().use { res ->
-                    if (res.code != 200) throw RuntimeException("http ${res.code}")
+                    if (res.code != 200) {
+                        if (res.code == 429 || res.code in 500..599) {
+                            throw RuntimeException("retry ${res.code}")
+                        }
+                        throw RuntimeException("http ${res.code}")
+                    }
                     val body = res.body?.string().orEmpty()
                     if (!body.startsWith("{")) throw RuntimeException("not json: ${body.take(60)}")
                     return JSONObject(body)

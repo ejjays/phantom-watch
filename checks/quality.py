@@ -26,7 +26,7 @@ LINE_CAPS = {
 
 # still too big; they must not grow until they are split
 LARGE_BASELINES = {
-    "app/src/main/java/dev/phantomwatch/player/PlayerScreen.kt": 1650,
+    "app/src/main/java/dev/phantomwatch/player/PlayerScreen.kt": 1338,
 }
 
 ALLOWED_PERMISSIONS = {

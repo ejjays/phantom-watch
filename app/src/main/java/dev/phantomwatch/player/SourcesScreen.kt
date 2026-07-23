@@ -99,7 +99,7 @@ internal fun SourcesScreen(
                             url = best.url, isHls = best.isHls,
                             subs = Providers.subsFor(best, all.second),
                             referer = best.referer, sampleMp4 = null,
-                            imdb = imdbDigits,
+                            imdb = imdbDigits, headers = best.headers, enSubs = best.enSubs,
                         ),
                         null,
                     )
@@ -244,7 +244,7 @@ internal fun SourcesScreen(
                                 Stream(
                                     url = f.url, isHls = f.isHls, subs = Providers.subsFor(f, formatSubs),
                                     referer = f.referer, sampleMp4 = null,
-                                    imdb = imdbState,
+                                    imdb = imdbState, headers = f.headers, enSubs = f.enSubs,
                                 ),
                                 null,
                             )

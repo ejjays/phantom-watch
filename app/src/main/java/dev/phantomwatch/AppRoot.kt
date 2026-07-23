@@ -53,6 +53,7 @@ import dev.phantomwatch.player.TorrentFetchScreen
 import dev.phantomwatch.player.navLabel
 import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.torrent.Seedbox
+import dev.phantomwatch.torrent.TORRENTS_ENABLED
 import dev.phantomwatch.torrent.TorrentEngine
 import dev.phantomwatch.torrent.Torrents
 import dev.phantomwatch.ui.BrowseState
@@ -78,10 +79,12 @@ internal fun AppRoot() {
     LaunchedEffect(Unit) {
         SubsApi.init(context)
         Torrents.DeadHosts.init(context)
-        withContext(Dispatchers.IO) {
-            try {
-                TorrentEngine.ensure()
-            } catch (_: Exception) {
+        if (TORRENTS_ENABLED) {
+            withContext(Dispatchers.IO) {
+                try {
+                    TorrentEngine.ensure()
+                } catch (_: Exception) {
+                }
             }
         }
     }

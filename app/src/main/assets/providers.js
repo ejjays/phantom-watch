@@ -89,8 +89,8 @@
     return { url: url, isHls: isHls, label: label, height: height, english: true, referer: '', enSubs: false, enAudio: false };
   }
 
-  async function get(url, referer) {
-    var r = await http({ url: url, referer: referer || '', timeout: 10 });
+  async function get(url, referer, timeout) {
+    var r = await http({ url: url, referer: referer || '', timeout: timeout || 10 });
     return r && r.code === 200 ? r.body : null;
   }
 

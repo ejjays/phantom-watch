@@ -101,7 +101,7 @@ fun PlayerPanel(
     onSheetLock: ((Boolean) -> Unit)? = null,
 ) {
     val key = RemoteConfig.tmdbKey()
-    var detail by remember(media.id) { mutableStateOf(DetailCache.detail(media.id)) }
+    var detail by remember(media.id) { mutableStateOf(DetailCache.detail(media.kind, media.id)) }
     LaunchedEffect(media.id) {
         if (detail != null) return@LaunchedEffect
         val d = withContext(Dispatchers.IO) {
@@ -130,11 +130,11 @@ fun PlayerPanel(
 
     val isTv = media.kind != "movie"
     val playingSeason = season.toIntOrNull() ?: 1
-    var episodes by remember(media.id) { mutableStateOf(DetailCache.episodes(media.id, playingSeason).orEmpty()) }
+    var episodes by remember(media.id) { mutableStateOf(DetailCache.episodes(media.kind, media.id, playingSeason).orEmpty()) }
     var loadingEpisodes by remember(media.id) { mutableStateOf(false) }
     LaunchedEffect(media.id, playingSeason) {
         if (!isTv) return@LaunchedEffect
-        DetailCache.episodes(media.id, playingSeason)?.let {
+        DetailCache.episodes(media.kind, media.id, playingSeason)?.let {
             episodes = it
             return@LaunchedEffect
         }
@@ -142,18 +142,18 @@ fun PlayerPanel(
         val list = withContext(Dispatchers.IO) {
             runCatching { Tmdb.season(key, media.id, playingSeason) }.getOrDefault(emptyList())
         }
-        if (list.isNotEmpty()) DetailCache.putEpisodes(media.id, playingSeason, list)
+        if (list.isNotEmpty()) DetailCache.putEpisodes(media.kind, media.id, playingSeason, list)
         episodes = list
         loadingEpisodes = false
     }
 
-    var similar by remember(media.id) { mutableStateOf(DetailCache.similar(media.id).orEmpty()) }
+    var similar by remember(media.id) { mutableStateOf(DetailCache.similar(media.kind, media.id).orEmpty()) }
     LaunchedEffect(media.id) {
-        if (onOpenTitle == null || DetailCache.similar(media.id) != null) return@LaunchedEffect
+        if (onOpenTitle == null || DetailCache.similar(media.kind, media.id) != null) return@LaunchedEffect
         val list = withContext(Dispatchers.IO) {
             runCatching { Tmdb.similar(key, media.kind, media.id) }.getOrDefault(emptyList())
         }
-        if (list.isNotEmpty()) DetailCache.putSimilar(media.id, list)
+        if (list.isNotEmpty()) DetailCache.putSimilar(media.kind, media.id, list)
         similar = list
     }
 

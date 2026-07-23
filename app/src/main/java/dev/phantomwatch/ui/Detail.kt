@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -108,8 +109,9 @@ fun DetailScreen(
     val key = RemoteConfig.tmdbKey()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var detail by remember(item.id) { mutableStateOf(DetailCache.detail(item.id)) }
+    var detail by remember(item.id) { mutableStateOf(DetailCache.detail(item.kind, item.id)) }
     var failed by remember { mutableStateOf(false) }
+    var attempt by remember { mutableStateOf(0) }
     var episodesOpen by remember(startEpisodes) { mutableStateOf(startEpisodes) }
     var checking by remember { mutableStateOf(false) }
     var photosReady by remember { mutableStateOf(detail != null) }
@@ -188,7 +190,7 @@ fun DetailScreen(
         }
     }
 
-    LaunchedEffect(item.id, item.kind) {
+    LaunchedEffect(item.id, item.kind, attempt) {
         if (detail != null) return@LaunchedEffect
         failed = false
         val start = System.nanoTime()
@@ -235,6 +237,10 @@ fun DetailScreen(
                 Text("Title unavailable", color = Slate100, fontSize = 15.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text("Phantom could not load this title", color = Slate400, fontSize = 12.sp, fontFamily = Mono)
+                Text(
+                    "Retry", color = Cyan, fontSize = 13.sp, fontFamily = Rubik,
+                    modifier = Modifier.padding(top = 10.dp).clickable { attempt++ },
+                )
             }
             else -> {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -493,8 +499,8 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
         try {
             val all = withContext(Dispatchers.IO) { Tmdb.season(key, detail.id, n) }
             if (all.isNotEmpty()) {
-                DetailCache.putSeason(detail.id, n)
-                DetailCache.putEpisodes(detail.id, n, all)
+                DetailCache.putSeason(detail.kind, detail.id, n)
+                DetailCache.putEpisodes(detail.kind, detail.id, n, all)
             }
             episodes = all.take(3)
         } catch (_: Exception) {
@@ -614,10 +620,10 @@ internal fun EpisodesScreen(
     val seasons = detail?.seasons.orEmpty()
     var seasonIdx by remember(detail?.id) {
         val def = seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0
-        val last = detail?.id?.let { DetailCache.season(it) } ?: -1
+        val last = detail?.let { DetailCache.season(it.kind, it.id) } ?: -1
         mutableStateOf(seasons.indexOfFirst { it.number == last }.takeIf { it >= 0 } ?: def)
     }
-    val initial = detail?.let { DetailCache.episodes(it.id, seasons.getOrNull(seasonIdx)?.number ?: 1) }
+    val initial = detail?.let { DetailCache.episodes(it.kind, it.id, seasons.getOrNull(seasonIdx)?.number ?: 1) }
     var episodes by remember { mutableStateOf(initial.orEmpty()) }
     var loading by remember { mutableStateOf(initial == null) }
     var searching by remember { mutableStateOf(false) }
@@ -687,8 +693,8 @@ internal fun EpisodesScreen(
     LaunchedEffect(detail?.id, seasonIdx) {
         val d = detail ?: return@LaunchedEffect
         val n = seasons.getOrNull(seasonIdx)?.number ?: 1
-        DetailCache.putSeason(d.id, n)
-        val cached = DetailCache.episodes(d.id, n)
+        DetailCache.putSeason(d.kind, d.id, n)
+        val cached = DetailCache.episodes(d.kind, d.id, n)
         if (cached != null) {
             episodes = cached
             loading = false
@@ -722,7 +728,7 @@ internal fun EpisodesScreen(
         }
         episodes = result
         loading = false
-        if (result.isNotEmpty()) DetailCache.putEpisodes(d.id, n, result)
+        if (result.isNotEmpty()) DetailCache.putEpisodes(d.kind, d.id, n, result)
         AppLog.d("ep applied +${ms()}ms n=${result.size}")
     }
 
@@ -806,7 +812,7 @@ internal fun EpisodesScreen(
                     if (query.isNotEmpty()) {
                         Text("${shown.size} matches", color = Slate500, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                     }
-                    LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
+                    LazyColumn(modifier = Modifier.imePadding(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
                         items(shown, key = { it.n }) { ep ->
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {

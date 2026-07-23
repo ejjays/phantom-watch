@@ -27,7 +27,7 @@ class MkvSubsTest {
         assertEquals(1, cues.size)
         assertEquals(1500, cues[0].start)
         assertEquals(3000, cues[0].end)
-        assertTrue(cues[0].text.contains("First"))
+        assertEquals("First", cues[0].text)
     }
 
     @Test

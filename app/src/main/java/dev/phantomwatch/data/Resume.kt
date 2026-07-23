@@ -89,6 +89,7 @@ object Resume {
     fun position(ctx: Context, kind: String, id: String, season: String, episode: String): Long =
         prefs(ctx).getLong(key(kind, id, season, episode), 0L)
 
+    @Synchronized
     fun save(
         ctx: Context,
         media: Title,

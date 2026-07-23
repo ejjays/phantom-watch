@@ -99,11 +99,17 @@ object Providers {
                     val all = results.flatMap { it.formats }
                     val subs = results.flatMap { it.subs }
                     // bans outlive transient 403/429s; one 1-byte probe re-admits a host that recovered
-                    val blocked = all.count { Torrents.DeadHosts.blocked(it.url) }
-                    if (blocked > 0) AppLog.d("direct dead hosts $blocked")
-                    all.filter { Torrents.DeadHosts.blocked(it.url) }
+                    val blocked = all.filter { Torrents.DeadHosts.blocked(it.url) }
                         .distinctBy { Torrents.DeadHosts.hostOf(it.url) }
-                        .forEach { f -> if (alive(f)) Torrents.DeadHosts.forgive(f.url) }
+                    if (blocked.isNotEmpty()) {
+                        AppLog.d("direct dead hosts ${blocked.size}")
+                        withTimeoutOrNull(6000) {
+                            coroutineScope {
+                                blocked.map { f -> async { if (alive(f)) Torrents.DeadHosts.forgive(f.url) } }
+                                    .awaitAll()
+                            }
+                        }
+                    }
                     val live = all
                         .filter { it.url !in Torrents.DeadReleases.urls && !Torrents.DeadHosts.blocked(it.url) }
                         .distinctBy { it.url }

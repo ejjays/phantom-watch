@@ -39,8 +39,9 @@ object OsSubs {
             headers.forEach { (k, v) -> b.header(k, v) }
             if (range != null) b.header("Range", range)
             Http.client.newCall(b.build()).execute().use { res ->
-                val bytes = res.body?.bytes() ?: ByteArray(0)
-                res.code to bytes
+                val code = res.code
+                val bytes = if (range != null && code != 206) ByteArray(0) else res.body?.bytes() ?: ByteArray(0)
+                code to bytes
             }
         } catch (_: Exception) {
             null

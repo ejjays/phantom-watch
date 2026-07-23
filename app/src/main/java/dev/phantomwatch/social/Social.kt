@@ -6,6 +6,7 @@ import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Http
 import java.time.OffsetDateTime
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -179,15 +180,22 @@ internal object Social {
         body: String? = null,
         headers: Map<String, String> = emptyMap(),
     ): Resp = withContext(Dispatchers.IO) {
-        val b = Request.Builder()
-            .url(BuildConfig.SUPABASE_URL.trimEnd('/') + path)
-            .header("apikey", BuildConfig.SUPABASE_ANON_KEY)
-        if (bearer != null) b.header("Authorization", "Bearer $bearer")
-        headers.forEach { (k, v) -> b.header(k, v) }
-        if (method == "POST") b.post((body ?: "{}").toRequestBody(json)) else b.get()
-        Http.client.newCall(b.build()).execute().use { r ->
-            val h = r.headers.names().associate { it.lowercase() to r.header(it).orEmpty() }
-            Resp(r.code, r.body?.string().orEmpty(), h)
+        try {
+            val b = Request.Builder()
+                .url(BuildConfig.SUPABASE_URL.trimEnd('/') + path)
+                .header("apikey", BuildConfig.SUPABASE_ANON_KEY)
+            if (bearer != null) b.header("Authorization", "Bearer $bearer")
+            headers.forEach { (k, v) -> b.header(k, v) }
+            if (method == "POST") b.post((body ?: "{}").toRequestBody(json)) else b.get()
+            Http.client.newCall(b.build()).execute().use { r ->
+                val h = r.headers.names().associate { it.lowercase() to r.header(it).orEmpty() }
+                Resp(r.code, r.body?.string().orEmpty(), h)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.d("community ${e.javaClass.simpleName}")
+            Resp(0, "", emptyMap())
         }
     }
 
