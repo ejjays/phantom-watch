@@ -3,6 +3,12 @@
     <style name="Theme.PhantomWatch.Splash" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@drawable/splash_bg</item>
         <item name="android:statusBarColor">@color/ic_launcher_background</item>
+        <item name="android:navigationBarColor">@color/ic_launcher_background</item>
     </style>
-    <style name="Theme.PhantomWatch" parent="@android:style/Theme.Material.NoActionBar" />
+    <style name="Theme.PhantomWatch" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/app_bg</item>
+        <item name="android:navigationBarColor">@color/app_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 </resources>

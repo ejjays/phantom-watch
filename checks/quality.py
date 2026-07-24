@@ -34,6 +34,8 @@ ALLOWED_PERMISSIONS = {
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+    "android.permission.BIND_ACCESSIBILITY_SERVICE",
+    "android.permission.REQUEST_INSTALL_PACKAGES",
 }
 
 failures = []

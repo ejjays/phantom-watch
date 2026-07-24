@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Phantom Watch</string>
+    <string name="auto_install_label">Phantom Watch auto-install</string>
+    <string name="auto_install_desc">Clicks Install/Update in the package installer so updates install without tapping.</string>
 </resources>
