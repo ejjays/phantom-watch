@@ -285,7 +285,8 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
         selected = item
         recents.removeAll { it.kind == item.kind && it.id == item.id }
         recents.add(0, item)
-        if (recents.size > 6) recents.removeLast()
+        // removeLast() resolves to the Java 21 List member, which does not exist before API 35.
+        if (recents.size > 6) recents.removeAt(recents.lastIndex)
     }
 
     val inSearch = browse.query.trim().length >= 2
@@ -303,9 +304,9 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
     }
     val screenW = LocalConfiguration.current.screenWidthDp.dp
     val expanded = isExpanded(screenW)
-    val split = expanded && selected != null
-    val detailW = if (split) detailPaneWidth(screenW) else 0.dp
-    val contentW = screenW - detailW
+    // Tablets open the detail fullscreen (two columns of its own); phones keep the sliding sheet.
+    val wideDetail = expanded && selected != null
+    val contentW = screenW
     val gridW = gridCell(contentW, gridColumns(contentW))
     val closeDetail = {
         browse.openTitle = null
@@ -323,101 +324,101 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
 
     val home = !browse.searchOpen && openRail == null && !browse.historyOpen
     Box(Modifier.fillMaxSize().background(Bg)) {
-        Column(Modifier.fillMaxSize().padding(end = detailW)) {
-            if (!home) {
-                if (browse.searchOpen) {
-                    SearchHeader(
-                        query = browse.query,
-                        onQuery = { browse.query = it },
-                        onBack = { browse.searchOpen = false; browse.query = "" },
-                    )
-                } else {
+        if (!wideDetail) {
+            Column(Modifier.fillMaxSize()) {
+                if (!home) {
+                    if (browse.searchOpen) {
+                        SearchHeader(
+                            query = browse.query,
+                            onQuery = { browse.query = it },
+                            onBack = { browse.searchOpen = false; browse.query = "" },
+                        )
+                    } else {
+                        BrowseHeader(
+                            onSearch = { browse.searchOpen = true },
+                            onHistory = { browse.historyOpen = true },
+                        )
+                    }
+                }
+                AnimatedContent(
+                    targetState = when {
+                        browse.searchOpen -> 1
+                        openRail != null -> 2
+                        browse.historyOpen -> 3
+                        else -> 0
+                    },
+                    transitionSpec = {
+                        fadeIn(tween(280)) togetherWith fadeOut(tween(280)) using SizeTransform(clip = false)
+                    },
+                    label = "browse-mode",
+                ) { mode ->
+                    when (mode) {
+                        1 -> SearchBody(
+                            query = browse.query,
+                            results = browse.results,
+                            searching = searching,
+                            recents = recents,
+                            gridW = gridW,
+                        
+                            onOpen = openItem,
+                        )
+                        2 -> openRail?.let {
+                            RailGrid(
+                                rail = it,
+                                width = contentW,
+                                onBack = { browse.railKey = null },
+                                onOpen = openItem,
+                                onEnd = { loadMoreRail(it.key) },
+                            )
+                        } ?: Box(Modifier.fillMaxSize())
+                        3 -> HistoryScreen(
+                            recent = browse.recent,
+                            gridW = gridW,
+                            onBack = { browse.historyOpen = false },
+                            onPlay = { r ->
+                                onWatch(
+                                    Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster),
+                                    r.season,
+                                    r.episode,
+                                )
+                            },
+                        )
+                        else -> BrowseBody(
+                            trending = browse.trending,
+                            rails = browse.rails,
+                            exploreItems = browse.exploreItems,
+                            exploreMore = exploreMore,
+                            exploreTotal = browse.exploreTotal,
+                            loading = browse.loading,
+                            failed = browse.failed,
+                            detailOpen = selected != null,
+                            listState = browse.homeScroll,
+                            width = contentW,
+                            onOpen = openItem,
+                            onSeeAll = seeAll,
+                            onRailEnd = railEnd,
+                            onGridEnd = gridEnd,
+                            onRetry = retryBrowse,
+                        )
+                    }
+                }
+            }
+            if (home) {
+                val scrolled by remember {
+                    derivedStateOf { browse.homeScroll.firstVisibleItemIndex > 0 || browse.homeScroll.firstVisibleItemScrollOffset > 8 }
+                }
+                Box(Modifier.align(Alignment.TopStart).fillMaxWidth()) {
                     BrowseHeader(
                         onSearch = { browse.searchOpen = true },
                         onHistory = { browse.historyOpen = true },
-                    )
-                }
-            }
-            AnimatedContent(
-                targetState = when {
-                    browse.searchOpen -> 1
-                    openRail != null -> 2
-                    browse.historyOpen -> 3
-                    else -> 0
-                },
-                transitionSpec = {
-                    fadeIn(tween(280)) togetherWith fadeOut(tween(280)) using SizeTransform(clip = false)
-                },
-                label = "browse-mode",
-            ) { mode ->
-                when (mode) {
-                    1 -> SearchBody(
-                        query = browse.query,
-                        results = browse.results,
-                        searching = searching,
-                        recents = recents,
-                        gridW = gridW,
-                        
-                        onOpen = openItem,
-                    )
-                    2 -> openRail?.let {
-                        RailGrid(
-                            rail = it,
-                            width = contentW,
-                            onBack = { browse.railKey = null },
-                            onOpen = openItem,
-                            onEnd = { loadMoreRail(it.key) },
-                        )
-                    } ?: Box(Modifier.fillMaxSize())
-                    3 -> HistoryScreen(
-                        recent = browse.recent,
-                        gridW = gridW,
-                        onBack = { browse.historyOpen = false },
-                        onPlay = { r ->
-                            onWatch(
-                                Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster),
-                                r.season,
-                                r.episode,
-                            )
-                        },
-                    )
-                    else -> BrowseBody(
-                        trending = browse.trending,
-                        rails = browse.rails,
-                        exploreItems = browse.exploreItems,
-                        exploreMore = exploreMore,
-                        exploreTotal = browse.exploreTotal,
-                        loading = browse.loading,
-                        failed = browse.failed,
-                        detailOpen = selected != null,
-                        listState = browse.homeScroll,
-                        width = contentW,
-                        onOpen = openItem,
-                        onSeeAll = seeAll,
-                        onRailEnd = railEnd,
-                        onGridEnd = gridEnd,
-                        onRetry = retryBrowse,
+                        floating = true,
+                        scrolled = scrolled,
                     )
                 }
             }
         }
-        if (home) {
-            val scrolled by remember {
-                derivedStateOf { browse.homeScroll.firstVisibleItemIndex > 0 || browse.homeScroll.firstVisibleItemScrollOffset > 8 }
-            }
-            Box(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(end = detailW)) {
-                BrowseHeader(
-                    onSearch = { browse.searchOpen = true },
-                    onHistory = { browse.historyOpen = true },
-                    floating = true,
-                    scrolled = scrolled,
-                )
-            }
-        }
-        if (split) {
-            Box(Modifier.align(Alignment.CenterEnd).width(detailW).fillMaxSize()) {
-                DetailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes, closeDetail)
-            }
+        if (wideDetail) {
+            DetailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes, closeDetail)
         }
         if (!expanded) {
             AnimatedVisibility(

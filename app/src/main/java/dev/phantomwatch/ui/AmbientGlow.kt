@@ -22,10 +22,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.toBitmap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.math.abs
 import kotlin.math.min
@@ -137,7 +144,33 @@ private fun slew(from: Color, to: Color): Color {
     )
 }
 
-private fun ambientColor(bmp: Bitmap): Color {
+// per-title colours, so reopening a detail starts tinted instead of fading up from black
+private val glowCache = object : LinkedHashMap<String, Color>(16, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Color>?) = size > 64
+}
+
+// the player's own derivation, sampled from a 32px decode
+@Composable
+fun rememberImageGlow(url: String?): Color {
+    val ctx = LocalContext.current
+    var raw by remember(url) { mutableStateOf(url?.let { glowCache[it] } ?: Color.Black) }
+    LaunchedEffect(url) {
+        val src = url ?: return@LaunchedEffect
+        if (glowCache.containsKey(src)) return@LaunchedEffect
+        val bmp = withContext(Dispatchers.IO) {
+            runCatching {
+                val req = ImageRequest.Builder(ctx).data(src).size(32).allowHardware(false).build()
+                SingletonImageLoader.get(ctx).execute(req).image?.toBitmap()
+            }.getOrNull()
+        } ?: return@LaunchedEffect
+        val color = ambientColor(bmp)
+        glowCache[src] = color
+        raw = color
+    }
+    return animateColorAsState(raw, tween(400), label = "ambient-img").value
+}
+
+internal fun ambientColor(bmp: Bitmap): Color {
     val px = IntArray(bmp.width * bmp.height)
     bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
     var r = 0f

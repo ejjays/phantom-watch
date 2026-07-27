@@ -223,6 +223,7 @@ fun DetailScreen(
     }
 
     val heroH = minOf(413f, LocalConfiguration.current.screenHeightDp * 0.5f).dp
+    val wide = isExpanded(LocalConfiguration.current.screenWidthDp.dp)
     Box(Modifier.fillMaxSize().background(Bg)) {
         val d = detail ?: TitleDetail(
             id = item.id, kind = item.kind, title = item.title, overview = "",
@@ -246,6 +247,22 @@ fun DetailScreen(
                     modifier = Modifier.padding(top = 10.dp).clickable { attempt++ },
                 )
             }
+            wide -> WideDetail(
+                item = item, d = d, pending = pending, photosReady = photosReady, checking = checking,
+                onClose = onClose,
+                onWatch = onWatch,
+                onWatchPress = {
+                    scope.launch {
+                        checking = true
+                        try {
+                            if (d.kind == "movie") onWatch(item, "", "") else episodesOpen = true
+                        } finally {
+                            checking = false
+                        }
+                    }
+                },
+                onViewAll = { episodesOpen = true },
+            )
             else -> {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxSize().verticalScroll(rememberScrollState()).align(Alignment.TopCenter)) {
                     Box(
@@ -260,163 +277,16 @@ fun DetailScreen(
                             Spacer(Modifier.fillMaxWidth().height(120.dp))
                         }
                     }
-                    Column(
-                        Modifier.padding(horizontal = 16.dp).offset(y = (-120).dp)
+                    DetailBody(
+                        item = item,
+                        d = d,
+                        pending = pending,
+                        photosReady = photosReady,
+                        onEpisode = { s, e -> onWatch(item, s, e) },
+                        onViewAll = { episodesOpen = true },
+                        modifier = Modifier.padding(horizontal = 16.dp).offset(y = (-120).dp)
                             .clip(RoundedCornerShape(32.dp)).background(SurfaceColor).padding(20.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            if ((item.poster ?: d.poster) != null) {
-                                AsyncImage(model = item.poster ?: d.poster, contentDescription = null, modifier = Modifier.size(120.dp, 176.dp).clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("detail poster ok +${ms()}ms") }, onError = { AppLog.d("detail poster err +${ms()}ms") })
-                                Spacer(Modifier.width(12.dp))
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text(d.title, color = Color.White, fontSize = 20.sp, lineHeight = 28.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                                Spacer(Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (d.year != null) Text(d.year, color = Slate400, fontSize = 12.sp, fontFamily = Mono)
-                                    Spacer(Modifier.width(6.dp))
-                                    Box(Modifier.clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                                        Text(if (d.kind == "movie") "Movie" else "TV Show", color = Slate300, fontSize = 10.sp, fontFamily = Mono)
-                                    }
-                                    if (d.cert != null) {
-                                        Spacer(Modifier.width(6.dp))
-                                        Box(Modifier.clip(RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                                            Text(d.cert, color = Slate300, fontSize = 10.sp, fontFamily = Mono)
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    if (d.rating > 0) {
-                                        Text(String.format("%.1f", d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
-                                        Spacer(Modifier.width(6.dp))
-                                    }
-                                    Text(if (d.votes > 0) "${d.votes} votes" else "···", color = Slate500, fontSize = 11.sp, fontFamily = Mono)
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(20.dp))
-                        Column {
-                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            MetaCell("Rating", if (d.rating > 0) String.format("%.1f", d.rating) else "—")
-                            MetaCell("Runtime", if (d.runtime > 0) "${d.runtime} min" else "—")
-                            MetaCell("Released", d.year ?: "—")
-                        }
-                        if (d.genres.isNotEmpty()) {
-                            Spacer(Modifier.height(12.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                d.genres.take(6).forEach { g ->
-                                    Box(Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                                        Text(g, color = Slate100, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1)
-                                    }
-                                }
-                            }
-                        } else if (pending) {
-                            Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                ShimmerBox(Modifier.size(72.dp, 30.dp))
-                                ShimmerBox(Modifier.size(90.dp, 30.dp))
-                                ShimmerBox(Modifier.size(64.dp, 30.dp))
-                            }
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Text("Story Plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        if (d.overview.isNotEmpty()) {
-                            Text(d.overview, color = Slate300, fontSize = 14.sp, lineHeight = 24.sp, fontFamily = Rubik)
-                        } else if (pending) {
-                            ShimmerBox(Modifier.fillMaxWidth().height(14.dp))
-                            Spacer(Modifier.height(8.dp))
-                            ShimmerBox(Modifier.fillMaxWidth(0.9f).height(14.dp))
-                            Spacer(Modifier.height(8.dp))
-                            ShimmerBox(Modifier.fillMaxWidth(0.8f).height(14.dp))
-                            Spacer(Modifier.height(8.dp))
-                            ShimmerBox(Modifier.fillMaxWidth(0.7f).height(14.dp))
-                            Spacer(Modifier.height(8.dp))
-                            ShimmerBox(Modifier.fillMaxWidth(0.5f).height(14.dp))
-                        }
-                        if (d.kind != "movie") {
-                            Spacer(Modifier.height(12.dp))
-                            Text("Episodes", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(8.dp))
-                            if (d.seasons.isNotEmpty()) {
-                                SeasonPreview(
-                                    detail = d,
-                                    start = photosReady,
-                                    onEpisode = { s, e -> onWatch(item, s, e) },
-                                    onViewAll = { episodesOpen = true },
-                                )
-                            } else if (pending) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    ShimmerBox(Modifier.size(90.dp, 36.dp))
-                                    ShimmerBox(Modifier.size(90.dp, 36.dp))
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                repeat(3) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        ShimmerBox(Modifier.size(120.dp, 68.dp))
-                                        Spacer(Modifier.width(12.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            ShimmerBox(Modifier.fillMaxWidth(0.3f).height(12.dp))
-                                            Spacer(Modifier.height(6.dp))
-                                            ShimmerBox(Modifier.fillMaxWidth(0.8f).height(14.dp))
-                                        }
-                                    }
-                                    Spacer(Modifier.height(8.dp))
-                                }
-                            }
-                        }
-                        if (d.director != null) {
-                            Spacer(Modifier.height(12.dp))
-                            Text("Director", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Avatar(person = d.director, size = 44.dp, loadPhoto = photosReady)
-                                Spacer(Modifier.width(10.dp))
-                                Text(d.director.name, color = Slate300, fontSize = 14.sp, fontFamily = Rubik)
-                            }
-                        } else if (pending) {
-                            Spacer(Modifier.height(12.dp))
-                            Text("Director", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                ShimmerBox(Modifier.size(44.dp))
-                                Spacer(Modifier.width(10.dp))
-                                ShimmerBox(Modifier.fillMaxWidth(0.4f).height(14.dp))
-                            }
-                        }
-                        if (photosReady && d.cast.isNotEmpty()) {
-                            Spacer(Modifier.height(12.dp))
-                            Text("Casts", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(8.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                items(d.cast.take(8), key = { it.name }) { p ->
-                                    Column(Modifier.width(80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Avatar(person = p, size = 60.dp, loadPhoto = photosReady)
-                                        Spacer(Modifier.height(6.dp))
-                                        Text(p.name, color = Slate200, fontSize = 11.sp, lineHeight = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.heightIn(min = 28.dp))
-                                    }
-                                }
-                            }
-                        } else if (pending || !photosReady) {
-                            Spacer(Modifier.height(12.dp))
-                            Text("Casts", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                repeat(8) {
-                                    Column(Modifier.width(80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        ShimmerBox(Modifier.size(60.dp))
-                                        Spacer(Modifier.height(6.dp))
-                                        ShimmerBox(Modifier.fillMaxWidth(0.8f).height(10.dp))
-                                    }
-                                }
-                            }
-                        }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                    }
+                    )
                     Spacer(Modifier.height(24.dp))
                 }
                 IconButton(
@@ -588,7 +458,7 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
 }
 
 @Composable
-private fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modifier: Modifier = Modifier) {
+internal fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().clip(CircleShape)
@@ -845,5 +715,173 @@ internal fun EpisodesScreen(
                 }
             }
         }
+    }
+}
+
+/** Title, meta, plot, episodes, director and cast: the sheet shared by the phone and tablet layouts. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun DetailBody(
+    item: Title,
+    d: TitleDetail,
+    pending: Boolean,
+    photosReady: Boolean,
+    onEpisode: (String, String) -> Unit,
+    onViewAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            if ((item.poster ?: d.poster) != null) {
+                AsyncImage(model = item.poster ?: d.poster, contentDescription = null, modifier = Modifier.size(120.dp, 176.dp).clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("detail poster ok") }, onError = { AppLog.d("detail poster err") })
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(d.title, color = Color.White, fontSize = 20.sp, lineHeight = 28.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (d.year != null) Text(d.year, color = Slate400, fontSize = 12.sp, fontFamily = Mono)
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                        Text(if (d.kind == "movie") "Movie" else "TV Show", color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                    }
+                    if (d.cert != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(Modifier.clip(RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                            Text(d.cert, color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    if (d.rating > 0) {
+                        Text(String.format("%.1f", d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(if (d.votes > 0) "${d.votes} votes" else "···", color = Slate500, fontSize = 11.sp, fontFamily = Mono)
+                }
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        Column {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MetaCell("Rating", if (d.rating > 0) String.format("%.1f", d.rating) else "—")
+            MetaCell("Runtime", if (d.runtime > 0) "${d.runtime} min" else "—")
+            MetaCell("Released", d.year ?: "—")
+        }
+        if (d.genres.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                d.genres.take(6).forEach { g ->
+                    Box(Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        Text(g, color = Slate100, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1)
+                    }
+                }
+            }
+        } else if (pending) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ShimmerBox(Modifier.size(72.dp, 30.dp))
+                ShimmerBox(Modifier.size(90.dp, 30.dp))
+                ShimmerBox(Modifier.size(64.dp, 30.dp))
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Text("Story Plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        if (d.overview.isNotEmpty()) {
+            Text(d.overview, color = Slate300, fontSize = 14.sp, lineHeight = 24.sp, fontFamily = Rubik)
+        } else if (pending) {
+            ShimmerBox(Modifier.fillMaxWidth().height(14.dp))
+            Spacer(Modifier.height(8.dp))
+            ShimmerBox(Modifier.fillMaxWidth(0.9f).height(14.dp))
+            Spacer(Modifier.height(8.dp))
+            ShimmerBox(Modifier.fillMaxWidth(0.8f).height(14.dp))
+            Spacer(Modifier.height(8.dp))
+            ShimmerBox(Modifier.fillMaxWidth(0.7f).height(14.dp))
+            Spacer(Modifier.height(8.dp))
+            ShimmerBox(Modifier.fillMaxWidth(0.5f).height(14.dp))
+        }
+        if (d.kind != "movie") {
+            Spacer(Modifier.height(12.dp))
+            Text("Episodes", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            if (d.seasons.isNotEmpty()) {
+                SeasonPreview(
+                    detail = d,
+                    start = photosReady,
+                    onEpisode = onEpisode,
+                    onViewAll = onViewAll,
+                )
+            } else if (pending) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ShimmerBox(Modifier.size(90.dp, 36.dp))
+                    ShimmerBox(Modifier.size(90.dp, 36.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                repeat(3) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ShimmerBox(Modifier.size(120.dp, 68.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            ShimmerBox(Modifier.fillMaxWidth(0.3f).height(12.dp))
+                            Spacer(Modifier.height(6.dp))
+                            ShimmerBox(Modifier.fillMaxWidth(0.8f).height(14.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+        }
+        if (d.director != null) {
+            Spacer(Modifier.height(12.dp))
+            Text("Director", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(person = d.director, size = 44.dp, loadPhoto = photosReady)
+                Spacer(Modifier.width(10.dp))
+                Text(d.director.name, color = Slate300, fontSize = 14.sp, fontFamily = Rubik)
+            }
+        } else if (pending) {
+            Spacer(Modifier.height(12.dp))
+            Text("Director", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ShimmerBox(Modifier.size(44.dp))
+                Spacer(Modifier.width(10.dp))
+                ShimmerBox(Modifier.fillMaxWidth(0.4f).height(14.dp))
+            }
+        }
+        if (photosReady && d.cast.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text("Casts", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(d.cast.take(8), key = { it.name }) { p ->
+                    Column(Modifier.width(80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Avatar(person = p, size = 60.dp, loadPhoto = photosReady)
+                        Spacer(Modifier.height(6.dp))
+                        Text(p.name, color = Slate200, fontSize = 11.sp, lineHeight = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.heightIn(min = 28.dp))
+                    }
+                }
+            }
+        } else if (pending || !photosReady) {
+            Spacer(Modifier.height(12.dp))
+            Text("Casts", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(8) {
+                    Column(Modifier.width(80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        ShimmerBox(Modifier.size(60.dp))
+                        Spacer(Modifier.height(6.dp))
+                        ShimmerBox(Modifier.fillMaxWidth(0.8f).height(10.dp))
+                    }
+                }
+            }
+        }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
