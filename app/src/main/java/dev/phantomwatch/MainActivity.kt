@@ -2,13 +2,16 @@ package dev.phantomwatch
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Modifier
 import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.core.FramePhases
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
@@ -18,12 +21,24 @@ import dev.phantomwatch.social.Social
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_PhantomWatch)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
+        FramePhases.attach(this)
         // phones stay portrait; tablets and desktop windows follow the display
         if (resources.configuration.smallestScreenWidthDp < 600) {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
         Pip.inPip = false
+        runCatching {
+            val am = getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+            AppLog.d(
+                "a11y svcs=" + android.provider.Settings.Secure.getString(contentResolver, "enabled_accessibility_services") +
+                    " active=" + am.isEnabled,
+            )
+        }
         RemoteConfig.load(this)
         JsProviders.init(applicationContext)
         Social.init(applicationContext)

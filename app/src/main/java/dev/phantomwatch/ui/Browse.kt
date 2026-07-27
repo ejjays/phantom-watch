@@ -44,8 +44,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -54,6 +52,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,18 +60,21 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -81,6 +83,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,13 +95,16 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import dev.phantomwatch.R
+import dev.phantomwatch.core.Recomp
 import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.core.TrackScrollJank
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -144,6 +150,7 @@ internal class BrowseState {
 
 @Composable
 internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
+    Recomp.tick("home")
     val key = RemoteConfig.tmdbKey()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -163,6 +170,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                 val foundRails = withContext(Dispatchers.IO) {
                     RailDefs.map { def ->
                         val r = Tmdb.rail(key, def.third, 1)
+                            ?: return@map RailState(def.first, def.second, def.third, emptyList(), 1, 1)
                         RailState(def.first, def.second, def.third, r.items, 1, r.totalPages)
                     }
                 }
@@ -188,6 +196,11 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
             browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = true) else it }
             try {
                 val r = withContext(Dispatchers.IO) { Tmdb.rail(key, rail.path, rail.page + 1) }
+                // Keep page/totalPages on a failed page so the next scroll retries it.
+                if (r == null) {
+                    browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = false) else it }
+                    return@launch
+                }
                 val known = rail.items.map { "${it.kind}-${it.id}" }.toSet()
                 browse.rails = browse.rails.map {
                     if (it.key != railKey) it
@@ -205,20 +218,27 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
     }
 
     fun loadMoreExplore() {
-        if (exploreMore || browse.explorePage >= minOf(browse.exploreTotal, 10)) return
+        if (exploreMore || browse.explorePage >= browse.exploreTotal) return
+        exploreMore = true
         scope.launch {
-            exploreMore = true
             try {
-                val seen = (browse.rails.flatMap { it.items } + browse.exploreItems).map { "${it.kind}-${it.id}" }.toMutableSet()
-                var page = browse.explorePage
-                var total = browse.exploreTotal
-                var fresh = emptyList<Title>()
-                while (page < minOf(total, 10)) {
-                    val r = withContext(Dispatchers.IO) { Tmdb.rail(key, "movie/popular", page + 1) }
-                    page += 1
-                    total = r.totalPages
-                    fresh = r.items.filter { "${it.kind}-${it.id}" !in seen }
-                    if (fresh.isNotEmpty()) break
+                // Dedupe set and page walk stay off the main thread: both grow with every page.
+                val (page, total, fresh) = withContext(Dispatchers.IO) {
+                    val seen = (browse.rails.flatMap { it.items } + browse.exploreItems)
+                        .mapTo(HashSet()) { "${it.kind}-${it.id}" }
+                    var page = browse.explorePage
+                    var total = browse.exploreTotal
+                    var fresh = emptyList<Title>()
+                    var skipped = 0
+                    while (page < total && skipped < 3) {
+                        val r = Tmdb.rail(key, "movie/popular", page + 1) ?: break
+                        page += 1
+                        skipped += 1
+                        total = r.totalPages
+                        fresh = r.items.filter { "${it.kind}-${it.id}" !in seen }
+                        if (fresh.isNotEmpty()) break
+                    }
+                    Triple(page, total, fresh)
                 }
                 if (fresh.isNotEmpty()) browse.exploreItems = browse.exploreItems + fresh
                 browse.explorePage = page
@@ -295,10 +315,16 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
         selected = null
         onWatch(t, s, e)
     }
+    val openItem = stableCallback<Title> { openDetail(it) }
+    val seeAll = stableCallback<String> { browse.railKey = it }
+    val railEnd = stableCallback<String> { loadMoreRail(it) }
+    val gridEnd = stableCallback0 { loadMoreExplore() }
+    val retryBrowse = stableCallback0 { loadBrowse() }
 
+    val home = !browse.searchOpen && openRail == null && !browse.historyOpen
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize().padding(end = detailW)) {
-            if (openRail == null && !browse.historyOpen) {
+            if (!home) {
                 if (browse.searchOpen) {
                     SearchHeader(
                         query = browse.query,
@@ -332,14 +358,14 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                         recents = recents,
                         gridW = gridW,
                         
-                        onOpen = ::openDetail,
+                        onOpen = openItem,
                     )
                     2 -> openRail?.let {
                         RailGrid(
                             rail = it,
                             width = contentW,
                             onBack = { browse.railKey = null },
-                            onOpen = ::openDetail,
+                            onOpen = openItem,
                             onEnd = { loadMoreRail(it.key) },
                         )
                     } ?: Box(Modifier.fillMaxSize())
@@ -366,13 +392,26 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                         detailOpen = selected != null,
                         listState = browse.homeScroll,
                         width = contentW,
-                        onOpen = ::openDetail,
-                        onSeeAll = { browse.railKey = it },
-                        onRailEnd = ::loadMoreRail,
-                        onGridEnd = ::loadMoreExplore,
-                        onRetry = ::loadBrowse,
+                        onOpen = openItem,
+                        onSeeAll = seeAll,
+                        onRailEnd = railEnd,
+                        onGridEnd = gridEnd,
+                        onRetry = retryBrowse,
                     )
                 }
+            }
+        }
+        if (home) {
+            val scrolled by remember {
+                derivedStateOf { browse.homeScroll.firstVisibleItemIndex > 0 || browse.homeScroll.firstVisibleItemScrollOffset > 8 }
+            }
+            Box(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(end = detailW)) {
+                BrowseHeader(
+                    onSearch = { browse.searchOpen = true },
+                    onHistory = { browse.historyOpen = true },
+                    floating = true,
+                    scrolled = scrolled,
+                )
             }
         }
         if (split) {
@@ -393,30 +432,55 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
 }
 
 @Composable
-private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, floating: Boolean = false, scrolled: Boolean = false) {
+    Recomp.tick("header")
+    val solid by animateFloatAsState(if (scrolled) 1f else 0f, tween(320), label = "header-solid")
+    Box(
+        Modifier.fillMaxWidth().then(
+            if (!floating) Modifier
+            else Modifier
+                .background(
+                    Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Black.copy(alpha = 0.26f), Color.Transparent)),
+                )
+                .drawBehind {
+                    if (solid > 0f) {
+                        drawRect(
+                            Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f * solid), Color.Transparent)),
+                            topLeft = Offset(0f, size.height),
+                            size = Size(size.width, 12.dp.toPx()),
+                        )
+                    }
+                },
+        ),
     ) {
-        AsyncImage(
-            model = R.drawable.pirate,
-            contentDescription = null,
-            modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text("Phantom", color = Color.White, fontSize = 24.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        Box(
-            Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onSearch),
-            contentAlignment = Alignment.Center,
+        if (floating) Box(Modifier.matchParentSize().background(Bg.copy(alpha = 0.97f * solid)))
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(R.drawable.ic_search), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
+            AsyncImage(
+                model = R.drawable.pirate,
+                contentDescription = null,
+                modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Phantom", color = Color.White, fontSize = 24.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onSearch),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_search), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onHistory),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_history), contentDescription = "History", tint = Color.White, modifier = Modifier.size(22.dp))
+            }
         }
-        Spacer(Modifier.width(8.dp))
-        Box(
-            Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onHistory),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_history), contentDescription = "History", tint = Color.White, modifier = Modifier.size(22.dp))
+        if (floating) {
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f * solid)))
         }
     }
 }
@@ -458,6 +522,19 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
     }
 }
 
+/** One remembered instance so a parent recomposition does not invalidate every poster card. */
+@Composable
+private fun <T> stableCallback(block: (T) -> Unit): (T) -> Unit {
+    val latest = rememberUpdatedState(block)
+    return remember { { t: T -> latest.value(t) } }
+}
+
+@Composable
+private fun stableCallback0(block: () -> Unit): () -> Unit {
+    val latest = rememberUpdatedState(block)
+    return remember { { latest.value() } }
+}
+
 @Composable
 internal fun Modifier.pressClick(onClick: () -> Unit): Modifier {
     val src = remember { MutableInteractionSource() }
@@ -476,21 +553,14 @@ fun PosterCard(
     height: androidx.compose.ui.unit.Dp,
     onOpen: (Title) -> Unit,
 ) {
+    Recomp.tick("card")
     val radius = (width * 0.24f)
     val playSize = maxOf(13.dp, width * 0.13f)
-    val badgePad = maxOf(4.dp, width * 0.04f)
     val titleSize = if (width >= 150.dp) 16.sp else 12.sp
     Column(Modifier.width(width).pressClick { onOpen(item) }) {
         Box(Modifier.clip(RoundedCornerShape(radius.value.dp)).background(Color.White.copy(alpha = 0.05f))) {
             if (item.poster != null) {
                 AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.size(width, height), contentScale = ContentScale.Crop)
-                Box(
-                    Modifier.align(Alignment.BottomEnd)
-                        .padding(end = width * 0.12f, bottom = height * 0.08f)
-                        .clip(CircleShape).background(Color(0xCC1E1E1E)).padding(badgePad),
-                ) {
-                    Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Color.White, modifier = Modifier.size(playSize))
-                }
             } else {
                 Box(Modifier.size(width, height), contentAlignment = Alignment.Center) {
                     Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
@@ -527,14 +597,20 @@ private fun BrowseBody(
     onGridEnd: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    val cols = gridColumns(width)
+    Recomp.tick("browse")
+    val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
+    val sectionSize = if (isExpanded(width)) 22.sp else 16.sp
+    TrackScrollJank("home") { listState.isScrollInProgress }
     val exploreRows = remember(exploreItems, cols) { exploreItems.chunked(cols) }
-    LaunchedEffect(listState, exploreRows.size) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
-            .collect { idx ->
-                if (idx != null && idx >= exploreRows.size) onGridEnd()
-            }
+    // Outside composition on purpose: a state read here would re-run this whole body (and every
+    // poster card in the content lambda) each time a page lands or the spinner item appears.
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            last >= 0 && last >= info.totalItemsCount - 2
+        }.collect { if (it) onGridEnd() }
     }
     if (loading && trending.isEmpty() && rails.all { it.items.isEmpty() }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -560,48 +636,33 @@ private fun BrowseBody(
         contentPadding = PaddingValues(bottom = 128.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            Column {
-                Text("Trending this week", color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp))
-                TrendingCarousel(trending = trending, paused = detailOpen, onOpen = onOpen, width = width)
-                rails.forEach { rail ->
-                    if (rail.items.isNotEmpty()) {
-                        Spacer(Modifier.height(28.dp))
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(rail.title, color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                            Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
-                                Text("See all", color = Cyan, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                                ChevronRightIcon(contentDescription = null, tint = Cyan, size = 15.dp)
-                            }
-                        }
-                        val rowState = rememberLazyListState()
-                        LaunchedEffect(rowState, rail.items.size) {
-                            snapshotFlow { rowState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
-                                .collect { idx ->
-                                    if (idx != null && idx >= rail.items.size - 3) onRailEnd(rail.key)
-                                }
-                        }
-                        LazyRow(
-                            state = rowState,
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(rail.items, key = { "${it.kind}-${it.id}" }) { item ->
-                                PosterCard(item = item, width = 162.dp, height = 216.dp, onOpen = onOpen)
-                            }
-                        }
-                    }
-                }
-                if (exploreItems.isNotEmpty() || exploreMore) {
-                    Spacer(Modifier.height(24.dp))
-                    Text("Explore more", color = Slate200, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp))
+        Recomp.tick("dsl")
+        // One item per rail, not one item for the whole feed: an explore page arriving then only
+        // recomposes the grid rows, and rails that scroll off screen stop holding their images.
+        item(key = "hero", contentType = "hero") {
+            TrendingHero(trending = trending, paused = detailOpen, onOpen = onOpen, width = width, listState = listState)
+        }
+        rails.forEach { rail ->
+            if (rail.items.isNotEmpty()) {
+                item(key = "rail-${rail.key}", contentType = "rail") {
+                    RailSection(rail, width, onOpen, onSeeAll, onRailEnd)
                 }
             }
         }
-        items(exploreRows, key = { row -> row.first().let { "${it.kind}-${it.id}" } }) { row ->
+        if (exploreItems.isNotEmpty() || exploreMore) {
+            item(key = "explore", contentType = "header") {
+                Text(
+                    "Explore more", color = Slate200, fontSize = sectionSize, fontFamily = Rubik,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+                )
+            }
+        }
+        items(
+            exploreRows,
+            key = { row -> "row-" + row.first().let { "${it.kind}-${it.id}" } },
+            contentType = { "row" },
+        ) { row ->
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -612,7 +673,7 @@ private fun BrowseBody(
             }
         }
         if (exploreMore) {
-            item {
+            item(key = "more", contentType = "more") {
                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Cyan, modifier = Modifier.size(24.dp))
                 }
@@ -621,113 +682,49 @@ private fun BrowseBody(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TrendingCarousel(trending: List<Title>, paused: Boolean, onOpen: (Title) -> Unit, width: Dp) {
-    if (trending.isEmpty()) return
-    val pageW = minOf(width - 64.dp, 720.dp)
-    val bannerH = minOf(
-        (pageW - 32.dp) * 310f / 353f,
-        LocalConfiguration.current.screenHeightDp.dp * 0.5f,
-    )
-    val pages = remember(trending) {
-        if (trending.isEmpty()) emptyList() else List(trending.size * 3) { trending[it % trending.size] }
-    }
-    val state = rememberPagerState(initialPage = trending.size, pageCount = { pages.size })
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(paused, trending) {
-        if (paused || trending.size < 2) return@LaunchedEffect
-        while (true) {
-            delay(4500)
-            val n = trending.size
-            if (state.currentPage >= 3 * n - 1) {
-                state.scrollToPage(state.currentPage - n)
-            }
-            state.animateScrollToPage(state.currentPage + 1)
-        }
-    }
-    LaunchedEffect(state, trending) {
-        snapshotFlow { state.isScrollInProgress to state.currentPage }
-            .collect { (scrolling, page) ->
-                val n = trending.size
-                if (!scrolling && n > 1) {
-                    when {
-                        page < n -> state.scrollToPage(page + n)
-                        page >= 2 * n -> state.scrollToPage(page - n)
-                    }
-                }
-            }
+private fun RailSection(
+    rail: RailState,
+    width: Dp,
+    onOpen: (Title) -> Unit,
+    onSeeAll: (String) -> Unit,
+    onEnd: (String) -> Unit,
+) {
+    val rowState = remember(rail.key) { LazyListState() }
+    val railW = featuredCell(width)
+    TrackScrollJank("rail ${rail.title}") { rowState.isScrollInProgress }
+    LaunchedEffect(rowState) {
+        snapshotFlow {
+            val info = rowState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            last >= 0 && last >= info.totalItemsCount - 3
+        }.distinctUntilChanged().collect { if (it) onEnd(rail.key) }
     }
     Column {
-        HorizontalPager(state = state, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = (width - pageW) / 2), pageSpacing = 0.dp) { page ->
-            val item = pages[page]
-            Column(Modifier.width(pageW).padding(horizontal = 16.dp)) {
-                Box(Modifier.fillMaxWidth().height(bannerH + 32.dp)) {
-                    Box(
-                        Modifier.fillMaxWidth().height(bannerH)
-                            .clip(RoundedCornerShape(48.dp)).background(SurfaceColor).clickable { onOpen(item) },
-                    ) {
-                        if (item.poster != null) {
-                            AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        } else {
-                            Box(Modifier.fillMaxSize().padding(horizontal = 32.dp), contentAlignment = Alignment.Center) {
-                                Text(item.title, color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                            }
-                        }
-                    }
-                    Row(
-                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
-                            .clip(RoundedCornerShape(32.dp)).background(SurfaceColor)
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(item.title.uppercase(), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Spacer(Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (item.rating != null && item.rating > 0) {
-                                    Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(12.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                }
-                                Text(
-                                    if (item.rating != null && item.rating > 0) "${String.format("%.1f", item.rating)}  •  ${item.year ?: ""}"
-                                    else if (item.kind == "movie") "MOVIE" else "TV SHOW",
-                                    color = Slate300, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium,
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Box(
-                            Modifier.clip(RoundedCornerShape(50)).background(
-                                Brush.linearGradient(
-                                    colors = listOf(Color(0xFF333333), Color(0xFF767676), Color(0xFF363535)),
-                                ),
-                            ).pressClick { onOpen(item) }
-                                .padding(horizontal = 20.dp, vertical = 10.dp),
-                        ) {
-                            Text("Details", color = Color.White, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                }
+        Spacer(Modifier.height(16.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                rail.title, color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
+                fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+            )
+            Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "See all", color = Cyan, fontSize = if (isExpanded(width)) 15.sp else 13.sp,
+                    fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+                )
+                ChevronRightIcon(contentDescription = null, tint = Cyan, size = if (isExpanded(width)) 18.dp else 15.dp)
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)) {
-            val total = trending.size
-            val pos = ((state.currentPage + state.currentPageOffsetFraction) % total + total) % total
-            trending.forEachIndexed { i, dot ->
-                val raw = kotlin.math.abs(pos - i)
-                val dist = minOf(raw, total - raw)
-                val t = (1f - minOf(dist, 1f)).coerceIn(0f, 1f)
-                val dotW = 8 + t * 14
-                val dotColor = lerp(Color.White.copy(alpha = 0.2f), Cyan, t)
-                Box(
-                    Modifier.size(dotW.dp, 4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(dotColor)
-                        .clickable {
-                            scope.launch { state.animateScrollToPage(total + i) }
-                        },
-                )
+        LazyRow(
+            state = rowState,
+            contentPadding = PaddingValues(start = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(rail.items, key = { "${it.kind}-${it.id}" }, contentType = { "poster" }) { item ->
+                PosterCard(item = item, width = railW, height = railW * 4f / 3f, onOpen = onOpen)
             }
         }
     }
@@ -802,9 +799,12 @@ private fun SearchBody(
 
 @Composable
 private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Title) -> Unit, onEnd: () -> Unit) {
-    val cols = gridColumns(width)
+    Recomp.tick("grid")
+    val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
+    val railW = featuredCell(width)
     val state = rememberLazyGridState()
+    TrackScrollJank("grid ${rail.title}") { state.isScrollInProgress }
     LaunchedEffect(state) {
         snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { idx -> if (idx != null && idx >= rail.items.size - 3) onEnd() }

@@ -69,6 +69,7 @@ class UpdateInstallActivity : Activity() {
                     .intentSender
             )
         }
+        AutoInstall.arm()
         log("committed session $id")
     }
 

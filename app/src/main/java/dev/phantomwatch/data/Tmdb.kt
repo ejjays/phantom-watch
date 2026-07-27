@@ -32,9 +32,10 @@ object Tmdb {
         return Title(
             id.toString(), type, name,
             img(e.optString("poster_path"), "w342"),
-            img(e.optString("backdrop_path"), "w780"),
+            img(e.optString("backdrop_path"), "w1280"),
             e.optDouble("vote_average").takeIf { !it.isNaN() },
             (e.optString("release_date").ifEmpty { e.optString("first_air_date") }).take(4).ifEmpty { null },
+            e.optString("overview").ifEmpty { null },
         )
     }
 
@@ -52,20 +53,21 @@ object Tmdb {
         return out
     }
 
-    fun rail(apiKey: String, path: String, page: Int = 1): RailPage {
+    /** Null means the request failed — never a page count of 1, which would end pagination. */
+    fun rail(apiKey: String, path: String, page: Int = 1): RailPage? {
         return try {
             val data = Http.getJson(
                 "${RemoteConfig.tmdbBase()}/$path?api_key=$apiKey&page=$page",
                 "https://www.themoviedb.org/",
-            ) ?: return RailPage(emptyList(), 1)
-            val results = data.optJSONArray("results") ?: return RailPage(emptyList(), 1)
+            ) ?: return null
+            val results = data.optJSONArray("results") ?: return null
             val out = mutableListOf<Title>()
             for (i in 0 until results.length()) {
                 titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
             }
             RailPage(out, data.optInt("total_pages", 1).coerceAtLeast(1))
         } catch (_: Exception) {
-            RailPage(emptyList(), 1)
+            null
         }
     }
 
@@ -152,7 +154,7 @@ object Tmdb {
             TitleDetail(
                 id, kind, name, e.optString("overview"),
                 img(e.optString("poster_path"), "w342"),
-                img(e.optString("backdrop_path"), "w780"),
+                img(e.optString("backdrop_path"), "w1280"),
                 date.take(4).ifEmpty { null }, runtime,
                 e.optDouble("vote_average"), e.optInt("vote_count"),
                 genres, cert, director, cast, seasons,

@@ -10,6 +10,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,8 +21,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
+import dev.phantomwatch.core.Recomp
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
@@ -65,6 +66,7 @@ import kotlinx.coroutines.withContext
 
 @Composable
 internal fun AppRoot() {
+    Recomp.tick("root")
     var screen by remember { mutableStateOf<Screen>(Playback.lastScreen ?: Screen.Home) }
     val browse = remember { BrowseState() }
     var forward by remember { mutableStateOf(true) }
@@ -285,17 +287,18 @@ private fun LogFab() {
     }
     if (open) {
         val clip = LocalClipboardManager.current
-        val scroll = rememberScrollState()
         AlertDialog(
             onDismissRequest = { open = false },
             title = { Text("Logs (${AppLog.lines.size})") },
             text = {
-                Box(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(scroll)) {
-                    Text(
-                        AppLog.lines.joinToString("\n"),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                    )
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    items(AppLog.lines) { line ->
+                        Text(
+                            line,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
                 }
             },
             confirmButton = {

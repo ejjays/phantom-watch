@@ -8,6 +8,7 @@ data class Title(
     val backdrop: String? = null,
     val rating: Double? = null,
     val year: String? = null,
+    val overview: String? = null,
 )
 
 data class Person(
