@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.phantomwatch.data.Title
@@ -35,10 +36,25 @@ internal fun PlayerWide(
     episode: String,
     overview: String?,
     videoAspect: Float,
+    fullscreen: Boolean,
+    tablet: Boolean,
     onEpisode: (String, String) -> Unit,
     onOpenTitle: (Title) -> Unit,
-    stage: @Composable (Dp) -> Unit,
+    stage: @Composable (Dp, Pair<Float, Float>?) -> Unit,
 ) {
+    // Tablets watch like YouTube: video over the info on the left, up-next rail on the right.
+    if (tablet) {
+        // Captions keyed to a fixed size: the pane's box is far taller than a phone stage. Lifted
+        // clear of the bottom edge, which is the screen edge in fullscreen.
+        val subPx = with(LocalDensity.current) { 20.dp.toPx() to -28.dp.toPx() }
+        PlayerPanel(
+            media = media, season = season, episode = episode, overview = overview,
+            onEpisode = onEpisode, onOpenTitle = onOpenTitle,
+            video = { stage(0.dp, subPx) }, videoAspect = videoAspect,
+            fullscreen = fullscreen,
+        )
+        return
+    }
     val cfg = LocalConfiguration.current
     val fsW = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
     val fsH = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
@@ -46,7 +62,7 @@ internal fun PlayerWide(
     val inset = ((fsH - fsVideoH) / 2).coerceAtLeast(0f).dp
     var info by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        stage(inset)
+        stage(inset, null)
         Box(
             Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)
                 .clip(CircleShape).background(Color.Black.copy(alpha = 0.55f))

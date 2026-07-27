@@ -96,6 +96,7 @@ fun playerClock(ms: Long): String {
 fun PlayerStage(
     title: String,
     fullscreen: Boolean,
+    seekBar: Boolean = fullscreen,
     isPlaying: Boolean,
     stalled: Boolean,
     positionMs: Long,
@@ -230,7 +231,7 @@ fun PlayerStage(
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
                     .padding(horizontal = 16.dp).padding(bottom = 8.dp + seekInset),
             ) {
-                if (fullscreen) {
+                if (seekBar) {
                     PlayerSeekBar(
                         positionMs = positionMs,
                         durationMs = durationMs,
@@ -346,7 +347,7 @@ fun PlayerStage(
                 )
             }
         }
-        if (!fullscreen) {
+        if (!seekBar) {
         PlayerSeekBar(
             positionMs = positionMs,
             durationMs = durationMs,

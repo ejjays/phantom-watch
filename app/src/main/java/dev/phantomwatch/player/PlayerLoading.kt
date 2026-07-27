@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -86,9 +87,11 @@ internal fun PlayerResolving(
 ) {
     BackHandler(onBack = onBack)
     val cfg = LocalConfiguration.current
+    // Same shell the player uses once the stream lands, so resolving never flips the layout.
+    val tablet = cfg.orientation == Configuration.ORIENTATION_LANDSCAPE && cfg.smallestScreenWidthDp >= 600
     val stageH = (minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat() * 9 / 16).dp
-    Column(Modifier.fillMaxSize().background(Color.Black)) {
-        Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
+    val stage: @Composable (Modifier) -> Unit = { mod ->
+        Box(mod) {
             PlayerStage(
                 title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
                 fullscreen = false, isPlaying = false, stalled = true,
@@ -98,16 +101,28 @@ internal fun PlayerResolving(
                 onBack = onBack, onFullscreen = {}, onTogglePlay = {}, onToggleLock = {},
                 onSeek = {}, onInteract = {}, onZoneTap = {}, onToggleSubs = {},
                 onSwipe = { _, _ -> }, onSwipeEnd = {},
-                video = { mod -> Box(mod.fillMaxSize().background(Color.Black)) },
+                video = { v -> Box(v.fillMaxSize().background(Color.Black)) },
             )
         }
-        PlayerPanel(
-            media = media, season = season, episode = episode,
-            overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
-        )
+    }
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        if (tablet) {
+            PlayerPanel(
+                media = media, season = season, episode = episode, overview = overview,
+                onEpisode = onEpisode, onOpenTitle = onOpenTitle, video = stage,
+            )
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) { stage(Modifier.fillMaxSize()) }
+                PlayerPanel(
+                    media = media, season = season, episode = episode,
+                    overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
+                )
+            }
+        }
         if (resolveErr != null) {
             Row(
-                Modifier.fillMaxWidth().padding(16.dp),
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             ) {
                 Button(onClick = onRetry) { Text("Retry") }

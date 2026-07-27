@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -29,6 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -48,6 +53,17 @@ fun PlayerVideo(
     modifier: Modifier = Modifier,
 ) {
     var videoSurface by remember { mutableStateOf<SurfaceView?>(null) }
+    // A trip to the background kills the view's surface; without a rebind the picture stays black
+    // while audio and subtitles keep running.
+    val ctx = LocalContext.current
+    var resumeTick by remember { mutableStateOf(0) }
+    val bound = remember { intArrayOf(0) }
+    DisposableEffect(ctx) {
+        val lc = (ctx as? ComponentActivity)?.lifecycle ?: return@DisposableEffect onDispose { }
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) resumeTick++ }
+        lc.addObserver(obs)
+        onDispose { lc.removeObserver(obs) }
+    }
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val vh = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / videoAspect)
         val vw = vh * videoAspect
@@ -88,7 +104,14 @@ fun PlayerVideo(
                     it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     videoSurface = it.videoSurfaceView as? SurfaceView
                     it.subtitleView?.visibility = View.GONE
+                    if (resumeTick != bound[0]) {
+                        bound[0] = resumeTick
+                        if (resumeTick > 0) {
+                            (it.videoSurfaceView as? SurfaceView)?.let { sv -> exo.setVideoSurfaceView(sv) }
+                        }
+                    }
                 },
+                onRelease = { it.player = null },
                 modifier = Modifier.size(vw, vh),
             )
         }

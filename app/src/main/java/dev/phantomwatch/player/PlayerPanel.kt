@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,8 +30,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -54,8 +59,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.res.painterResource
@@ -63,10 +70,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.R
 import dev.phantomwatch.core.RemoteConfig
+import coil3.compose.AsyncImage
 import dev.phantomwatch.data.DetailCache
+import dev.phantomwatch.data.Episode
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
@@ -90,6 +100,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** Up-next rail: one step darker than the page, so the two tablet panes read as separate. */
+private val RailColor = Color(0xFF0A0A0B)
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerPanel(
@@ -101,6 +114,9 @@ fun PlayerPanel(
     onOpenTitle: ((Title) -> Unit)? = null,
     onHeaderBottom: ((Float) -> Unit)? = null,
     onSheetLock: ((Boolean) -> Unit)? = null,
+    video: (@Composable (Modifier) -> Unit)? = null,
+    videoAspect: Float = 16f / 9f,
+    fullscreen: Boolean = false,
 ) {
     val key = RemoteConfig.tmdbKey()
     var detail by remember(media.id) { mutableStateOf(DetailCache.detail(media.kind, media.id)) }
@@ -159,149 +175,110 @@ fun PlayerPanel(
         similar = list
     }
 
+    val cast: (Int) -> Unit = { v ->
+        voted = true
+        val prev = stats
+        if (Social.enabled && tmdbId > 0) {
+            stats = if (prev.mine == v) {
+                prev.copy(
+                    mine = 0,
+                    likes = (prev.likes - if (v == Social.LIKE) 1 else 0).coerceAtLeast(0),
+                    dislikes = (prev.dislikes - if (v == Social.DISLIKE) 1 else 0).coerceAtLeast(0),
+                )
+            } else {
+                prev.copy(
+                    mine = v,
+                    likes = (prev.likes + (if (v == Social.LIKE) 1 else 0) -
+                        (if (prev.mine == Social.LIKE) 1 else 0)).coerceAtLeast(0),
+                    dislikes = (prev.dislikes + (if (v == Social.DISLIKE) 1 else 0) -
+                        (if (prev.mine == Social.DISLIKE) 1 else 0)).coerceAtLeast(0),
+                )
+            }
+            scopeUi.launch {
+                Social.vote(media.kind, tmdbId, v)?.let { stats = it } ?: run { stats = prev }
+            }
+        }
+    }
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {
         val panelH = maxHeight
-        Column(
-            Modifier.align(Alignment.TopCenter).widthIn(max = 720.dp).fillMaxHeight()
-                .verticalScroll(rememberScrollState(), overscrollEffect = null)
-                .padding(top = 18.dp)
-                .navigationBarsPadding(),
-        ) {
-            Text(
-                media.title, color = Color.White, fontSize = 24.sp, fontFamily = Rubik,
-                fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 20.dp)
-                    .clickable(enabled = synopsis != null) { showSheet = true },
+        val railW = (maxWidth * 0.3f).coerceIn(320.dp, 420.dp)
+        val slot = video
+        if (slot != null) {
+            // Tablets: video over the info on the left, a vertical up-next rail on the right.
+            // Fullscreen grows the video column and pushes the rail off the right edge.
+            val fs by animateFloatAsState(
+                if (fullscreen) 1f else 0f, tween(320, easing = FastOutSlowInEasing), label = "fs",
             )
-            if (synopsis != null) {
-                Spacer(Modifier.height(16.dp))
-                Column(
-                    Modifier.padding(horizontal = 20.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                        .background(SurfaceColor).clickable { showSheet = true }
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
-                ) {
-                    Text(
-                        "Story plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        synopsis, color = Slate300, fontSize = 15.sp, fontFamily = Rubik,
-                        lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val cast: (Int) -> Unit = { v ->
-                        voted = true
-                        val prev = stats
-                        if (Social.enabled && tmdbId > 0) {
-                            stats = if (prev.mine == v) {
-                                prev.copy(
-                                    mine = 0,
-                                    likes = (prev.likes - if (v == Social.LIKE) 1 else 0).coerceAtLeast(0),
-                                    dislikes = (prev.dislikes - if (v == Social.DISLIKE) 1 else 0).coerceAtLeast(0),
-                                )
-                            } else {
-                                prev.copy(
-                                    mine = v,
-                                    likes = (prev.likes + (if (v == Social.LIKE) 1 else 0) -
-                                        (if (prev.mine == Social.LIKE) 1 else 0)).coerceAtLeast(0),
-                                    dislikes = (prev.dislikes + (if (v == Social.DISLIKE) 1 else 0) -
-                                        (if (prev.mine == Social.DISLIKE) 1 else 0)).coerceAtLeast(0),
-                                )
-                            }
-                            scopeUi.launch {
-                                Social.vote(media.kind, tmdbId, v)?.let { stats = it } ?: run { stats = prev }
-                            }
-                        }
-                    }
-                    ThumbButton(true, stats, 24.dp, 14, voted) { cast(Social.LIKE) }
-                    ThumbButton(false, stats, 24.dp, 14, voted) { cast(Social.DISLIKE) }
-                    ActionIcon(onClick = { showComments = true }) {
-                        CommentIcon(contentDescription = "Comments", tint = Slate300, size = 24.dp)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    ActionIcon { ShareIcon(contentDescription = "Share", tint = Slate300, size = 24.dp) }
-                }
-            }
-            if (isTv) {
-                Spacer(Modifier.height(22.dp))
-                Row(
-                    Modifier.padding(horizontal = 20.dp)
-                        .onGloballyPositioned { onHeaderBottom?.invoke(it.positionInWindow().y) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SectionTitle("Episodes")
-                    Spacer(Modifier.weight(1f))
-                    if (onEpisode != null) {
-                        Row(
-                            Modifier.clickable { showEpisodes = true },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "Full", color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            ChevronRightIcon(contentDescription = "All episodes", tint = Slate200, size = 15.dp)
-                        }
+            val colW = maxWidth - railW * (1f - fs)
+            // Nothing tucks under the status bar until the video is actually fullscreen.
+            val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+            val paneTop = topInset * (1f - fs)
+            val paneH = maxHeight - paneTop
+            Row(Modifier.fillMaxSize().clipToBounds()) {
+                Column(Modifier.width(colW).fillMaxHeight().padding(top = paneTop)) {
+                    // Grows past the video's own aspect so fullscreen letterboxes on the ambient glow.
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .height(lerp(colW / videoAspect.coerceIn(0.4f, 2.4f), paneH, fs))
+                            .background(Color.Black),
+                    ) { slot(Modifier) }
+                    if (fs < 1f) {
+                        PlayerInfo(
+                            media = media, synopsis = synopsis, stats = stats, voted = voted,
+                            isTv = isTv, episodes = episodes, loadingEpisodes = loadingEpisodes,
+                            season = playingSeason.toString(), episode = episode,
+                            onVote = cast, onComments = { showComments = true },
+                            onOpenPlot = { showSheet = true }, onAllEpisodes = { showEpisodes = true },
+                            onEpisode = onEpisode,
+                            modifier = Modifier.weight(1f).padding(top = 16.dp)
+                                .graphicsLayer { alpha = 1f - fs }
+                                .verticalScroll(rememberScrollState(), overscrollEffect = null)
+                                .navigationBarsPadding(),
+                        )
                     }
                 }
-                when {
-                    loadingEpisodes -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Cyan, modifier = Modifier.size(22.dp))
-                    }
-                    episodes.isEmpty() -> Text(
-                        "No episodes available", color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
-                        modifier = Modifier.padding(horizontal = 20.dp).padding(vertical = 12.dp),
-                    )
-                    else -> {
-                        val listState = rememberLazyListState()
-                        LaunchedEffect(episodes.size) {
-                            val at = episodes.indexOfFirst { it.n.toString() == episode }
-                            if (at > 0) listState.scrollToItem(at)
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        LazyRow(
-                            state = listState,
-                            contentPadding = PaddingValues(horizontal = 20.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            items(episodes, key = { it.n }) { ep ->
-                                val active = ep.n.toString() == episode
-                                Box(
-                                    Modifier.size(52.dp, 44.dp).clip(RoundedCornerShape(10.dp))
-                                        .background(if (active) Cyan else Color.White.copy(alpha = 0.08f))
-                                        .clickable { onEpisode?.invoke(playingSeason.toString(), ep.n.toString()) },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        ep.n.toString(), color = if (active) Bg else Slate200,
-                                        fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium,
-                                    )
-                                }
-                            }
+                Box(
+                    Modifier.width(railW).fillMaxHeight().background(RailColor)
+                        .graphicsLayer { alpha = 1f - fs },
+                ) {
+                    Box(Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.07f)))
+                    if (onOpenTitle != null) {
+                        Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+                            SimilarList(similar, onOpenTitle)
                         }
                     }
                 }
             }
-            if (similar.isNotEmpty() && onOpenTitle != null) {
-                Spacer(Modifier.height(22.dp))
-                Box(Modifier.padding(horizontal = 20.dp)) { SectionTitle("More Like This") }
-                Spacer(Modifier.height(10.dp))
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(similar.take(12), key = { "${it.kind}-${it.id}" }) { t ->
-                        PosterCard(item = t, width = 104.dp, height = 156.dp, onOpen = onOpenTitle)
+        } else {
+            Column(
+                Modifier.align(Alignment.TopCenter).widthIn(max = 720.dp).fillMaxHeight()
+                    .verticalScroll(rememberScrollState(), overscrollEffect = null)
+                    .padding(top = 18.dp)
+                    .navigationBarsPadding(),
+            ) {
+                PlayerInfo(
+                    media = media, synopsis = synopsis, stats = stats, voted = voted,
+                    isTv = isTv, episodes = episodes, loadingEpisodes = loadingEpisodes,
+                    season = playingSeason.toString(), episode = episode,
+                    onVote = cast, onComments = { showComments = true },
+                    onOpenPlot = { showSheet = true }, onAllEpisodes = { showEpisodes = true },
+                    onEpisode = onEpisode, onHeaderBottom = onHeaderBottom,
+                )
+                if (similar.isNotEmpty() && onOpenTitle != null) {
+                    Spacer(Modifier.height(22.dp))
+                    Box(Modifier.padding(horizontal = 20.dp)) { SectionTitle("More Like This") }
+                    Spacer(Modifier.height(10.dp))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(similar.take(12), key = { it.kind + "-" + it.id }) { t ->
+                            PosterCard(item = t, width = 104.dp, height = 156.dp, onOpen = onOpenTitle)
+                        }
                     }
                 }
+                Spacer(Modifier.height(24.dp))
             }
-            Spacer(Modifier.height(24.dp))
         }
         AnimatedVisibility(
             visible = showEpisodes,
@@ -490,3 +467,165 @@ private fun SectionTitle(text: String) {
     Text(text, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
 }
 
+/** Title, plot, votes, actions and the episode strip: shared by the sheet and the tablet column. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlayerInfo(
+    media: Title,
+    synopsis: String?,
+    stats: Social.Stats,
+    voted: Boolean,
+    isTv: Boolean,
+    episodes: List<Episode>,
+    loadingEpisodes: Boolean,
+    season: String,
+    episode: String,
+    onVote: (Int) -> Unit,
+    onComments: () -> Unit,
+    onOpenPlot: () -> Unit,
+    onAllEpisodes: () -> Unit,
+    onEpisode: ((String, String) -> Unit)?,
+    onHeaderBottom: ((Float) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier) {
+                Text(
+                    media.title, color = Color.White, fontSize = 24.sp, fontFamily = Rubik,
+                    fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                        .clickable(enabled = synopsis != null) { onOpenPlot() },
+                )
+                if (synopsis != null) {
+                    Spacer(Modifier.height(16.dp))
+                    Column(
+                        Modifier.padding(horizontal = 20.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                            .background(SurfaceColor).clickable { onOpenPlot() }
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                    ) {
+                        Text(
+                            "Story plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            synopsis, color = Slate300, fontSize = 15.sp, fontFamily = Rubik,
+                            lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                    ThumbButton(true, stats, 24.dp, 14, voted) { onVote(Social.LIKE) }
+                    ThumbButton(false, stats, 24.dp, 14, voted) { onVote(Social.DISLIKE) }
+                        ActionIcon(onClick = { onComments() }) {
+                            CommentIcon(contentDescription = "Comments", tint = Slate300, size = 24.dp)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        ActionIcon { ShareIcon(contentDescription = "Share", tint = Slate300, size = 24.dp) }
+                    }
+                }
+                if (isTv) {
+                    Spacer(Modifier.height(22.dp))
+                    Row(
+                        Modifier.padding(horizontal = 20.dp)
+                            .onGloballyPositioned { onHeaderBottom?.invoke(it.positionInWindow().y) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SectionTitle("Episodes")
+                        Spacer(Modifier.weight(1f))
+                        if (onEpisode != null) {
+                            Row(
+                                Modifier.clickable { onAllEpisodes() },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Full", color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                ChevronRightIcon(contentDescription = "All episodes", tint = Slate200, size = 15.dp)
+                            }
+                        }
+                    }
+                    when {
+                        loadingEpisodes -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Cyan, modifier = Modifier.size(22.dp))
+                        }
+                        episodes.isEmpty() -> Text(
+                            "No episodes available", color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
+                            modifier = Modifier.padding(horizontal = 20.dp).padding(vertical = 12.dp),
+                        )
+                        else -> {
+                            val listState = rememberLazyListState()
+                            LaunchedEffect(episodes.size) {
+                                val at = episodes.indexOfFirst { it.n.toString() == episode }
+                                if (at > 0) listState.scrollToItem(at)
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            LazyRow(
+                                state = listState,
+                                contentPadding = PaddingValues(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                items(episodes, key = { it.n }) { ep ->
+                                    val active = ep.n.toString() == episode
+                                    Box(
+                                        Modifier.size(52.dp, 44.dp).clip(RoundedCornerShape(10.dp))
+                                            .background(if (active) Cyan else Color.White.copy(alpha = 0.08f))
+                                            .clickable { onEpisode?.invoke(season, ep.n.toString()) },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            ep.n.toString(), color = if (active) Bg else Slate200,
+                                            fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Tablet up-next rail: YouTube-shaped cards, thumbnail over the title. */
+@Composable
+private fun SimilarList(items: List<Title>, onOpen: (Title) -> Unit) {
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        item(key = "header") { SectionTitle("More Like This") }
+        items(items, key = { it.kind + "-" + it.id }) { t ->
+            Column(Modifier.fillMaxWidth().clickable { onOpen(t) }) {
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(14.dp)).background(SurfaceColor),
+                ) {
+                    val art = t.backdrop ?: t.poster
+                    if (art != null) {
+                        AsyncImage(
+                            model = art, contentDescription = t.title,
+                            contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    t.title, color = Color.White, fontSize = 14.sp, fontFamily = Rubik,
+                    fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                val meta = listOfNotNull(
+                    t.year,
+                    t.rating?.takeIf { it > 0 }?.let { String.format("%.1f", it) },
+                ).joinToString(" · ")
+                if (meta.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(meta, color = Slate400, fontSize = 12.sp, fontFamily = Rubik, maxLines = 1)
+                }
+            }
+        }
+    }
+}

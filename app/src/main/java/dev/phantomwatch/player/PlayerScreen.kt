@@ -840,14 +840,18 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     else -> -1
                 }
                 if (zone == -1 || zone == lastZone) return
+                // enable() reports the current angle at once: acting on it flips fullscreen on open.
+                val first = lastZone == -1
                 lastZone = zone
+                if (first) return
                 orientJob?.cancel()
                 orientJob = resumeScope.launch {
                     delay(800)
                     if (Pip.inPip) return@launch
                     if (zone == 0 && fsNow.value && !lockedNow.value) {
                         toggleFullscreen()
-                    } else if (zone == 1 && !fsNow.value && rotationEnabled()) {
+                    } else if (zone == 1 && !fsNow.value && !smallScreen && rotationEnabled()) {
+                        // phones go fullscreen on rotate; tablets already have the side panel
                         toggleFullscreen()
                     }
                 }
@@ -915,10 +919,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         if (!fullscreen) locked = false
     }
     LaunchedEffect(locked, cfg.orientation) {
-        if (locked) {
-            activity?.requestedOrientation =
-                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        }
+        if (locked) activity?.requestedOrientation =
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
     val videoAspect = if (videoW > 0 && videoH > 0) videoW.toFloat() / videoH else 16f / 9f
     LaunchedEffect(videoW, videoH, enhReady, enhOut, enhSession) {
@@ -1016,6 +1018,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     fun stage(
         seekInset: androidx.compose.ui.unit.Dp,
         fsUi: Boolean,
+        seekBar: Boolean = fsUi,
         shiftPx: () -> Float = { 0f },
         videoShiftPx: () -> Float = shiftPx,
         sheetZoneTopPx: () -> Float = { Float.MAX_VALUE },
@@ -1032,7 +1035,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     ) {
         PlayerStage(
             title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
-        fullscreen = fsUi,
+        fullscreen = fsUi, seekBar = seekBar,
         isPlaying = playing,
         stalled = stalled,
         positionMs = positionMs,
@@ -1150,9 +1153,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     if (Pip.inPip) {
         stage(0.dp, false)
     } else if (wide) {
-        PlayerWide(media, season, episode, overview, videoAspect, onEpisode, onOpenTitle) { inset ->
-            stage(inset, true)
-        }
+        PlayerWide(
+            media, season, episode, overview, videoAspect, fullscreen, !smallScreen,
+            onEpisode, onOpenTitle,
+        ) { inset, style -> stage(inset, fullscreen, seekBar = true, subStyle = style) }
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val portraitH = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
