@@ -45,6 +45,9 @@ class UpdateInstallActivity : Activity() {
     }
 
     private fun commit(url: String) {
+        // Arm before downloading: the clicker clears a stale "installed" page left by the last run
+        // while we fetch, so the new session opens on a clean screen.
+        AutoInstall.arm()
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 5000
         conn.readTimeout = 120000
@@ -69,7 +72,6 @@ class UpdateInstallActivity : Activity() {
                     .intentSender
             )
         }
-        AutoInstall.arm()
         log("committed session $id")
     }
 

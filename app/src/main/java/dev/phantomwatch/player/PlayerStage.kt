@@ -347,7 +347,8 @@ fun PlayerStage(
                 )
             }
         }
-        if (!seekBar) {
+        // The thin progress line only replaces the hidden controls in the non-fullscreen pane.
+        if (!seekBar || (!controlsVisible && !fullscreen)) {
         PlayerSeekBar(
             positionMs = positionMs,
             durationMs = durationMs,

@@ -90,7 +90,7 @@ private val BodyInk = Slate200
 private val LineInk = Color.White.copy(alpha = 0.12f)
 
 @Composable
-internal fun CommentsSheet(media: Title, onDismiss: () -> Unit) {
+internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () -> Unit) {
     val id = media.id.toIntOrNull() ?: 0
     if (id <= 0) return
 
@@ -172,10 +172,10 @@ internal fun CommentsSheet(media: Title, onDismiss: () -> Unit) {
         },
     )
 
-    val scrim by animateFloatAsState(if (state.targetState) 0.45f else 0f, tween(260), label = "scrim")
-    if (scrim > 0f) {
+    val scrimAlpha by animateFloatAsState(if (state.targetState && scrim) 0.45f else 0f, tween(260), label = "scrim")
+    if (scrimAlpha > 0f) {
         Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrim))
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrimAlpha))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                     state.targetState = false
                 },

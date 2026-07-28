@@ -4,12 +4,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
@@ -38,6 +44,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +59,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,8 +69,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.res.painterResource
@@ -97,6 +112,7 @@ import dev.phantomwatch.ui.Slate400
 import dev.phantomwatch.ui.Slate500
 import dev.phantomwatch.ui.SurfaceColor
 import kotlinx.coroutines.Dispatchers
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -242,10 +258,17 @@ fun PlayerPanel(
                         .graphicsLayer { alpha = 1f - fs },
                 ) {
                     Box(Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.07f)))
-                    if (onOpenTitle != null) {
-                        Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                            SimilarList(similar, onOpenTitle)
-                        }
+                    // Sheets dock in the rail: never a full-screen modal while the video is visible.
+                    Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+                        RailSheets(
+                            media = media, d = d, synopsis = synopsis, similar = similar,
+                            onOpenTitle = onOpenTitle, onEpisode = onEpisode,
+                            showEpisodes = showEpisodes, showComments = showComments,
+                            showPlot = showSheet,
+                            closeEpisodes = { showEpisodes = false },
+                            closeComments = { showComments = false },
+                            closePlot = { showSheet = false },
+                        )
                     }
                 }
             }
@@ -281,7 +304,7 @@ fun PlayerPanel(
             }
         }
         AnimatedVisibility(
-            visible = showEpisodes,
+            visible = showEpisodes && slot == null,
             enter = slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it },
             exit = slideOutVertically(tween(280, easing = FastOutSlowInEasing)) { it },
         ) {
@@ -292,7 +315,7 @@ fun PlayerPanel(
                 onEpisode = { s, e -> onEpisode?.invoke(s, e) },
             )
         }
-        if (showSheet && synopsis != null) {
+        if (showSheet && synopsis != null && slot == null) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             val scope = rememberCoroutineScope()
             ModalBottomSheet(
@@ -332,57 +355,11 @@ fun PlayerPanel(
                     }
                     Spacer(Modifier.height(10.dp))
                     HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                    Column(
-                        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                            .padding(20.dp).navigationBarsPadding(),
-                    ) {
-                        Text(
-                            media.title, color = Color.White, fontSize = 20.sp, fontFamily = Rubik,
-                            fontWeight = FontWeight.Bold, lineHeight = 28.sp,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            synopsis.orEmpty(), color = Slate300, fontSize = 15.sp, fontFamily = Rubik,
-                            lineHeight = 24.sp,
-                        )
-                        val year = d?.year ?: media.year
-                        val cards = buildList {
-                            d?.rating?.takeIf { it > 0 }?.let { add(String.format("%.1f", it) to "Rating") }
-                            d?.votes?.takeIf { it > 0 }?.let { add(compactCount(it) to "Votes") }
-                            year?.let { add(it to "Released") }
-                        }
-                        if (cards.isNotEmpty()) {
-                            Spacer(Modifier.height(22.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                cards.forEach { (value, label) ->
-                                    StatCard(value, label, Modifier.weight(1f))
-                                }
-                            }
-                        }
-                        val genres = d?.genres.orEmpty()
-                        if (genres.isNotEmpty()) {
-                            Spacer(Modifier.height(14.dp))
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                genres.take(6).forEach { g ->
-                                    Box(
-                                        Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.08f))
-                                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                                    ) {
-                                        Text(g, color = Slate200, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(24.dp))
-                    }
+                    PlotBody(media, d, synopsis.orEmpty(), Modifier.fillMaxSize().navigationBarsPadding())
                 }
             }
         }
-        if (showComments) CommentsSheet(media) { showComments = false }
+        if (showComments && slot == null) CommentsSheet(media) { showComments = false }
     }
     BackHandler(enabled = showSheet) { showSheet = false }
 }
@@ -627,5 +604,160 @@ private fun SimilarList(items: List<Title>, onOpen: (Title) -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PlotBody(
+    media: Title,
+    d: TitleDetail?,
+    synopsis: String,
+    modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
+) {
+    Column(modifier.verticalScroll(scrollState).padding(20.dp)) {
+        Text(
+            media.title, color = Color.White, fontSize = 20.sp, fontFamily = Rubik,
+            fontWeight = FontWeight.Bold, lineHeight = 28.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(
+            synopsis.orEmpty(), color = Slate300, fontSize = 15.sp, fontFamily = Rubik,
+            lineHeight = 24.sp,
+        )
+        val year = d?.year ?: media.year
+        val cards = buildList {
+            d?.rating?.takeIf { it > 0 }?.let { add(String.format("%.1f", it) to "Rating") }
+            d?.votes?.takeIf { it > 0 }?.let { add(compactCount(it) to "Votes") }
+            year?.let { add(it to "Released") }
+        }
+        if (cards.isNotEmpty()) {
+            Spacer(Modifier.height(22.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                cards.forEach { (value, label) ->
+                    StatCard(value, label, Modifier.weight(1f))
+                }
+            }
+        }
+        val genres = d?.genres.orEmpty()
+        if (genres.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                genres.take(6).forEach { g ->
+                    Box(
+                        Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.08f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(g, color = Slate200, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** Rail content stack: the up-next list with the docked sheets sliding over it. */
+@Composable
+private fun RailSheets(
+    media: Title,
+    d: TitleDetail?,
+    synopsis: String?,
+    similar: List<Title>,
+    onOpenTitle: ((Title) -> Unit)?,
+    onEpisode: ((String, String) -> Unit)?,
+    showEpisodes: Boolean,
+    showComments: Boolean,
+    showPlot: Boolean,
+    closeEpisodes: () -> Unit,
+    closeComments: () -> Unit,
+    closePlot: () -> Unit,
+) {
+    if (onOpenTitle != null) SimilarList(similar, onOpenTitle)
+    AnimatedVisibility(
+        visible = showEpisodes,
+        enter = slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it },
+        exit = slideOutVertically(tween(280, easing = FastOutSlowInEasing)) { it },
+    ) {
+        EpisodesScreen(
+            detail = d, topInset = 0.dp, onClose = closeEpisodes,
+            onEpisode = { s, e -> onEpisode?.invoke(s, e) },
+        )
+    }
+    AnimatedVisibility(
+        visible = showPlot && synopsis != null,
+        enter = slideInVertically(tween(280, easing = FastOutSlowInEasing)) { it },
+        exit = slideOutVertically(tween(240, easing = FastOutSlowInEasing)) { it },
+    ) {
+        RailPlot(media = media, d = d, synopsis = synopsis.orEmpty(), onClose = closePlot)
+    }
+    if (showComments) CommentsSheet(media, scrim = false, onDismiss = closeComments)
+}
+
+/** The plot sheet, docked in the tablet rail instead of floating over the whole screen. */
+@Composable
+private fun RailPlot(media: Title, d: TitleDetail?, synopsis: String, onClose: () -> Unit) {
+    val closePx = with(LocalDensity.current) { 96.dp.toPx() }
+    val scope = rememberCoroutineScope()
+    var dragY by remember { mutableFloatStateOf(0f) }
+    val scroll = rememberScrollState()
+    // Past the threshold the exit slide takes over from where the finger left it.
+    fun settle(v: Float) {
+        if (dragY > closePx || v > 900f) {
+            onClose()
+        } else {
+            scope.launch { animate(dragY, 0f, animationSpec = spring(stiffness = 900f)) { y, _ -> dragY = y } }
+        }
+    }
+    val dragState = rememberDraggableState { dy -> dragY = (dragY + dy).coerceAtLeast(0f) }
+    // The body scrolls, so a downward drag there only moves the sheet once the text is at the top.
+    val nested = remember(scroll) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.Drag || available.y <= 0f || scroll.value > 0) return Offset.Zero
+                dragY = (dragY + available.y).coerceAtLeast(0f)
+                return Offset(0f, available.y)
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (dragY <= 0f) return Velocity.Zero
+                settle(available.y)
+                return available
+            }
+        }
+    }
+    Column(
+        Modifier.fillMaxSize()
+            .offset { IntOffset(0, dragY.roundToInt()) }
+            .background(Bg)
+            .draggable(state = dragState, orientation = Orientation.Vertical, onDragStopped = { v -> settle(v) }),
+    ) {
+        Box(
+            Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(40.dp, 4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.3f)))
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Story plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
+            )
+            Box(
+                Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                CloseIcon(contentDescription = "Close", tint = Slate300, size = 18.dp)
+            }
+        }
+        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+        PlotBody(media, d, synopsis, Modifier.fillMaxSize().nestedScroll(nested), scroll)
     }
 }
