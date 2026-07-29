@@ -46,7 +46,9 @@ internal fun PlayerWide(
     if (tablet) {
         // Captions keyed to a fixed size: the pane's box is far taller than a phone stage. Lifted
         // clear of the bottom edge, which is the screen edge in fullscreen.
-        val subPx = with(LocalDensity.current) { 20.dp.toPx() to -28.dp.toPx() }
+        val subPx = with(LocalDensity.current) {
+            (if (fullscreen) 26.dp else 20.dp).toPx() to (if (fullscreen) -40.dp else -28.dp).toPx()
+        }
         PlayerPanel(
             media = media, season = season, episode = episode, overview = overview,
             onEpisode = onEpisode, onOpenTitle = onOpenTitle,

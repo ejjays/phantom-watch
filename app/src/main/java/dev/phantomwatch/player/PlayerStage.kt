@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -138,6 +139,7 @@ fun PlayerStage(
     video: @Composable (Modifier) -> Unit,
 ) {
     val zone = rememberUpdatedState(sheetZoneTopPx)
+    var headerH by remember { mutableFloatStateOf(0f) }
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val edgePx = with(LocalDensity.current) { (topInset + 12.dp).toPx() }
     BoxWithConstraints(
@@ -214,17 +216,9 @@ fun PlayerStage(
             exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
         ) {
             Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
-            PlayerTopBar(
-                title = title,
-                fullscreen = fullscreen,
-                titleBelow = titleBelow,
-                barsInset = barsInset,
-                subsOn = subsOn,
-                canSubs = canSubs,
-                onBack = onBack,
-                onFullscreen = onFullscreen,
-                onToggleSubs = onToggleSubs,
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+                    .offset { IntOffset(0, headerH.roundToInt()) },
             )
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
@@ -347,6 +341,29 @@ fun PlayerStage(
                 )
             }
         }
+        // Headers first in child order would sit under the scrim Box below, so it is drawn last and
+        // pulled above it with a zIndex instead.
+        if (controlsVisible && !locked) {
+            // Fullscreen shows the status bar again, so the header has to follow it down.
+            Column(
+                Modifier.fillMaxWidth()
+                    .onGloballyPositioned { headerH = it.size.height.toFloat() }
+                    .then(if (fullscreen && barsInset) Modifier.statusBarsPadding() else Modifier),
+            ) {
+            PlayerTopBar(
+                title = title,
+                fullscreen = fullscreen,
+                titleBelow = titleBelow,
+                barsInset = barsInset,
+                large = fullscreen && seekBar,
+                subsOn = subsOn,
+                canSubs = canSubs,
+                onBack = onBack,
+                onFullscreen = onFullscreen,
+                onToggleSubs = onToggleSubs,
+            )
+            }
+        }
         // The thin progress line only replaces the hidden controls in the non-fullscreen pane.
         if (!seekBar || (!controlsVisible && !fullscreen)) {
         PlayerSeekBar(
@@ -410,6 +427,7 @@ private fun PlayerTopBar(
     fullscreen: Boolean,
     titleBelow: Boolean,
     barsInset: Boolean,
+    large: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
     onBack: () -> Unit,
@@ -419,7 +437,6 @@ private fun PlayerTopBar(
     val subsActive = subsOn && canSubs
     Column(
         Modifier.fillMaxWidth()
-            .then(if (fullscreen && barsInset) Modifier.statusBarsPadding() else Modifier)
             .padding(top = 8.dp).padding(end = 16.dp),
     ) {
         Row(
@@ -434,12 +451,13 @@ private fun PlayerTopBar(
                 Icon(
                     painterResource(if (fullscreen) R.drawable.ic_chevron_down else R.drawable.ic_back),
                     contentDescription = if (fullscreen) "Exit fullscreen" else "Close player",
-                    tint = Color.White, modifier = Modifier.size(22.dp),
+                    tint = Color.White, modifier = Modifier.size(if (large) 26.dp else 22.dp),
                 )
             }
             if (fullscreen && !titleBelow) {
                 Text(
-                    title, color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                    title, color = Color.White,
+                    fontSize = if (large) 18.sp else 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
                     maxLines = 1, modifier = Modifier.weight(1f),
                 )
             } else {
@@ -452,7 +470,7 @@ private fun PlayerTopBar(
                     painterResource(if (subsActive) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
                     contentDescription = if (subsActive) "Turn subtitles off" else "Turn subtitles on",
                     tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(if (large) 26.dp else 20.dp),
                 )
             }
         }
