@@ -878,8 +878,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     LaunchedEffect(stream.url) {
         locked = false
         poke()
-        var stallAt = 0L
-        var stalls = 0
         while (true) {
             positionMs = exo.currentPosition
             durationMs = exo.duration.coerceAtLeast(0)
@@ -892,21 +890,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             if (stats.startup > 0 && SystemClock.elapsedRealtime() - lastSaveAt > 10000) {
                 lastSaveAt = SystemClock.elapsedRealtime()
                 Resume.save(context, media, season, episode, positionMs, durationMs)
-            }
-            val now = SystemClock.elapsedRealtime()
-            if (stalled) {
-                if (stallAt == 0L) stallAt = now
-            } else if (stallAt != 0L) {
-                if (now - stallAt >= 3000) stalls++
-                stallAt = 0L
-                if (stalls >= 3) {
-                    stalls = 0
-                    val sel = exo.trackSelector as? DefaultTrackSelector
-                    if (sel != null && sel.parameters.forceHighestSupportedBitrate) {
-                        sel.parameters = sel.buildUponParameters().setForceHighestSupportedBitrate(false).build()
-                        AppLog.d("player abr on")
-                    }
-                }
             }
             delay(250)
         }

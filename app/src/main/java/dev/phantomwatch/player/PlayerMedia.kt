@@ -153,7 +153,7 @@ internal fun buildMediaFactory(
     headers: Map<String, String>,
     download: DownloadControl?,
 ): DefaultMediaSourceFactory {
-    val retry = androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(3)
+    val retry = androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(6)
     if (stream.url.startsWith("file")) {
         // incomplete torrent file: hide the length so Exo plays progressively
         // instead of seeking cue tables that are not downloaded yet
@@ -184,9 +184,8 @@ internal fun buildMediaFactory(
     val http = DefaultHttpDataSource.Factory()
         .setUserAgent(headers.getValue("User-Agent"))
         .setDefaultRequestProperties(headers)
-    if (stream.url.contains("animeparadise.moe")) {
-        http.setConnectTimeoutMs(15000).setReadTimeoutMs(30000)
-    }
+        .setConnectTimeoutMs(15_000)
+        .setReadTimeoutMs(30_000)
     return DefaultMediaSourceFactory(http)
         .setLoadErrorHandlingPolicy(retry)
 }
