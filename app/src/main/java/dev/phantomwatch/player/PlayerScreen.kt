@@ -825,7 +825,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             if (fullscreen) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
     }
-    LaunchedEffect(fullscreen, cfg.orientation) { fullscreenBars(fullscreen) }
+    val portraitNow = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    LaunchedEffect(fullscreen, cfg.orientation, controls) { fullscreenBars(fullscreen && (portraitNow || !controls)) }
     var orientJob: Job? by remember { mutableStateOf(null) }
     val fsNow = rememberUpdatedState(fullscreen)
     val lockedNow = rememberUpdatedState(locked)
