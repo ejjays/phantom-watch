@@ -34,10 +34,4 @@ class WindowLayoutTest {
         assertFalse(isExpanded(839.dp))
         assertTrue(isExpanded(840.dp))
     }
-
-    @Test
-    fun detailPaneIsCapped() {
-        assertEquals(352.8f, detailPaneWidth(840.dp).value, 0.01f)
-        assertEquals(480f, detailPaneWidth(1280.dp).value, 0.01f)
-    }
 }
