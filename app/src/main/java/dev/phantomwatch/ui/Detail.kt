@@ -54,7 +54,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,7 +72,6 @@ import androidx.compose.ui.unit.sp
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.RemoteConfig
@@ -139,60 +137,6 @@ fun DetailScreen(
         photosReady = true
         AppLog.d("detail photos ready")
     }
-    LaunchedEffect(item.id, item.kind) {
-        if (!BuildConfig.DEBUG) return@LaunchedEffect
-        var last = 0L
-        var slow = 0
-        while (slow < 25) {
-            val frame = withFrameNanos { it }
-            if (last != 0L) {
-                val dt = (frame - last) / 1000000
-                if (dt > 50) {
-                    slow++
-                    AppLog.d("detail jank +${ms()}ms frame ${dt}ms")
-                }
-            }
-            last = frame
-        }
-    }
-    // shortcut: debug watchdog, remove once the open hitch is fixed
-    LaunchedEffect(item.id, item.kind) {
-        if (!BuildConfig.DEBUG) return@LaunchedEffect
-        val main = android.os.Handler(android.os.Looper.getMainLooper())
-        var quits = false
-        var logged = 0
-        val t = Thread {
-            while (!quits && logged < 15) {
-                try {
-                    Thread.sleep(20)
-                } catch (_: InterruptedException) {
-                    break
-                }
-                val sent = System.nanoTime()
-                val done = java.util.concurrent.CountDownLatch(1)
-                main.post { done.countDown() }
-                try {
-                    done.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
-                } catch (_: InterruptedException) {
-                    break
-                }
-                val cost = (System.nanoTime() - sent) / 1000000
-                if (cost > 50 && !quits && logged < 15) {
-                    logged++
-                    AppLog.d("detail main blocked +${(sent - t0) / 1000000}ms for ${cost}ms")
-                }
-            }
-        }
-        t.isDaemon = true
-        t.start()
-        try {
-            delay(Long.MAX_VALUE)
-        } finally {
-            quits = true
-            t.interrupt()
-        }
-    }
-
     LaunchedEffect(item.id, item.kind, attempt) {
         if (detail != null) return@LaunchedEffect
         failed = false
@@ -510,60 +454,6 @@ internal fun EpisodesScreen(
     LaunchedEffect(detail?.id) {
         detail?.let { AppLog.d("ep open ${it.kind}/${it.id} ${it.title}") }
     }
-    LaunchedEffect(detail?.id) {
-        if (!BuildConfig.DEBUG) return@LaunchedEffect
-        var last = 0L
-        var slow = 0
-        while (slow < 25) {
-            val frame = withFrameNanos { it }
-            if (last != 0L) {
-                val dt = (frame - last) / 1000000
-                if (dt > 50) {
-                    slow++
-                    AppLog.d("ep jank +${ms()}ms frame ${dt}ms")
-                }
-            }
-            last = frame
-        }
-    }
-    // shortcut: debug watchdog, remove once the open hitch is fixed
-    LaunchedEffect(detail?.id) {
-        if (!BuildConfig.DEBUG) return@LaunchedEffect
-        val main = android.os.Handler(android.os.Looper.getMainLooper())
-        var quits = false
-        var logged = 0
-        val t = Thread {
-            while (!quits && logged < 15) {
-                try {
-                    Thread.sleep(20)
-                } catch (_: InterruptedException) {
-                    break
-                }
-                val sent = System.nanoTime()
-                val done = java.util.concurrent.CountDownLatch(1)
-                main.post { done.countDown() }
-                try {
-                    done.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
-                } catch (_: InterruptedException) {
-                    break
-                }
-                val cost = (System.nanoTime() - sent) / 1000000
-                if (cost > 50 && !quits && logged < 15) {
-                    logged++
-                    AppLog.d("ep main blocked +${(sent - t0) / 1000000}ms for ${cost}ms")
-                }
-            }
-        }
-        t.isDaemon = true
-        t.start()
-        try {
-            delay(Long.MAX_VALUE)
-        } finally {
-            quits = true
-            t.interrupt()
-        }
-    }
-
     LaunchedEffect(detail?.id, seasonIdx) {
         val d = detail ?: return@LaunchedEffect
         val n = seasons.getOrNull(seasonIdx)?.number ?: 1

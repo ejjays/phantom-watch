@@ -95,9 +95,7 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import dev.phantomwatch.R
-import dev.phantomwatch.core.Recomp
 import dev.phantomwatch.core.RemoteConfig
-import dev.phantomwatch.core.TrackScrollJank
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
@@ -150,7 +148,6 @@ internal class BrowseState {
 
 @Composable
 internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
-    Recomp.tick("home")
     val key = RemoteConfig.tmdbKey()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -434,7 +431,6 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
 
 @Composable
 private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, floating: Boolean = false, scrolled: Boolean = false) {
-    Recomp.tick("header")
     val solid by animateFloatAsState(if (scrolled) 1f else 0f, tween(320), label = "header-solid")
     Box(
         Modifier.fillMaxWidth().then(
@@ -554,7 +550,6 @@ fun PosterCard(
     height: androidx.compose.ui.unit.Dp,
     onOpen: (Title) -> Unit,
 ) {
-    Recomp.tick("card")
     val radius = (width * 0.24f)
     val playSize = maxOf(13.dp, width * 0.13f)
     val titleSize = if (width >= 150.dp) 16.sp else 12.sp
@@ -598,11 +593,9 @@ private fun BrowseBody(
     onGridEnd: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    Recomp.tick("browse")
     val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
     val sectionSize = if (isExpanded(width)) 22.sp else 16.sp
-    TrackScrollJank("home") { listState.isScrollInProgress }
     val exploreRows = remember(exploreItems, cols) { exploreItems.chunked(cols) }
     // Outside composition on purpose: a state read here would re-run this whole body (and every
     // poster card in the content lambda) each time a page lands or the spinner item appears.
@@ -637,7 +630,6 @@ private fun BrowseBody(
         contentPadding = PaddingValues(bottom = 128.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Recomp.tick("dsl")
         // One item per rail, not one item for the whole feed: an explore page arriving then only
         // recomposes the grid rows, and rails that scroll off screen stop holding their images.
         item(key = "hero", contentType = "hero") {
@@ -693,7 +685,6 @@ private fun RailSection(
 ) {
     val rowState = remember(rail.key) { LazyListState() }
     val railW = featuredCell(width)
-    TrackScrollJank("rail ${rail.title}") { rowState.isScrollInProgress }
     LaunchedEffect(rowState) {
         snapshotFlow {
             val info = rowState.layoutInfo
@@ -800,12 +791,10 @@ private fun SearchBody(
 
 @Composable
 private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Title) -> Unit, onEnd: () -> Unit) {
-    Recomp.tick("grid")
     val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
     val railW = featuredCell(width)
     val state = rememberLazyGridState()
-    TrackScrollJank("grid ${rail.title}") { state.isScrollInProgress }
     LaunchedEffect(state) {
         snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { idx -> if (idx != null && idx >= rail.items.size - 3) onEnd() }

@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.phantomwatch.R
-import dev.phantomwatch.core.Recomp
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
@@ -64,7 +63,6 @@ private const val HERO_MS = 9000
 /** Full-bleed billboard: backdrop, left-aligned copy, progress dots. Slower than it looks. */
 @Composable
 internal fun TrendingHero(trending: List<Title>, paused: Boolean, onOpen: (Title) -> Unit, width: Dp, listState: LazyListState) {
-    Recomp.tick("hero")
     if (trending.isEmpty()) return
     val items = remember(trending) { trending.take(6) }
     val heroH = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.7f, width * 0.62f).coerceAtLeast(240.dp)

@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
-import dev.phantomwatch.core.Recomp
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
@@ -66,7 +65,6 @@ import kotlinx.coroutines.withContext
 
 @Composable
 internal fun AppRoot() {
-    Recomp.tick("root")
     var screen by remember { mutableStateOf<Screen>(Playback.lastScreen ?: Screen.Home) }
     val browse = remember { BrowseState() }
     var forward by remember { mutableStateOf(true) }

@@ -11,7 +11,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Modifier
 import dev.phantomwatch.core.AppLog
-import dev.phantomwatch.core.FramePhases
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
@@ -26,7 +25,6 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
-        FramePhases.attach(this)
         // phones stay portrait; tablets and desktop windows follow the display
         if (resources.configuration.smallestScreenWidthDp < 600) {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
