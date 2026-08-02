@@ -125,6 +125,8 @@ private val RailDefs = listOf(
     Triple("airing", "Airing Today", "tv/airing_today"),
 )
 
+private val RuleEdge = Color.White.copy(alpha = 0.16f)
+
 internal class BrowseState {
     var openTitle by mutableStateOf<Title?>(null)
     var backToEpisodes by mutableStateOf(false)
@@ -549,6 +551,7 @@ fun PosterCard(
     width: androidx.compose.ui.unit.Dp,
     height: androidx.compose.ui.unit.Dp,
     onOpen: (Title) -> Unit,
+    caption: Boolean = true,
 ) {
     val radius = (width * 0.24f)
     val playSize = maxOf(13.dp, width * 0.13f)
@@ -563,14 +566,17 @@ fun PosterCard(
                 }
             }
         }
-        var centered by remember { mutableStateOf(false) }
-        Text(
-            item.title.uppercase(), color = Slate100, fontSize = titleSize, fontFamily = Rubik,
-            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            textAlign = if (centered) TextAlign.Center else TextAlign.Start,
-            onTextLayout = { centered = !it.isLineEllipsized(0) },
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-        )
+        // No poster means no art to name the card, so the rail keeps that one label.
+        if (caption || item.poster == null) {
+            var centered by remember { mutableStateOf(false) }
+            Text(
+                item.title.uppercase(), color = Slate100, fontSize = titleSize, fontFamily = Rubik,
+                fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textAlign = if (centered) TextAlign.Center else TextAlign.Start,
+                onTextLayout = { centered = !it.isLineEllipsized(0) },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+        }
     }
 }
 
@@ -595,7 +601,6 @@ private fun BrowseBody(
 ) {
     val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
-    val sectionSize = if (isExpanded(width)) 22.sp else 16.sp
     val exploreRows = remember(exploreItems, cols) { exploreItems.chunked(cols) }
     // Outside composition on purpose: a state read here would re-run this whole body (and every
     // poster card in the content lambda) each time a page lands or the spinner item appears.
@@ -644,11 +649,18 @@ private fun BrowseBody(
         }
         if (exploreItems.isNotEmpty() || exploreMore) {
             item(key = "explore", contentType = "header") {
-                Text(
-                    "Explore more", color = Slate200, fontSize = sectionSize, fontFamily = Rubik,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
-                )
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 44.dp, bottom = 28.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, RuleEdge))))
+                    Text(
+                        "Explore More", color = Slate200, fontSize = if (isExpanded(width)) 28.sp else 20.sp,
+                        fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                    )
+                    Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(RuleEdge, Color.Transparent))))
+                }
             }
         }
         items(
@@ -716,7 +728,7 @@ private fun RailSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(rail.items, key = { "${it.kind}-${it.id}" }, contentType = { "poster" }) { item ->
-                PosterCard(item = item, width = railW, height = railW * 4f / 3f, onOpen = onOpen)
+                PosterCard(item = item, width = railW, height = railW * 4f / 3f, onOpen = onOpen, caption = false)
             }
         }
     }
