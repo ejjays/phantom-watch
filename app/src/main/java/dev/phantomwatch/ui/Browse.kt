@@ -43,6 +43,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,7 +76,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -90,6 +90,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil3.compose.AsyncImage
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
@@ -117,7 +118,7 @@ internal data class RailState(
 )
 
 private val RailDefs = listOf(
-    Triple("popular", "Popular Movies", "movie/popular"),
+    Triple("popular", "Top 10 Movies Today", "movie/popular"),
     Triple("top", "Top Rated", "movie/top_rated"),
     Triple("now", "Now Playing", "movie/now_playing"),
     Triple("tv-popular", "Popular TV Shows", "tv/popular"),
@@ -145,6 +146,7 @@ internal class BrowseState {
     var loading by mutableStateOf(true)
     var failed by mutableStateOf(false)
     var loaded by mutableStateOf(false)
+    var loadedAt by mutableStateOf(0L)
     val homeScroll = LazyListState()
 }
 
@@ -163,6 +165,8 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
 
     fun loadBrowse() {
         scope.launch {
+            // A refresh that fails must not replace a feed the user is already looking at.
+            val hadContent = browse.rails.any { it.items.isNotEmpty() }
             browse.loading = true
             try {
                 val foundTrending = withContext(Dispatchers.IO) { Tmdb.trending(key) }
@@ -180,10 +184,11 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                 browse.exploreTotal = 1
                 browse.failed = foundTrending.isEmpty() && foundRails.all { it.items.isEmpty() }
             } catch (_: Exception) {
-                browse.failed = true
+                browse.failed = !hadContent
             } finally {
                 browse.loading = false
                 browse.loaded = true
+                browse.loadedAt = System.currentTimeMillis()
             }
         }
     }
@@ -250,7 +255,14 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
     }
 
     LaunchedEffect(Unit) { browse.recent = withContext(Dispatchers.IO) { Resume.recent(ctx) } }
-    LaunchedEffect(Unit) { if (!browse.loaded) loadBrowse() }
+    // TMDB's popular list drifts daily, so a process that survives for days would otherwise
+    // keep serving the rows it fetched on day one.
+    LifecycleResumeEffect(Unit) {
+        val onHomeTop = !browse.searchOpen && browse.railKey == null && !browse.historyOpen &&
+            browse.homeScroll.firstVisibleItemIndex == 0
+        if (onHomeTop && (!browse.loaded || System.currentTimeMillis() - browse.loadedAt > 6 * 60 * 60 * 1000L)) loadBrowse()
+        onPauseOrDispose { }
+    }
     LaunchedEffect(browse.query) {
         val term = browse.query.trim()
         if (term.length < 2) {
@@ -545,41 +557,6 @@ internal fun Modifier.pressClick(onClick: () -> Unit): Modifier {
     }.clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
-@Composable
-fun PosterCard(
-    item: Title,
-    width: androidx.compose.ui.unit.Dp,
-    height: androidx.compose.ui.unit.Dp,
-    onOpen: (Title) -> Unit,
-    caption: Boolean = true,
-) {
-    val radius = (width * 0.24f)
-    val playSize = maxOf(13.dp, width * 0.13f)
-    val titleSize = if (width >= 150.dp) 16.sp else 12.sp
-    Column(Modifier.width(width).pressClick { onOpen(item) }) {
-        Box(Modifier.clip(RoundedCornerShape(radius.value.dp)).background(Color.White.copy(alpha = 0.05f))) {
-            if (item.poster != null) {
-                AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.size(width, height), contentScale = ContentScale.Crop)
-            } else {
-                Box(Modifier.size(width, height), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
-                }
-            }
-        }
-        // No poster means no art to name the card, so the rail keeps that one label.
-        if (caption || item.poster == null) {
-            var centered by remember { mutableStateOf(false) }
-            Text(
-                item.title.uppercase(), color = Slate100, fontSize = titleSize, fontFamily = Rubik,
-                fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                textAlign = if (centered) TextAlign.Center else TextAlign.Start,
-                onTextLayout = { centered = !it.isLineEllipsized(0) },
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BrowseBody(
@@ -697,7 +674,9 @@ private fun RailSection(
 ) {
     val rowState = remember(rail.key) { LazyListState() }
     val railW = featuredCell(width)
-    LaunchedEffect(rowState) {
+    val ranked = rail.key == "popular"
+    LaunchedEffect(rowState, ranked) {
+        if (ranked) return@LaunchedEffect
         snapshotFlow {
             val info = rowState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
@@ -714,12 +693,14 @@ private fun RailSection(
                 rail.title, color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
                 fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
             )
-            Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "See all", color = Cyan, fontSize = if (isExpanded(width)) 15.sp else 13.sp,
-                    fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
-                )
-                ChevronRightIcon(contentDescription = null, tint = Cyan, size = if (isExpanded(width)) 18.dp else 15.dp)
+            if (!ranked) {
+                Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "See all", color = Cyan, fontSize = if (isExpanded(width)) 15.sp else 13.sp,
+                        fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+                    )
+                    ChevronRightIcon(contentDescription = null, tint = Cyan, size = if (isExpanded(width)) 18.dp else 15.dp)
+                }
             }
         }
         LazyRow(
@@ -727,8 +708,13 @@ private fun RailSection(
             contentPadding = PaddingValues(start = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(rail.items, key = { "${it.kind}-${it.id}" }, contentType = { "poster" }) { item ->
-                PosterCard(item = item, width = railW, height = railW * 4f / 3f, onOpen = onOpen, caption = false)
+            val shown = if (ranked) rail.items.take(10) else rail.items
+            itemsIndexed(shown, key = { _, it -> "${it.kind}-${it.id}" }, contentType = { _, _ -> "poster" }) { i, item ->
+                if (ranked) {
+                    TopTenCard(i + 1, item, railW, railW * 4f / 3f, onOpen)
+                } else {
+                    PosterCard(item = item, width = railW, height = railW * 4f / 3f, onOpen = onOpen, caption = false)
+                }
             }
         }
     }
