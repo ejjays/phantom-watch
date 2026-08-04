@@ -51,7 +51,6 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Composable
@@ -337,19 +336,12 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
     Box(Modifier.fillMaxSize().background(Bg)) {
         if (!wideDetail) {
             Column(Modifier.fillMaxSize()) {
-                if (!home) {
-                    if (browse.searchOpen) {
-                        SearchHeader(
-                            query = browse.query,
-                            onQuery = { browse.query = it },
-                            onBack = { browse.searchOpen = false; browse.query = "" },
-                        )
-                    } else {
-                        BrowseHeader(
-                            onSearch = { browse.searchOpen = true },
-                            onHistory = { browse.historyOpen = true },
-                        )
-                    }
+                if (browse.searchOpen) {
+                    SearchHeader(
+                        query = browse.query,
+                        onQuery = { browse.query = it },
+                        onBack = { browse.searchOpen = false; browse.query = "" },
+                    )
                 }
                 AnimatedContent(
                     targetState = when {
@@ -422,7 +414,6 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                     BrowseHeader(
                         onSearch = { browse.searchOpen = true },
                         onHistory = { browse.historyOpen = true },
-                        floating = true,
                         scrolled = scrolled,
                     )
                 }
@@ -444,27 +435,24 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
 }
 
 @Composable
-private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, floating: Boolean = false, scrolled: Boolean = false) {
+private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: Boolean) {
     val solid by animateFloatAsState(if (scrolled) 1f else 0f, tween(320), label = "header-solid")
     Box(
-        Modifier.fillMaxWidth().then(
-            if (!floating) Modifier
-            else Modifier
-                .background(
-                    Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Black.copy(alpha = 0.26f), Color.Transparent)),
-                )
-                .drawBehind {
-                    if (solid > 0f) {
-                        drawRect(
-                            Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f * solid), Color.Transparent)),
-                            topLeft = Offset(0f, size.height),
-                            size = Size(size.width, 12.dp.toPx()),
-                        )
-                    }
-                },
-        ),
+        Modifier.fillMaxWidth()
+            .background(
+                Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Black.copy(alpha = 0.26f), Color.Transparent)),
+            )
+            .drawBehind {
+                if (solid > 0f) {
+                    drawRect(
+                        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f * solid), Color.Transparent)),
+                        topLeft = Offset(0f, size.height),
+                        size = Size(size.width, 12.dp.toPx()),
+                    )
+                }
+            },
     ) {
-        if (floating) Box(Modifier.matchParentSize().background(Bg.copy(alpha = 0.97f * solid)))
+        Box(Modifier.matchParentSize().background(Bg.copy(alpha = 0.97f * solid)))
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -490,9 +478,7 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, floating: 
                 Icon(painterResource(R.drawable.ic_history), contentDescription = "History", tint = Color.White, modifier = Modifier.size(22.dp))
             }
         }
-        if (floating) {
-            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f * solid)))
-        }
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f * solid)))
     }
 }
 
@@ -798,12 +784,7 @@ private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Ti
             .collect { idx -> if (idx != null && idx >= rail.items.size - 3) onEnd() }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-                Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
-            }
-            Text(rail.title, color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-        }
+        ScreenHeader(rail.title, onBack)
         LazyVerticalGrid(
             columns = GridCells.Fixed(cols),
             state = state,
