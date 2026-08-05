@@ -445,14 +445,28 @@
     } catch (e) {}
     if (!title) return empty();
     var gql = JSON.stringify({
-      query: 'query($s:String){Media(search:$s,type:ANIME){idMal}}',
+      query: 'query($s:String){Media(search:$s,type:ANIME){idMal episodes relations{edges{relationType node{idMal episodes}}}}}',
       variables: { s: title },
     });
     var resp = await postJson('https://graphql.anilist.co', 'https://anilist.co/', gql, 8);
-    var mal = (resp && resp.data && resp.data.Media && resp.data.Media.idMal) || 0;
+    var M = (resp && resp.data && resp.data.Media) || {};
+    var mal = M.idMal || 0;
     if (mal <= 0) return empty();
     var n = parseInt(ctx.episode, 10);
     var epNum = ctx.kind === 'movie' ? 1 : (isNaN(n) || n <= 0 ? 1 : n);
+    // TMDB flattens some anime into one long season; AniList keeps the cours apart.
+    if (M.episodes && epNum > M.episodes) {
+      var edges = (M.relations && M.relations.edges) || [];
+      for (var q = 0; q < edges.length; q++) {
+        var node = edges[q].node || {};
+        if (edges[q].relationType !== 'SEQUEL' || !node.idMal || !node.episodes) continue;
+        if (epNum - M.episodes <= node.episodes) {
+          mal = node.idMal;
+          epNum = epNum - M.episodes;
+        }
+        break;
+      }
+    }
     var page = origin + '/stream/mal/' + mal + '/' + epNum + '/sub';
     var html = await raw(page, page, 10);
     if (html === null) return empty();
@@ -532,19 +546,34 @@
       break;
     }
     if (!showId) return empty();
-    var uid = '';
+    var originId = showId;
+    function pickUid(list, n) {
+      for (var j = 0; j < list.length; j++) {
+        var e = list[j] || {};
+        var num = e.number == null ? '' : String(e.number);
+        if (num === String(n) && e.uid) return e.uid;
+      }
+      return '';
+    }
     var eps = await getJson('/anime/' + showId + '/episode');
     var arr = (eps && eps.data) || [];
-    for (var j = 0; j < arr.length; j++) {
-      var e = arr[j] || {};
-      var num = e.number == null ? '' : String(e.number);
-      if (num === String(ctx.episode) && e.uid) {
-        uid = e.uid;
-        break;
+    var uid = pickUid(arr, ctx.episode);
+    // Same flattening as hianime: the provider lists the next cour as its own show.
+    if (!uid && arr.length && Number(ctx.episode) > arr.length) {
+      var s2 = await getJson('/search?q=' + urlencode(ctx.title + ' Season 2') + '&limit=20');
+      var l2 = (s2 && s2.data) || [];
+      for (var k = 0; k < l2.length && !uid; k++) {
+        var o2 = l2[k] || {};
+        if (!o2._id || normTitle(o2.link || '').indexOf(want) !== 0) continue;
+        var i2 = await getJson('/anime/' + o2.link);
+        if (!i2 || !i2.data || i2.data.type !== 'TV') continue;
+        var x2 = await getJson('/anime/' + o2._id + '/episode');
+        uid = pickUid((x2 && x2.data) || [], Number(ctx.episode) - arr.length);
+        if (uid) originId = o2._id;
       }
     }
     if (!uid) return empty();
-    var epData = await getJson('/ep/' + uid + '?origin=' + showId);
+    var epData = await getJson('/ep/' + uid + '?origin=' + originId);
     var ep = epData && epData.data && epData.data.episode;
     var streamLink = (ep && ep.streamLink) || '';
     if (!streamLink) return empty();
