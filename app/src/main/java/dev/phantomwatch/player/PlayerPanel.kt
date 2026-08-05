@@ -64,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -113,11 +114,29 @@ import dev.phantomwatch.ui.Slate500
 import dev.phantomwatch.ui.SurfaceColor
 import kotlinx.coroutines.Dispatchers
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Up-next rail: one step darker than the page, so the two tablet panes read as separate. */
 private val RailColor = Color(0xFF0A0A0B)
+
+/** Episode strip geometry: the width is derived from these so the cut always lands mid-chip. */
+private val EpisodeChip = 46.dp
+private val EpisodeGap = 8.dp
+private val EpisodePad = 20.dp
+private val EpisodePeek = 12.dp
+private const val EpisodesVisible = 10
+
+/**
+ * AppRoot swaps in a fresh Screen.Player per episode, so the whole screen is remounted and no
+ * `remember` inside it survives. This keeps the strip parked where the user left it.
+ */
+private object EpisodeStripScroll {
+    var key: String? = null
+    var index = 0
+}
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -465,6 +484,43 @@ private fun PlayerInfo(
     onHeaderBottom: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    // Hoisted above the episode branch: a fetch toggling that branch out and back in would
+    // rebuild the state and flash the chip cyan again mid-session.
+    var freshChip by remember { mutableStateOf(true) }
+    LaunchedEffect(episode) {
+        freshChip = true
+        delay(3000)
+        freshChip = false
+    }
+    // Same reason: the strip keeps its scroll position when a fetch swaps the branch out.
+    val stripKey = "${media.id}|$season"
+    val restored = EpisodeStripScroll.key == stripKey
+    val episodeList = rememberLazyListState(
+        initialFirstVisibleItemIndex = if (restored) EpisodeStripScroll.index else 0,
+    )
+    LaunchedEffect(episodeList, stripKey) {
+        snapshotFlow { episodeList.firstVisibleItemIndex }.collect {
+            EpisodeStripScroll.key = stripKey
+            EpisodeStripScroll.index = it
+        }
+    }
+    LaunchedEffect(episode, episodes.size) {
+        val at = episodes.indexOfFirst { it.n.toString() == episode }
+        if (at < 0) return@LaunchedEffect
+        // Park one chip early so the current episode has context to its left.
+        val target = (at - 1).coerceAtLeast(0)
+        if (episodeList.layoutInfo.totalItemsCount == 0) {
+            snapshotFlow { episodeList.layoutInfo.totalItemsCount }.first { it > 0 }
+        }
+        val info = episodeList.layoutInfo
+        val chip = info.visibleItemsInfo.firstOrNull { it.index == at }
+        val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+        // Sitting on the last couple of chips counts as hidden: it reads as a dead end.
+        val roomy = chip != null && chip.offset >= info.viewportStartOffset &&
+            chip.offset + chip.size <= info.viewportEndOffset && at <= last - 2
+        if (roomy) return@LaunchedEffect
+        if (restored) episodeList.animateScrollToItem(target) else episodeList.scrollToItem(target)
+    }
     Column(modifier) {
                 Text(
                     media.title, color = Color.White, fontSize = 24.sp, fontFamily = Rubik,
@@ -505,58 +561,83 @@ private fun PlayerInfo(
                 }
                 if (isTv) {
                     Spacer(Modifier.height(22.dp))
-                    Row(
-                        Modifier.padding(horizontal = 20.dp)
-                            .onGloballyPositioned { onHeaderBottom?.invoke(it.positionInWindow().y) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SectionTitle("Episodes")
-                        Spacer(Modifier.weight(1f))
-                        if (onEpisode != null) {
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        // Ends on a half chip so a long season reads as scrollable, and hugs the
+                        // content when the season is short enough to fit.
+                        val stripW = minOf(
+                            maxWidth,
+                            EpisodePad * 2 + (EpisodeChip + EpisodeGap) * EpisodesVisible + EpisodePeek,
+                            if (episodes.isEmpty()) maxWidth
+                            else EpisodePad * 2 + (EpisodeChip + EpisodeGap) * episodes.size - EpisodeGap,
+                        )
+                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                             Row(
-                                Modifier.clickable { onAllEpisodes() },
+                                Modifier.width(stripW).padding(horizontal = EpisodePad)
+                                    .onGloballyPositioned { onHeaderBottom?.invoke(it.positionInWindow().y) },
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(
-                                    "Full", color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                ChevronRightIcon(contentDescription = "All episodes", tint = Slate200, size = 15.dp)
-                            }
-                        }
-                    }
-                    when {
-                        loadingEpisodes -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Cyan, modifier = Modifier.size(22.dp))
-                        }
-                        episodes.isEmpty() -> Text(
-                            "No episodes available", color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
-                            modifier = Modifier.padding(horizontal = 20.dp).padding(vertical = 12.dp),
-                        )
-                        else -> {
-                            val listState = rememberLazyListState()
-                            LaunchedEffect(episodes.size) {
-                                val at = episodes.indexOfFirst { it.n.toString() == episode }
-                                if (at > 0) listState.scrollToItem(at)
-                            }
-                            Spacer(Modifier.height(12.dp))
-                            LazyRow(
-                                state = listState,
-                                contentPadding = PaddingValues(horizontal = 20.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                items(episodes, key = { it.n }) { ep ->
-                                    val active = ep.n.toString() == episode
-                                    Box(
-                                        Modifier.size(52.dp, 44.dp).clip(RoundedCornerShape(10.dp))
-                                            .background(if (active) Cyan else Color.White.copy(alpha = 0.08f))
-                                            .clickable { onEpisode?.invoke(season, ep.n.toString()) },
-                                        contentAlignment = Alignment.Center,
+                                SectionTitle("Episodes")
+                                Spacer(Modifier.weight(1f))
+                                if (onEpisode != null) {
+                                    Row(
+                                        Modifier.clickable { onAllEpisodes() },
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Text(
-                                            ep.n.toString(), color = if (active) Bg else Slate200,
-                                            fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium,
+                                            "Full", color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
+                                            fontWeight = FontWeight.Medium,
                                         )
+                                        ChevronRightIcon(contentDescription = "All episodes", tint = Slate200, size = 15.dp)
+                                    }
+                                }
+                            }
+                            when {
+                                // Only take the strip out of the tree when there is nothing to
+                                // show yet; unmounting it mid-fetch is what reset the scroll.
+                                loadingEpisodes && episodes.isEmpty() -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = Cyan, modifier = Modifier.size(22.dp))
+                                }
+                                episodes.isEmpty() -> Text(
+                                    "No episodes available", color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
+                                    modifier = Modifier.padding(horizontal = 20.dp).padding(vertical = 12.dp),
+                                )
+                                else -> {
+                                    // Cyan only while the pick is fresh; a permanent cyan chip sits
+                                    // in peripheral vision for the whole portrait watch session.
+                                    Spacer(Modifier.height(12.dp))
+                                    Box(Modifier.width(stripW).clip(RoundedCornerShape(12.dp))) {
+                                        LazyRow(
+                                            state = episodeList,
+                                            contentPadding = PaddingValues(horizontal = EpisodePad),
+                                            horizontalArrangement = Arrangement.spacedBy(EpisodeGap),
+                                        ) {
+                                            items(episodes, key = { it.n }) { ep ->
+                                                val active = ep.n.toString() == episode
+                                                val bg by animateColorAsState(
+                                                    when {
+                                                        !active -> Color.White.copy(alpha = 0.08f)
+                                                        freshChip -> Cyan
+                                                        else -> Slate300
+                                                    },
+                                                    tween(700),
+                                                    label = "ep-chip",
+                                                )
+                                                val fg by animateColorAsState(
+                                                    if (active) Bg else Slate200, tween(700), label = "ep-chip-text",
+                                                )
+                                                Box(
+                                                    Modifier.size(EpisodeChip, 40.dp).clip(RoundedCornerShape(10.dp))
+                                                        .background(bg)
+                                                        .clickable { onEpisode?.invoke(season, ep.n.toString()) },
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Text(
+                                                        ep.n.toString(), color = fg,
+                                                        fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium,
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
