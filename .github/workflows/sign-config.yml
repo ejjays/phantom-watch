@@ -27,3 +27,8 @@ jobs:
         with:
           name: signed-config-v${{ inputs.version }}
           path: build/pages-config/providers.json
+      - name: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.154.0 pages deploy build/pages-config --project-name phantomwatch-config --branch main --commit-dirty=true
