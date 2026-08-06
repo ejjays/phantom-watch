@@ -14,6 +14,7 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
+import dev.phantomwatch.player.TrailerBridge
 import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.social.Social
 
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
         }
         RemoteConfig.load(this)
         JsProviders.init(applicationContext)
+        TrailerBridge.init(applicationContext)
         Social.init(applicationContext)
         Thread { RemoteConfig.refresh(applicationContext) }.start()
         androidx.core.content.ContextCompat.registerReceiver(

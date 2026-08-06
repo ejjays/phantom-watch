@@ -1,5 +1,6 @@
 package dev.phantomwatch.ui
 
+import android.view.TextureView
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -8,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,11 +25,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -57,16 +62,10 @@ internal fun WideDetail(
     val enter = remember(item.id) { Animatable(0f) }
     LaunchedEffect(item.id) { enter.animateTo(1f, tween(460, easing = FastOutSlowInEasing)) }
     val art = (item.backdrop ?: item.poster) ?: (d.backdrop ?: d.poster)
-    // The sheet floats on the title's own colour instead of flat black, like the player's glow.
     val glow = rememberImageGlow(art)
+    var surface by remember(item.id) { mutableStateOf<TextureView?>(null) }
     Box(Modifier.fillMaxSize()) {
-        // Behind the whole row, not just the sheet: the art slides off its own layout box and the
-        // exposed strip has to be tinted too, otherwise a black band rides along with the animation.
-        Box(
-            Modifier.matchParentSize().background(
-                Brush.horizontalGradient(0f to glow, 0.52f to glow, 1f to Color.Transparent),
-            ),
-        )
+        DetailAmbient(surface, glow, Modifier.matchParentSize())
         Row(Modifier.fillMaxSize()) {
             Box(
                 Modifier.weight(1.1f).fillMaxHeight().graphicsLayer {
@@ -74,18 +73,29 @@ internal fun WideDetail(
                     translationX = -140.dp.toPx() * (1f - enter.value)
                 },
             ) {
-                if (art != null) {
-                    AsyncImage(
-                        model = art, contentDescription = null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Box(Modifier.fillMaxSize().background(SurfaceColor))
+                Box(
+                    Modifier.align(Alignment.Center).padding(horizontal = 24.dp).fillMaxWidth()
+                        .aspectRatio(16f / 9f),
+                ) {
+                    Box(
+                        Modifier.matchParentSize().shadow(20.dp, RoundedCornerShape(24.dp))
+                            .clip(RoundedCornerShape(24.dp)).background(SurfaceColor)
+                            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp)),
+                    ) {
+                        val trailer = d.trailer
+                        if (trailer != null) {
+                            TrailerHero(trailer, art, Modifier.fillMaxSize()) { surface = it }
+                        } else if (art != null) {
+                            AsyncImage(
+                                model = art, contentDescription = null, contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
                 }
-                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0.6f to Color.Transparent, 1f to glow)))
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.statusBarsPadding().padding(start = 16.dp, top = 8.dp)
+                    modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 16.dp, top = 8.dp)
                         .clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
                 ) {
                     Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))

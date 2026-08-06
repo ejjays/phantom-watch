@@ -58,8 +58,6 @@ object RemoteConfig {
                     return
                 }
                 val body = res.body?.string().orEmpty()
-                // the bundled asset can be newer than what is deployed, so the floor is
-                // what we already trust - not one above it
                 val seen = root.optInt("version")
                 if (!applySigned(body, seen)) {
                     AppLog.d("cfg remote skipped v$seen")
@@ -74,8 +72,7 @@ object RemoteConfig {
         }
     }
 
-    // the bundled asset can be newer than the deployed bundle, so a remote of the
-    // same version is fine; only an older one is refused
+    // the bundled asset can be newer than what is deployed, so the same version is fine
     internal fun acceptsRemote(have: Int, remote: Int): Boolean = remote >= have
 
     fun isEnabled(leg: String): Boolean = leg(leg)?.optBoolean("enabled", true) ?: true
@@ -96,6 +93,8 @@ object RemoteConfig {
     fun tmdbImage(): String = (svc("tmdb", "image") ?: "https://image.tmdb.org/t/p/").trimEnd('/') + "/"
 
     fun script(): String? = script
+
+    fun trailer(): JSONObject? = root.optJSONObject("trailer")
 
     private fun svc(name: String, field: String): String? =
         root.optJSONObject("services")?.optJSONObject(name)?.optString(field)?.trim()?.takeIf { it.isNotEmpty() }

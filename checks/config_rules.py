@@ -40,6 +40,20 @@ def problems(cfg, script, require_script=True):
                     out.append(f"services.tmdb.{field} is not an http url")
             if "key" in tmdb and not isinstance(tmdb["key"], str):
                 out.append("services.tmdb.key is not a string")
+    trailer = cfg.get("trailer")
+    if trailer is not None:
+        if not isinstance(trailer, dict):
+            out.append("trailer is not an object")
+        else:
+            clients = trailer.get("clients")
+            if clients is not None and (not isinstance(clients, list) or not all(isinstance(c, str) for c in clients)):
+                out.append("trailer.clients is not a list of strings")
+            ytjs = trailer.get("ytjs")
+            if ytjs is not None and (not isinstance(ytjs, list) or not all(isinstance(u, str) and u.startswith("http") for u in ytjs)):
+                out.append("trailer.ytjs is not a list of http urls")
+            bg = trailer.get("bg")
+            if bg is not None and (not isinstance(bg, str) or not bg.startswith("http")):
+                out.append("trailer.bg is not an http url")
     if require_script and not script.strip():
         out.append("providers.js is empty")
     return out

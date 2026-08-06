@@ -38,6 +38,7 @@ data class TitleDetail(
     val director: Person?,
     val cast: List<Person>,
     val seasons: List<SeasonInfo>,
+    val trailer: String? = null,
 )
 
 data class Episode(

@@ -50,6 +50,7 @@ import dev.phantomwatch.player.PlayerScreen
 import dev.phantomwatch.player.Screen
 import dev.phantomwatch.player.SourcesScreen
 import dev.phantomwatch.player.TorrentFetchScreen
+import dev.phantomwatch.player.TrailerBridge
 import dev.phantomwatch.player.navLabel
 import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.torrent.Seedbox
@@ -79,6 +80,7 @@ internal fun AppRoot() {
     LaunchedEffect(Unit) {
         SubsApi.init(context)
         Torrents.DeadHosts.init(context)
+        TrailerBridge.warm()
         if (TORRENTS_ENABLED) {
             withContext(Dispatchers.IO) {
                 try {

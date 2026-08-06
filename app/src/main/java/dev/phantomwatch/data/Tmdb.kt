@@ -75,7 +75,7 @@ object Tmdb {
         return try {
             val path = if (kind == "movie") "movie" else "tv"
             val e = Http.getJson(
-                "${RemoteConfig.tmdbBase()}/$path/$id?api_key=$apiKey&append_to_response=credits,content_ratings,release_dates",
+                "${RemoteConfig.tmdbBase()}/$path/$id?api_key=$apiKey&append_to_response=credits,content_ratings,release_dates,videos",
                 "https://www.themoviedb.org/",
             ) ?: return null
             val name = e.optString("title").ifEmpty { e.optString("name") }
@@ -151,13 +151,28 @@ object Tmdb {
                     if (arr.length() > 0) runtime = arr.optInt(0)
                 }
             }
+            var trailer: String? = null
+            var best = -1
+            e.optJSONObject("videos")?.optJSONArray("results")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val v = arr.optJSONObject(i) ?: continue
+                    if (v.optString("site") != "YouTube" || v.optString("type") != "Trailer") continue
+                    val key = v.optString("key")
+                    if (key.isEmpty()) continue
+                    val score = (if (v.optBoolean("official")) 2 else 0) + (if (v.optString("iso_639_1") == "en") 1 else 0)
+                    if (score >= best) {
+                        best = score
+                        trailer = key
+                    }
+                }
+            }
             TitleDetail(
                 id, kind, name, e.optString("overview"),
                 img(e.optString("poster_path"), "w342"),
                 img(e.optString("backdrop_path"), "w1280"),
                 date.take(4).ifEmpty { null }, runtime,
                 e.optDouble("vote_average"), e.optInt("vote_count"),
-                genres, cert, director, cast, seasons,
+                genres, cert, director, cast, seasons, trailer,
             )
         } catch (_: Exception) {
             null

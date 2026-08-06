@@ -215,7 +215,10 @@ fun DetailScreen(
                             .background(Color.White.copy(alpha = 0.05f)),
                     ) {
                         val hero = (item.backdrop ?: item.poster) ?: (d.backdrop ?: d.poster)
-                        if (hero != null) {
+                        val trailer = d.trailer
+                        if (trailer != null) {
+                            TrailerHero(trailer, hero, Modifier.fillMaxWidth().height(heroH))
+                        } else if (hero != null) {
                             AsyncImage(model = hero, contentDescription = null, modifier = Modifier.fillMaxWidth().height(heroH), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, onSuccess = { AppLog.d("detail hero ok +${ms()}ms") }, onError = { AppLog.d("detail hero err +${ms()}ms") })
                         } else {
                             Spacer(Modifier.fillMaxWidth().height(120.dp))

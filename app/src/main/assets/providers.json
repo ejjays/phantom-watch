@@ -7,6 +7,15 @@
       "image": "https://image.tmdb.org/t/p/"
     }
   },
+  "trailer": {
+    "clients": ["VISIONOS", "ANDROID_VR", "IOS"],
+    "ytjs": [
+      "https://cdn.jsdelivr.net/npm/youtubei.js@18/bundle/browser.js",
+      "https://unpkg.com/youtubei.js@18/bundle/browser.js",
+      "https://esm.sh/youtubei.js@18?bundle"
+    ],
+    "bg": "https://esm.sh/bgutils-js@4.0.3/"
+  },
   "legs": {
     "love": {
       "enabled": true,
