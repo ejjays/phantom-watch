@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -57,22 +58,25 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import dev.phantomwatch.R
+import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.player.TrailerAudio
 import dev.phantomwatch.player.TrailerBridge
 import dev.phantomwatch.player.playerClock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-/** Autoplaying muted trailer over the poster. Falls back to the poster while it resolves or if YouTube refuses. */
+/** Autoplaying trailer over the poster. Falls back to the poster while it resolves or if YouTube refuses. */
 @Composable
 internal fun TrailerHero(
     videoId: String,
     poster: String?,
     modifier: Modifier = Modifier,
     onSurface: (TextureView?) -> Unit = {},
+    audio: TrailerAudio? = null,
 ) {
     val ctx = LocalContext.current
     var stream by remember(videoId) { mutableStateOf<TrailerBridge.Result?>(null) }
-    var muted by remember { mutableStateOf(true) }
+    var muted by remember { mutableStateOf(false) }
     var paused by remember(videoId) { mutableStateOf(false) }
     var started by remember(videoId) { mutableStateOf(false) }
     var buffering by remember(videoId) { mutableStateOf(true) }
@@ -80,7 +84,9 @@ internal fun TrailerHero(
     var dur by remember(videoId) { mutableStateOf(0L) }
     // read inside the draw scope only, so a frame tick repaints the bar without recomposing
     val frac = remember(videoId) { mutableFloatStateOf(0f) }
-    val exo = remember(videoId) { ExoPlayer.Builder(ctx).build() }
+    val exo = remember(videoId) {
+        if (audio != null) ExoPlayer.Builder(ctx, audio.renderers(ctx)).build() else ExoPlayer.Builder(ctx).build()
+    }
     val fade by animateFloatAsState(if (started) 1f else 0f, label = "trailerFade")
 
     fun toggle() {
@@ -100,6 +106,7 @@ internal fun TrailerHero(
     }
     LaunchedEffect(stream) {
         val s = stream ?: return@LaunchedEffect
+        AppLog.d("trailer src ${if (s.hls != null) "hls" else "adaptive"} audio=${audio != null}")
         exo.setMediaSource(source(ctx, s))
         exo.volume = if (muted) 0f else 1f
         exo.repeatMode = Player.REPEAT_MODE_ONE
@@ -107,6 +114,15 @@ internal fun TrailerHero(
         exo.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 started = true
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                AppLog.d("trailer err ${error.errorCodeName} ${error.message}")
+                AppLog.d("trailer cause ${error.cause?.stackTraceToString()?.take(1200)}")
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                AppLog.d("trailer state $state")
             }
         })
         exo.prepare()
