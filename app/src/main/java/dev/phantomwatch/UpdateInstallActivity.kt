@@ -57,6 +57,8 @@ class UpdateInstallActivity : Activity() {
         check(sameSigner(cache)) { "downloaded apk is not signed with our key" }
         log("downloaded ${cache.length()} bytes")
         val installer = packageManager.packageInstaller
+        // a session left waiting for a tap blocks the next one once the system cap is hit
+        runCatching { installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } } }
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         params.setSize(cache.length())
         val id = installer.createSession(params)
