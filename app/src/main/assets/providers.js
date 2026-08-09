@@ -268,6 +268,10 @@
     return { subs: subs, audio: audio };
   }
 
+  function introOf(io) {
+    return io && io.end > io.start ? { start: io.start, end: io.end } : null;
+  }
+
   function urlencode(s) {
     return encodeURIComponent(s)
       .replace(/[!'()~]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); })
@@ -507,7 +511,10 @@
     auto.referer = origin + '/';
     auto.enSubs = enSubs;
     auto.enAudio = e.audio;
-    return { formats: [auto].concat(rungs), subs: subs };
+    var intro = introOf(srcObj.intro);
+    var formats = [auto].concat(rungs);
+    if (intro) formats.forEach(function (f) { f.intro = intro; });
+    return { formats: formats, subs: subs };
   }
 
   function normTitle(t) {
@@ -600,7 +607,10 @@
     auto.referer = ref;
     auto.enSubs = enSubs;
     auto.enAudio = e2.audio;
-    return { formats: [auto].concat(rungs), subs: subs };
+    var intro = introOf((ep.skipData || {}).intro);
+    var formats = [auto].concat(rungs);
+    if (intro) formats.forEach(function (f) { f.intro = intro; });
+    return { formats: formats, subs: subs };
   }
 
   var legs = {

@@ -64,6 +64,7 @@ data class Stream(
     val imdb: String? = null,
     val headers: Map<String, String> = emptyMap(),
     val enSubs: Boolean = false,
+    val intro: LongRange? = null,
 )
 
 data class RailPage(

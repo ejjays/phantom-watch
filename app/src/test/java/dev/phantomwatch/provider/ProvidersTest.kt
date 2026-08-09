@@ -4,6 +4,7 @@ import dev.phantomwatch.data.Sub
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,6 +29,17 @@ class ProvidersTest {
         assertEquals("https://vixsrc.to/", f[0].referer)
         assertEquals(720, f[1].height)
         assertEquals(mapOf("User-Agent" to "okhttp/4.12.0"), f[1].headers)
+    }
+
+    @Test
+    fun mapsIntroWindow() {
+        val js = legJson(
+            """{"url":"https://a/x.m3u8","label":"hianime-auto","intro":{"start":55,"end":143}}""",
+            """{"url":"https://a/y.m3u8","label":"vix-auto"}""",
+        )
+        val f = Providers.formatsOf(js)
+        assertEquals(55_000L..143_000L, f[0].intro)
+        assertNull(f[1].intro)
     }
 
     @Test

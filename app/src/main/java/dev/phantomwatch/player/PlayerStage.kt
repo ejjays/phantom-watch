@@ -102,6 +102,7 @@ fun PlayerStage(
     stalled: Boolean,
     positionMs: Long,
     durationMs: Long,
+    intro: LongRange? = null,
     bufferedMs: Long,
     controlsVisible: Boolean,
     flash: String?,
@@ -410,6 +411,13 @@ fun PlayerStage(
                 )
             }
         }
+        if (intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip) {
+            SkipIntroPill(
+                Modifier.align(Alignment.BottomEnd)
+                    .offset { IntOffset(0, -shiftPx().roundToInt()) }
+                    .padding(end = 16.dp, bottom = seekInset + if (controlsVisible) 64.dp else 16.dp),
+            ) { onSeek(intro.last.toFloat() / durationMs) }
+        }
         if (stalled && showSpinner) {
             Box(
                 Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
@@ -648,6 +656,27 @@ private fun ScrubPreview(
                 Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(Cyan),
             )
         }
+    }
+}
+
+@Composable
+private fun SkipIntroPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.7f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Skip intro", color = Color.White, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp),
+        )
     }
 }
 

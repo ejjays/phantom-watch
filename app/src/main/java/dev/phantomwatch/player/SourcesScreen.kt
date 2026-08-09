@@ -100,6 +100,7 @@ internal fun SourcesScreen(
                             subs = Providers.subsFor(best, all.second),
                             referer = best.referer, sampleMp4 = null,
                             imdb = imdbDigits, headers = best.headers, enSubs = best.enSubs,
+                            intro = best.intro,
                         ),
                         null,
                     )
@@ -246,6 +247,7 @@ internal fun SourcesScreen(
                                     url = f.url, isHls = f.isHls, subs = Providers.subsFor(f, formatSubs),
                                     referer = f.referer, sampleMp4 = null,
                                     imdb = imdbState, headers = f.headers, enSubs = f.enSubs,
+                                    intro = f.intro,
                                 ),
                                 null,
                             )

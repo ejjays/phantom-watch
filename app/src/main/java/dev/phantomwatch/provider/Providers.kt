@@ -17,7 +17,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class VideoFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap())
+data class VideoFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap(), val intro: LongRange? = null)
 
 // Every leg runs in providers.js; this object only talks to that engine.
 object Providers {
@@ -197,6 +197,9 @@ object Providers {
                         o.optBoolean("enSubs"),
                         o.optBoolean("enAudio"),
                         headers,
+                        o.optJSONObject("intro")?.let {
+                            LongRange(it.optLong("start") * 1000, it.optLong("end") * 1000)
+                        },
                     ),
                 )
             }

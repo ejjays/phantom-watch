@@ -161,7 +161,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             val best = live.first()
             val streamSubs = Providers.subsFor(best, bundle.subs)
             AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
-            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs)
+            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -1024,6 +1024,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         stalled = stalled,
         positionMs = positionMs,
         durationMs = durationMs,
+        intro = stream.intro,
         bufferedMs = bufferedMs,
         controlsVisible = controls && !Pip.inPip,
         flash = fillNote,
