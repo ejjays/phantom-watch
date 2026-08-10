@@ -103,6 +103,7 @@ fun PlayerStage(
     positionMs: Long,
     durationMs: Long,
     intro: LongRange? = null,
+    onSkipIntro: () -> Unit = {},
     bufferedMs: Long,
     controlsVisible: Boolean,
     flash: String?,
@@ -413,10 +414,8 @@ fun PlayerStage(
         }
         if (intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip) {
             SkipIntroPill(
-                Modifier.align(Alignment.BottomEnd)
-                    .offset { IntOffset(0, -shiftPx().roundToInt()) }
-                    .padding(end = 16.dp, bottom = seekInset + if (controlsVisible) 64.dp else 16.dp),
-            ) { onSeek(intro.last.toFloat() / durationMs) }
+                Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
+            ) { onSkipIntro() }
         }
         if (stalled && showSpinner) {
             Box(

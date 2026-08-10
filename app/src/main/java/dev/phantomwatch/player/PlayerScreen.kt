@@ -746,6 +746,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         if (d > 0) exo.seekTo((f * d).toLong())
         poke()
     }
+    fun skipIntro() {
+        val end = stream.intro?.last ?: return
+        exo.seekTo(end)
+    }
     fun accSeek(side: SeekSide) {
         val dir = if (side == SeekSide.Left) -10000L else 10000L
         val now = System.currentTimeMillis()
@@ -1071,6 +1075,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             }
         },
         onSeek = ::seekTo,
+        onSkipIntro = ::skipIntro,
         onInteract = ::poke,
         onZoneTap = ::handleZone,
         onToggleSubs = {
