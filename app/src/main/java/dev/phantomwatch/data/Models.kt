@@ -51,6 +51,15 @@ data class Episode(
 
 data class Sub(val label: String, val url: String, val src: String = "")
 
+// a dub is a separate cut, not an audio track: switching means a new stream at the same position
+data class Dub(
+    val label: String,
+    val url: String,
+    val isHls: Boolean,
+    val referer: String,
+    val headers: Map<String, String> = emptyMap(),
+)
+
 data class Stream(
     val url: String,
     val isHls: Boolean,
@@ -65,6 +74,8 @@ data class Stream(
     val headers: Map<String, String> = emptyMap(),
     val enSubs: Boolean = false,
     val intro: LongRange? = null,
+    val dub: String? = null,
+    val dubs: List<Dub> = emptyList(),
 )
 
 data class RailPage(

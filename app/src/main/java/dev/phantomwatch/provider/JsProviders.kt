@@ -86,7 +86,8 @@ object JsProviders {
                     .put("height", f.height)
                     .put("english", f.english)
                     .put("enSubs", f.enSubs)
-                    .put("enAudio", f.enAudio),
+                    .put("enAudio", f.enAudio)
+                    .put("dub", f.dub.orEmpty()),
             )
         }
         val out = withTimeoutOrNull(8000) {

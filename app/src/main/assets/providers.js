@@ -15,6 +15,7 @@
     var h = typeof f.height === 'number' ? f.height : 0;
     return [
       h < 0 ? 0 : 1,
+      f.dub ? 0 : 1,
       (f.enSubs && h >= 1080) ? 1 : 0,
       /-auto$/.test(f.label || '') ? 1 : 0,
       f.enSubs ? 1 : 0,
@@ -471,26 +472,37 @@
         break;
       }
     }
-    var page = origin + '/stream/mal/' + mal + '/' + epNum + '/sub';
-    var html = await raw(page, page, 10);
-    if (html === null) return empty();
-    var idm = /data-id=["'](\d+)["']/.exec(html);
-    if (!idm) return empty();
-    var srcBody = await get(origin + '/stream/getSources?id=' + idm[1] + '&id=' + idm[1], page, 10);
-    if (srcBody === null) return empty();
-    var srcObj;
-    try { srcObj = JSON.parse(srcBody); } catch (e) { srcObj = null; }
-    var enc = (srcObj && srcObj.enc) || '';
-    if (!enc) return empty();
-    var master = '';
-    try {
-      var m = /([a-z0-9.-]+\.[a-z]+\/anime\/[a-f0-9]+\/[a-f0-9]+\/master\.m3u8)/
-        .exec(await megaDecrypt(enc, key, iv));
-      if (m) master = 'https://' + m[1];
-    } catch (e) {}
-    if (!master) return empty();
-    var manifest = await raw(master, origin + '/', 10);
-    if (manifest === null || manifest.indexOf('#EXTM3U') < 0) return empty();
+    async function cut(kind) {
+      var page = origin + '/stream/mal/' + mal + '/' + epNum + '/' + kind;
+      var html = await raw(page, page, 10);
+      if (html === null) return null;
+      var idm = /data-id=["'](\d+)["']/.exec(html);
+      if (!idm) return null;
+      var srcBody = await get(origin + '/stream/getSources?id=' + idm[1] + '&id=' + idm[1], page, 10);
+      if (srcBody === null) return null;
+      var srcObj;
+      try { srcObj = JSON.parse(srcBody); } catch (e) { return null; }
+      var enc = srcObj.enc || '';
+      if (!enc) return null;
+      var master = '';
+      try {
+        var m = /([a-z0-9.-]+\.[a-z]+\/anime\/[a-f0-9]+\/[a-f0-9]+\/master\.m3u8)/
+          .exec(await megaDecrypt(enc, key, iv));
+        if (m) master = 'https://' + m[1];
+      } catch (e) {}
+      if (!master) return null;
+      var manifest = await raw(master, origin + '/', 10);
+      if (manifest === null || manifest.indexOf('#EXTM3U') < 0) return null;
+      return { srcObj: srcObj, master: master, manifest: manifest };
+    }
+
+    // dub is a separate cut with its own source id; one cut missing must not kill the leg
+    var both = await Promise.all([cut('sub'), cut('dub')]);
+    var sub = both[0];
+    if (!sub) return empty();
+    var srcObj = sub.srcObj;
+    var master = sub.master;
+    var manifest = sub.manifest;
     var subs = [];
     (srcObj.tracks || []).forEach(function (tr) {
       var u = tr.file || '';
@@ -514,6 +526,24 @@
     var intro = introOf(srcObj.intro);
     var formats = [auto].concat(rungs);
     if (intro) formats.forEach(function (f) { f.intro = intro; });
+    var dub = both[1];
+    if (dub) {
+      var dRungs = masterVariants(dub.manifest, dub.master).map(function (v) {
+        var f = fmt(v.url, true, 'hianime-dub-' + v.label, v.height);
+        f.referer = origin + '/';
+        f.enSubs = enSubs;
+        f.dub = 'English';
+        return f;
+      });
+      var dAuto = fmt(dub.master, true, 'hianime-dub-auto', maxHeight(dRungs));
+      dAuto.referer = origin + '/';
+      dAuto.enSubs = enSubs;
+      dAuto.dub = 'English';
+      var dIntro = introOf(dub.srcObj.intro);
+      var dFormats = [dAuto].concat(dRungs);
+      if (dIntro) dFormats.forEach(function (f) { f.intro = dIntro; });
+      formats = formats.concat(dFormats);
+    }
     return { formats: formats, subs: subs };
   }
 

@@ -4,6 +4,7 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Http
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
+import dev.phantomwatch.data.Dub
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Tmdb
 import dev.phantomwatch.torrent.Torrents
@@ -17,7 +18,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class VideoFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap(), val intro: LongRange? = null)
+data class VideoFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap(), val intro: LongRange? = null, val dub: String? = null)
 
 // Every leg runs in providers.js; this object only talks to that engine.
 object Providers {
@@ -200,6 +201,7 @@ object Providers {
                         o.optJSONObject("intro")?.let {
                             LongRange(it.optLong("start") * 1000, it.optLong("end") * 1000)
                         },
+                        o.optString("dub").ifEmpty { null },
                     ),
                 )
             }
@@ -217,6 +219,9 @@ object Providers {
             }
         }
     }
+
+    fun dubsOf(formats: List<VideoFormat>): List<Dub> =
+        formats.mapNotNull { f -> f.dub?.let { Dub(it, f.url, f.isHls, f.referer, f.headers) } }
 
     // own-provider subs fit this cut; others drift, so they're only a fallback
     fun subsFor(f: VideoFormat, subs: List<Sub>): List<Sub> {

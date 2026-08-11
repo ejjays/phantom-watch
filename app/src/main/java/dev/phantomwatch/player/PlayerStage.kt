@@ -69,6 +69,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.R
+import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.data.Dub
 import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.ui.Mono
 import dev.phantomwatch.ui.Rubik
@@ -104,6 +106,9 @@ fun PlayerStage(
     durationMs: Long,
     intro: LongRange? = null,
     onSkipIntro: () -> Unit = {},
+    dubs: List<Dub> = emptyList(),
+    currentDub: String? = null,
+    onPickDub: (Dub) -> Unit = {},
     bufferedMs: Long,
     controlsVisible: Boolean,
     flash: String?,
@@ -142,6 +147,7 @@ fun PlayerStage(
 ) {
     val zone = rememberUpdatedState(sheetZoneTopPx)
     var headerH by remember { mutableFloatStateOf(0f) }
+    var settings by remember { mutableStateOf(false) }
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val edgePx = with(LocalDensity.current) { (topInset + 12.dp).toPx() }
     BoxWithConstraints(
@@ -360,6 +366,13 @@ fun PlayerStage(
                 large = fullscreen && seekBar,
                 subsOn = subsOn,
                 canSubs = canSubs,
+                canSettings = dubs.isNotEmpty(),
+                settingsOn = settings,
+                onSettings = {
+                    settings = !settings
+                    onInteract()
+                    AppLog.d(if (settings) "settings open" else "settings close")
+                },
                 onBack = onBack,
                 onFullscreen = onFullscreen,
                 onToggleSubs = onToggleSubs,
@@ -425,6 +438,14 @@ fun PlayerStage(
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
         }
+        if (settings && dubs.isNotEmpty()) {
+            PlayerSettingsMenu(
+                dubs = dubs,
+                current = currentDub,
+                onPick = { onPickDub(it); settings = false },
+                onDismiss = { settings = false },
+            )
+        }
     }
 }
 
@@ -437,6 +458,9 @@ private fun PlayerTopBar(
     large: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
+    canSettings: Boolean = false,
+    settingsOn: Boolean = false,
+    onSettings: () -> Unit = {},
     onBack: () -> Unit,
     onFullscreen: () -> Unit,
     onToggleSubs: () -> Unit,
@@ -479,6 +503,18 @@ private fun PlayerTopBar(
                     tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
                     modifier = Modifier.size(if (large) 26.dp else 20.dp),
                 )
+            }
+            if (canSettings) {
+                Box(
+                    Modifier.padding(10.dp).clickable { onSettings() },
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_settings),
+                        contentDescription = "Player settings",
+                        tint = if (settingsOn) Cyan else Color.White,
+                        modifier = Modifier.size(if (large) 24.dp else 20.dp),
+                    )
+                }
             }
         }
         if (titleBelow) {
