@@ -59,6 +59,7 @@ data class Dub(
     val referer: String,
     val headers: Map<String, String> = emptyMap(),
     val subs: List<Sub> = emptyList(),
+    val base: Boolean = false,
 )
 
 data class Stream(
@@ -77,6 +78,12 @@ data class Stream(
     val intro: LongRange? = null,
     val dub: String? = null,
     val dubs: List<Dub> = emptyList(),
+)
+
+// a dub plays only its own captions: the sub cut's timing drifts against dub audio
+internal fun Stream.withDub(d: Dub): Stream = copy(
+    url = d.url, isHls = d.isHls, referer = d.referer, headers = d.headers,
+    dub = if (d.base) null else d.label, subs = d.subs,
 )
 
 data class RailPage(

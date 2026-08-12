@@ -65,8 +65,9 @@ internal fun PlayerSettingsMenu(
                 }
             } else {
                 dubs.forEach { d ->
-                    SettingsRow(d.label, if (d.label == current) "Playing" else null, 0, chevron = false) {
-                        AppLog.d("settings pick dub=${d.label}")
+                    val playing = if (d.base) current == null else d.label == current
+                    SettingsRow(d.label, if (playing) "Playing" else null, 0, chevron = false) {
+                        AppLog.d("settings pick ${d.label}")
                         onPick(d)
                     }
                 }

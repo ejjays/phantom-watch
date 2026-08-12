@@ -221,11 +221,19 @@ object Providers {
         }
     }
 
-    fun dubsOf(formats: List<VideoFormat>): List<Dub> =
-        formats.mapNotNull { f -> f.dub?.let { it to f } }
+    // a dub's captions are its own only if they differ from the sub cut's; a shared file is the sub cut's
+    fun dubsOf(formats: List<VideoFormat>, legSubs: List<Sub>, base: VideoFormat, baseSubs: List<Sub>): List<Dub> {
+        val subUrls = legSubs.map { it.url }.toSet()
+        val dubs = formats.mapNotNull { f -> f.dub?.let { "$it · ${providerName(f)}" to f } }
             .sortedByDescending { if (it.second.label.endsWith("-auto")) 1 else 0 }
             .distinctBy { it.first }
-            .map { (label, f) -> Dub(label, f.url, f.isHls, f.referer, f.headers, f.subs) }
+            .map { (label, f) ->
+                Dub(label, f.url, f.isHls, f.referer, f.headers, f.subs.filter { it.url !in subUrls })
+            }
+        if (dubs.isEmpty()) return emptyList()
+        val back = Dub("Sub · ${providerName(base)}", base.url, base.isHls, base.referer, base.headers, baseSubs, base = true)
+        return listOf(back) + dubs
+    }
 
     // own-provider subs fit this cut; others drift, so they're only a fallback
     fun subsFor(f: VideoFormat, subs: List<Sub>): List<Sub> {

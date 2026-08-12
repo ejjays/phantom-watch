@@ -52,10 +52,49 @@ class ProvidersTest {
         val f = Providers.formatsOf(js)
         assertNull(f[0].dub)
         assertEquals("English", f[1].dub)
-        val dubs = Providers.dubsOf(f)
-        assertEquals(1, dubs.size)
-        assertEquals("https://a/da.m3u8", dubs[0].url)
-        assertEquals(listOf("https://s/dub.vtt"), dubs[0].subs.map { it.url })
+        val dubs = Providers.dubsOf(f, emptyList(), f[0], emptyList())
+        assertEquals(2, dubs.size)
+        assertTrue(dubs[0].base)
+        assertEquals("https://a/da.m3u8", dubs[1].url)
+        assertEquals(listOf("https://s/dub.vtt"), dubs[1].subs.map { it.url })
+    }
+
+    @Test
+    fun dubDoesNotBorrowTheLegSubs() {
+        val js = JSONObject()
+            .put("formats", JSONArray().put(JSONObject("""{"url":"https://a/d.m3u8","label":"hianime-dub-1080p","dub":"English"}""")))
+            .put("subs", JSONArray().put(JSONObject("""{"label":"English","url":"https://s/sub-cut.vtt","src":"hianime"}""")))
+        val f = Providers.formatsOf(js)
+        assertTrue(Providers.dubsOf(f, Providers.subsOf(js), f[0], emptyList()).last().subs.isEmpty())
+    }
+
+    @Test
+    fun dubSubsSharedWithTheSubCutAreDropped() {
+        val shared = "https://s/shared.vtt"
+        val js = JSONObject()
+            .put(
+                "formats",
+                JSONArray().put(
+                    JSONObject(
+                        """{"url":"https://a/d.m3u8","label":"hianime-dub-auto","dub":"English","subs":[{"label":"English","url":"$shared","src":"hianime"}]}""",
+                    ),
+                ),
+            )
+            .put("subs", JSONArray().put(JSONObject("""{"label":"English","url":"$shared","src":"hianime"}""")))
+        val f = Providers.formatsOf(js)
+        assertTrue(Providers.dubsOf(f, Providers.subsOf(js), f[0], emptyList()).last().subs.isEmpty())
+    }
+
+    @Test
+    fun dubsNameTheProviderTheySwitchTo() {
+        val js = legJson(
+            """{"url":"https://a/p.m3u8","label":"paradise-auto","height":1080}""",
+            """{"url":"https://a/d.m3u8","label":"hianime-dub-auto","dub":"English"}""",
+        )
+        val f = Providers.formatsOf(js)
+        val dubs = Providers.dubsOf(f, emptyList(), f[0], emptyList())
+        assertEquals(listOf("Sub · AnimeParadise", "English · HiAnime"), dubs.map { it.label })
+        assertEquals(listOf("https://a/p.m3u8", "https://a/d.m3u8"), dubs.map { it.url })
     }
 
     @Test

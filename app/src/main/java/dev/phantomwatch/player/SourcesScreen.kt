@@ -101,7 +101,7 @@ internal fun SourcesScreen(
                             referer = best.referer, sampleMp4 = null,
                             imdb = imdbDigits, headers = best.headers, enSubs = best.enSubs,
                             intro = best.intro,
-                            dub = best.dub, dubs = Providers.dubsOf(live),
+                            dub = best.dub, dubs = Providers.dubsOf(live, all.second, best, Providers.subsFor(best, all.second)),
                         ),
                         null,
                     )
@@ -249,7 +249,7 @@ internal fun SourcesScreen(
                                     referer = f.referer, sampleMp4 = null,
                                     imdb = imdbState, headers = f.headers, enSubs = f.enSubs,
                                     intro = f.intro,
-                                    dub = f.dub, dubs = Providers.dubsOf(formats),
+                                    dub = f.dub, dubs = Providers.dubsOf(formats, formatSubs, f, Providers.subsFor(f, formatSubs)),
                                 ),
                                 null,
                             )

@@ -105,6 +105,7 @@ import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Title
+import dev.phantomwatch.data.withDub
 import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.provider.Providers
 import dev.phantomwatch.provider.Resolve
@@ -162,7 +163,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             val best = live.first()
             val streamSubs = Providers.subsFor(best, bundle.subs)
             AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
-            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro, dub = best.dub, dubs = Providers.dubsOf(live))
+            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro, dub = best.dub, dubs = Providers.dubsOf(live, bundle.subs, best, streamSubs))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -298,7 +299,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             val mg = grp.mediaTrackGroup
             (0 until mg.length).map { i -> Triple(mg, i, nameOf(mg.getFormat(i))) }
         }
-        if (flat.isEmpty()) return@LaunchedEffect
+        if (flat.isEmpty()) { embedNames = emptyList(); embedGroup = null; return@LaunchedEffect }
         val names = flat.map { it.third }
         var wi = rankEmbed(names)
         if (subs.osTrack != null) {
@@ -754,11 +755,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     fun playDub(d: Dub) {
         if (d.url == live.url) return
         val pos = exo.currentPosition
-        val subs = d.subs.ifEmpty { live.subs }
-        val next = live.copy(url = d.url, isHls = d.isHls, referer = d.referer, headers = d.headers, dub = d.label, subs = subs)
-        AppLog.d("dub ${d.label} subs=${subs.size} at ${pos / 1000}s")
+        val next = live.withDub(d)
+        AppLog.d("dub ${d.label} subs=${next.subs.size} ${next.subs.firstOrNull()?.url?.substringAfterLast('/') ?: "none"} at ${pos / 1000}s")
         live = next
-        attachSubs(subs, null, next, pos)
+        attachSubs(next.subs, null, next, pos)
     }
     fun accSeek(side: SeekSide) {
         val dir = if (side == SeekSide.Left) -10000L else 10000L
@@ -1057,7 +1057,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         rotateButton = rotateButton, onRotate = onRotate,
         locked = locked,
         subsOn = !subs.subsOff,
-        canSubs = stream.subs.isNotEmpty() || live.subs.isNotEmpty() || embedNames.isNotEmpty() || subs.osTrack != null || subs.aiSubUrl != null,
+        canSubs = live.subs.isNotEmpty() || embedNames.isNotEmpty() || subs.osTrack != null || subs.aiSubUrl != null,
         muted = muted,
         onScrub = ::scrubTo,
         preview = { mod ->
