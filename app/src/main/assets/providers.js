@@ -540,8 +540,18 @@
       dAuto.enSubs = enSubs;
       dAuto.dub = 'English';
       var dIntro = introOf(dub.srcObj.intro);
+      var dSubs = [];
+      (dub.srcObj.tracks || []).forEach(function (tr) {
+        var u = tr.file || '';
+        var l = tr.label || '';
+        if (u.indexOf('http') === 0 && l.toLowerCase() === 'english') {
+          dSubs.push({ label: 'English', url: u, src: 'hianime' });
+        }
+      });
       var dFormats = [dAuto].concat(dRungs);
       if (dIntro) dFormats.forEach(function (f) { f.intro = dIntro; });
+      // the dub cut has its own captions; the sub cut's timing does not always match its audio
+      dFormats.forEach(function (f) { f.subs = dSubs; });
       formats = formats.concat(dFormats);
     }
     return { formats: formats, subs: subs };

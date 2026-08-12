@@ -754,10 +754,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     fun playDub(d: Dub) {
         if (d.url == live.url) return
         val pos = exo.currentPosition
-        val next = live.copy(url = d.url, isHls = d.isHls, referer = d.referer, headers = d.headers, dub = d.label)
-        AppLog.d("dub ${d.label} ${d.url.substringAfterLast('/').take(50)} at ${pos / 1000}s")
+        val subs = d.subs.ifEmpty { live.subs }
+        val next = live.copy(url = d.url, isHls = d.isHls, referer = d.referer, headers = d.headers, dub = d.label, subs = subs)
+        AppLog.d("dub ${d.label} subs=${subs.size} at ${pos / 1000}s")
         live = next
-        attachSubs(next.subs, null, next, pos)
+        attachSubs(subs, null, next, pos)
     }
     fun accSeek(side: SeekSide) {
         val dir = if (side == SeekSide.Left) -10000L else 10000L

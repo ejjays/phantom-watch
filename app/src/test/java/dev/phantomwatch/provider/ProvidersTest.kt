@@ -46,12 +46,16 @@ class ProvidersTest {
     fun mapsDubCuts() {
         val js = legJson(
             """{"url":"https://a/s.m3u8","label":"hianime-1080p"}""",
-            """{"url":"https://a/d.m3u8","label":"hianime-dub-1080p","dub":"English"}""",
+            """{"url":"https://a/d.m3u8","label":"hianime-dub-1080p","dub":"English","subs":[{"label":"English","url":"https://s/dub.vtt","src":"hianime"}]}""",
+            """{"url":"https://a/da.m3u8","label":"hianime-dub-auto","dub":"English","subs":[{"label":"English","url":"https://s/dub.vtt","src":"hianime"}]}""",
         )
         val f = Providers.formatsOf(js)
         assertNull(f[0].dub)
         assertEquals("English", f[1].dub)
-        assertEquals(listOf("https://a/d.m3u8"), Providers.dubsOf(f).map { it.url })
+        val dubs = Providers.dubsOf(f)
+        assertEquals(1, dubs.size)
+        assertEquals("https://a/da.m3u8", dubs[0].url)
+        assertEquals(listOf("https://s/dub.vtt"), dubs[0].subs.map { it.url })
     }
 
     @Test

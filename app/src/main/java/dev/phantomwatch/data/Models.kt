@@ -58,6 +58,7 @@ data class Dub(
     val isHls: Boolean,
     val referer: String,
     val headers: Map<String, String> = emptyMap(),
+    val subs: List<Sub> = emptyList(),
 )
 
 data class Stream(
