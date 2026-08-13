@@ -40,6 +40,7 @@
     ctx = ctx || {};
     if (name === 'vap') return !ctx.imdb;
     if (name === 'paradise') return ctx.kind !== 'tv' || String(ctx.season) !== '1' || !ctx.title;
+    if (name === 'hianime') return ctx.isAnim === false;
     return false;
   }
 
@@ -88,6 +89,10 @@
 
   function fmt(url, isHls, label, height) {
     return { url: url, isHls: isHls, label: label, height: height, english: true, referer: '', enSubs: false, enAudio: false };
+  }
+
+  function normTitle(t) {
+    return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   }
 
   async function get(url, referer, timeout) {
@@ -432,29 +437,40 @@
   }
 
   async function hianime(ctx) {
+    if (pwSkip('hianime', ctx)) return skipped();
     var cfg = ctx.cfg || {};
     var origin = cfg.origin || 'https://megaplay.buzz';
     var key = cfg.key || 'i?LMTAx0Q6,:}50U';
     var iv = cfg.iv || 'hlsMediaAttached';
     var ep = ctx.kind === 'movie' ? 'movie' : 'tv';
     var base = ctx.tmdbBase || 'https://api.themoviedb.org/3';
-    var meta = await get(base + '/' + ep + '/' + ctx.tmdbId +
-      '?api_key=' + ctx.tmdbKey, 'https://www.themoviedb.org/');
+    var meta = await get(base + '/' + ep + '/' + ctx.tmdbId + '?api_key=' + ctx.tmdbKey, 'https://www.themoviedb.org/');
     if (meta === null) return empty();
-    var title = '';
+    var title = '', fullTitle = '', isAnim = false;
     try {
       var o = JSON.parse(meta);
-      var t = o.name || '';
-      if (!t) t = o.title || '';
-      title = t.split(':')[0].trim();
+      fullTitle = o.name || o.title || '';
+      title = fullTitle.split(':')[0].trim();
+      var genres = o.genres || [];
+      for (var gi = 0; gi < genres.length; gi++) if (genres[gi].id === 16) { isAnim = true; break; }
     } catch (e) {}
+    if (!isAnim) return skipped();
     if (!title) return empty();
     var gql = JSON.stringify({
-      query: 'query($s:String){Media(search:$s,type:ANIME){idMal episodes relations{edges{relationType node{idMal episodes}}}}}',
+      query: 'query($s:String){Page(page:1,perPage:5){media(search:$s,type:ANIME,sort:[POPULARITY_DESC]){idMal episodes title{romaji english native} synonyms relations{edges{relationType node{idMal episodes}}}}}}',
       variables: { s: title },
     });
     var resp = await postJson('https://graphql.anilist.co', 'https://anilist.co/', gql, 8);
-    var M = (resp && resp.data && resp.data.Media) || {};
+    var list = (resp && resp.data && resp.data.Page && resp.data.Page.media) || [];
+    var want = normTitle(title), wantFull = normTitle(fullTitle), M = null;
+    for (var mi = 0; mi < list.length; mi++) {
+      var it = list[mi];
+      if (!it || !it.idMal) continue;
+      var cands = [it.title && it.title.romaji, it.title && it.title.english, it.title && it.title.native]
+        .concat(it.synonyms || []).filter(Boolean).map(normTitle);
+      if (cands.indexOf(want) >= 0 || cands.indexOf(wantFull) >= 0) { M = it; break; }
+    }
+    if (!M) return empty();
     var mal = M.idMal || 0;
     if (mal <= 0) return empty();
     var n = parseInt(ctx.episode, 10);
@@ -555,10 +571,6 @@
       formats = formats.concat(dFormats);
     }
     return { formats: formats, subs: subs };
-  }
-
-  function normTitle(t) {
-    return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   }
 
   async function paradise(ctx) {

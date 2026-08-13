@@ -67,7 +67,10 @@ test('legs that cannot serve the title are skipped', () => {
   assert.equal(window.__pwSkip('paradise', { kind: 'tv', season: '2', title: 'x' }), true);
   assert.equal(window.__pwSkip('paradise', { kind: 'tv', season: '1', title: 'x' }), false);
   assert.equal(window.__pwSkip('hianime', { kind: 'movie' }), false);
+  assert.equal(window.__pwSkip('hianime', { kind: 'movie', isAnim: false }), true);
+  assert.equal(window.__pwSkip('hianime', { kind: 'movie', isAnim: true }), false);
   assert.equal(window.__pwSkip('hianime', { kind: 'tv' }), false);
+  assert.equal(window.__pwSkip('hianime', { kind: 'tv', isAnim: false }), true);
   assert.equal(window.__pwSkip('love', { kind: 'movie' }), false);
 });
 
@@ -77,4 +80,92 @@ test('legs report skipped instead of empty', async () => {
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(doneCalls.length, 1);
   assert.equal(JSON.parse(doneCalls[0].out).skipped, true);
+});
+
+test('hianime skips non-animation titles from TMDB', async () => {
+  doneCalls.length = 0;
+  const prevHttp = globalThis.pw.http;
+  globalThis.pw.http = (id, json) => {
+    const req = JSON.parse(json);
+    if (req.url.includes('/movie/1058424')) {
+      window.__pwBridge.httpDone(
+        id,
+        JSON.stringify({
+          code: 200,
+          body: JSON.stringify({
+            title: 'Hope',
+            genres: [{ id: 878, name: 'Science Fiction' }],
+          }),
+        })
+      );
+    }
+  };
+  try {
+    window.__pwRun('x3', 'hianime', JSON.stringify({
+      kind: 'movie',
+      tmdbId: '1058424',
+      tmdbKey: 'k',
+      tmdbBase: 'https://api.themoviedb.org/3',
+    }));
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(doneCalls.length, 1);
+    const res = JSON.parse(doneCalls[0].out);
+    assert.equal(res.skipped, true);
+    assert.deepEqual(res.formats, []);
+  } finally {
+    globalThis.pw.http = prevHttp;
+  }
+});
+
+test('hianime rejects title mismatches from AniList', async () => {
+  doneCalls.length = 0;
+  const prevHttp = globalThis.pw.http;
+  globalThis.pw.http = (id, json) => {
+    const req = JSON.parse(json);
+    if (req.url.includes('/movie/109445')) {
+      window.__pwBridge.httpDone(
+        id,
+        JSON.stringify({
+          code: 200,
+          body: JSON.stringify({
+            title: 'Frozen',
+            genres: [{ id: 16, name: 'Animation' }],
+          }),
+        })
+      );
+    } else if (req.url.includes('graphql.anilist.co')) {
+      window.__pwBridge.httpDone(
+        id,
+        JSON.stringify({
+          code: 200,
+          body: JSON.stringify({
+            data: {
+              Page: {
+                media: [{
+                  idMal: 61492,
+                  title: { romaji: 'Entotsu-machi no Poupelle', english: 'Chimney Town' },
+                  synonyms: [],
+                }],
+              },
+            },
+          }),
+        })
+      );
+    }
+  };
+  try {
+    window.__pwRun('x4', 'hianime', JSON.stringify({
+      kind: 'movie',
+      tmdbId: '109445',
+      tmdbKey: 'k',
+      tmdbBase: 'https://api.themoviedb.org/3',
+    }));
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(doneCalls.length, 1);
+    const res = JSON.parse(doneCalls[0].out);
+    assert.equal(res.skipped, undefined);
+    assert.deepEqual(res.formats, []);
+  } finally {
+    globalThis.pw.http = prevHttp;
+  }
 });
