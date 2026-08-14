@@ -98,6 +98,12 @@ def check_no_dynamic_deps():
             fail(f"app/build.gradle.kts:{i}: unpinned dependency")
 
 
+def check_release_signing():
+    p = ROOT / "app/build.gradle.kts"
+    if p.exists() and "debug.keystore" in p.read_text():
+        fail("app/build.gradle.kts: release signing must not use the shared debug keystore")
+
+
 def check_providers_config():
     p = ROOT / "app/src/main/assets/providers.json"
     cfg = json.loads(p.read_text())
@@ -153,6 +159,7 @@ def main():
     check_line_caps(files)
     check_no_todos(files)
     check_no_dynamic_deps()
+    check_release_signing()
     check_providers_config()
     check_permissions()
     check_package_dirs(files)

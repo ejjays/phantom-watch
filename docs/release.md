@@ -12,6 +12,7 @@ python3 checks/quality.py
 ./gradlew :app:testDebugUnitTest --offline
 node --test tests/*.test.mjs
 node worker/test.mjs
+set -a; . ~/.phantomwatch/release.env; set +a
 ./gradlew :app:assembleRelease --offline
 ```
 
@@ -38,20 +39,29 @@ count. `versionName` stays `1.0`.
 
 ## Signing
 
-The release is signed with the machine's debug keystore
-(`~/.android/debug.keystore`) so sideloaded updates install over each other
-without any extra setup. That keystore is not a secret: anyone can build an
-APK with the same key. It is acceptable for a family group and nothing else.
-
-If the app ever leaves the family circle, switch to a private keystore:
+Release builds use the private keystore at `~/.phantomwatch/release.jks`
+(alias `phantom`, RSA 4096). The build reads it from the `PW_RELEASE_*`
+variables exported by `~/.phantomwatch/release.env`:
 
 ```sh
-keytool -genkeypair -v -keystore ~/phantom-release.jks -alias phantom -keyalg RSA -keysize 4096 -validity 10000
+set -a; . ~/.phantomwatch/release.env; set +a
+./gradlew :app:assembleRelease --offline
 ```
 
-Store it outside the repository (and back it up twice), put the values in
-`local.properties` or in the CI secrets, and point `signingConfigs` at it.
-Nobody can update the installed app without that file.
+`PW_RELEASE_CERT_SHA256` is compiled into the APK as `UPDATE_CERT_SHA256`.
+The update helper refuses an APK with a different package, an older
+`versionCode`, a different signer, or (in release builds) a certificate that
+does not match that fingerprint. Keep the keystore and the env file outside
+the repository and back both up twice, offline: losing them means installed
+apps can never be updated again.
+
+A build signed with a new key cannot install over an app signed with the old
+one. The first release after a key switch needs one uninstall on each device;
+watch history is not backed up, so it is lost. The debug build is unaffected.
+
+CI builds release with a throwaway keystore generated in the workflow
+(`-PtestReleaseSigning=true`). That APK is a build check only: it is not
+distributable and its pinned certificate is all zeros.
 
 ## OTA config
 

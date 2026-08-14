@@ -36,5 +36,13 @@ jobs:
             -storepass android -keypass android -alias androiddebugkey \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
+      - name: Test release keystore
+        # CI smoke-builds release with a throwaway key; these APKs are not distributable.
+        run: |
+          mkdir -p app/build
+          keytool -genkeypair -v -keystore app/build/test-release.jks \
+            -storepass android -keypass android -alias test \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Test,O=Android,C=US"
       - name: Unit tests, debug and release build
-        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease -PcompileSdk=36 -PtargetSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true --stacktrace
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease -PcompileSdk=36 -PtargetSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true -PtestReleaseSigning=true --stacktrace

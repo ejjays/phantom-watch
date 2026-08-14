@@ -15,10 +15,13 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import android.widget.Toast
+import dev.phantomwatch.core.UpdateTrust
 import java.io.File
+import java.io.FileOutputStream
 import java.lang.ref.WeakReference
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 /** Installs an update served by install.sh on loopback: the app writes the session itself. */
 class UpdateInstallActivity : Activity() {
@@ -27,7 +30,7 @@ class UpdateInstallActivity : Activity() {
         alive = WeakReference(this)
         log("start appop=${packageManager.canRequestPackageInstalls()}")
         val url = intent.getStringExtra("url").orEmpty()
-        if (!url.startsWith("http://127.0.0.1:")) return finishWith("rejected url")
+        if (!UpdateTrust.validUrl(url)) return finishWith("rejected url")
         if (!packageManager.canRequestPackageInstalls()) {
             Toast.makeText(this, "Allow Phantom Watch to install apps, then run install.sh again", Toast.LENGTH_LONG).show()
             runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
@@ -35,7 +38,10 @@ class UpdateInstallActivity : Activity() {
         }
         window.decorView.postDelayed({ finish() }, 300_000)
         Thread {
-            runCatching { commit(url) }.onFailure { result(it.message ?: it.javaClass.simpleName) }
+            runCatching { commit(url) }.onFailure {
+                AutoInstall.disarm()
+                result(it.message ?: it.javaClass.simpleName)
+            }
         }.start()
     }
 
@@ -45,46 +51,106 @@ class UpdateInstallActivity : Activity() {
     }
 
     private fun commit(url: String) {
-        // Arm before downloading: the clicker clears a stale "installed" page left by the last run
-        // while we fetch, so the new session opens on a clean screen.
-        AutoInstall.arm()
+        val token = intent.getStringExtra("token").orEmpty()
+        check(UpdateTrust.validToken(token)) { "invalid update token" }
         val conn = URL(url).openConnection() as HttpURLConnection
+        conn.instanceFollowRedirects = false
         conn.connectTimeout = 5000
         conn.readTimeout = 120000
-        check(conn.responseCode == 200) { "server said ${conn.responseCode}" }
-        val cache = File(cacheDir, "update.apk")
-        conn.inputStream.use { input -> cache.outputStream().use { input.copyTo(it) } }
-        check(sameSigner(cache)) { "downloaded apk is not signed with our key" }
-        log("downloaded ${cache.length()} bytes")
-        val installer = packageManager.packageInstaller
-        // a session left waiting for a tap blocks the next one once the system cap is hit
-        runCatching { installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } } }
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        params.setSize(cache.length())
-        val id = installer.createSession(params)
-        installer.openSession(id).use { session ->
-            cache.inputStream().use { input ->
-                session.openWrite("base.apk", 0, cache.length()).use { out ->
-                    input.copyTo(out)
-                    session.fsync(out)
+        try {
+            conn.setRequestProperty("X-PhantomWatch-Update", token)
+            check(conn.responseCode == 200) { "server said ${conn.responseCode}" }
+            val expectedSize = conn.contentLengthLong
+            check(UpdateTrust.validSize(expectedSize)) { "invalid apk size" }
+            val cache = File(cacheDir, "update.apk")
+            var total = 0L
+            conn.inputStream.use { input ->
+                FileOutputStream(cache).use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        total += n
+                        check(UpdateTrust.validSize(total)) { "apk exceeds size limit" }
+                        output.write(buffer, 0, n)
+                    }
                 }
             }
-            session.commit(
-                PendingIntent.getBroadcast(this, id, Intent(this, UpdateResultReceiver::class.java), PendingIntent.FLAG_MUTABLE)
-                    .intentSender
-            )
+            check(total == expectedSize) { "incomplete apk download" }
+            val targetLabel = verifyApk(cache)
+            log("verified update ${cache.length()} bytes for $packageName")
+            val installer = packageManager.packageInstaller
+            // A session left waiting for a tap blocks the next one once the system cap is hit.
+            runCatching { installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } } }
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setSize(cache.length())
+            val id = installer.createSession(params)
+            installer.openSession(id).use { session ->
+                cache.inputStream().use { input ->
+                    session.openWrite("base.apk", 0, cache.length()).use { output ->
+                        input.copyTo(output)
+                        session.fsync(output)
+                    }
+                }
+                val callback = Intent(this, UpdateResultReceiver::class.java)
+                session.commit(
+                    PendingIntent.getBroadcast(
+                        this, id, callback, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                    ).intentSender,
+                )
+            }
+            AutoInstall.arm(id, targetLabel)
+            log("committed verified session $id")
+        } finally {
+            conn.disconnect()
         }
-        log("committed session $id")
     }
 
-    private fun sameSigner(apk: File): Boolean {
-        val theirs = signers(packageManager.getPackageArchiveInfo(apk.absolutePath, PackageManager.GET_SIGNATURES)) ?: return false
-        val ours = signers(packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)) ?: return false
-        return theirs.any { candidate -> ours.any { it == candidate } }
+    private fun verifyApk(apk: File): String {
+        check(UpdateTrust.validSize(apk.length())) { "invalid apk size" }
+        val flags = if (Build.VERSION.SDK_INT >= 28) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val update = packageManager.getPackageArchiveInfo(apk.absolutePath, flags)
+            ?: error("invalid apk")
+        check(update.packageName == packageName) { "wrong package" }
+        val installed = packageManager.getPackageInfo(packageName, flags)
+        check(versionCode(update) >= versionCode(installed)) { "update is older than installed app" }
+        val updateSigners = signers(update) ?: error("update has no signer")
+        val installedSigners = signers(installed) ?: error("installed app has no signer")
+        check(updateSigners.isNotEmpty() && updateSigners == installedSigners) {
+            "update signer does not match installed app"
+        }
+        if (!BuildConfig.DEBUG) {
+            val fingerprint = updateSigners.singleOrNull()?.let(::fingerprint).orEmpty()
+            check(BuildConfig.UPDATE_CERT_SHA256.isNotBlank() &&
+                UpdateTrust.sameCertificate(fingerprint, BuildConfig.UPDATE_CERT_SHA256)
+            ) {
+                "update signer is not the pinned production certificate"
+            }
+        }
+        val appInfo = update.applicationInfo ?: error("update has no application info")
+        appInfo.sourceDir = apk.absolutePath
+        appInfo.publicSourceDir = apk.absolutePath
+        val label = appInfo.loadLabel(packageManager).toString().trim()
+        check(label.isNotEmpty()) { "update has no app label" }
+        return label
     }
 
     @Suppress("DEPRECATION")
-    private fun signers(info: android.content.pm.PackageInfo?): Array<android.content.pm.Signature>? = info?.signatures
+    private fun versionCode(info: android.content.pm.PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+
+    @Suppress("DEPRECATION")
+    private fun signers(info: android.content.pm.PackageInfo): Set<android.content.pm.Signature>? =
+        if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners?.toSet() else info.signatures?.toSet()
+
+    private fun fingerprint(signature: android.content.pm.Signature): String =
+        MessageDigest.getInstance("SHA-256").digest(signature.toByteArray())
+            .joinToString("") { "%02x".format(it) }
 
     private fun result(message: String) {
         log("failed: $message")

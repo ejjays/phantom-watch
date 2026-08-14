@@ -57,10 +57,11 @@ OS/AI pipelines live in `player/SubsController.kt`; `player/PlayerScreen.kt`
 is still the biggest file in the repo - it is the player state machine - and
 is capped at its current size by `checks/quality.py` until it is split further.
 
-**Signing stays on the debug keystore.** The audience is family and a few
-friends who sideload. A private keystore only matters once the APK leaves
-that circle; see [threat-model.md](threat-model.md) for what to change if it
-does.
+**Signing uses a private keystore.** Release builds read `PW_RELEASE_*` and
+pin the release certificate in `UPDATE_CERT_SHA256`; the update helper only
+installs an APK signed by the installed app and, on release, by that exact
+certificate. CI smoke-builds with a throwaway key and never distributes its
+APK. See [release.md](release.md).
 
 ## Testing seams
 

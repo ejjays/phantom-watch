@@ -9,6 +9,33 @@ val localProps = Properties().apply {
 // CI builds against the last published platform; the phone uses the hand-made 37
 val compileSdkVersion = (project.findProperty("compileSdk")?.toString()?.toIntOrNull() ?: 37)
 val targetSdkVersion = (project.findProperty("targetSdk")?.toString()?.toIntOrNull() ?: 37)
+val releaseStorePath = System.getenv("PW_RELEASE_KEYSTORE").orEmpty()
+val releaseStorePassword = System.getenv("PW_RELEASE_STORE_PASSWORD").orEmpty()
+val releaseKeyAlias = System.getenv("PW_RELEASE_KEY_ALIAS").orEmpty()
+val releaseKeyPassword = System.getenv("PW_RELEASE_KEY_PASSWORD").orEmpty()
+val releaseCertSha256 = System.getenv("PW_RELEASE_CERT_SHA256").orEmpty().replace(":", "").lowercase()
+val testReleaseSigning = providers.gradleProperty("testReleaseSigning").orNull == "true"
+val releaseStore = when {
+    releaseStorePath.isNotBlank() -> file(releaseStorePath)
+    testReleaseSigning -> file("${layout.buildDirectory.get()}/test-release.jks")
+    else -> null
+}
+val releaseStorePass = releaseStorePassword.ifBlank { if (testReleaseSigning) "android" else "" }
+val releaseAlias = releaseKeyAlias.ifBlank { if (testReleaseSigning) "test" else "" }
+val releasePass = releaseKeyPassword.ifBlank { if (testReleaseSigning) "android" else "" }
+val releaseCert = releaseCertSha256.ifBlank { if (testReleaseSigning) "00".repeat(32) else "" }
+val releaseSigningConfigured = releaseStore != null && releaseStorePass.isNotBlank() &&
+    releaseAlias.isNotBlank() && releasePass.isNotBlank() && releaseCert.isNotBlank()
+val releaseSigningProblem = when {
+    !releaseSigningConfigured ->
+        "Release signing requires PW_RELEASE_KEYSTORE, PW_RELEASE_STORE_PASSWORD, " +
+            "PW_RELEASE_KEY_ALIAS, PW_RELEASE_KEY_PASSWORD, and PW_RELEASE_CERT_SHA256"
+    !releaseCert.matches(Regex("[a-f0-9]{64}")) ->
+        "PW_RELEASE_CERT_SHA256 must be a SHA-256 certificate fingerprint"
+    !testReleaseSigning && releaseStore?.isFile != true ->
+        "PW_RELEASE_KEYSTORE must point to an existing private release keystore"
+    else -> null
+}
 
 fun gitCommitCount(): Int = try {
     providers.exec {
@@ -46,18 +73,20 @@ android {
         buildConfigField("String", "CFG_URL", "\"${localProps.getProperty("CFG_URL", "")}\"")
         buildConfigField("String", "TELEMETRY_URL", "\"${localProps.getProperty("TELEMETRY_URL", "")}\"")
         buildConfigField("String", "TELEMETRY_KEY", "\"${localProps.getProperty("TELEMETRY_KEY", "")}\"")
+        buildConfigField("String", "UPDATE_CERT_SHA256", "\"\"")
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
     }
 
-    // debug keystore on purpose: sideload builds must install over the existing app
     signingConfigs {
-        create("sideload") {
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (releaseSigningConfigured) {
+            create("production") {
+                storeFile = releaseStore
+                storePassword = releaseStorePass
+                keyAlias = releaseAlias
+                keyPassword = releasePass
+            }
         }
     }
 
@@ -68,8 +97,9 @@ android {
             buildConfigField("boolean", "LOGUI", "false")
         }
         release {
-            signingConfig = signingConfigs.getByName("sideload")
+            if (releaseSigningConfigured) signingConfig = signingConfigs.getByName("production")
             buildConfigField("boolean", "LOGUI", "false")
+            buildConfigField("String", "UPDATE_CERT_SHA256", "\"$releaseCert\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -88,6 +118,13 @@ android {
 }
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name.startsWith("packageRelease") || name.startsWith("bundleRelease")) {
+        val problem = releaseSigningProblem
+        if (problem != null) doFirst { error(problem) }
+    }
 }
 
 androidComponents {

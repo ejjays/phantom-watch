@@ -15,7 +15,7 @@ protected and what is not, so nobody has to guess.
 | Seedbox password | `local.properties` -> `BuildConfig` | yes |
 | Telemetry key | `local.properties` -> `BuildConfig` | yes |
 | OTA signing key | `~/.phantomwatch/ota-key.pem` / Actions secret | no |
-| Release keystore | `~/.android/debug.keystore` | it is a well-known key |
+| Release keystore | `~/.phantomwatch/release.jks` + `release.env` (private, outside the repo) | no |
 
 Everything in the first block is public to anyone who has the APK. That is
 accepted: there is no account, nothing to steal, and the keys only buy
@@ -32,13 +32,21 @@ instead of trying to hide it in the app.
   stream URLs, no account.
 - **The app's own data** (watch positions, cached config) is not backed up
   (`allowBackup="false"`).
+- **Updates** are fetched from `127.0.0.1` with a one-shot token, without
+  redirects, inside a size cap. The APK must have the same package, a
+  non-lower `versionCode`, and the same signer as the installed app; release
+  builds also pin the release certificate in `UPDATE_CERT_SHA256`. A foreign
+  APK signed with the old debug key is rejected.
 
 ## Known exposures, accepted on purpose
 
-- **Debug-keystore release signing.** Anyone can sign an APK with the same
-  key and install it over the app. For a family group that is fine; it stops
-  being fine the moment the APK travels further. See
-  [release.md](release.md) for the switch to a private keystore.
+- **The update helper activity is exported.** Any local app can start it, but
+  it only talks to `127.0.0.1` with the token from the intent and can only
+  install an APK signed with the app's key and pinned certificate. The worst
+  case is a spurious installer prompt.
+- **Losing the release keystore** ends updates for installed release builds.
+  It is stored on the phone (`~/.phantomwatch/release.jks`) and must be backed
+  up offline, twice. The same applies to the OTA signing key.
 - **Cleartext traffic.** Some providers hand out `http://` streams, so
   `usesCleartextTraffic` is on. A hostile network could tamper with a stream.
   Nothing else travels in the clear.
@@ -50,10 +58,9 @@ instead of trying to hide it in the app.
 
 ## If the audience grows
 
-1. Private release keystore, kept offline, backed up twice.
-2. Move TMDB, OpenSubtitles, Groq and the telemetry key behind the Worker and
+1. Move TMDB, OpenSubtitles, Groq and the telemetry key behind the Worker and
    hand the app short-lived tokens.
-3. Turn off cleartext and add a `network_security_config.xml` that only
+2. Turn off cleartext and add a `network_security_config.xml` that only
    allows the hosts that need it.
-4. Pin the certificate of the config endpoint, the Worker and Supabase.
-5. Rate-limit the telemetry endpoint and drop the shared key.
+3. Pin the certificate of the config endpoint, the Worker and Supabase.
+4. Rate-limit the telemetry endpoint and drop the shared key.

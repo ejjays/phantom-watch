@@ -10,26 +10,41 @@ import dev.phantomwatch.core.AppLog
 
 /** The clicker may only act inside the short window after this app commits its own install session. */
 object AutoInstall {
+    @Volatile
     private var until = 0L
 
-    /** Set once we click Install in this session, so its own "installed" page is never clicked. */
+    @Volatile
+    private var expectedLabel = ""
+
+    @Volatile
+    private var expectedSession = -1
+
+    @Volatile
     var clicked = false
         private set
 
     @Volatile
     var svc: AutoInstallService? = null
 
-    fun arm() {
-        until = SystemClock.uptimeMillis() + 120_000
+    fun arm(sessionId: Int, label: String) {
+        expectedSession = sessionId
+        expectedLabel = label.trim().lowercase()
         clicked = false
+        until = SystemClock.uptimeMillis() + 120_000
         AppLog.d("autoinstall armed")
         svc?.kick()
     }
 
     fun disarm() {
         until = 0L
+        expectedLabel = ""
+        expectedSession = -1
         AppLog.d("autoinstall disarmed")
     }
+
+    fun expectedLabel(): String = expectedLabel
+
+    fun expectedSession(): Int = expectedSession
 
     fun markClicked() {
         clicked = true
@@ -77,24 +92,35 @@ class AutoInstallService : AccessibilityService() {
 
     private fun scan(packageName: String, root: AccessibilityNodeInfo) {
         if (packageName !in INSTALLERS && !packageName.startsWith("com.huawei")) return
-        // Huawei shows an AppGallery "security check" page before the installer: only touch it while it shows our app
-        if (packageName !in INSTALLERS && find(root, getString(R.string.app_name)).isEmpty()) return
-        // Its "installed / you may also like" page also shows our name, and its cards have install buttons
+        if (packageName in INSTALLERS &&
+            AutoInstall.expectedSession() !in packageManager.packageInstaller.mySessions.map { it.sessionId }
+        ) {
+            AutoInstall.disarm()
+            return
+        }
+        val target = AutoInstall.expectedLabel()
+        if (target.isEmpty() || find(root, target).none { label(it) == target }) return
         if (FINISHED.any { find(root, it).isNotEmpty() }) {
-            // Ours is done: leave its page alone. A page left over from the last run has no install
-            // button left, so it is cleared before this session's prompt would appear behind it.
-            val stale = !AutoInstall.clicked && BUTTONS.none { find(root, it).isNotEmpty() }
-            if (stale) click(root, DONE, "done", packageName) else AutoInstall.disarm()
+            AutoInstall.disarm()
             return
         }
         click(root, BUTTONS, "install", packageName)
     }
 
     private fun click(root: AccessibilityNodeInfo, labels: Set<String>, tag: String, pkg: String) {
-        val hit = labels.firstNotNullOfOrNull { text -> find(root, text).firstOrNull { label(it) == text } } ?: return
+        val hit = labels.firstNotNullOfOrNull { text ->
+            find(root, text).firstOrNull { node ->
+                label(node) == text && (node.isClickable || node.parent?.isClickable == true)
+            }
+        } ?: return
         var target: AccessibilityNodeInfo? = hit
         while (target != null && !target.isClickable) target = target.parent
         if (target != null) {
+            val sessions = packageManager.packageInstaller.mySessions.map { it.sessionId }
+            if (!AutoInstall.armed() || AutoInstall.expectedSession() !in sessions) {
+                AutoInstall.disarm()
+                return
+            }
             AppLog.d("install $tag click ${label(target)} in $pkg")
             if (tag == "install") AutoInstall.markClicked()
             target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -112,8 +138,7 @@ class AutoInstallService : AccessibilityService() {
     private companion object {
         val seen = mutableSetOf<String>()
         val INSTALLERS = setOf("com.android.packageinstaller", "com.google.android.packageinstaller")
-        val BUTTONS = setOf("install", "update", "continue", "install anyway", "update anyway")
+        val BUTTONS = setOf("install", "update")
         val FINISHED = setOf("installation successful", "installed from", "you may also like")
-        val DONE = setOf("done")
     }
 }
