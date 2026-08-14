@@ -715,6 +715,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var locked by remember { mutableStateOf(false) }
     var positionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
+    LaunchedEffect(live.url, durationMs > 0) {
+        if (live.intro == null && durationMs > 0) SkipTimes.fallback(media.id, episode.ifBlank { "1" }, durationMs)?.let { live = live.copy(intro = it) }
+    }
     var bufferedMs by remember { mutableStateOf(0L) }
     var videoW by remember { mutableStateOf(0) }
     var videoH by remember { mutableStateOf(0) }
@@ -748,10 +751,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         if (d > 0) exo.seekTo((f * d).toLong())
         poke()
     }
-    fun skipIntro() {
-        val end = stream.intro?.last ?: return
-        exo.seekTo(end)
-    }
+    fun skipIntro() { live.intro?.last?.let { exo.seekTo(it) } }
     fun playDub(d: Dub) {
         if (d.url == live.url) return
         val pos = exo.currentPosition
