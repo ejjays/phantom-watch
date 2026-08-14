@@ -43,8 +43,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.social.Social
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val BodyInk = Slate200
@@ -107,6 +110,9 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
     var replyParent by remember { mutableStateOf(0L) }
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var actionError by remember { mutableStateOf<String?>(null) }
+    var reportTarget by remember { mutableStateOf<Social.Comment?>(null) }
+    var deleteTarget by remember { mutableStateOf<Social.Comment?>(null) }
     var open by remember { mutableStateOf(emptySet<Long>()) }
     val focus = remember { FocusRequester() }
 
@@ -118,6 +124,12 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
     }
     LaunchedEffect(state.isIdle, state.currentState) {
         if (state.isIdle && !state.currentState) onDismiss()
+    }
+    LaunchedEffect(actionError) {
+        if (actionError != null) {
+            delay(4000)
+            actionError = null
+        }
     }
 
     val startReply: (Social.Comment) -> Unit = { c ->
@@ -265,11 +277,66 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                                         open = if (root.id in open) open - root.id else open + root.id
                                     },
                                     onReply = startReply,
+                                    onDelete = { deleteTarget = it },
+                                    onReport = { reportTarget = it },
                                 )
                             }
                         }
                     }
                 }
+            }
+            deleteTarget?.let { comment ->
+                AlertDialog(
+                    onDismissRequest = { deleteTarget = null },
+                    title = { Text("Delete comment?") },
+                    text = { Text("This will also remove replies to your comment.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            deleteTarget = null
+                            scope.launch {
+                                if (Social.deleteComment(comment.id)) {
+                                    open = open - comment.id
+                                    Social.comments(media.kind, id)?.let { page = it }
+                                    actionError = "Comment deleted"
+                                } else {
+                                    actionError = "Could not delete comment"
+                                }
+                            }
+                        }) { Text("Delete") }
+                    },
+                    dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } },
+                )
+            }
+            reportTarget?.let { comment ->
+                AlertDialog(
+                    onDismissRequest = { reportTarget = null },
+                    title = { Text("Report comment") },
+                    text = { Text("Choose the reason for your report.") },
+                    confirmButton = {
+                        Column {
+                            Social.ReportReason.entries.forEach { reason ->
+                                TextButton(onClick = {
+                                    reportTarget = null
+                                    scope.launch {
+                                        val ok = Social.reportComment(comment.id, reason)
+                                        actionError = if (ok) "Report received" else "Could not report comment"
+                                    }
+                                }) { Text(reason.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                            }
+                        }
+                    },
+                    dismissButton = { TextButton(onClick = { reportTarget = null }) { Text("Cancel") } },
+                )
+            }
+            actionError?.let { message ->
+                Text(
+                    message,
+                    color = if (message == "Report received" || message == "Comment deleted") Cyan
+                    else Color(0xFFF87171),
+                    fontSize = 12.sp,
+                    fontFamily = Rubik,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
             }
             Composer(
                 input = input,
@@ -291,13 +358,15 @@ private fun RootThread(
     open: Boolean,
     onToggle: () -> Unit,
     onReply: (Social.Comment) -> Unit,
+    onDelete: (Social.Comment) -> Unit,
+    onReport: (Social.Comment) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
-        RootRow(root, replies.isNotEmpty(), open, onReply)
+        RootRow(root, replies.isNotEmpty(), open, onReply, onDelete, onReport)
         if (replies.isNotEmpty()) {
             if (open) {
                 replies.forEachIndexed { i, r ->
-                    ReplyRow(r, i == replies.lastIndex, onReply)
+                    ReplyRow(r, i == replies.lastIndex, onReply, onDelete, onReport)
                 }
                 ToggleRow("Hide replies", Slate400, false, onToggle)
             } else {
@@ -315,6 +384,8 @@ private fun RootRow(
     hasReplies: Boolean,
     open: Boolean,
     onReply: (Social.Comment) -> Unit,
+    onDelete: (Social.Comment) -> Unit,
+    onReport: (Social.Comment) -> Unit,
 ) {
     val ring by animateFloatAsState(if (open) 1f else 0f, tween(220), label = "ring")
     Row(
@@ -341,7 +412,7 @@ private fun RootRow(
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            NameRow(c, 15, 13)
+            NameRow(c, 15, 13, onDelete, onReport)
             Spacer(Modifier.height(4.dp))
             CommentBody(c.body, 15, 22)
             Spacer(Modifier.height(2.dp))
@@ -360,6 +431,8 @@ private fun ReplyRow(
     c: Social.Comment,
     last: Boolean,
     onReply: (Social.Comment) -> Unit,
+    onDelete: (Social.Comment) -> Unit,
+    onReport: (Social.Comment) -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().drawBehind {
@@ -382,7 +455,7 @@ private fun ReplyRow(
         CommentAvatar(c.author, 24.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            NameRow(c, 14, 12)
+            NameRow(c, 14, 12, onDelete, onReport)
             Spacer(Modifier.height(3.dp))
             CommentBody(c.body, 14, 20)
             Spacer(Modifier.height(1.dp))
@@ -424,7 +497,13 @@ private fun ToggleRow(text: String, color: Color, line: Boolean, onClick: () -> 
 }
 
 @Composable
-private fun NameRow(c: Social.Comment, nameSize: Int, metaSize: Int) {
+private fun NameRow(
+    c: Social.Comment,
+    nameSize: Int,
+    metaSize: Int,
+    onDelete: (Social.Comment) -> Unit,
+    onReport: (Social.Comment) -> Unit,
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             "@${c.author}", color = Color.White, fontSize = nameSize.sp, fontFamily = Rubik,
@@ -438,6 +517,13 @@ private fun NameRow(c: Social.Comment, nameSize: Int, metaSize: Int) {
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
+        Text(
+            if (c.mine) "Delete" else "Report", color = Slate500, fontSize = 11.sp,
+            fontFamily = Rubik,
+            modifier = Modifier.padding(start = 10.dp).clickable {
+                if (c.mine) onDelete(c) else onReport(c)
+            },
+        )
     }
 }
 

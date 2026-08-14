@@ -28,7 +28,12 @@ internal object Social {
         val at: Long,
         val author: String,
         val parent: Long,
+        val mine: Boolean = false,
     )
+
+    enum class ReportReason(val wire: String) {
+        SPAM("spam"), HARASSMENT("harassment"), SPOILER("spoiler"), OTHER("other"),
+    }
     data class Page(val items: List<Comment>, val total: Int)
 
     private class Resp(val code: Int, val body: String, val headers: Map<String, String>)
@@ -48,6 +53,8 @@ internal object Social {
     }
 
     fun me(): String? = prefs?.getString("uid", null)
+
+    internal fun validCommentBody(body: String): Boolean = body.isNotBlank() && body.trim().length <= 500
 
     fun ago(at: Long): String {
         if (at <= 0) return ""
@@ -88,10 +95,10 @@ internal object Social {
     suspend fun comments(kind: String, id: Int): Page? {
         val (at, _) = session() ?: return null
         val base = "/rest/v1/comments?kind=eq.$kind&tmdb_id=eq.$id" +
-            "&hidden=eq.false&order=created_at.desc&limit=200"
+            "&hidden=eq.false&moderation_status=eq.visible&order=created_at.desc&limit=200"
         val headers = mapOf("Prefer" to "count=exact")
         // parent_id is absent until the reply migration lands: fall back to the flat shape
-        val r = call("$base&select=id,body,created_at,user_id,parent_id", "GET", at, headers = headers)
+        val r = call("$base&select=id,body,created_at,user_id,parent_id,moderation_status", "GET", at, headers = headers)
             .takeIf { it.code in 200..299 }
             ?: call("$base&select=id,body,created_at,user_id", "GET", at, headers = headers)
         if (r.code !in 200..299) return null
@@ -104,6 +111,7 @@ internal object Social {
                 at = parseTime(o.optString("created_at")),
                 author = o.optString("user_id").take(4),
                 parent = o.optLong("parent_id"),
+                mine = o.optString("user_id") == me(),
             )
         }
         val total = r.headers["content-range"]?.substringAfter('/')?.toIntOrNull() ?: items.size
@@ -111,9 +119,12 @@ internal object Social {
     }
 
     suspend fun post(kind: String, id: Int, text: String, parent: Long = 0): String? {
-        val (at, uid) = session() ?: return "Sign-in unavailable"
+        val (at, _) = session() ?: return "Sign-in unavailable"
+        val body = text.trim()
+        if (kind !in setOf("movie", "tv") || id <= 0) return "Invalid title"
+        if (!validCommentBody(body)) return "Comments must be 1–500 characters"
         val payload = JSONObject()
-            .put("user_id", uid).put("kind", kind).put("tmdb_id", id).put("body", text.trim())
+            .put("kind", kind).put("tmdb_id", id).put("body", body)
         if (parent > 0) payload.put("parent_id", parent)
         val r = call(
             "/rest/v1/comments", "POST", at, payload.toString(),
@@ -121,9 +132,34 @@ internal object Social {
         )
         return when {
             r.code in 200..299 -> null
-            r.body.contains("slow down") -> "Slow down a bit"
+            r.body.contains("rate limit") || r.body.contains("wait before posting") || r.body.contains("slow down") -> "Please wait before posting again"
+            r.body.contains("invalid reply") -> "That reply is no longer available"
+            r.body.contains("invalid title") -> "Invalid title"
+            r.body.contains("comment must be") -> "Comments must be 1–500 characters"
             else -> "Could not post"
         }
+    }
+
+    suspend fun deleteComment(id: Long): Boolean {
+        val (at, _) = session() ?: return false
+        if (id <= 0) return false
+        val r = call(
+            "/rest/v1/comments?id=eq.$id", "DELETE", at,
+            headers = mapOf("Prefer" to "return=representation"),
+        )
+        if (r.code !in 200..299) return false
+        return r.body.isBlank() || r.body.trim() != "[]"
+    }
+
+    suspend fun reportComment(id: Long, reason: ReportReason, details: String = ""): Boolean {
+        val (at, _) = session() ?: return false
+        if (id <= 0 || details.length > 300) return false
+        val r = call(
+            "/rest/v1/rpc/report_comment", "POST", at,
+            JSONObject().put("p_comment", id).put("p_reason", reason.wire)
+                .put("p_details", details.trim()).toString(),
+        )
+        return r.code in 200..299
     }
 
     private suspend fun session(): Pair<String, String>? {
@@ -186,7 +222,11 @@ internal object Social {
                 .header("apikey", BuildConfig.SUPABASE_ANON_KEY)
             if (bearer != null) b.header("Authorization", "Bearer $bearer")
             headers.forEach { (k, v) -> b.header(k, v) }
-            if (method == "POST") b.post((body ?: "{}").toRequestBody(json)) else b.get()
+            when (method) {
+                "POST" -> b.post((body ?: "{}").toRequestBody(json))
+                "DELETE" -> b.delete()
+                else -> b.get()
+            }
             Http.client.newCall(b.build()).execute().use { r ->
                 val h = r.headers.names().associate { it.lowercase() to r.header(it).orEmpty() }
                 Resp(r.code, r.body?.string().orEmpty(), h)

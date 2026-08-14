@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- community: authors can delete their comments (replies go with them) and anyone
+  can report spam, harassment, spoilers or other; three reports hide a comment
+  pending moderator review. The database enforces the same length, title, reply
+  and rate rules as the composer, and the client filters hidden comments.
+- update: the loopback updater requires a one-shot token, refuses redirects,
+  oversized or incomplete APKs, and only installs a newer APK with the same
+  package and signer pinned to the release certificate. Release builds now need
+  the private keystore via `PW_RELEASE_*`; CI smoke-builds with a throwaway key.
 - refactor: the flat `dev.phantomwatch` package is split into `core`, `data`,
   `provider`, `player`, `subs`, `social`, `torrent` and `ui`; files, tests and
   drawables are named after what they contain, and the config schema has one
