@@ -1057,7 +1057,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         rotateButton = rotateButton, onRotate = onRotate,
         locked = locked,
         subsOn = !subs.subsOff,
-        canSubs = live.subs.isNotEmpty() || embedNames.isNotEmpty() || subs.osTrack != null || subs.aiSubUrl != null,
+        canSubs = AiSubtitles.enabled || live.subs.isNotEmpty() || embedNames.isNotEmpty() || subs.osTrack != null || subs.aiSubUrl != null,
         muted = muted,
         onScrub = ::scrubTo,
         preview = { mod ->

@@ -366,7 +366,7 @@ fun PlayerStage(
                 large = fullscreen && seekBar,
                 subsOn = subsOn,
                 canSubs = canSubs,
-                canSettings = dubs.isNotEmpty(),
+                canSettings = dubs.isNotEmpty() || AiSubtitles.available,
                 settingsOn = settings,
                 onSettings = {
                     settings = !settings
@@ -438,7 +438,7 @@ fun PlayerStage(
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
         }
-        if (settings && dubs.isNotEmpty()) {
+        if (settings && (dubs.isNotEmpty() || AiSubtitles.available)) {
             PlayerSettingsMenu(
                 dubs = dubs,
                 current = currentDub,

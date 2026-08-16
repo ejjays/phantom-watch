@@ -53,6 +53,7 @@ internal class SubsController(
 
     fun toggle() {
         subsOff = !subsOff
+        AiSubtitles.setSubsOff(subsOff)
         applySubs()
     }
 
@@ -77,6 +78,10 @@ internal class SubsController(
                     return@launch
                 }
                 delay(8000)
+                if (AiSubtitles.enabled) {
+                    AppLog.d("os skipped, ai subs on")
+                    return@launch
+                }
                 if (stream.subs.isNotEmpty()) {
                     AppLog.d("os skipped, stream subs")
                     return@launch
@@ -220,6 +225,7 @@ internal class SubsController(
     }
 
     suspend fun sync() {
+        AiSubtitles.attach(context, exo, stream, scope, season, episode)
         try {
             if (stream.inSync) {
                 AppLog.d("sync skipped, same-release subs")

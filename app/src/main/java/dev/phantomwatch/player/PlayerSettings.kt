@@ -59,9 +59,22 @@ internal fun PlayerSettingsMenu(
                 ) {},
         ) {
             if (!open) {
-                SettingsRow("Dubs", current ?: "Sub", R.drawable.ic_volume_on, chevron = true) {
-                    open = true
-                    AppLog.d("settings dubs=${dubs.size} current=${current ?: "sub"}")
+                if (dubs.isNotEmpty()) {
+                    SettingsRow("Dubs", current ?: "Sub", R.drawable.ic_volume_on, chevron = true) {
+                        open = true
+                        AppLog.d("settings dubs=${dubs.size} current=${current ?: "sub"}")
+                    }
+                }
+                if (AiSubtitles.available) {
+                    SettingsRow(
+                        "AI subtitles",
+                        if (AiSubtitles.showing) "On" else "Off",
+                        R.drawable.ic_cc_on,
+                        chevron = false,
+                    ) {
+                        AiSubtitles.toggle()
+                        AppLog.d("settings ai subs=${if (AiSubtitles.showing) "on" else "off"}")
+                    }
                 }
             } else {
                 dubs.forEach { d ->

@@ -54,6 +54,7 @@ internal object Playback {
             .setTrackSelector(selector)
             .setLoadControl(load)
             .setBandwidthMeter(meter)
+            .setRenderersFactory(AiAudio.renderers(context))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
