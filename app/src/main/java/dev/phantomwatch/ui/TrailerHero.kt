@@ -61,6 +61,7 @@ import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.player.TrailerAudio
 import dev.phantomwatch.player.TrailerBridge
+import dev.phantomwatch.player.loadControl
 import dev.phantomwatch.player.playerClock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -85,7 +86,8 @@ internal fun TrailerHero(
     // read inside the draw scope only, so a frame tick repaints the bar without recomposing
     val frac = remember(videoId) { mutableFloatStateOf(0f) }
     val exo = remember(videoId) {
-        if (audio != null) ExoPlayer.Builder(ctx, audio.renderers(ctx)).build() else ExoPlayer.Builder(ctx).build()
+        val b = if (audio != null) ExoPlayer.Builder(ctx, audio.renderers(ctx)) else ExoPlayer.Builder(ctx)
+        b.setLoadControl(loadControl(30_000)).build()
     }
     val fade by animateFloatAsState(if (started) 1f else 0f, label = "trailerFade")
 

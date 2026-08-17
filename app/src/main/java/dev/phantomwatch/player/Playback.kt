@@ -41,11 +41,7 @@ internal object Playback {
                 .setPreferredTextLanguage("en")
                 .build()
         }
-        // 90s ahead: one slow CDN segment is absorbed by the buffer instead of showing a spinner
-        val load = DefaultLoadControl.Builder()
-            .setBufferDurationsMsForStreaming(15_000, 90_000, 1_000, 3_000)
-            .setBackBuffer(30_000, true)
-            .build()
+        val load = loadControl()
         // start ABR at 1080p-class rates so it opens on the top rung and only drops when the CDN can't feed it
         val meter = DefaultBandwidthMeter.Builder(context)
             .setInitialBitrateEstimate(8_000_000)
@@ -66,6 +62,16 @@ internal object Playback {
             .build()
     }
 }
+
+// Media3 budgets a muxed stream at 125MB video + 12.5MB audio, so one player alone can
+// outgrow this phone's 384MB heap; the back buffer is retained on top of that budget.
+@OptIn(UnstableApi::class)
+internal fun loadControl(maxBufferMs: Int = 90_000): DefaultLoadControl =
+    DefaultLoadControl.Builder()
+        .setBufferDurationsMsForStreaming(15_000, maxBufferMs, 1_000, 3_000)
+        .setTargetBufferBytes(48 * 1024 * 1024)
+        .setBackBuffer(15_000, true)
+        .build()
 
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
