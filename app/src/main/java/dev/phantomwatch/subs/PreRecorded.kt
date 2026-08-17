@@ -28,7 +28,9 @@ import org.json.JSONObject
  * stream covers the opening minute; this replaces it with exact timing for everything after.
  */
 internal object PreRecorded {
-    private const val MAX_BYTES = 160L * 1024 * 1024
+    // a 2.5h movie's audio rendition is ~160MB at 128kbps, so a feature-length film tripped the
+    // old 160MB cap right at the end of the download and never produced a transcript
+    private const val MAX_BYTES = 256L * 1024 * 1024
     private const val MAX_TEXT = 1L * 1024 * 1024
     private const val MAX_CHARS = 42
     private const val MAX_WORDS = 12
@@ -131,7 +133,7 @@ internal object PreRecorded {
                                     cursor++
                                     window.trySend(Unit)
                                 }
-                                if (written > MAX_BYTES) error("audio too big")
+                                if (written > MAX_BYTES) error("audio too big ${written / 1048576}MB")
                             }
                         }
                     }
