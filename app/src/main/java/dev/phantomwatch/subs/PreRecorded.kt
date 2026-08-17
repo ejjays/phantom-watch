@@ -20,6 +20,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okio.Buffer
 import org.json.JSONObject
 
 /**
@@ -28,6 +29,7 @@ import org.json.JSONObject
  */
 internal object PreRecorded {
     private const val MAX_BYTES = 160L * 1024 * 1024
+    private const val MAX_TEXT = 1L * 1024 * 1024
     private const val MAX_CHARS = 42
     private const val MAX_WORDS = 12
     private const val GAP = 0.7
@@ -45,14 +47,15 @@ internal object PreRecorded {
         url: String,
         headers: Map<String, String>,
         referer: String,
+        language: String,
         key: String,
         dir: File,
     ): List<SubtitleCue>? = withContext(Dispatchers.IO) {
         val file = File(dir, "ai-audio.bin")
         try {
-            val mime = download(url, headers, referer, file) ?: return@withContext null
-            AppLog.d("ai subs batch audio=${file.length() / 1024}kb $mime")
-            post(file, mime, key)
+            val mime = download(url, headers, referer, language, file) ?: return@withContext null
+            AppLog.d("ai subs batch lang=$language audio=${file.length() / 1024}kb $mime")
+            post(file, mime, language, key)
         } catch (e: Exception) {
             AppLog.d("ai subs batch ${e.javaClass.simpleName}: ${e.message}")
             null
@@ -62,7 +65,13 @@ internal object PreRecorded {
     }
 
     /** Pulls the audio rendition when the manifest offers one, so only audio is downloaded. */
-    private suspend fun download(url: String, headers: Map<String, String>, referer: String, out: File): String? {
+    private suspend fun download(
+        url: String,
+        headers: Map<String, String>,
+        referer: String,
+        language: String,
+        out: File,
+    ): String? {
         var base = url
         var manifest = text(base, headers, referer) ?: return null
         if (manifest.contains("#EXT-X-STREAM-INF")) {
@@ -72,7 +81,7 @@ internal object PreRecorded {
                 .map { it.trim() }
                 .filter { it.startsWith("#EXT-X-MEDIA:") && it.contains("TYPE=AUDIO") }
                 .let { lines ->
-                    lines.firstOrNull { it.contains("LANGUAGE=\"en", true) }
+                    lines.firstOrNull { DeepgramLive.languageOf(attr(it, "LANGUAGE")) == language }
                         ?: lines.firstOrNull { it.contains("DEFAULT=YES") }
                         ?: lines.firstOrNull()
                 }
@@ -171,9 +180,9 @@ internal object PreRecorded {
         return iv
     }
 
-    private fun post(file: File, mime: String, key: String): List<SubtitleCue> {
+    private fun post(file: File, mime: String, language: String, key: String): List<SubtitleCue> {
         val url = "https://api.deepgram.com/v1/listen" +
-            "?model=nova-3&language=en&smart_format=true&punctuate=true"
+            "?model=nova-3&language=$language&smart_format=true&punctuate=true"
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Token $key")
@@ -255,8 +264,21 @@ internal object PreRecorded {
             }
         }.getOrNull()
 
+    // a manifest is a few hundred KB; reading past the cap means the URL is not one (a direct
+    // MP4 served where HLS was expected would otherwise fill the heap with the whole movie)
     private fun text(url: String, headers: Map<String, String>, referer: String): String? =
-        bytes(url, headers, referer)?.toString(Charsets.UTF_8)
+        runCatching {
+            client.newCall(req(url, headers, referer)).execute().use { r ->
+                if (!r.isSuccessful) return@use null
+                val src = r.body?.source() ?: return@use null
+                val head = Buffer()
+                while (head.size < MAX_TEXT) {
+                    if (src.read(head, MAX_TEXT - head.size) == -1L) break
+                }
+                if (head.size >= MAX_TEXT) return@use null
+                head.readUtf8()
+            }
+        }.getOrNull()
 
     private fun attr(line: String, name: String): String? =
         Regex("""(?:^|,)$name=("[^"]*"|[^,]*)""")

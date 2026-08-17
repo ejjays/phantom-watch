@@ -18,6 +18,7 @@ import org.json.JSONObject
  */
 internal class DeepgramLive(
     private val key: String,
+    private val language: String,
     private val onEvent: (Ev) -> Unit,
 ) {
     sealed interface Ev {
@@ -35,7 +36,8 @@ internal class DeepgramLive(
 
     suspend fun open(timeoutMs: Long = 8000): Boolean {
         ws = client.newWebSocket(
-            Request.Builder().url("$ENDPOINT?$QUERY").addHeader("Authorization", "Token $key").build(),
+            Request.Builder().url("$ENDPOINT?model=nova-3&language=$language&$QUERY")
+                .addHeader("Authorization", "Token $key").build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     isOpen = true
@@ -115,8 +117,31 @@ internal class DeepgramLive(
         // endpointing ends a segment after 300ms of quiet, which is what makes the line break
         // at sentence boundaries instead of on a timer
         private const val QUERY =
-            "model=nova-3&language=en&encoding=linear16&sample_rate=16000&channels=1" +
+            "encoding=linear16&sample_rate=16000&channels=1" +
                 "&interim_results=true&punctuate=true&smart_format=true&endpointing=300"
+
+        // media3 reports 639-1, 639-2 or a regional tag; deepgram wants its own code
+        internal fun languageOf(tag: String?): String {
+            val t = tag?.trim()?.lowercase() ?: return "multi"
+            if (t == "yue" || t.startsWith("zh-hk") || t.startsWith("zh-yue")) return "zh-HK"
+            if (t.startsWith("zh-tw") || t.startsWith("zh-hant")) return "zh-TW"
+            return when (t.substringBefore('-').substringBefore('_')) {
+                "en", "eng" -> "en"
+                "es", "spa" -> "es"
+                "fr", "fra", "fre" -> "fr"
+                "de", "deu", "ger" -> "de"
+                "hi", "hin" -> "hi"
+                "ru", "rus" -> "ru"
+                "pt", "por" -> "pt"
+                "ja", "jpn" -> "ja"
+                "it", "ita" -> "it"
+                "nl", "nld", "dut" -> "nl"
+                "ko", "kor" -> "ko"
+                "th", "tha" -> "th"
+                "zh", "zho", "chi", "cmn" -> "zh"
+                else -> "multi"
+            }
+        }
 
         private val client by lazy {
             Http.client.newBuilder()

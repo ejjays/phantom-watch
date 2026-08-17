@@ -53,4 +53,12 @@ class DeepgramLiveTest {
         val ev = DeepgramLive.parseEvent(JSONObject("""{"type":"Error","description":"bad key"}"""))
         assertEquals(DeepgramLive.Ev.Failed("bad key"), ev)
     }
+
+    @Test
+    fun trackTagMapsToTheSpokenLanguage() {
+        assertEquals("ko", DeepgramLive.languageOf("kor"))
+        assertEquals("ja", DeepgramLive.languageOf("ja-JP"))
+        assertEquals("zh-HK", DeepgramLive.languageOf("yue"))
+        assertEquals("multi", DeepgramLive.languageOf(null))
+    }
 }

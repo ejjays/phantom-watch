@@ -57,16 +57,16 @@ internal object AiSubtitles {
     val available: Boolean get() = BuildConfig.DEEPGRAM_API_KEY.isNotBlank()
 
     private const val GRACE_MS = 700L
-    // a line only exists once the provider closes the segment; without this it waits for a
-    // natural pause, which in a scored scene can be ten seconds of speech on one line
+    // a line only exists once the provider closes the segment, so this timer is the lag: 1s cuts
+    // measured 1.2s behind at 93% recall, 6s cuts put every line up to six seconds behind
     private const val FINALIZE_FRAMES = 10
     private const val SESSION_MS = 9 * 60_000L
     private const val PREFS = "phantom_ai"
     private const val KEY_MODE = "mode"
     private const val KEY_ON = "enabled"
     private const val RETRY_MS = 10_000L
-    // earlier builds cached live-transcribed cues under the batch name; only v5 splits them
-    private const val CACHE_VER = 5
+    // v6: spoken-language output; older caches hold English-only fragments of foreign audio
+    private const val CACHE_VER = 6
 
     private var exo: ExoPlayer? = null
     private var appContext: Context? = null
@@ -174,6 +174,8 @@ internal object AiSubtitles {
     // one accurate pass over the whole episode; it lands a minute or so in and takes over from
     // the live stream, which is only ever a stopgap
     private fun preRecorded(stream: Stream) {
+        // the batch pass walks an HLS manifest; a direct MP4 has none and would be pulled whole
+        if (!stream.isHls) return
         if (!enabled || !available || cacheFile?.isFile == true || batch?.isActive == true) return
         val s = scope ?: return
         val dir = appContext?.cacheDir ?: return
@@ -185,8 +187,9 @@ internal object AiSubtitles {
                 AppLog.d("ai subs batch skipped, provider track")
                 return@launch
             }
+            val lang = withContext(Dispatchers.Main) { DeepgramLive.languageOf(audioLanguage()) }
             val lines = PreRecorded.transcribe(
-                stream.url, stream.headers, stream.referer, BuildConfig.DEEPGRAM_API_KEY, dir,
+                stream.url, stream.headers, stream.referer, lang, BuildConfig.DEEPGRAM_API_KEY, dir,
             )
             if (lines.isNullOrEmpty()) return@launch
             job?.cancel()
@@ -311,11 +314,27 @@ internal object AiSubtitles {
     }
 
     private suspend fun open(): DeepgramLive? {
-        anchor = withContext(Dispatchers.Main) { exo?.currentPosition ?: 0L }
-        val live = DeepgramLive(BuildConfig.DEEPGRAM_API_KEY) { events.add(it) }
+        val (at, tag) = withContext(Dispatchers.Main) {
+            (exo?.currentPosition ?: 0L) to audioLanguage()
+        }
+        anchor = at
+        val lang = DeepgramLive.languageOf(tag)
+        val live = DeepgramLive(BuildConfig.DEEPGRAM_API_KEY, lang) { events.add(it) }
         val ok = live.open()
-        AppLog.d("ai subs session ok=$ok at ${anchor / 1000}s")
+        AppLog.d("ai subs session lang=$lang ok=$ok at ${anchor / 1000}s")
         return if (ok) live else null
+    }
+
+    // tracks report the language the provider put on the selected audio rendition
+    private fun audioLanguage(): String? {
+        val p = exo ?: return null
+        val g = p.currentTracks.groups.firstOrNull {
+            it.type == C.TRACK_TYPE_AUDIO && it.isSelected
+        } ?: return null
+        for (i in 0 until g.length) {
+            g.getTrackFormat(i).language?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return null
     }
 
     private fun drain() {
