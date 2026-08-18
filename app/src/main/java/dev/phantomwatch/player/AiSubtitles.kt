@@ -188,6 +188,7 @@ internal object AiSubtitles {
                 return@launch
             }
             val lang = withContext(Dispatchers.Main) { DeepgramLive.languageOf(audioLanguage()) }
+            AppLog.d("ai subs batch start lang=$lang")
             val lines = PreRecorded.transcribe(
                 stream.url, stream.headers, stream.referer, lang, BuildConfig.DEEPGRAM_API_KEY, dir,
             )
@@ -408,7 +409,9 @@ internal object AiSubtitles {
             activeUntil = pos + (it.end - it.start).coerceIn(1500L, 10_000L)
         }
         val live = active?.takeIf { pos < activeUntil }?.text
-        val cached = if (live == null) {
+        // while the live pass is re-transcribing this stretch, the saved cues for it are stale
+        // and flash between the new lines; only a finished batch file is a stable timeline
+        val cached = if (live == null && job == null) {
             synchronized(cues) { cues.lastOrNull { pos >= it.start && pos < it.end + GRACE_MS } }?.text
         } else {
             null
