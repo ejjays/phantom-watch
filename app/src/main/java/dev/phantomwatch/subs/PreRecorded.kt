@@ -42,6 +42,16 @@ internal object PreRecorded {
         Http.client.newBuilder().readTimeout(180, TimeUnit.SECONDS).build()
     }
 
+    // the transcript call is minutes of upload plus ~1.5x realtime of processing; the shared
+    // client's 25s call cap killed it every time, so only the per-operation timeouts apply here
+    private val uploader: OkHttpClient by lazy {
+        Http.client.newBuilder()
+            .readTimeout(300, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
+            .build()
+    }
+
     private class Part(val url: String, val seq: Long, val encrypted: Boolean)
     private class Playlist(val map: Part?, val parts: List<Part>, val keyUrl: String?, val iv: ByteArray?)
 
@@ -190,7 +200,7 @@ internal object PreRecorded {
             .addHeader("Authorization", "Token $key")
             .post(file.asRequestBody(mime.toMediaType()))
             .build()
-        client.newCall(request).execute().use { r ->
+        uploader.newCall(request).execute().use { r ->
             val text = r.body?.string().orEmpty()
             if (!r.isSuccessful) {
                 AppLog.d("ai subs batch http=${r.code} ${text.take(80)}")

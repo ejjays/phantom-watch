@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -77,6 +78,10 @@ internal object AiSubtitles {
     private var ticker: Job? = null
     private var job: Job? = null
     private var batch: Job? = null
+    private var batchFor: File? = null
+    // a feature-length batch is minutes of upload plus processing; it must outlive the player
+    // screen, or closing the film throws away everything it paid for
+    private val bg = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var listener: Player.Listener? = null
     private val cues = mutableListOf<SubtitleCue>()
     private val events = ConcurrentLinkedQueue<DeepgramLive.Ev>()
@@ -122,6 +127,10 @@ internal object AiSubtitles {
             ?.edit()?.putString(KEY_MODE, value.name)?.apply()
         AppLog.d("ai subs mode=${value.name.lowercase()} cached=${cacheFile?.isFile == true}")
         if (value == Mode.OFF) {
+            // no engine means no upload: a batch already in flight is money spent for nothing
+            batch?.cancel()
+            batch = null
+            batchFor = null
             stop()
         } else {
             maybeStart()
@@ -159,6 +168,13 @@ internal object AiSubtitles {
             listOf(base, season, episode).filter { it.isNotBlank() }.joinToString("-")
         cacheFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-$key.vtt")
         liveFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-live-$key.vtt")
+        // a batch for another title is wasted bandwidth, but one for this title has to survive
+        // closing and reopening the player, or it never finishes
+        if (batchFor != cacheFile) {
+            batch?.cancel()
+            batch = null
+            batchFor = null
+        }
         synchronized(cues) {
             cues.clear()
             // only the batch file covers the whole episode; the live one is a partial stopgap
@@ -177,9 +193,9 @@ internal object AiSubtitles {
         // the batch pass walks an HLS manifest; a direct MP4 has none and would be pulled whole
         if (!stream.isHls) return
         if (!enabled || !available || cacheFile?.isFile == true || batch?.isActive == true) return
-        val s = scope ?: return
         val dir = appContext?.cacheDir ?: return
-        batch = s.launch(Dispatchers.IO) {
+        batchFor = cacheFile
+        batch = bg.launch {
             // the player reports its tracks a beat after attach; paying for a transcript of an
             // episode that already has working subs is pure waste
             delay(3000)
@@ -193,6 +209,8 @@ internal object AiSubtitles {
                 stream.url, stream.headers, stream.referer, lang, BuildConfig.DEEPGRAM_API_KEY, dir,
             )
             if (lines.isNullOrEmpty()) return@launch
+            // the player may have moved to another title while this was transcribing
+            if (batchFor != cacheFile) return@launch
             job?.cancel()
             job = null
             arrived = null
@@ -224,8 +242,6 @@ internal object AiSubtitles {
     private fun stop() {
         job?.cancel()
         job = null
-        batch?.cancel()
-        batch = null
         ticker?.cancel()
         ticker = null
         listener?.let { exo?.removeListener(it) }
