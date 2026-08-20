@@ -74,6 +74,7 @@ internal object AiSubtitles {
     private var scope: CoroutineScope? = null
     private var cacheFile: File? = null
     private var liveFile: File? = null
+    private var modeKey: String? = null
     private var streamRef: Stream? = null
     private var ticker: Job? = null
     private var job: Job? = null
@@ -124,7 +125,7 @@ internal object AiSubtitles {
         if (mode == value) return
         mode = value
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            ?.edit()?.putString(KEY_MODE, value.name)?.apply()
+            ?.edit()?.putString(modeKey ?: KEY_MODE, value.name)?.apply()
         AppLog.d("ai subs mode=${value.name.lowercase()} cached=${cacheFile?.isFile == true}")
         if (value == Mode.OFF) {
             // no engine means no upload: a batch already in flight is money spent for nothing
@@ -152,15 +153,6 @@ internal object AiSubtitles {
         this.scope = scope
         streamRef = stream
         subsOff = false
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val saved = prefs.getString(KEY_MODE, null)
-        mode = when {
-            !available -> Mode.OFF
-            saved != null -> Mode.values().firstOrNull { it.name == saved } ?: Mode.OFF
-            // older builds stored a boolean; on meant "fill in when the provider has nothing"
-            prefs.getBoolean(KEY_ON, false) -> Mode.AUTO
-            else -> Mode.OFF
-        }
         // subKey is unset, so imdb alone would key the whole series: every episode would load
         // the previous one's cues
         val base = stream.subKey.ifEmpty { stream.imdb ?: "" }
@@ -168,6 +160,19 @@ internal object AiSubtitles {
             listOf(base, season, episode).filter { it.isNotBlank() }.joinToString("-")
         cacheFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-$key.vtt")
         liveFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-live-$key.vtt")
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        modeKey = if (key.isBlank()) null else "$KEY_MODE-$key"
+        // forcing the engine on is a per-title call; carrying it to the next film quietly
+        // replaced a studio track that was already there
+        val saved = modeKey?.let { prefs.getString(it, null) }
+            ?: prefs.getString(KEY_MODE, null)?.takeIf { it != Mode.FORCE.name }
+        mode = when {
+            !available -> Mode.OFF
+            saved != null -> Mode.values().firstOrNull { it.name == saved } ?: Mode.OFF
+            // older builds stored a boolean; on meant "fill in when the provider has nothing"
+            prefs.getBoolean(KEY_ON, false) -> Mode.AUTO
+            else -> Mode.OFF
+        }
         // a batch for another title is wasted bandwidth, but one for this title has to survive
         // closing and reopening the player, or it never finishes
         if (batchFor != cacheFile) {
