@@ -161,7 +161,8 @@ internal object AiSubtitles {
         cacheFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-$key.vtt")
         liveFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-live-$key.vtt")
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        modeKey = if (key.isBlank()) null else "$KEY_MODE-$key"
+        // the choice belongs to the show, not the episode: toggling it every episode is not a choice
+        modeKey = if (base.isBlank()) null else "$KEY_MODE-$base"
         // forcing the engine on is a per-title call; carrying it to the next film quietly
         // replaced a studio track that was already there
         val saved = modeKey?.let { prefs.getString(it, null) }
