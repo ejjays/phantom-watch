@@ -65,7 +65,7 @@ internal fun PlayerWide(
     var info by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         stage(inset, null)
-        Box(
+        if (tablet) Box(
             Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)
                 .clip(CircleShape).background(Color.Black.copy(alpha = 0.55f))
                 .clickable { info = true }

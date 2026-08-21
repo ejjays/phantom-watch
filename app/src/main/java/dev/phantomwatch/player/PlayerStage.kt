@@ -59,6 +59,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +69,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
@@ -363,10 +365,10 @@ fun PlayerStage(
                 fullscreen = fullscreen,
                 titleBelow = titleBelow,
                 barsInset = barsInset,
-                large = fullscreen && seekBar,
+                large = fullscreen && seekBar && !titleBelow && LocalConfiguration.current.smallestScreenWidthDp >= 600,
                 subsOn = subsOn,
                 canSubs = canSubs,
-                canSettings = dubs.isNotEmpty() || AiSubtitles.available,
+                canSettings = BuildConfig.DEBUG && (dubs.isNotEmpty() || AiSubtitles.available),
                 settingsOn = settings,
                 onSettings = {
                     settings = !settings
@@ -438,7 +440,7 @@ fun PlayerStage(
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
         }
-        if (settings && (dubs.isNotEmpty() || AiSubtitles.available)) {
+        if (settings && BuildConfig.DEBUG && (dubs.isNotEmpty() || AiSubtitles.available)) {
             PlayerSettingsMenu(
                 dubs = dubs,
                 current = currentDub,
@@ -466,47 +468,48 @@ private fun PlayerTopBar(
     onToggleSubs: () -> Unit,
 ) {
     val subsActive = subsOn && canSubs
+    val iconPad = if (large) 10.dp else 8.dp
     Column(
         Modifier.fillMaxWidth()
-            .padding(top = 8.dp).padding(end = 16.dp),
+            .padding(top = if (titleBelow) 4.dp else 8.dp).padding(end = if (large) 16.dp else 8.dp),
     ) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (large) 12.dp else 8.dp),
         ) {
             Box(
-                Modifier.padding(start = 4.dp).padding(10.dp)
+                Modifier.padding(start = 4.dp).padding(iconPad)
                     .clickable { if (fullscreen) onFullscreen() else onBack() },
             ) {
                 Icon(
                     painterResource(if (fullscreen) R.drawable.ic_chevron_down else R.drawable.ic_back),
                     contentDescription = if (fullscreen) "Exit fullscreen" else "Close player",
-                    tint = Color.White, modifier = Modifier.size(if (large) 26.dp else 22.dp),
+                    tint = Color.White, modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
             }
             if (fullscreen && !titleBelow) {
                 Text(
                     title, color = Color.White,
-                    fontSize = if (large) 18.sp else 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                    fontSize = if (large) 17.sp else 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, modifier = Modifier.weight(1f),
                 )
             } else {
                 Spacer(Modifier.weight(1f))
             }
             Box(
-                Modifier.padding(10.dp).clickable(enabled = canSubs) { onToggleSubs() },
+                Modifier.padding(iconPad).clickable(enabled = canSubs) { onToggleSubs() },
             ) {
                 Icon(
                     painterResource(if (subsActive) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
                     contentDescription = if (subsActive) "Turn subtitles off" else "Turn subtitles on",
                     tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
-                    modifier = Modifier.size(if (large) 26.dp else 20.dp),
+                    modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
             }
             if (canSettings) {
                 Box(
-                    Modifier.padding(10.dp).clickable { onSettings() },
+                    Modifier.padding(iconPad).clickable { onSettings() },
                 ) {
                     Icon(
                         painterResource(R.drawable.ic_settings),
@@ -519,9 +522,9 @@ private fun PlayerTopBar(
         }
         if (titleBelow) {
             Text(
-                title, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                title, color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 16.dp, top = 6.dp),
+                modifier = Modifier.padding(start = 16.dp, top = 2.dp),
             )
         }
     }

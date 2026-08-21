@@ -55,7 +55,7 @@ internal object AiSubtitles {
         Mode.AUTO -> !realTrack
     }
 
-    val available: Boolean get() = BuildConfig.DEEPGRAM_API_KEY.isNotBlank()
+    val available: Boolean get() = BuildConfig.DEBUG && BuildConfig.DEEPGRAM_API_KEY.isNotBlank()
 
     private const val GRACE_MS = 700L
     // a line only exists once the provider closes the segment, so this timer is the lag: 1s cuts
