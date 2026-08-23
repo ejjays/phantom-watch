@@ -257,7 +257,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 )
             }
             if (mine && stats.startup > 0) Resume.save(context, media, season, episode, exo.currentPosition, exo.duration)
-            if (mine) exo.stop() // leaving the player screen ends playback; background playback stays in the media session
+            if (mine) exo.pause() // leaving the screen silences it but keeps the media card
         }
     }
     fun attachSubs(

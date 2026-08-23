@@ -19,6 +19,11 @@ import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.social.Social
 
 class MainActivity : ComponentActivity() {
+    // Android 13+ blocks every notification until the user grants this, which would silently
+    // kill the media card while the foreground service keeps running.
+    private val notifPerm =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_PhantomWatch)
         enableEdgeToEdge(
@@ -31,6 +36,12 @@ class MainActivity : ComponentActivity() {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
         Pip.inPip = false
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         runCatching {
             val am = getSystemService(android.view.accessibility.AccessibilityManager::class.java)
             AppLog.d(

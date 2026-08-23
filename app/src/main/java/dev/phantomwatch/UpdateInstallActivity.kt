@@ -39,7 +39,6 @@ class UpdateInstallActivity : Activity() {
         window.decorView.postDelayed({ finish() }, 300_000)
         Thread {
             runCatching { commit(url) }.onFailure {
-                AutoInstall.disarm()
                 result(it.message ?: it.javaClass.simpleName)
             }
         }.start()
@@ -77,7 +76,7 @@ class UpdateInstallActivity : Activity() {
                 }
             }
             check(total == expectedSize) { "incomplete apk download" }
-            val targetLabel = verifyApk(cache)
+            verifyApk(cache)
             log("verified update ${cache.length()} bytes for $packageName")
             val installer = packageManager.packageInstaller
             // A session left waiting for a tap blocks the next one once the system cap is hit.
@@ -99,7 +98,6 @@ class UpdateInstallActivity : Activity() {
                     ).intentSender,
                 )
             }
-            AutoInstall.arm(id, targetLabel)
             log("committed verified session $id")
         } finally {
             conn.disconnect()

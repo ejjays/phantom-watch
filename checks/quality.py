@@ -34,7 +34,7 @@ ALLOWED_PERMISSIONS = {
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-    "android.permission.BIND_ACCESSIBILITY_SERVICE",
+    "android.permission.POST_NOTIFICATIONS",
     "android.permission.REQUEST_INSTALL_PACKAGES",
 }
 
@@ -123,6 +123,50 @@ def check_permissions():
             fail(f"AndroidManifest.xml: unexpected permission {full}")
 
 
+def check_media_notification():
+    manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text()
+    for perm in ("POST_NOTIFICATIONS", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_MEDIA_PLAYBACK"):
+        if f"android.permission.{perm}" not in manifest:
+            fail(f"AndroidManifest.xml: media card needs {perm}")
+    svc = re.search(r"<service[^>]*\.PlaybackService.*?</service>", manifest, re.S)
+    if not svc:
+        fail("AndroidManifest.xml: PlaybackService is gone, so no media card on any device")
+    else:
+        if 'foregroundServiceType="mediaPlayback"' not in svc.group(0):
+            fail("AndroidManifest.xml: PlaybackService is not a mediaPlayback foreground service")
+        if "androidx.media3.session.MediaSessionService" not in svc.group(0):
+            fail("AndroidManifest.xml: PlaybackService has no MediaSessionService action")
+    if "POST_NOTIFICATIONS" not in (ROOT / "app/src/main/java/dev/phantomwatch/MainActivity.kt").read_text():
+        fail("MainActivity.kt: POST_NOTIFICATIONS is never requested, so Android 13+ shows no card")
+    screen = (ROOT / "app/src/main/java/dev/phantomwatch/player/PlayerScreen.kt").read_text()
+    if re.search(r"\bexo\.stop\(\)", screen):
+        fail("PlayerScreen.kt: stopping the player on dispose removes the media card (use pause, or leave it)")
+
+
+def check_manifest_components(files):
+    manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text()
+    sources = {
+        f: (ROOT / f).read_text(errors="replace")
+        for f in files
+        if f.startswith("app/src/main/java") and f.endswith(".kt") and (ROOT / f).is_file()
+    }
+    for tag, name in re.findall(
+        r"<(activity|service|receiver|provider)[^>]*android:name=\"\.([\w.]+)\"", manifest
+    ):
+        simple = name.rsplit(".", 1)[-1]
+        want = "dev.phantomwatch" + ("." + name.rsplit(".", 1)[0] if "." in name else "")
+        hits = [f for f, body in sources.items() if re.search(rf"\bclass\s+{simple}\b", body)]
+        if not hits:
+            fail(f"AndroidManifest.xml: {tag} .{name} points at a class that does not exist")
+            continue
+        packages = {re.search(r"^package\s+([\w.]+)", sources[f], re.M).group(1) for f in hits}
+        if want not in packages:
+            fail(
+                f"AndroidManifest.xml: {tag} .{name} resolves to {want}.{simple}, "
+                f"but {simple} is declared in {sorted(packages)[0]}"
+            )
+
+
 def check_package_dirs(files):
     for f in files:
         if not f.startswith(("app/src/main/java", "app/src/test/java")) or not f.endswith(".kt"):
@@ -162,6 +206,8 @@ def main():
     check_release_signing()
     check_providers_config()
     check_permissions()
+    check_media_notification()
+    check_manifest_components(files)
     check_package_dirs(files)
     check_no_committed_secrets(files)
     if failures:
