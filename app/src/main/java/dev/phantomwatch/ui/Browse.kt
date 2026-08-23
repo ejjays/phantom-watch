@@ -56,6 +56,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -771,15 +772,19 @@ private fun SearchBody(
         BoxWithConstraints(Modifier.fillMaxSize().navigationBarsPadding().imePadding(), contentAlignment = Alignment.Center) {
             val ghost = (maxHeight * 0.26f).coerceIn(84.dp, 132.dp)
             val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            // the keyboard only starts the run; keying on it lets the ghost finish after a blur
+            var run by remember { mutableStateOf(0) }
+            LaunchedEffect(imeVisible) { if (imeVisible) run++ }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 val comp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lottie_search))
-                LottieAnimation(
-                    composition = comp,
-                    iterations = 1,
-                    isPlaying = imeVisible,
-                    restartOnPlay = true,
-                    modifier = Modifier.size(ghost),
-                )
+                key(run) {
+                    LottieAnimation(
+                        composition = comp,
+                        iterations = 1,
+                        isPlaying = true,
+                        modifier = Modifier.size(ghost),
+                    )
+                }
                 Spacer(Modifier.height(20.dp))
                 Text("Let's Grab a Movie", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             }
