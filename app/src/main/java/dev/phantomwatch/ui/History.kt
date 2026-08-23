@@ -41,6 +41,7 @@ import dev.phantomwatch.data.Resume
 @Composable
 internal fun HistoryScreen(
     recent: List<Resume.Recent>,
+    cols: Int,
     gridW: Dp,
     onBack: () -> Unit,
     onPlay: (Resume.Recent) -> Unit,
@@ -55,7 +56,7 @@ internal fun HistoryScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(gridW),
+                columns = GridCells.Fixed(cols),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),

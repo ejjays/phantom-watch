@@ -79,3 +79,13 @@ internal fun ShareIcon(contentDescription: String?, tint: Color, size: Dp) {
         modifier = Modifier.size(size),
     )
 }
+
+@Composable
+internal fun AddIcon(contentDescription: String?, tint: Color, size: Dp) {
+    Icon(
+        painter = painterResource(R.drawable.ic_add),
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = Modifier.size(size),
+    )
+}

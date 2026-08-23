@@ -317,7 +317,8 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
     // Tablets open the detail fullscreen (two columns of its own); phones keep the sliding sheet.
     val wideDetail = expanded && selected != null
     val contentW = screenW
-    val gridW = gridCell(contentW, gridColumns(contentW))
+    val cols = exploreColumns(contentW)
+    val gridW = gridCell(contentW, cols)
     val closeDetail = {
         browse.openTitle = null
         browse.backToEpisodes = false
@@ -361,8 +362,8 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                             results = browse.results,
                             searching = searching,
                             recents = recents,
+                            cols = cols,
                             gridW = gridW,
-                        
                             onOpen = openItem,
                         )
                         2 -> openRail?.let {
@@ -376,6 +377,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                         } ?: Box(Modifier.fillMaxSize())
                         3 -> HistoryScreen(
                             recent = browse.recent,
+                            cols = cols,
                             gridW = gridW,
                             onBack = { browse.historyOpen = false },
                             onPlay = { r ->
@@ -463,7 +465,8 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: 
                 modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)),
             )
             Spacer(Modifier.width(8.dp))
-            Text("Phantom", color = Color.White, fontSize = 24.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            val screenW = LocalConfiguration.current.screenWidthDp.dp
+            Text("Phantom", color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Box(
                 Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center,
@@ -691,7 +694,7 @@ private fun RailSection(
         }
         LazyRow(
             state = rowState,
-            contentPadding = PaddingValues(start = 16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val shown = if (ranked) rail.items.take(10) else rail.items
@@ -712,6 +715,7 @@ private fun SearchBody(
     results: List<Title>,
     searching: Boolean,
     recents: List<Title>,
+    cols: Int,
     gridW: androidx.compose.ui.unit.Dp,
     onOpen: (Title) -> Unit,
 ) {
@@ -732,7 +736,7 @@ private fun SearchBody(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(gridW),
+                    columns = GridCells.Fixed(cols),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),

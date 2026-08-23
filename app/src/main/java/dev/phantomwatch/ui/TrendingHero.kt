@@ -6,7 +6,9 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.layout.Arrangement
@@ -21,17 +23,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +48,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,15 +62,253 @@ import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val HERO_MS = 9000
 
-/** Full-bleed billboard: backdrop, left-aligned copy, progress dots. Slower than it looks. */
 @Composable
-internal fun TrendingHero(trending: List<Title>, paused: Boolean, onOpen: (Title) -> Unit, width: Dp, listState: LazyListState) {
+internal fun TrendingHero(
+    trending: List<Title>,
+    paused: Boolean,
+    onOpen: (Title) -> Unit,
+    width: Dp,
+    listState: LazyListState,
+) {
     if (trending.isEmpty()) return
     val items = remember(trending) { trending.take(6) }
+    if (isExpanded(width)) {
+        TabletBillboard(items, paused, onOpen, width, listState)
+    } else {
+        PhoneHeroCarousel(items, paused, onOpen, listState)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PhoneHeroCarousel(
+    items: List<Title>,
+    paused: Boolean,
+    onOpen: (Title) -> Unit,
+    listState: LazyListState,
+) {
+    val heroH = (LocalConfiguration.current.screenHeightDp.dp * 0.58f).coerceIn(420.dp, 510.dp)
+    val heroPx = with(LocalDensity.current) { heroH.toPx() }
+    val hidden by remember(listState, heroPx) {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= heroPx.toInt() }
+    }
+    val idle = paused || hidden
+    val pagerState = rememberPagerState { items.size }
+    val scope = rememberCoroutineScope()
+    var details by remember(items) { mutableStateOf<Map<String, TitleDetail>>(emptyMap()) }
+    val key = remember { RemoteConfig.tmdbKey() }
+
+    val curPage = pagerState.currentPage
+    LaunchedEffect(curPage, items, key) {
+        for (i in listOf(curPage, (curPage + 1) % items.size)) {
+            val item = items[i]
+            val id = "${item.kind}-${item.id}"
+            if (details[id] != null) continue
+            withContext(Dispatchers.IO) { Tmdb.detail(key, item.kind, item.id) }?.let { details = details + (id to it) }
+        }
+    }
+
+    LaunchedEffect(pagerState, idle, items) {
+        if (idle || items.size < 2) return@LaunchedEffect
+        while (true) {
+            delay(HERO_MS.toLong())
+            if (!pagerState.isScrollInProgress) {
+                val next = (pagerState.currentPage + 1) % items.size
+                pagerState.animateScrollToPage(next, animationSpec = tween(700))
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxWidth().height(heroH).clipToBounds()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            val item = items[page]
+            val detail = details["${item.kind}-${item.id}"]
+            val art = item.backdrop ?: item.poster
+
+            Box(Modifier.fillMaxSize()) {
+                if (art != null) {
+                    AsyncImage(
+                        model = art,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.TopCenter,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Box(Modifier.fillMaxSize().background(SurfaceColor))
+                }
+
+                Box(
+                    Modifier.fillMaxWidth().height(160.dp).background(
+                        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.75f), Color.Transparent)),
+                    ),
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.horizontalGradient(0f to Bg.copy(alpha = 0.50f), 0.22f to Color.Transparent, 0.78f to Color.Transparent, 1f to Bg.copy(alpha = 0.50f)),
+                    ),
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.38f to Color.Transparent,
+                            0.68f to Bg.copy(alpha = 0.78f),
+                            0.88f to Bg.copy(alpha = 0.96f),
+                            1f to Bg,
+                        ),
+                    ),
+                )
+
+                Column(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(Cyan))
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            if (item.kind == "movie") "FEATURE FILM" else "TV SERIES",
+                            color = Cyan,
+                            fontSize = 11.sp,
+                            fontFamily = Rubik,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp,
+                        )
+                    }
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        item.title,
+                        color = Color.White,
+                        fontFamily = Rubik,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 26.sp,
+                        lineHeight = 30.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(7.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (item.rating != null && item.rating > 0) {
+                            Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp))
+                            Text(String.format("%.1f", item.rating), color = Slate200, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                        }
+                        item.year?.let { Text(it, color = Slate300, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
+                        detail?.runtime?.takeIf { it > 0 }?.let {
+                            Text(if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m", color = Slate300, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
+                        }
+                        detail?.genres?.take(2)?.takeIf { it.isNotEmpty() }?.let {
+                            Text(it.joinToString(" · "), color = Slate300, fontSize = 12.sp, fontFamily = Rubik, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    val desc = item.overview ?: detail?.overview
+                    if (!desc.isNullOrBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(desc, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .height(42.dp)
+                                    .clip(RoundedCornerShape(21.dp))
+                                    .background(Color.White)
+                                    .pressClick { onOpen(item) }
+                                    .padding(horizontal = 22.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_play_filled),
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                                Spacer(Modifier.width(7.dp))
+                                Text(
+                                    "Play",
+                                    color = Color.Black,
+                                    fontFamily = Rubik,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .height(42.dp)
+                                    .clip(RoundedCornerShape(21.dp))
+                                    .background(Color.White.copy(alpha = 0.16f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(21.dp))
+                                    .pressClick { onOpen(item) }
+                                    .padding(horizontal = 18.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Details",
+                                    color = Color.White,
+                                    fontFamily = Rubik,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                )
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 4.dp),
+                        ) {
+                            repeat(items.size) { i ->
+                                val on = i == pagerState.currentPage
+                                Box(
+                                    Modifier
+                                        .height(4.dp)
+                                        .width(if (on) 18.dp else 5.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(if (on) Cyan else Color.White.copy(alpha = 0.35f))
+                                        .clickable { scope.launch { pagerState.animateScrollToPage(i) } },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Full-bleed billboard kept for tablets. */
+@Composable
+private fun TabletBillboard(
+    items: List<Title>,
+    paused: Boolean,
+    onOpen: (Title) -> Unit,
+    width: Dp,
+    listState: LazyListState,
+) {
     val heroH = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.7f, width * 0.62f).coerceAtLeast(240.dp)
     val heroPx = with(LocalDensity.current) { heroH.toPx() }
     // Off-screen the billboard must stop animating: its zoom repaints the whole hero every frame.

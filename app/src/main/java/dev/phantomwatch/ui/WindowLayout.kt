@@ -14,8 +14,9 @@ internal fun gridColumns(width: Dp): Int =
 internal fun gridCell(width: Dp, columns: Int): Dp =
     ((width - 32.dp - 12.dp * (columns - 1)) / columns).coerceAtLeast(1.dp)
 
-/** Featured rails: a sixth card is always sliced by the right edge so the row reads as scrollable. */
-internal fun featuredCell(width: Dp): Dp = (gridCell(width, 6) * 1.12f).coerceIn(162.dp, 280.dp)
+/** Featured rails: phone gets 150dp cards (~2.5 visible); tablet scales wider. */
+internal fun featuredCell(width: Dp): Dp =
+    if (isExpanded(width)) (gridCell(width, 6) * 1.12f).coerceIn(162.dp, 280.dp) else 150.dp
 
 /** Explore grid runs one step denser than the featured rails. */
 internal fun exploreColumns(width: Dp): Int =

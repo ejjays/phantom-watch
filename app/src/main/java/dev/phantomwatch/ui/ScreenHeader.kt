@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.R
@@ -24,6 +25,7 @@ import dev.phantomwatch.R
 /** Screen title for the pushed views (See all, History): the back arrow carries the title. */
 @Composable
 internal fun ScreenHeader(title: String, onBack: () -> Unit) {
+    val screenW = LocalConfiguration.current.screenWidthDp.dp
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(start = 8.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -33,8 +35,8 @@ internal fun ScreenHeader(title: String, onBack: () -> Unit) {
         }
         Spacer(Modifier.width(4.dp))
         Text(
-            title, color = Color.White, fontSize = 26.sp, fontFamily = Rubik,
-            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            title, color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik,
+            fontWeight = if (isExpanded(screenW)) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
     }
