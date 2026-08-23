@@ -90,6 +90,22 @@ object Resume {
         prefs(ctx).getLong(key(kind, id, season, episode), 0L)
 
     @Synchronized
+    fun remove(ctx: Context, kind: String, id: String, season: String, episode: String) {
+        val p = prefs(ctx)
+        p.edit()
+            .remove(key(kind, id, season, episode))
+            .putString(RECENT, encode(dropRecent(decode(p.getString(RECENT, null)), kind, id, season, episode)))
+            .apply()
+    }
+
+    @Synchronized
+    internal fun restore(ctx: Context, list: List<Recent>) {
+        val edit = prefs(ctx).edit()
+        list.forEach { edit.putLong(key(it.kind, it.id, it.season, it.episode), it.positionMs) }
+        edit.putString(RECENT, encode(list)).apply()
+    }
+
+    @Synchronized
     fun save(
         ctx: Context,
         media: Title,

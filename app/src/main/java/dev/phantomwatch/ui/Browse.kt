@@ -387,6 +387,16 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                                     r.episode,
                                 )
                             },
+                            onDelete = { r ->
+                                browse.recent = browse.recent.filterNot {
+                                    it.kind == r.kind && it.id == r.id && it.season == r.season && it.episode == r.episode
+                                }
+                                scope.launch(Dispatchers.IO) { Resume.remove(ctx, r.kind, r.id, r.season, r.episode) }
+                            },
+                            onRestore = { list ->
+                                browse.recent = list
+                                scope.launch(Dispatchers.IO) { Resume.restore(ctx, list) }
+                            },
                         )
                         else -> BrowseBody(
                             trending = browse.trending,
