@@ -584,9 +584,10 @@ private fun BrowseBody(
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
-            last >= 0 && last >= info.totalItemsCount - 2
-        }.collect { if (it) onGridEnd() }
+            // Emit the index, not a boolean: snapshotFlow drops repeats, so a boolean latched at
+            // the bottom and a page that came back short or failed could never be retried.
+            info.visibleItemsInfo.lastOrNull()?.index?.let { it to info.totalItemsCount } ?: (-1 to 0)
+        }.collect { (last, total) -> if (last >= total - 2) onGridEnd() }
     }
     if (loading && trending.isEmpty() && rails.all { it.items.isEmpty() }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
