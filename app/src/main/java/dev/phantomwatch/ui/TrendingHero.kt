@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -175,18 +174,7 @@ private fun PhoneHeroCarousel(
                         .fillMaxWidth()
                         .padding(horizontal = 18.dp, vertical = 14.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(Cyan))
-                        Spacer(Modifier.width(7.dp))
-                        Text(
-                            if (item.kind == "movie") "FEATURE FILM" else "TV SERIES",
-                            color = Cyan,
-                            fontSize = 11.sp,
-                            fontFamily = Rubik,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp,
-                        )
-                    }
+                    HeroKind(item)
                     Spacer(Modifier.height(5.dp))
                     Text(
                         item.title,
@@ -199,22 +187,7 @@ private fun PhoneHeroCarousel(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(7.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (item.rating != null && item.rating > 0) {
-                            Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp))
-                            Text(String.format("%.1f", item.rating), color = Slate200, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                        }
-                        item.year?.let { Text(it, color = Slate300, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
-                        detail?.runtime?.takeIf { it > 0 }?.let {
-                            Text(if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m", color = Slate300, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
-                        }
-                        detail?.genres?.take(2)?.takeIf { it.isNotEmpty() }?.let {
-                            Text(it.joinToString(" · "), color = Slate300, fontSize = 12.sp, fontFamily = Rubik, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+                    HeroMeta(item, detail)
                     val desc = item.overview ?: detail?.overview
                     if (!desc.isNullOrBlank()) {
                         Spacer(Modifier.height(6.dp))
@@ -226,55 +199,7 @@ private fun PhoneHeroCarousel(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .height(42.dp)
-                                    .clip(RoundedCornerShape(21.dp))
-                                    .background(Color.White)
-                                    .pressClick { onOpen(item) }
-                                    .padding(horizontal = 22.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_play_filled),
-                                    contentDescription = null,
-                                    tint = Color.Black,
-                                    modifier = Modifier.size(15.dp),
-                                )
-                                Spacer(Modifier.width(7.dp))
-                                Text(
-                                    "Play",
-                                    color = Color.Black,
-                                    fontFamily = Rubik,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                )
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .height(42.dp)
-                                    .clip(RoundedCornerShape(21.dp))
-                                    .background(Color.White.copy(alpha = 0.16f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(21.dp))
-                                    .pressClick { onOpen(item) }
-                                    .padding(horizontal = 18.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    "Details",
-                                    color = Color.White,
-                                    fontFamily = Rubik,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp,
-                                )
-                            }
-                        }
+                        HeroActions(item, onOpen)
 
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -296,6 +221,69 @@ private fun PhoneHeroCarousel(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HeroKind(item: Title, scale: Float = 1f) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            painter = painterResource(if (item.kind == "movie") R.drawable.ic_kind_movie else R.drawable.ic_kind_series),
+            contentDescription = null,
+            tint = Cyan,
+            modifier = Modifier.size(15.dp * scale),
+        )
+        Spacer(Modifier.width(7.dp * scale))
+        Text(
+            if (item.kind == "movie") "MOVIE" else "SERIES",
+            color = Cyan,
+            fontSize = 11.sp * scale,
+            fontFamily = Rubik,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp * scale,
+        )
+    }
+}
+
+@Composable
+private fun HeroMeta(item: Title, detail: TitleDetail?, scale: Float = 1f) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * scale)) {
+        if (item.rating != null && item.rating > 0) {
+            Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp * scale))
+            Text(String.format("%.1f", item.rating), color = Slate200, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+        }
+        item.year?.let { Text(it, color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
+        detail?.runtime?.takeIf { it > 0 }?.let {
+            Text(if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m", color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium)
+        }
+        detail?.genres?.take(2)?.takeIf { it.isNotEmpty() }?.let {
+            Text(it.joinToString(" · "), color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun HeroActions(item: Title, onOpen: (Title) -> Unit, scale: Float = 1f) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp * scale), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.height(42.dp * scale).clip(RoundedCornerShape(21.dp * scale)).background(Color.White)
+                .pressClick { onOpen(item) }.padding(horizontal = 22.dp * scale),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(R.drawable.ic_play_filled), contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp * scale))
+            Spacer(Modifier.width(7.dp * scale))
+            Text("Play", color = Color.Black, fontFamily = Rubik, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale)
+        }
+        Row(
+            modifier = Modifier.height(42.dp * scale).clip(RoundedCornerShape(21.dp * scale)).background(Color.White.copy(alpha = 0.16f))
+                .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(21.dp * scale))
+                .pressClick { onOpen(item) }.padding(horizontal = 18.dp * scale),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Details", color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, fontSize = 14.sp * scale)
         }
     }
 }
@@ -338,8 +326,8 @@ private fun TabletBillboard(
     }
 
     BoxWithConstraints(Modifier.fillMaxWidth().height(heroH).clipToBounds()) {
-        val textW = minOf(520.dp, maxWidth * 0.62f)
-        val compact = heroH < 320.dp
+        val textW = minOf(680.dp, maxWidth * 0.62f)
+        val s = (maxWidth / 1150.dp).coerceIn(1.2f, 1.5f)
         val zoom = remember { Animatable(1.06f) }
         // A scaled full-bleed bitmap is re-composited every frame, so never pay for it during a scroll.
         val scrolling = listState.isScrollInProgress
@@ -372,48 +360,22 @@ private fun TabletBillboard(
             val detail = details["${item.kind}-${item.id}"]
             Box(Modifier.fillMaxSize()) {
                 Column(Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 26.dp).width(textW)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("PHANTOM", color = Cyan, fontSize = 11.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (item.kind == "movie") "FILM" else "SERIES", color = Slate400, fontSize = 11.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    }
-                    Spacer(Modifier.height(6.dp))
+                    HeroKind(item, s)
+                    Spacer(Modifier.height(6.dp * s))
                     Text(
                         item.title, color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.Bold,
-                        fontSize = if (compact) 28.sp else 40.sp, lineHeight = if (compact) 30.sp else 42.sp,
+                        fontSize = 26.sp * s, lineHeight = 30.sp * s,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(9.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        if (item.rating != null && item.rating > 0) {
-                            Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp))
-                            Text(String.format("%.1f", item.rating), color = Slate200, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
-                        }
-                        item.year?.let { Text(it, color = Slate300, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
-                        detail?.runtime?.takeIf { it > 0 }?.let {
-                            Text(if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m", color = Slate300, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
-                        }
-                        Text(
-                            if (item.kind == "movie") "Film" else "Series", color = Slate200, fontSize = 11.sp,
-                            fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.16f)).padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                        detail?.genres?.take(3)?.takeIf { it.isNotEmpty() }?.let {
-                            Text(it.joinToString(" · "), color = Slate300, fontSize = 13.sp, fontFamily = Rubik, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+                    Spacer(Modifier.height(9.dp * s))
+                    HeroMeta(item, detail, s)
                     val desc = item.overview ?: detail?.overview
-                    if (!compact && !desc.isNullOrBlank()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(desc, color = Color.White.copy(alpha = 0.88f), fontSize = 14.sp, lineHeight = 20.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    if (!desc.isNullOrBlank()) {
+                        Spacer(Modifier.height(6.dp * s))
+                        Text(desc, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp * s, lineHeight = 18.sp * s, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    Spacer(Modifier.height(16.dp))
-                    Box(
-                        Modifier.clip(RoundedCornerShape(50)).background(Color.White)
-                            .pressClick { onOpen(item) }.padding(horizontal = 26.dp, vertical = 12.dp),
-                    ) {
-                        Text("Details", color = Color.Black, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
-                    }
+                    Spacer(Modifier.height(14.dp * s))
+                    HeroActions(item, onOpen, s)
                 }
             }
         }

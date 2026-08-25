@@ -633,7 +633,16 @@ internal fun DetailBody(
                     if (d.year != null) Text(d.year, color = Slate400, fontSize = 12.sp, fontFamily = Mono)
                     Spacer(Modifier.width(6.dp))
                     Box(Modifier.clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                        Text(if (d.kind == "movie") "Movie" else "TV Show", color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painter = painterResource(if (d.kind == "movie") R.drawable.ic_kind_movie else R.drawable.ic_kind_series),
+                                contentDescription = null,
+                                tint = Slate300,
+                                modifier = Modifier.size(11.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (d.kind == "movie") "Movie" else "Series", color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                        }
                     }
                     if (d.cert != null) {
                         Spacer(Modifier.width(6.dp))

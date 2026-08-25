@@ -121,8 +121,8 @@ private val RailDefs = listOf(
     Triple("popular", "Top 10 Movies Today", "movie/popular"),
     Triple("top", "Top Rated", "movie/top_rated"),
     Triple("now", "Now Playing", "movie/now_playing"),
-    Triple("tv-popular", "Popular TV Shows", "tv/popular"),
-    Triple("tv-top", "Top Rated TV", "tv/top_rated"),
+    Triple("tv-popular", "Popular Series", "tv/popular"),
+    Triple("tv-top", "Top Rated Series", "tv/top_rated"),
     Triple("airing", "Airing Today", "tv/airing_today"),
 )
 
