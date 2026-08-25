@@ -665,9 +665,100 @@
     return { formats: formats, subs: subs };
   }
 
+  function unpackJs(packed) {
+    return eval('(' + packed.replace(/^eval\(/, '').replace(/\)\s*$/, '') + ')');
+  }
+
+  function daySlug(iso) {
+    var d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return '';
+    var names = ['january', 'february', 'march', 'april', 'may', 'june', 'july',
+      'august', 'september', 'october', 'november', 'december'];
+    return names[d.getUTCMonth()] + '-' + d.getUTCDate() + '-' + d.getUTCFullYear();
+  }
+
+  async function pinoyMovie(cfg, title, want) {
+    var site = cfg.movie || 'https://pinoymoviepedia.ru';
+    var html = await get(site + '/?s=' + urlencode(title), site + '/', 12);
+    if (html === null) return empty();
+    var re = /href="([^"]*\/movies\/[^"\/]+)\/?"/g;
+    var m, page = '';
+    while ((m = re.exec(html)) !== null) {
+      if (normTitle(m[1]).indexOf(want) !== -1) { page = m[1].replace(/\/?$/, '/'); break; }
+    }
+    if (!page) return skipped();
+    var body = await get(page, site + '/', 12);
+    if (body === null) return empty();
+    var em = /https:\/\/abstream\.to\/embed\/([a-z0-9]+)/.exec(body);
+    if (!em) return empty();
+    var embed = await get('https://abstream.to/embed/' + em[1], page, 12);
+    if (embed === null) return empty();
+    var mm = /https:\/\/[^"'\s]*master\.m3u8[^"'\s]*/.exec(embed);
+    if (!mm) return empty();
+    var master = mm[0];
+    var manifest = await raw(master, '', 10);
+    if (manifest === null || manifest.indexOf('#EXTM3U') < 0) return empty();
+    var e = enRenditions(manifest);
+    var rungs = masterVariants(manifest, master).map(function (v) {
+      var f = fmt(v.url, true, 'pinoy-' + v.label, v.height);
+      f.enSubs = e.subs;
+      return f;
+    });
+    var auto = fmt(master, true, 'pinoy-auto', maxHeight(rungs));
+    auto.enSubs = e.subs;
+    auto.enAudio = e.audio;
+    return { formats: [auto].concat(rungs), subs: [] };
+  }
+
+  async function pinoyTv(ctx, cfg, title, want) {
+    if (!ctx.tmdbKey) return skipped();
+    var tv = cfg.tv || 'https://www.teleserye.su';
+    var base = ctx.tmdbBase || 'https://api.themoviedb.org/3';
+    var info = await get(base + '/tv/' + ctx.tmdbId + '/season/' + ctx.season + '/episode/' + ctx.episode + '?api_key=' + ctx.tmdbKey, 'https://www.themoviedb.org/', 10);
+    if (info === null) return empty();
+    var air = '';
+    try { air = JSON.parse(info).air_date || ''; } catch (e) {}
+    var day = daySlug(air);
+    if (!day) return skipped();
+    var list = await get(tv + '/search.php?s=' + urlencode(title + ' ' + day.replace(/-/g, ' ')), tv + '/', 12);
+    if (list === null) return empty();
+    var re = /href="(\/watch\/[^"]+)"/g;
+    var m, hit = '';
+    while ((m = re.exec(list)) !== null) {
+      if (m[1].indexOf('-' + day) > 0 && normTitle(m[1]).indexOf(want) !== -1) { hit = m[1]; break; }
+    }
+    if (!hit) return skipped();
+    var page = await get(tv + hit, tv + '/', 12);
+    if (page === null) return empty();
+    var pm = /(https:\/\/player\.[a-z0-9.]+\/[^"']*watch\.php\?v=[^"']+)/.exec(page);
+    if (!pm) return empty();
+    var player = await get(pm[1], tv + '/', 12);
+    if (player === null) return empty();
+    var at = player.indexOf('eval(function(p,a,c,k,e,d)');
+    if (at < 0) return empty();
+    var end = player.indexOf('</script>', at);
+    var src = '';
+    try { src = unpackJs(player.slice(at, end < 0 ? undefined : end).trim()); } catch (e) { return empty(); }
+    var fm = /"file":"([^"]+)"/.exec(src);
+    if (!fm) return empty();
+    var bs = String.fromCharCode(92);
+    var file = fm[1].split(bs + 'u0026').join('&').split(bs + '/').join('/');
+    var url = absUrl(file, pm[1]);
+    return { formats: [fmt(url, /\.m3u8|m3u8\?/.test(url), 'pinoy-auto', -1)], subs: [] };
+  }
+
+  async function pinoy(ctx) {
+    var cfg = ctx.cfg || {};
+    var title = ctx.title || '';
+    if (!title) return skipped();
+    var want = normTitle(title);
+    if (ctx.kind === 'movie') return pinoyMovie(cfg, title, want);
+    return pinoyTv(ctx, cfg, title, want);
+  }
+
   var legs = {
     love: love, rock: rock, vix: vix, zee: zee,
-    paradise: paradise, vap: vap, vidlink: vidlink, hianime: hianime,
+    paradise: paradise, vap: vap, vidlink: vidlink, hianime: hianime, pinoy: pinoy,
   };
 
   try {

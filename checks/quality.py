@@ -18,6 +18,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 LINE_CAPS = {
     "app/src/main/java": 900,
     "app/src/test/java": 400,
+    # providers.js is the single home for every leg's extractor; it grows with each provider
+    "app/src/main/assets/providers.js": 900,
     "app/src/main/assets": 700,
     "worker": 700,
     "checks": 400,

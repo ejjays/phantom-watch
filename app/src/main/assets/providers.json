@@ -62,6 +62,12 @@
       "origin": "https://megaplay.buzz",
       "key": "i?LMTAx0Q6,:}50U",
       "iv": "hlsMediaAttached"
+    },
+    "pinoy": {
+      "enabled": true,
+      "tv": "https://www.teleserye.su",
+      "player": "https://player.teleserye.su",
+      "movie": "https://pinoymoviepedia.ru"
     }
   }
 }
