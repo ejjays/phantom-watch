@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -102,7 +101,7 @@ internal fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (
         Text("$rank", style = face.copy(color = Color.White.copy(alpha = 0.62f), drawStyle = hairline), maxLines = 1, modifier = slot)
         Box(
             Modifier.align(Alignment.BottomEnd).size(width, height)
-                .shadow(14.dp, shape).clip(shape).background(Color.White.copy(alpha = 0.05f)),
+                .clip(shape).background(Color.White.copy(alpha = 0.05f)),
         ) {
             if (item.poster != null) {
                 AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
