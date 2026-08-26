@@ -690,7 +690,7 @@
     var body = await get(page, site + '/', 12);
     if (body === null) return empty();
     var em = /https:\/\/abstream\.to\/embed\/([a-z0-9]+)/.exec(body);
-    if (!em) return empty();
+    if (!em) return skipped();
     var embed = await get('https://abstream.to/embed/' + em[1], page, 12);
     if (embed === null) return empty();
     var mm = /https:\/\/[^"'\s]*master\.m3u8[^"'\s]*/.exec(embed);
