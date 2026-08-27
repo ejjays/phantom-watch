@@ -69,7 +69,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
@@ -111,6 +110,10 @@ fun PlayerStage(
     dubs: List<Dub> = emptyList(),
     currentDub: String? = null,
     onPickDub: (Dub) -> Unit = {},
+    qualities: List<Rung> = emptyList(),
+    quality: Int = 0,
+    qualityNow: String? = null,
+    onPickQuality: (Int) -> Unit = {},
     bufferedMs: Long,
     controlsVisible: Boolean,
     flash: String?,
@@ -368,7 +371,6 @@ fun PlayerStage(
                 large = fullscreen && seekBar && !titleBelow && LocalConfiguration.current.smallestScreenWidthDp >= 600,
                 subsOn = subsOn,
                 canSubs = canSubs,
-                canSettings = BuildConfig.DEBUG && (dubs.isNotEmpty() || AiSubtitles.available),
                 settingsOn = settings,
                 onSettings = {
                     settings = !settings
@@ -440,8 +442,13 @@ fun PlayerStage(
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
         }
-        if (settings && BuildConfig.DEBUG && (dubs.isNotEmpty() || AiSubtitles.available)) {
+        if (settings) {
             PlayerSettingsMenu(
+                topPad = with(LocalDensity.current) { headerH.toDp() } + 4.dp,
+                qualities = qualities,
+                quality = quality,
+                qualityNow = qualityNow,
+                onPickQuality = { onPickQuality(it); settings = false },
                 dubs = dubs,
                 current = currentDub,
                 onPick = { onPickDub(it); settings = false },
@@ -460,7 +467,6 @@ private fun PlayerTopBar(
     large: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
-    canSettings: Boolean = false,
     settingsOn: Boolean = false,
     onSettings: () -> Unit = {},
     onBack: () -> Unit,
@@ -507,17 +513,13 @@ private fun PlayerTopBar(
                     modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
             }
-            if (canSettings) {
-                Box(
-                    Modifier.padding(iconPad).clickable { onSettings() },
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_settings),
-                        contentDescription = "Player settings",
-                        tint = if (settingsOn) Cyan else Color.White,
-                        modifier = Modifier.size(if (large) 24.dp else 20.dp),
-                    )
-                }
+            Box(Modifier.padding(iconPad).clickable { onSettings() }) {
+                Icon(
+                    painterResource(R.drawable.ic_settings),
+                    contentDescription = "Player settings",
+                    tint = if (settingsOn) Cyan else Color.White,
+                    modifier = Modifier.size(if (large) 24.dp else 20.dp),
+                )
             }
         }
         if (titleBelow) {

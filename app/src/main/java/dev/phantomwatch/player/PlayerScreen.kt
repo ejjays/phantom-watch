@@ -180,6 +180,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var sameSpotStreak by remember { mutableStateOf(0) }
     var forcedNames by remember { mutableStateOf<List<String>?>(null) }
     var latestTracks by remember { mutableStateOf<androidx.media3.common.Tracks?>(null) }
+    var nowLabel by remember { mutableStateOf<String?>(null) }
+    val videoGroup = remember(latestTracks) { videoGroupOf(latestTracks) }
+    val rungs = remember(videoGroup) { rungsOf(videoGroup) }
+    val quality = remember(videoGroup) { currentHeightOf(videoGroup) }
     var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var embedIdx by remember { mutableStateOf(-1) }
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
@@ -291,15 +295,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     }
     LaunchedEffect(latestTracks) {
         val t = latestTracks ?: return@LaunchedEffect
-        fun nameOf(f: androidx.media3.common.Format): String {
-            val lab = f.label ?: ""
-            return if (lab.isNotEmpty()) "${f.language ?: "und"}:$lab" else (f.language ?: "und")
-        }
         val texts = t.groups.filter { it.type == C.TRACK_TYPE_TEXT }
         val supported = texts.associate { it.mediaTrackGroup to it.isSupported }
         val flat = texts.flatMap { grp ->
             val mg = grp.mediaTrackGroup
-            (0 until mg.length).map { i -> Triple(mg, i, nameOf(mg.getFormat(i))) }
+            (0 until mg.length).map { i -> Triple(mg, i, trackName(mg.getFormat(i))) }
         }
         if (flat.isEmpty()) { embedNames = emptyList(); embedGroup = null; return@LaunchedEffect }
         val names = flat.map { it.third }
@@ -310,7 +310,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         }
         if (wi < 0 && names.size == 1) wi = 0
         val dg = if (wi >= 0) flat[wi].first else flat.first().first
-        val dnames = (0 until dg.length).map { i -> nameOf(dg.getFormat(i)) }
+        val dnames = (0 until dg.length).map { i -> trackName(dg.getFormat(i)) }
         embedGroup = dg
         if (dnames != embedNames) embedNames = dnames
         // media3 drops an override whose group is rebuilt, so re-apply until a track sticks
@@ -358,6 +358,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     }
     DisposableEffect(exo) {
         val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.height > 0) nowLabel = qualityLabel(videoSize.width, videoSize.height)
+            }
+
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 latestTracks = tracks
                 val audios = tracks.groups
@@ -666,20 +670,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             delay(5000)
         }
     }
-    fun pickEmbed(idx: Int, why: String) {
-        val group = embedGroup ?: return
-        if (idx !in 0 until group.length) return
-        try {
-            val sel = exo.trackSelector as? DefaultTrackSelector ?: return
-            sel.parameters = sel.buildUponParameters().setOverrideForType(
-                androidx.media3.common.TrackSelectionOverride(group, listOf(idx)),
-            ).build()
-            embedIdx = idx
-            AppLog.d("embed $why $idx ${embedNames.getOrNull(idx)}")
-        } catch (e: Exception) {
-            AppLog.d("embed pick fail ${e.message}")
-        }
-    }
     var langDone by remember { mutableStateOf(false) }
     LaunchedEffect(embedNames) {
         if (langDone || stream.subs.isNotEmpty() || embedNames.isEmpty()) return@LaunchedEffect
@@ -704,7 +694,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 fullest = i
             }
         }
-        if (fullest >= 0) pickEmbed(fullest, "auto")
+        if (fullest >= 0 && pickEmbedOverride(exo, embedGroup, fullest, "auto", embedNames)) embedIdx = fullest
     }
 
     DisposableEffect(exo) {
@@ -1046,6 +1036,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         durationMs = durationMs,
         intro = live.intro, dubs = live.dubs,
         currentDub = live.dub, onPickDub = ::playDub,
+        qualities = rungs, quality = quality, qualityNow = nowLabel, onPickQuality = { pickQuality(exo, videoGroup, it) },
         bufferedMs = bufferedMs,
         controlsVisible = controls && !Pip.inPip,
         flash = fillNote,

@@ -4,9 +4,12 @@ import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -26,6 +29,25 @@ import dev.phantomwatch.data.Sub
 import dev.phantomwatch.subs.SubtitleCue
 import dev.phantomwatch.subs.Subtitles
 import dev.phantomwatch.torrent.DownloadControl
+
+internal fun trackName(f: Format): String {
+    val lab = f.label ?: ""
+    return if (lab.isNotEmpty()) "${f.language ?: "und"}:$lab" else (f.language ?: "und")
+}
+
+internal fun pickEmbedOverride(exo: ExoPlayer, group: TrackGroup?, idx: Int, why: String, names: List<String>): Boolean {
+    if (group == null || idx !in 0 until group.length) return false
+    val sel = exo.trackSelector as? DefaultTrackSelector ?: return false
+    return try {
+        sel.parameters = sel.buildUponParameters()
+            .setOverrideForType(TrackSelectionOverride(group, listOf(idx))).build()
+        AppLog.d("embed $why $idx ${names.getOrNull(idx)}")
+        true
+    } catch (e: Exception) {
+        AppLog.d("embed pick fail ${e.message}")
+        false
+    }
+}
 
 internal fun configsFor(subs: List<Sub>, firstUri: Uri? = null): List<MediaItem.SubtitleConfiguration> {
     return Subtitles.englishFirst(subs).mapIndexed { i, sub ->
