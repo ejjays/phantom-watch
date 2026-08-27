@@ -27,6 +27,7 @@ import org.json.JSONObject
 object JsProviders {
     private val main = Handler(Looper.getMainLooper())
     private val pool = Executors.newFixedThreadPool(8)
+    private val voePool = Executors.newSingleThreadExecutor()
     private val seq = AtomicInteger()
     private val started = AtomicBoolean()
     private val created = CompletableDeferred<Unit>()
@@ -194,6 +195,24 @@ object JsProviders {
                 JsProviders.eval(
                     "window.__pwBridge.httpDone(${JSONObject.quote(id)}, ${JSONObject.quote(res.toString())})",
                 )
+            }
+        }
+
+        // blocks this thread until the extractor WebView finds the media URL
+        @JavascriptInterface
+        fun voe(id: String, code: String) {
+            val ctx = app
+            if (ctx == null) {
+                JsProviders.eval("window.__pwBridge.voeDone(${JSONObject.quote(id)}, ${JSONObject.quote(JSONObject().put("error", "nocx").toString())})")
+                return
+            }
+            voePool.execute {
+                val res = try {
+                    VoeExtract.resolve(ctx, code)
+                } catch (e: Exception) {
+                    JSONObject().put("error", e.javaClass.simpleName)
+                }
+                JsProviders.eval("window.__pwBridge.voeDone(${JSONObject.quote(id)}, ${JSONObject.quote(res.toString())})")
             }
         }
 

@@ -66,6 +66,16 @@
     p.reject(new Error(msg || 'bridge'));
   }
 
+  // native extractor: no pw.voe in node/probe, so the caller just skips
+  function voe(code) {
+    return new Promise(function (resolve) {
+      if (!pw || typeof pw.voe !== 'function') { resolve(null); return; }
+      var id = 'v' + (++seq);
+      pending.set(id, { resolve: resolve, reject: function () { resolve(null); } });
+      try { pw.voe(id, String(code)); } catch (e) { pending.delete(id); resolve(null); }
+    });
+  }
+
   function absUrl(rel, base) {
     try { return new URL(rel, base).toString(); } catch (e) { return rel; }
   }
@@ -729,7 +739,36 @@
     var body = await get(page, site + '/', 12);
     if (body === null) return empty();
     var em = /https:\/\/abstream\.to\/embed\/([a-z0-9]+)/.exec(body);
-    if (!em) return skipped();
+    if (!em) {
+      var vm = /https:\/\/voe\.sx\/e\/([a-z0-9]+)/.exec(body);
+      // no native extractor (probe/CI) means this title is out of reach here, not a failure
+      if (!vm || cfg.voe === false || typeof pw.voe !== 'function') return skipped();
+      var v = await voe(vm[1]);
+      if (!v || !v.url) return empty();
+      var ref = v.referer || '';
+      if (v.hls) {
+        var mf = await raw(v.url, ref, 10);
+        if (mf !== null && mf.indexOf('#EXTM3U') >= 0) {
+          var e = enRenditions(mf);
+          var rungs = masterVariants(mf, v.url).map(function (r) {
+            var f = fmt(r.url, true, 'pinoy-' + r.label, r.height);
+            f.referer = ref;
+            f.enSubs = e.subs;
+            return f;
+          });
+          if (rungs.length) {
+            var auto = fmt(v.url, true, 'pinoy-auto', maxHeight(rungs));
+            auto.referer = ref;
+            auto.enSubs = e.subs;
+            auto.enAudio = e.audio;
+            return { formats: [auto].concat(rungs), subs: [] };
+          }
+        }
+      }
+      var vf = fmt(v.url, !!v.hls, 'pinoy-voe', -1);
+      vf.referer = ref;
+      return { formats: [vf], subs: [] };
+    }
     var embed = await get('https://abstream.to/embed/' + em[1], page, 12);
     if (embed === null) return empty();
     var mm = /https:\/\/[^"'\s]*master\.m3u8[^"'\s]*/.exec(embed);
@@ -817,7 +856,7 @@
   try {
     pw.log('subtle=' + !!(window.crypto && window.crypto.subtle) + ' secure=' + window.isSecureContext);
   } catch (e) {}
-  window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail };
+  window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail, voeDone: bridgeDone };
   window.__pwRank = pwRank;
   window.__pwSkip = pwSkip;
   window.__pwSort = function (id, formatsJson) {

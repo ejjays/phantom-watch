@@ -1,5 +1,5 @@
 {
-  "version": 15,
+  "version": 24,
   "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
   "services": {
     "tmdb": {
@@ -65,6 +65,7 @@
     },
     "pinoy": {
       "enabled": true,
+      "voe": true,
       "tv": "https://www.teleserye.su",
       "player": "https://player.teleserye.su",
       "movie": "https://pinoymoviepedia.ru"

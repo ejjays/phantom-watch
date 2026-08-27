@@ -78,6 +78,7 @@ object Providers {
                             val budget = when (name) {
                                 "paradise" -> 28L
                                 "hianime" -> 27L
+                                "pinoy" -> 22L
                                 else -> 12L
                             }
                             val js = JsProviders.resolve(name, args, budget)
