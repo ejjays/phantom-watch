@@ -677,26 +677,52 @@
     return names[d.getUTCMonth()] + '-' + d.getUTCDate() + '-' + d.getUTCFullYear();
   }
 
-  async function pinoyMovie(cfg, title, want) {
-    var site = cfg.movie || 'https://pinoymoviepedia.ru';
-    var page = '';
-    var rest = await get(site + '/wp-json/wp/v2/movies?per_page=10&_fields=link,title&search=' + urlencode(title), site + '/', 10);
+  async function tmdbTitles(ctx) {
+    var base = ctx.tmdbBase || 'https://api.themoviedb.org/3';
+    var kind = ctx.kind === 'movie' ? 'movie' : 'tv';
+    var body = await get(base + '/' + kind + '/' + ctx.tmdbId + '?api_key=' + ctx.tmdbKey, 'https://www.themoviedb.org/', 10);
+    var out = [];
+    if (body !== null) {
+      try {
+        var o = JSON.parse(body);
+        out = [o.title, o.name, o.original_title, o.original_name];
+      } catch (e) {}
+    }
+    return out.filter(function (t) { return !!t; });
+  }
+
+  async function moviePage(site, query) {
+    var want = normTitle(query);
+    var rest = await get(site + '/wp-json/wp/v2/movies?per_page=10&_fields=link,title&search=' + urlencode(query), site + '/', 10);
     if (rest !== null) {
       try {
         var arr = JSON.parse(rest);
-        for (var i = 0; i < arr.length && !page; i++) {
+        for (var i = 0; i < arr.length; i++) {
           var o = arr[i] || {};
-          if (normTitle(o.link).indexOf(want) !== -1 || normTitle(o.title && o.title.rendered).indexOf(want) !== -1) page = o.link;
+          if (normTitle(o.link).indexOf(want) !== -1 || normTitle(o.title && o.title.rendered).indexOf(want) !== -1) return o.link;
         }
       } catch (e) {}
     }
+    var html = await get(site + '/?s=' + urlencode(query), site + '/', 12);
+    if (html === null) return rest === null ? null : '';
+    var re = /href="([^"]*\/movies\/[^"\/]+)\/?"/g;
+    var m;
+    while ((m = re.exec(html)) !== null) {
+      if (normTitle(m[1]).indexOf(want) !== -1) return m[1].replace(/\/?$/, '/');
+    }
+    return '';
+  }
+
+  async function pinoyMovie(ctx, cfg, title) {
+    var site = cfg.movie || 'https://pinoymoviepedia.ru';
+    var page = await moviePage(site, title);
+    if (page === null) return empty();
     if (!page) {
-      var html = await get(site + '/?s=' + urlencode(title), site + '/', 12);
-      if (html === null) return empty();
-      var re = /href="([^"]*\/movies\/[^"\/]+)\/?"/g;
-      var m;
-      while ((m = re.exec(html)) !== null) {
-        if (normTitle(m[1]).indexOf(want) !== -1) { page = m[1].replace(/\/?$/, '/'); break; }
+      var more = await tmdbTitles(ctx);
+      for (var i = 0; i < more.length && !page; i++) {
+        if (normTitle(more[i]) === normTitle(title)) continue;
+        page = await moviePage(site, more[i]);
+        if (page === null) return empty();
       }
     }
     if (!page) return skipped();
@@ -723,7 +749,19 @@
     return { formats: [auto].concat(rungs), subs: [] };
   }
 
-  async function pinoyTv(ctx, cfg, title, want) {
+  async function tvHit(tv, query, day) {
+    var list = await get(tv + '/search.php?s=' + urlencode(query + ' ' + day.replace(/-/g, ' ')), tv + '/', 12);
+    if (list === null) return null;
+    var want = normTitle(query);
+    var re = /href="(\/watch\/[^"]+)"/g;
+    var m;
+    while ((m = re.exec(list)) !== null) {
+      if (m[1].indexOf('-' + day) > 0 && normTitle(m[1]).indexOf(want) !== -1) return m[1];
+    }
+    return '';
+  }
+
+  async function pinoyTv(ctx, cfg, title) {
     if (!ctx.tmdbKey) return skipped();
     var tv = cfg.tv || 'https://www.teleserye.su';
     var base = ctx.tmdbBase || 'https://api.themoviedb.org/3';
@@ -733,12 +771,15 @@
     try { air = JSON.parse(info).air_date || ''; } catch (e) {}
     var day = daySlug(air);
     if (!day) return skipped();
-    var list = await get(tv + '/search.php?s=' + urlencode(title + ' ' + day.replace(/-/g, ' ')), tv + '/', 12);
-    if (list === null) return empty();
-    var re = /href="(\/watch\/[^"]+)"/g;
-    var m, hit = '';
-    while ((m = re.exec(list)) !== null) {
-      if (m[1].indexOf('-' + day) > 0 && normTitle(m[1]).indexOf(want) !== -1) { hit = m[1]; break; }
+    var hit = await tvHit(tv, title, day);
+    if (hit === null) return empty();
+    if (!hit) {
+      var more = await tmdbTitles(ctx);
+      for (var i = 0; i < more.length && !hit; i++) {
+        if (normTitle(more[i]) === normTitle(title)) continue;
+        hit = await tvHit(tv, more[i], day);
+        if (hit === null) return empty();
+      }
     }
     if (!hit) return skipped();
     var page = await get(tv + hit, tv + '/', 12);
@@ -764,9 +805,8 @@
     var cfg = ctx.cfg || {};
     var title = ctx.title || '';
     if (!title) return skipped();
-    var want = normTitle(title);
-    if (ctx.kind === 'movie') return pinoyMovie(cfg, title, want);
-    return pinoyTv(ctx, cfg, title, want);
+    if (ctx.kind === 'movie') return pinoyMovie(ctx, cfg, title);
+    return pinoyTv(ctx, cfg, title);
   }
 
   var legs = {
