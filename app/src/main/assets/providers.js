@@ -679,12 +679,25 @@
 
   async function pinoyMovie(cfg, title, want) {
     var site = cfg.movie || 'https://pinoymoviepedia.ru';
-    var html = await get(site + '/?s=' + urlencode(title), site + '/', 12);
-    if (html === null) return empty();
-    var re = /href="([^"]*\/movies\/[^"\/]+)\/?"/g;
-    var m, page = '';
-    while ((m = re.exec(html)) !== null) {
-      if (normTitle(m[1]).indexOf(want) !== -1) { page = m[1].replace(/\/?$/, '/'); break; }
+    var page = '';
+    var rest = await get(site + '/wp-json/wp/v2/movies?per_page=10&_fields=link,title&search=' + urlencode(title), site + '/', 10);
+    if (rest !== null) {
+      try {
+        var arr = JSON.parse(rest);
+        for (var i = 0; i < arr.length && !page; i++) {
+          var o = arr[i] || {};
+          if (normTitle(o.link).indexOf(want) !== -1 || normTitle(o.title && o.title.rendered).indexOf(want) !== -1) page = o.link;
+        }
+      } catch (e) {}
+    }
+    if (!page) {
+      var html = await get(site + '/?s=' + urlencode(title), site + '/', 12);
+      if (html === null) return empty();
+      var re = /href="([^"]*\/movies\/[^"\/]+)\/?"/g;
+      var m;
+      while ((m = re.exec(html)) !== null) {
+        if (normTitle(m[1]).indexOf(want) !== -1) { page = m[1].replace(/\/?$/, '/'); break; }
+      }
     }
     if (!page) return skipped();
     var body = await get(page, site + '/', 12);
