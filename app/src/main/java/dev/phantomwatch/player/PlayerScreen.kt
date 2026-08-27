@@ -295,7 +295,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             val lab = f.label ?: ""
             return if (lab.isNotEmpty()) "${f.language ?: "und"}:$lab" else (f.language ?: "und")
         }
-        val flat = t.groups.filter { it.type == C.TRACK_TYPE_TEXT }.flatMap { grp ->
+        val texts = t.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+        val supported = texts.associate { it.mediaTrackGroup to it.isSupported }
+        val flat = texts.flatMap { grp ->
             val mg = grp.mediaTrackGroup
             (0 until mg.length).map { i -> Triple(mg, i, nameOf(mg.getFormat(i))) }
         }
@@ -311,9 +313,13 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         val dnames = (0 until dg.length).map { i -> nameOf(dg.getFormat(i)) }
         embedGroup = dg
         if (dnames != embedNames) embedNames = dnames
-        if (stream.subs.isEmpty() && names != forcedNames) {
-            forcedNames = names
-            AppLog.d("embed force pick $wi from $names")
+        // media3 drops an override whose group is rebuilt, so re-apply until a track sticks
+        val anySel = texts.any { it.isSelected }
+        if (stream.subs.isEmpty() && !anySel && !subs.subsOff) {
+            if (names != forcedNames) {
+                forcedNames = names
+                AppLog.d("embed force pick $wi from $names")
+            }
             if (wi >= 0) {
                 val (g, idx) = flat[wi]
                 val sel = exo.trackSelector as? DefaultTrackSelector
@@ -324,7 +330,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                             androidx.media3.common.TrackSelectionOverride(g, listOf(idx)),
                         )
                         .build()
-                    AppLog.d("subs source=stream ${names.getOrNull(wi)}")
+                    AppLog.d("subs source=stream ${names.getOrNull(wi)} sup=${supported[g]}")
                 }
             }
         }
