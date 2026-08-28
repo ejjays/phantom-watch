@@ -302,15 +302,16 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
 
     val inSearch = browse.query.trim().length >= 2
     val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
-    val navOpen = browse.searchOpen || browse.railKey != null || browse.historyOpen
-    BackHandler(enabled = navOpen) {
+    var exitAsk by remember { mutableStateOf(false) }
+    BackHandler {
         when {
             browse.searchOpen -> {
                 browse.searchOpen = false
                 browse.query = ""
             }
             browse.railKey != null -> browse.railKey = null
-            else -> browse.historyOpen = false
+            browse.historyOpen -> browse.historyOpen = false
+            else -> exitAsk = true
         }
     }
     val screenW = LocalConfiguration.current.screenWidthDp.dp
@@ -443,6 +444,15 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
             ) {
                 DetailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes, closeDetail)
             }
+        }
+        if (exitAsk) {
+            ExitDialog(
+                onCancel = { exitAsk = false },
+                onExit = {
+                    exitAsk = false
+                    (ctx as? android.app.Activity)?.finish()
+                },
+            )
         }
     }
 }
