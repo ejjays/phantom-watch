@@ -30,7 +30,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -40,6 +43,14 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
 import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.Slate400
+
+private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+
+// "English · HiAnime" reads as just "English" here; the leg name is noise for a viewer
+private fun dubLabel(l: String): String = l.substringBefore(" · ")
+
+internal fun speedLabel(s: Float): String = if (s == s.toInt().toFloat()) "${s.toInt()}×" else "${s}×"
 
 // panel hangs under the top bar like a real player's gear menu: same edge as the gear, one page deep
 @Composable
@@ -49,6 +60,8 @@ internal fun PlayerSettingsMenu(
     quality: Int,
     qualityNow: String?,
     onPickQuality: (Int) -> Unit,
+    speed: Float,
+    onPickSpeed: (Float) -> Unit,
     dubs: List<Dub>,
     current: String?,
     onPick: (Dub) -> Unit,
@@ -78,7 +91,7 @@ internal fun PlayerSettingsMenu(
             when (page) {
                 1 -> {
                     SettingsHeader("Quality") { page = 0 }
-                    SettingsRow("Auto", qualityNow, 0, chevron = false, selected = quality <= 0) {
+                    SettingsRow("Auto", if (quality <= 0) qualityNow else null, 0, chevron = false, selected = quality <= 0) {
                         AppLog.d("quality auto")
                         onPickQuality(0)
                     }
@@ -89,11 +102,23 @@ internal fun PlayerSettingsMenu(
                         }
                     }
                 }
+                3 -> {
+                    SettingsHeader("Speed") { page = 0 }
+                    SPEEDS.forEach { s ->
+                        SettingsRow(
+                            speedLabel(s), null, 0, chevron = false, selected = s == speed,
+                            note = if (s == 1f) "(Normal)" else null,
+                        ) {
+                            AppLog.d("speed ${speedLabel(s)}")
+                            onPickSpeed(s)
+                        }
+                    }
+                }
                 2 -> {
-                    SettingsHeader("Audio") { page = 0 }
+                    SettingsHeader("Dubs") { page = 0 }
                     dubs.forEach { d ->
                         val playing = if (d.base) current == null else d.label == current
-                        SettingsRow(d.label, null, 0, chevron = false, selected = playing) {
+                        SettingsRow(dubLabel(d.label), null, 0, chevron = false, selected = playing) {
                             AppLog.d("settings pick ${d.label}")
                             onPick(d)
                         }
@@ -108,8 +133,13 @@ internal fun PlayerSettingsMenu(
                             AppLog.d("settings quality ${qualities.joinToString { it.label }}")
                         }
                     }
+                    SettingsRow("Speed", speedLabel(speed), R.drawable.ic_speed, chevron = true) {
+                        page = 3
+                        AppLog.d("settings speed ${speedLabel(speed)}")
+                    }
                     if (dubs.isNotEmpty()) {
-                        SettingsRow("Audio", current ?: "Sub", R.drawable.ic_volume_on, chevron = true) {
+                        val base = dubs.firstOrNull { it.base }?.let { dubLabel(it.label) } ?: "Sub"
+                        SettingsRow("Dubs", current?.let(::dubLabel) ?: base, R.drawable.ic_dubs, chevron = true) {
                             page = 2
                             AppLog.d("settings dubs=${dubs.size} current=${current ?: "sub"}")
                         }
@@ -163,6 +193,7 @@ private fun SettingsRow(
     icon: Int,
     chevron: Boolean,
     selected: Boolean = false,
+    note: String? = null,
     onClick: () -> Unit,
 ) {
     Row(
@@ -175,7 +206,11 @@ private fun SettingsRow(
             Spacer(Modifier.width(12.dp))
         }
         Text(
-            label, color = if (selected) Cyan else Color.White, fontSize = 14.sp, fontFamily = Rubik,
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = if (selected) Cyan else Color.White)) { append(label) }
+                if (note != null) withStyle(SpanStyle(color = Slate400)) { append("  $note") }
+            },
+            fontSize = 14.sp, fontFamily = Rubik,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
         if (value != null) {

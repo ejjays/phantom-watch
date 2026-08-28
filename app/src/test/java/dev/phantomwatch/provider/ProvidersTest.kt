@@ -1,5 +1,6 @@
 package dev.phantomwatch.provider
 
+import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,7 +53,7 @@ class ProvidersTest {
         val f = Providers.formatsOf(js)
         assertNull(f[0].dub)
         assertEquals("English", f[1].dub)
-        val dubs = Providers.dubsOf(f, emptyList(), f[0], emptyList())
+        val dubs = Providers.dubsOf(f, f[0], emptyList())
         assertEquals(2, dubs.size)
         assertTrue(dubs[0].base)
         assertEquals("https://a/da.m3u8", dubs[1].url)
@@ -65,11 +66,11 @@ class ProvidersTest {
             .put("formats", JSONArray().put(JSONObject("""{"url":"https://a/d.m3u8","label":"hianime-dub-1080p","dub":"English"}""")))
             .put("subs", JSONArray().put(JSONObject("""{"label":"English","url":"https://s/sub-cut.vtt","src":"hianime"}""")))
         val f = Providers.formatsOf(js)
-        assertTrue(Providers.dubsOf(f, Providers.subsOf(js), f[0], emptyList()).last().subs.isEmpty())
+        assertTrue(Providers.dubsOf(f, f[0], emptyList()).last().subs.isEmpty())
     }
 
     @Test
-    fun dubSubsSharedWithTheSubCutAreDropped() {
+    fun dubKeepsSubsSharedWithTheSubCut() {
         val shared = "https://s/shared.vtt"
         val js = JSONObject()
             .put(
@@ -82,7 +83,8 @@ class ProvidersTest {
             )
             .put("subs", JSONArray().put(JSONObject("""{"label":"English","url":"$shared","src":"hianime"}""")))
         val f = Providers.formatsOf(js)
-        assertTrue(Providers.dubsOf(f, Providers.subsOf(js), f[0], emptyList()).last().subs.isEmpty())
+        // hianime gives both cuts one vtt; the dub cut shares the timeline, so it is not the sub cut's alone
+        assertEquals(listOf(shared), Providers.dubsOf(f, f[0], emptyList()).last().subs.map { it.url })
     }
 
     @Test
@@ -92,9 +94,59 @@ class ProvidersTest {
             """{"url":"https://a/d.m3u8","label":"hianime-dub-auto","dub":"English"}""",
         )
         val f = Providers.formatsOf(js)
-        val dubs = Providers.dubsOf(f, emptyList(), f[0], emptyList())
+        val dubs = Providers.dubsOf(f, f[0], emptyList())
         assertEquals(listOf("Sub · AnimeParadise", "English · HiAnime"), dubs.map { it.label })
         assertEquals(listOf("https://a/p.m3u8", "https://a/d.m3u8"), dubs.map { it.url })
+    }
+
+    @Test
+    fun restoresTheSavedCutByItsLabel() {
+        val js = legJson(
+            """{"url":"https://a/s.m3u8","label":"hianime-1080p"}""",
+            """{"url":"https://a/d.m3u8","label":"hianime-dub-auto","dub":"English"}""",
+        )
+        val f = Providers.formatsOf(js)
+        val s = Providers.restore(Stream(f[0].url, true, emptyList(), "", null, dubs = Providers.dubsOf(f, f[0], emptyList())), "English · HiAnime")
+        assertEquals("https://a/d.m3u8", s.url)
+        assertEquals("English · HiAnime", s.dub)
+    }
+
+    @Test
+    fun restoresTheLanguageFromAnotherLeg() {
+        val js = legJson(
+            """{"url":"https://a/p.m3u8","label":"paradise-auto","height":1080}""",
+            """{"url":"https://a/pd.m3u8","label":"paradise-dub","dub":"English"}""",
+        )
+        val f = Providers.formatsOf(js)
+        val s = Providers.restore(Stream(f[0].url, true, emptyList(), "", null, dubs = Providers.dubsOf(f, f[0], emptyList())), "English · HiAnime")
+        assertEquals("https://a/pd.m3u8", s.url)
+    }
+
+    @Test
+    fun restoreKeepsTheBaseWhenTheCutIsGone() {
+        val js = legJson(
+            """{"url":"https://a/s.m3u8","label":"hianime-1080p"}""",
+            """{"url":"https://a/d.m3u8","label":"hianime-dub-auto","dub":"English"}""",
+        )
+        val f = Providers.formatsOf(js)
+        val s = Providers.restore(Stream(f[0].url, true, emptyList(), "", null, dubs = Providers.dubsOf(f, f[0], emptyList())), "Tagalog · Pinoy")
+        assertEquals(f[0].url, s.url)
+        assertNull(s.dub)
+    }
+
+    @Test
+    fun dubBaseDropsToTheOriginalCut() {
+        val js = legJson(
+            """{"url":"https://a/s.m3u8","label":"hianime-1080p"}""",
+            """{"url":"https://a/d.m3u8","label":"hianime-dub-auto","dub":"English"}""",
+        )
+        val f = Providers.formatsOf(js)
+        val dubs = Providers.dubsOf(f, f[0], emptyList())
+        val onDub = Providers.restore(Stream(f[0].url, true, emptyList(), "", null, dubs = dubs), "English · HiAnime")
+        assertEquals("https://a/d.m3u8", onDub.url)
+        assertEquals("https://a/s.m3u8", Providers.dubBase(onDub)?.url)
+        assertNull(Providers.dubBase(onDub)?.dub)
+        assertNull(Providers.dubBase(Stream(f[0].url, true, emptyList(), "", null, dubs = dubs)))
     }
 
     @Test

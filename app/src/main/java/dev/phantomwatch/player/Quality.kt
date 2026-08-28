@@ -25,14 +25,10 @@ internal fun qualityLabel(w: Int, h: Int): String = when (maxOf(w, h)) {
 
 data class Rung(val height: Int, val label: String)
 
-internal fun rungsOf(g: Tracks.Group?): List<Rung> =
-    g?.let { grp ->
-        (0 until grp.length).map { grp.getTrackFormat(it) }
-            .filter { it.height > 0 }
-            .sortedByDescending { it.height }
-            .map { Rung(it.height, qualityLabel(it.width, it.height)) }
-            .distinctBy { it.label }
-    }.orEmpty()
+internal fun rungsOf(sizes: List<Pair<Int, Int>>): List<Rung> =
+    sizes.filter { it.second > 0 }.sortedByDescending { it.second }
+        .map { Rung(it.second, qualityLabel(it.first, it.second)) }
+        .distinctBy { it.label }
 
 // 0 means ABR is still free to switch, i.e. "Auto"
 internal fun currentHeightOf(g: Tracks.Group?): Int {
@@ -40,6 +36,14 @@ internal fun currentHeightOf(g: Tracks.Group?): Int {
         (0 until grp.length).filter { grp.isTrackSelected(it) }.map { grp.getTrackFormat(it).height }.filter { it > 0 }.distinct()
     }.orEmpty()
     return if (sel.size == 1) sel[0] else 0
+}
+
+internal class QualityState(val group: Tracks.Group?, val rungs: List<Rung>, val current: Int)
+
+internal fun qualityOf(tracks: Tracks?): QualityState {
+    val g = videoGroupOf(tracks)
+    val sizes = g?.let { grp -> (0 until grp.length).map { grp.getTrackFormat(it).let { f -> f.width to f.height } } }.orEmpty()
+    return QualityState(g, rungsOf(sizes), currentHeightOf(g))
 }
 
 internal fun pickQuality(exo: ExoPlayer, g: Tracks.Group?, h: Int) {

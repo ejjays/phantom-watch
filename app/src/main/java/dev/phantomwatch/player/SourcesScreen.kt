@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.data.DetailCache
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
@@ -67,6 +68,9 @@ internal fun SourcesScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var imdbState by remember { mutableStateOf<String?>(null) }
     var gone by remember { mutableStateOf(false) }
+    val lang = remember(title.id) {
+        Providers.langName(DetailCache.detail(title.kind, title.id)?.language) ?: "Sub"
+    }
     BackHandler(onBack = onBack)
     LaunchedEffect(title.id, season, episode) {
         try {
@@ -101,7 +105,7 @@ internal fun SourcesScreen(
                             referer = best.referer, sampleMp4 = null,
                             imdb = imdbDigits, headers = best.headers, enSubs = best.enSubs,
                             intro = best.intro,
-                            dub = best.dub, dubs = Providers.dubsOf(live, all.second, best, Providers.subsFor(best, all.second)),
+                            dub = best.dub, dubs = Providers.dubsOf(live, best, Providers.subsFor(best, all.second), lang) ,
                         ),
                         null,
                     )
@@ -249,7 +253,7 @@ internal fun SourcesScreen(
                                     referer = f.referer, sampleMp4 = null,
                                     imdb = imdbState, headers = f.headers, enSubs = f.enSubs,
                                     intro = f.intro,
-                                    dub = f.dub, dubs = Providers.dubsOf(formats, formatSubs, f, Providers.subsFor(f, formatSubs)),
+                                    dub = f.dub, dubs = Providers.dubsOf(formats, f, Providers.subsFor(f, formatSubs), lang),
                                 ),
                                 null,
                             )

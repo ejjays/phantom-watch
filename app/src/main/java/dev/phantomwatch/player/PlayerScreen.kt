@@ -116,6 +116,7 @@ import dev.phantomwatch.torrent.TORRENTS_ENABLED
 import dev.phantomwatch.torrent.TorrentEngine
 import dev.phantomwatch.torrent.Torrents
 import dev.phantomwatch.data.DetailCache
+import dev.phantomwatch.data.DubPref
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -163,7 +164,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             val best = live.first()
             val streamSubs = Providers.subsFor(best, bundle.subs)
             AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
-            resolved = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro, dub = best.dub, dubs = Providers.dubsOf(live, bundle.subs, best, streamSubs))
+            val base = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro, dub = best.dub)
+            resolved = Providers.restore(base.copy(dubs = Providers.dubsOf(live, best, streamSubs, Providers.langName(DetailCache.detail(media.kind, media.id)?.language) ?: "Sub")), DubPref.get(context, media.kind, media.id))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -181,14 +183,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var forcedNames by remember { mutableStateOf<List<String>?>(null) }
     var latestTracks by remember { mutableStateOf<androidx.media3.common.Tracks?>(null) }
     var nowLabel by remember { mutableStateOf<String?>(null) }
-    val videoGroup = remember(latestTracks) { videoGroupOf(latestTracks) }
-    val rungs = remember(videoGroup) { rungsOf(videoGroup) }
-    val quality = remember(videoGroup) { currentHeightOf(videoGroup) }
+    val q = remember(latestTracks) { qualityOf(latestTracks) }
     var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var embedIdx by remember { mutableStateOf(-1) }
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
     var frontierMs by remember { mutableStateOf(0L) }
     var fillNote by remember { mutableStateOf<String?>(null) }
+    var speed by remember { mutableStateOf(1f) }
+    var speedNote by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(title) { AppLog.d("screen $title") }
     val build = remember {
         runCatching { Playback.ensure(context) }
@@ -271,14 +273,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         pos: Long = exo.currentPosition,
         autoplay: Boolean = true,
     ) {
-        try {
+        runCatching {
             exo.setMediaSource(sourceFor(context, src, subs, firstUri, download, meta), pos)
             exo.prepare()
             if (autoplay) exo.play()
-        } catch (e: Exception) {
-            AppLog.d("attach fail ${e.message}")
-        }
+        }.onFailure { AppLog.d("attach fail ${it.message}") }
     }
+    LaunchedEffect(speed) { exo.setPlaybackSpeed(speed) }
+    LaunchedEffect(speedNote) { if (speedNote != null) { delay(1200); speedNote = null } }
     val subsScope = rememberCoroutineScope()
     val subs = remember(exo, stream, download) {
         SubsController(
@@ -358,9 +360,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     }
     DisposableEffect(exo) {
         val listener = object : Player.Listener {
-            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                if (videoSize.height > 0) nowLabel = qualityLabel(videoSize.width, videoSize.height)
-            }
+            override fun onVideoSizeChanged(v: androidx.media3.common.VideoSize) { if (v.height > 0) nowLabel = qualityLabel(v.width, v.height) }
 
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 latestTracks = tracks
@@ -455,6 +455,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     Torrents.DeadHosts.mark(live.url, ttl)
                     AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(live.url)}")
                 }
+                if (stats.startup == 0L) Providers.dubBase(live)?.let { b -> AppLog.d("dub fell back to base"); live = b; attachSubs(b.subs, null, b, exo.currentPosition); return }
                 if (chain.contains("FileNotFound") || chain.contains("ENOENT")) {
                     try {
                         val f = android.net.Uri.parse(stream.url).path?.let { java.io.File(it) }
@@ -754,6 +755,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         val next = live.withDub(d)
         AppLog.d("dub ${d.label} subs=${next.subs.size} ${next.subs.firstOrNull()?.url?.substringAfterLast('/') ?: "none"} at ${pos / 1000}s")
         live = next
+        DubPref.set(context, media.kind, media.id, if (d.base) null else d.label)
         attachSubs(next.subs, null, next, pos)
     }
     fun accSeek(side: SeekSide) {
@@ -1036,10 +1038,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         durationMs = durationMs,
         intro = live.intro, dubs = live.dubs,
         currentDub = live.dub, onPickDub = ::playDub,
-        qualities = rungs, quality = quality, qualityNow = nowLabel, onPickQuality = { pickQuality(exo, videoGroup, it) },
+        qualities = q.rungs, quality = q.current, qualityNow = nowLabel, onPickQuality = { pickQuality(exo, q.group, it) },
+        speed = speed, onPickSpeed = { speed = it; speedNote = "Speed ${speedLabel(it)}"; AppLog.d("speed ${it}x") },
         bufferedMs = bufferedMs,
         controlsVisible = controls && !Pip.inPip,
-        flash = fillNote,
+        flash = speedNote ?: fillNote,
         swipeHud = swipeHud,
         seekMark = seekMark,
         seekInset = seekInset,

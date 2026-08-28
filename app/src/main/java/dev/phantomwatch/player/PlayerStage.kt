@@ -114,6 +114,8 @@ fun PlayerStage(
     quality: Int = 0,
     qualityNow: String? = null,
     onPickQuality: (Int) -> Unit = {},
+    speed: Float = 1f,
+    onPickSpeed: (Float) -> Unit = {},
     bufferedMs: Long,
     controlsVisible: Boolean,
     flash: String?,
@@ -262,10 +264,11 @@ fun PlayerStage(
                         modifier = Modifier.weight(1f),
                     )
                     Box(
-                        Modifier.padding(10.dp).clickable(
+                        Modifier.size(48.dp).clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) { onToggleMute() },
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on),
@@ -273,7 +276,13 @@ fun PlayerStage(
                             tint = Color.White, modifier = Modifier.size(20.dp),
                         )
                     }
-                    Box(Modifier.padding(10.dp).clickable { onFullscreen() }) {
+                    Box(
+                        Modifier.size(48.dp).clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onFullscreen() },
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Icon(
                             painterResource(if (fullscreen) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen),
                             contentDescription = if (fullscreen) "Exit fullscreen" else "Enter fullscreen",
@@ -449,6 +458,8 @@ fun PlayerStage(
                 quality = quality,
                 qualityNow = qualityNow,
                 onPickQuality = { onPickQuality(it); settings = false },
+                speed = speed,
+                onPickSpeed = { onPickSpeed(it); settings = false },
                 dubs = dubs,
                 current = currentDub,
                 onPick = { onPickDub(it); settings = false },
@@ -474,7 +485,8 @@ private fun PlayerTopBar(
     onToggleSubs: () -> Unit,
 ) {
     val subsActive = subsOn && canSubs
-    val iconPad = if (large) 10.dp else 8.dp
+    // 48dp boxes: a 20dp glyph with padding around it only taps inside the glyph itself
+    val iconBox = Modifier.size(48.dp)
     Column(
         Modifier.fillMaxWidth()
             .padding(top = if (titleBelow) 4.dp else 8.dp).padding(end = if (large) 16.dp else 8.dp),
@@ -482,11 +494,13 @@ private fun PlayerTopBar(
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(if (large) 12.dp else 8.dp),
         ) {
             Box(
-                Modifier.padding(start = 4.dp).padding(iconPad)
-                    .clickable { if (fullscreen) onFullscreen() else onBack() },
+                Modifier.padding(start = 4.dp).then(iconBox).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { if (fullscreen) onFullscreen() else onBack() },
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     painterResource(if (fullscreen) R.drawable.ic_chevron_down else R.drawable.ic_back),
@@ -504,7 +518,12 @@ private fun PlayerTopBar(
                 Spacer(Modifier.weight(1f))
             }
             Box(
-                Modifier.padding(iconPad).clickable(enabled = canSubs) { onToggleSubs() },
+                iconBox.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    enabled = canSubs,
+                ) { onToggleSubs() },
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     painterResource(if (subsActive) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
@@ -513,7 +532,13 @@ private fun PlayerTopBar(
                     modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
             }
-            Box(Modifier.padding(iconPad).clickable { onSettings() }) {
+            Box(
+                iconBox.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { onSettings() },
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     painterResource(R.drawable.ic_settings),
                     contentDescription = "Player settings",

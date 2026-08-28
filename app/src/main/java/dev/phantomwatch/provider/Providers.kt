@@ -5,6 +5,8 @@ import dev.phantomwatch.core.Http
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.data.Dub
+import dev.phantomwatch.data.Stream
+import dev.phantomwatch.data.withDub
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Tmdb
 import dev.phantomwatch.torrent.Torrents
@@ -222,17 +224,41 @@ object Providers {
         }
     }
 
-    // a dub's captions are its own only if they differ from the sub cut's; a shared file is the sub cut's
-    fun dubsOf(formats: List<VideoFormat>, legSubs: List<Sub>, base: VideoFormat, baseSubs: List<Sub>): List<Dub> {
-        val subUrls = legSubs.map { it.url }.toSet()
+    // a dub keeps the captions its own cut declares: hianime hands both cuts the same vtt because
+    // they share one timeline (Solo Leveling s1e1: 1420.0s each), so filtering shared files hid real subs
+    // the saved cut is re-matched against this resolve's list: same leg first, then any leg with that language
+    fun savedDub(dubs: List<Dub>, saved: String?): Dub? {
+        if (saved == null) return null
+        val pick = dubs.firstOrNull { !it.base && it.label == saved }
+            ?: dubs.firstOrNull { !it.base && it.label.substringBefore(" · ") == saved.substringBefore(" · ") }
+        return pick?.takeUnless { Torrents.DeadHosts.blocked(it.url) }
+    }
+
+    fun restore(s: Stream, saved: String?): Stream {
+        val d = savedDub(s.dubs, saved) ?: return s
+        AppLog.d("dub restored ${d.label}")
+        return s.withDub(d)
+    }
+
+    // a dub session drops to the base cut when its own cdn is dead
+    fun dubBase(s: Stream): Stream? {
+        if (s.dub == null) return null
+        val b = s.dubs.firstOrNull { it.base } ?: return null
+        return s.withDub(b)
+    }
+
+    fun langName(code: String?): String? {
+        if (code.isNullOrBlank()) return null
+        return java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale.ENGLISH).ifBlank { null }
+    }
+
+    fun dubsOf(formats: List<VideoFormat>, base: VideoFormat, baseSubs: List<Sub>, baseName: String = "Sub"): List<Dub> {
         val dubs = formats.mapNotNull { f -> f.dub?.let { "$it · ${providerName(f)}" to f } }
             .sortedByDescending { if (it.second.label.endsWith("-auto")) 1 else 0 }
             .distinctBy { it.first }
-            .map { (label, f) ->
-                Dub(label, f.url, f.isHls, f.referer, f.headers, f.subs.filter { it.url !in subUrls })
-            }
+            .map { (label, f) -> Dub(label, f.url, f.isHls, f.referer, f.headers, f.subs) }
         if (dubs.isEmpty()) return emptyList()
-        val back = Dub("Sub · ${providerName(base)}", base.url, base.isHls, base.referer, base.headers, baseSubs, base = true)
+        val back = Dub("$baseName · ${providerName(base)}", base.url, base.isHls, base.referer, base.headers, baseSubs, base = true)
         return listOf(back) + dubs
     }
 

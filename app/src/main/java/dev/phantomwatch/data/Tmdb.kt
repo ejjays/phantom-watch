@@ -173,6 +173,7 @@ object Tmdb {
                 date.take(4).ifEmpty { null }, runtime,
                 e.optDouble("vote_average"), e.optInt("vote_count"),
                 genres, cert, director, cast, seasons, trailer,
+                language = e.optString("original_language").ifEmpty { null },
             )
         } catch (_: Exception) {
             null
