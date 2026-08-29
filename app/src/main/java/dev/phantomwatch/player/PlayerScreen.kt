@@ -1085,7 +1085,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 poke()
             }
         },
-        onSeek = ::seekTo,
+        onSeek = ::seekTo, onKeySeek = ::accSeek,
         onSkipIntro = ::skipIntro,
         onInteract = ::poke,
         onZoneTap = ::handleZone,

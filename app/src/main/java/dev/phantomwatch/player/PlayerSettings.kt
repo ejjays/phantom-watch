@@ -1,5 +1,6 @@
 package dev.phantomwatch.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,7 +30,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -68,8 +75,12 @@ internal fun PlayerSettingsMenu(
     onDismiss: () -> Unit,
 ) {
     var page by remember { mutableStateOf(0) }
+    val first = remember { FocusRequester() }
+    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    LaunchedEffect(Unit) { if (keyboard) first.requestFocus() }
+    BackHandler(onBack = onDismiss)
     BoxWithConstraints(
-        Modifier.fillMaxSize().clickable(
+        Modifier.fillMaxSize().focusProperties { canFocus = false }.clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
             onClick = onDismiss,
@@ -81,6 +92,8 @@ internal fun PlayerSettingsMenu(
                 .heightIn(max = maxHeight * 0.55f)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black.copy(alpha = 0.92f))
+                .focusRequester(first)
+                .focusRing(RoundedCornerShape(12.dp))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -171,7 +184,7 @@ internal fun PlayerSettingsMenu(
 @Composable
 private fun SettingsHeader(title: String, onBack: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onBack)
+        Modifier.fillMaxWidth().focusRing(RoundedCornerShape(8.dp)).clickable(onClick = onBack)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -197,7 +210,7 @@ private fun SettingsRow(
     onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick)
+        Modifier.fillMaxWidth().focusRing(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

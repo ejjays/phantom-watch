@@ -52,9 +52,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
@@ -145,6 +157,7 @@ fun PlayerStage(
     onToggleLock: () -> Unit,
     onRotate: () -> Unit = {},
     onSeek: (Float) -> Unit,
+    onKeySeek: ((SeekSide) -> Unit)? = null,
     onInteract: () -> Unit,
     onZoneTap: (ZoneTap) -> Unit,
     onToggleSubs: () -> Unit,
@@ -155,6 +168,9 @@ fun PlayerStage(
     val zone = rememberUpdatedState(sheetZoneTopPx)
     var headerH by remember { mutableFloatStateOf(0f) }
     var settings by remember { mutableStateOf(false) }
+    val keys = onKeySeek
+    val stageFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { if (keys != null) stageFocus.requestFocus() }
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val edgePx = with(LocalDensity.current) { (topInset + 12.dp).toPx() }
     BoxWithConstraints(
@@ -210,6 +226,47 @@ fun PlayerStage(
                         }
                     },
                 )
+            }
+            .focusRequester(stageFocus)
+            .focusTarget()
+            .onPreviewKeyEvent { e ->
+                if (keys == null || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                onInteract()
+                when {
+                    e.key == Key.Escape && settings -> {
+                        settings = false
+                        true
+                    }
+                    settings || locked -> false
+                    e.key == Key.DirectionLeft -> {
+                        keys(SeekSide.Left)
+                        true
+                    }
+                    e.key == Key.DirectionRight -> {
+                        keys(SeekSide.Right)
+                        true
+                    }
+                    e.key == Key.M -> {
+                        onToggleMute()
+                        true
+                    }
+                    e.key == Key.F -> {
+                        onFullscreen()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .onKeyEvent { e ->
+                if (keys == null || settings || locked || e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (e.key) {
+                    Key.Spacebar, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                        onInteract()
+                        onTogglePlay()
+                        true
+                    }
+                    else -> false
+                }
             },
     ) {
         video(Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) })
@@ -217,6 +274,7 @@ fun PlayerStage(
             ZoneTap.entries.forEach { side ->
                 Box(
                     Modifier.weight(1f).fillMaxSize()
+                        .focusProperties { canFocus = false }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -264,7 +322,7 @@ fun PlayerStage(
                         modifier = Modifier.weight(1f),
                     )
                     Box(
-                        Modifier.size(48.dp).clickable(
+                        Modifier.size(48.dp).focusRing().clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) { onToggleMute() },
@@ -277,7 +335,7 @@ fun PlayerStage(
                         )
                     }
                     Box(
-                        Modifier.size(48.dp).clickable(
+                        Modifier.size(48.dp).focusRing().clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                     ) { onFullscreen() },
@@ -306,7 +364,7 @@ fun PlayerStage(
             ) {
                 Box(
                     Modifier.size(56.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f))
-                        .clickable { onTogglePlay() },
+                        .focusRing().clickable { onTogglePlay() },
                     contentAlignment = Alignment.Center,
                 ) {
                     if (isPlaying) {
@@ -326,7 +384,7 @@ fun PlayerStage(
                 .padding(start = 8.dp),
         ) {
             Box(
-                Modifier.size(44.dp).clickable(
+                Modifier.size(44.dp).focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = { onToggleLock() },
@@ -349,7 +407,7 @@ fun PlayerStage(
                 .padding(end = 8.dp),
         ) {
             Box(
-                Modifier.size(44.dp).clickable(
+                Modifier.size(44.dp).focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = { onRotate() },
@@ -426,16 +484,23 @@ fun PlayerStage(
                     .padding(horizontal = 40.dp),
             )
         }
-        if (seekMark != null) {
+        val mark = seekMark
+        var lastMark by remember { mutableStateOf<SeekMark?>(null) }
+        LaunchedEffect(mark) { if (mark != null) lastMark = mark }
+        val shown = mark ?: lastMark
+        AnimatedVisibility(
+            visible = mark != null,
+            enter = fadeIn(tween(120)) + scaleIn(tween(160), initialScale = 0.9f),
+            exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.94f),
+            modifier = Modifier.offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
+        ) {
             Box(
-                Modifier.fillMaxSize().padding(horizontal = 28.dp)
-                    .offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
-                contentAlignment = if (seekMark.side == SeekSide.Left) Alignment.CenterStart else Alignment.CenterEnd,
+                Modifier.fillMaxSize(),
+                contentAlignment = if (shown?.side == SeekSide.Left) Alignment.CenterStart else Alignment.CenterEnd,
             ) {
-                Icon(
-                    painterResource(if (seekMark.side == SeekSide.Left) R.drawable.ic_backward_10 else R.drawable.ic_forward_10),
-                    contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp),
-                )
+                Box(Modifier.fillMaxWidth(0.5f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    shown?.let { SeekHud(it.side == SeekSide.Left, it.total) }
+                }
             }
         }
         if (intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip) {
@@ -496,7 +561,7 @@ private fun PlayerTopBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.padding(start = 4.dp).then(iconBox).clickable(
+                Modifier.padding(start = 4.dp).then(iconBox).focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                 ) { if (fullscreen) onFullscreen() else onBack() },
@@ -518,7 +583,7 @@ private fun PlayerTopBar(
                 Spacer(Modifier.weight(1f))
             }
             Box(
-                iconBox.clickable(
+                iconBox.focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     enabled = canSubs,
@@ -533,7 +598,7 @@ private fun PlayerTopBar(
                 )
             }
             Box(
-                iconBox.clickable(
+                iconBox.focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                 ) { onSettings() },
@@ -728,7 +793,7 @@ private fun ScrubPreview(
 private fun SkipIntroPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
         modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.7f))
-            .clickable(
+            .focusRing(RoundedCornerShape(50)).clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
@@ -785,4 +850,12 @@ private fun SwipeHudPill(hud: SwipeHud, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+// taps never move focus in Compose, so this ring only ever shows for a keyboard or D-pad
+@Composable
+internal fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
+    var on by remember { mutableStateOf(false) }
+    return onFocusChanged { on = it.isFocused }
+        .then(if (on) Modifier.border(2.dp, Cyan, shape) else Modifier)
 }
