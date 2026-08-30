@@ -29,6 +29,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -134,6 +137,7 @@ fun PlayerStage(
     swipeHud: SwipeHud? = null,
     seekMark: SeekMark?,
     seekInset: Dp = 0.dp,
+    paneH: Dp? = null,
     shiftPx: () -> Float = { 0f },
     videoShiftPx: () -> Float = shiftPx,
     sheetZoneTopPx: () -> Float = { Float.MAX_VALUE },
@@ -171,6 +175,13 @@ fun PlayerStage(
     val keys = onKeySeek
     val stageFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { if (keys != null) stageFocus.requestFocus() }
+    // the stage sits on the window edge in fullscreen and on phones in landscape; the portrait pane
+    // is already pushed below the status bar, so it must not pad again
+    val cfg = LocalConfiguration.current
+    val atEdge = fullscreen || (
+        cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+            cfg.smallestScreenWidthDp < 600
+        )
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val edgePx = with(LocalDensity.current) { (topInset + 12.dp).toPx() }
     BoxWithConstraints(
@@ -296,7 +307,8 @@ fun PlayerStage(
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
-                    .padding(horizontal = 16.dp).padding(bottom = 8.dp + seekInset),
+                    .padding(horizontal = 16.dp).padding(bottom = 8.dp + seekInset)
+                    .windowInsetsPadding(if (atEdge) WindowInsets.navigationBars else WindowInsets(0)),
             ) {
                 if (seekBar) {
                     PlayerSeekBar(
@@ -428,7 +440,13 @@ fun PlayerStage(
             Column(
                 Modifier.fillMaxWidth()
                     .onGloballyPositioned { headerH = it.size.height.toFloat() }
-                    .then(if (fullscreen && barsInset) Modifier.statusBarsPadding() else Modifier),
+                    .then(
+                        if (atEdge && barsInset) Modifier
+                            .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                            .windowInsetsPadding(WindowInsets.displayCutout)
+                            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
+                        else Modifier,
+                    ),
             ) {
             PlayerTopBar(
                 title = title,
@@ -465,7 +483,8 @@ fun PlayerStage(
             preview = preview,
             modifier = Modifier.align(Alignment.BottomStart)
                 .offset { IntOffset(0, -shiftPx().roundToInt()) }
-                .padding(bottom = seekInset),
+                .padding(bottom = seekInset)
+                .windowInsetsPadding(if (atEdge) WindowInsets.navigationBars else WindowInsets(0)),
         )
         }
         if (flash != null) {
@@ -519,6 +538,7 @@ fun PlayerStage(
         if (settings) {
             PlayerSettingsMenu(
                 topPad = with(LocalDensity.current) { headerH.toDp() } + 4.dp,
+                paneH = paneH,
                 qualities = qualities,
                 quality = quality,
                 qualityNow = qualityNow,

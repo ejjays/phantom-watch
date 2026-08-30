@@ -1040,7 +1040,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         currentDub = live.dub, onPickDub = ::playDub,
         qualities = q.rungs, quality = q.current, qualityNow = nowLabel, onPickQuality = { pickQuality(exo, q.group, it) },
         speed = speed, onPickSpeed = { speed = it; speedNote = "Speed ${speedLabel(it)}"; AppLog.d("speed ${it}x") },
-        bufferedMs = bufferedMs,
+        bufferedMs = bufferedMs, paneH = maxVideoH,
         controlsVisible = controls && !Pip.inPip,
         flash = speedNote ?: fillNote,
         swipeHud = swipeHud,

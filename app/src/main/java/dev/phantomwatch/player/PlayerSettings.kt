@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -63,6 +68,7 @@ internal fun speedLabel(s: Float): String = if (s == s.toInt().toFloat()) "${s.t
 @Composable
 internal fun PlayerSettingsMenu(
     topPad: Dp,
+    paneH: Dp? = null,
     qualities: List<Rung>,
     quality: Int,
     qualityNow: String?,
@@ -88,8 +94,10 @@ internal fun PlayerSettingsMenu(
     ) {
         Column(
             Modifier.align(Alignment.TopEnd).padding(top = topPad, end = 12.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
                 .widthIn(max = minOf(maxWidth * 0.55f, 232.dp))
-                .heightIn(max = maxHeight * 0.55f)
+                // the portrait pane is short and the sheet covers its lower half, so fit the pane
+                .heightIn(max = paneH?.minus(topPad)?.coerceAtLeast(96.dp) ?: (maxHeight * 0.55f))
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black.copy(alpha = 0.92f))
                 .focusRequester(first)
@@ -167,13 +175,6 @@ internal fun PlayerSettingsMenu(
                             AiSubtitles.toggle()
                             AppLog.d("settings ai subs=${if (AiSubtitles.showing) "on" else "off"}")
                         }
-                    }
-                    if (qualities.size <= 1 && dubs.isEmpty() && !AiSubtitles.available) {
-                        Text(
-                            "No options for this source",
-                            color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp, fontFamily = Rubik,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        )
                     }
                 }
             }
