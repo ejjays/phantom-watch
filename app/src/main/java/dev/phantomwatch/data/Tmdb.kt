@@ -29,13 +29,15 @@ object Tmdb {
         val id = e.optLong("id", -1)
         val name = e.optString("title").ifEmpty { e.optString("name") }
         if (id < 0 || name.isEmpty()) return null
-        return Title(
-            id.toString(), type, name,
-            img(e.optString("poster_path"), "w342"),
-            img(e.optString("backdrop_path"), "w1280"),
-            e.optDouble("vote_average").takeIf { !it.isNaN() },
-            (e.optString("release_date").ifEmpty { e.optString("first_air_date") }).take(4).ifEmpty { null },
-            e.optString("overview").ifEmpty { null },
+        return Aliases.resolve(
+            Title(
+                id.toString(), type, name,
+                img(e.optString("poster_path"), "w342"),
+                img(e.optString("backdrop_path"), "w1280"),
+                e.optDouble("vote_average").takeIf { !it.isNaN() },
+                (e.optString("release_date").ifEmpty { e.optString("first_air_date") }).take(4).ifEmpty { null },
+                e.optString("overview").ifEmpty { null },
+            ),
         )
     }
 
@@ -50,7 +52,7 @@ object Tmdb {
             titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
         }
         AppLog.d("trending ${out.size}")
-        return out
+        return out.distinctBy { it.kind to it.id }
     }
 
     /** Null means the request failed — never a page count of 1, which would end pagination. */
@@ -65,7 +67,7 @@ object Tmdb {
             for (i in 0 until results.length()) {
                 titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
             }
-            RailPage(out, data.optInt("total_pages", 1).coerceAtLeast(1))
+            RailPage(out.distinctBy { it.kind to it.id }, data.optInt("total_pages", 1).coerceAtLeast(1))
         } catch (_: Exception) {
             null
         }
@@ -192,7 +194,7 @@ object Tmdb {
             for (i in 0 until results.length()) {
                 titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
             }
-            out
+            out.distinctBy { it.kind to it.id }
         } catch (_: Exception) {
             emptyList()
         }

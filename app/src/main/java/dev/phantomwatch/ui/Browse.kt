@@ -97,6 +97,7 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import dev.phantomwatch.R
 import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
@@ -292,10 +293,11 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
     fun openDetail(item: Title) {
         keyboard?.hide()
         focusManager.clearFocus()
-        browse.openTitle = item
-        selected = item
-        recents.removeAll { it.kind == item.kind && it.id == item.id }
-        recents.add(0, item)
+        val t = Aliases.resolve(item)
+        browse.openTitle = t
+        selected = t
+        recents.removeAll { it.kind == t.kind && it.id == t.id }
+        recents.add(0, t)
         // removeLast() resolves to the Java 21 List member, which does not exist before API 35.
         if (recents.size > 6) recents.removeAt(recents.lastIndex)
     }

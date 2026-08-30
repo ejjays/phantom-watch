@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
+import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
@@ -114,12 +115,13 @@ internal fun AppRoot() {
                 is Screen.Home -> HomeScreen(
                     browse = browse,
                     onWatch = { t, seas, ep ->
+                        val m = Aliases.resolve(t)
                         forward = true
                         instant = true
                         autoRelease = true
-                        browse.backToEpisodes = t.kind == "tv"
-                        if (t.kind != "tv") browse.openTitle = null
-                        screen = Screen.Player(t.title, null, null, null, t, seas, ep, Screen.Home)
+                        browse.backToEpisodes = m.kind == "tv"
+                        if (m.kind != "tv") browse.openTitle = null
+                        screen = Screen.Player(m.title, null, null, null, m, seas, ep, Screen.Home)
                     },
                 )
                 is Screen.Player -> {

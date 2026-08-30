@@ -18,6 +18,6 @@ object Search {
             Tmdb.titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
         }
         AppLog.d("search \"$q\" ${out.size}")
-        return out
+        return out.distinctBy { it.kind to it.id }
     }
 }
