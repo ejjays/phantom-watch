@@ -24,12 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import dev.phantomwatch.R
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
@@ -107,10 +109,10 @@ internal fun NextUpHost(
                 .background(Color(0xF21A1A1A)).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("UP NEXT", color = Cyan, fontFamily = Mono, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.next_up_title), color = Cyan, fontFamily = Mono, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Text(
-                "S${up.season} E${up.episode}",
+                stringResource(R.string.season_episode, up.season, up.episode),
                 color = Color.White, fontFamily = Rubik, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             )
             if (up.name.isNotBlank()) {
@@ -121,7 +123,7 @@ internal fun NextUpHost(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text("Playing in ${left}s", color = Slate400, fontFamily = Mono, fontSize = 12.sp)
+            Text(stringResource(R.string.next_up_playing_in, left), color = Slate400, fontFamily = Mono, fontSize = 12.sp)
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
@@ -134,7 +136,7 @@ internal fun NextUpHost(
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        "Play now", color = Color(0xFF0B0B0B), fontFamily = Rubik,
+                        stringResource(R.string.next_up_play_now), color = Color(0xFF0B0B0B), fontFamily = Rubik,
                         fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                     )
                 }
@@ -144,7 +146,7 @@ internal fun NextUpHost(
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        "Cancel", color = Slate300, fontFamily = Rubik,
+                        stringResource(R.string.common_cancel), color = Slate300, fontFamily = Rubik,
                         fontWeight = FontWeight.Medium, fontSize = 13.sp,
                     )
                 }

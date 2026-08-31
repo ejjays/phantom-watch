@@ -29,7 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.DetailCache
 import dev.phantomwatch.core.RemoteConfig
@@ -68,13 +71,14 @@ internal fun SourcesScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var imdbState by remember { mutableStateOf<String?>(null) }
     var gone by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val lang = remember(title.id) {
         Providers.langName(DetailCache.detail(title.kind, title.id)?.language) ?: "Sub"
     }
     BackHandler(onBack = onBack)
     LaunchedEffect(title.id, season, episode) {
         try {
-            status = "Trying direct streams…"
+            status = context.getString(R.string.sources_trying_direct)
             val directJob = async(Dispatchers.IO) {
                 Providers.directAll(title.id, title.kind, season, episode, title.title)
             }
@@ -112,7 +116,7 @@ internal fun SourcesScreen(
                     return@LaunchedEffect
                 }
             } else if (!TORRENTS_ENABLED) {
-                err = "No direct streams found"
+                err = context.getString(R.string.player_no_streams)
                 return@LaunchedEffect
             }
             val key = RemoteConfig.tmdbKey()
@@ -210,7 +214,7 @@ internal fun SourcesScreen(
         Column(Modifier.fillMaxSize().background(Color.Black)) {
             Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) {
                 PlayerStage(
-                    title = if (season.isNotEmpty() && episode.isNotEmpty()) "${title.title} · S$season E$episode" else title.title,
+                    title = if (season.isNotEmpty() && episode.isNotEmpty()) stringResource(R.string.title_season_episode, title.title, season, episode) else title.title,
                     fullscreen = false, isPlaying = false, stalled = true,
                     positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
                     flash = null, seekMark = null, seekInset = 0.dp, locked = false,
@@ -231,17 +235,17 @@ internal fun SourcesScreen(
             Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("‹ Back") }
+            TextButton(onClick = onBack) { Text(stringResource(R.string.sources_back)) }
             Text(title.title, Modifier.weight(1f), maxLines = 1, style = MaterialTheme.typography.titleMedium)
         }
         when {
             loading -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 CircularProgressIndicator()
                 Spacer(Modifier.height(12.dp))
-                Text(status ?: "Finding best release…", style = MaterialTheme.typography.bodySmall)
+                Text(status ?: stringResource(R.string.sources_finding_release), style = MaterialTheme.typography.bodySmall)
             }
             err != null && entries == null && formats.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(err ?: "No streams found")
+                Text(err ?: stringResource(R.string.sources_no_streams))
             }
             !TORRENTS_ENABLED -> LazyColumn(Modifier.fillMaxSize()) {
                 items(formats, key = { it.url }) { f ->

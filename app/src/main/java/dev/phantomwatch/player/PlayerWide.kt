@@ -22,8 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.phantomwatch.R
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.ui.Bg
 import dev.phantomwatch.ui.CommentIcon
@@ -71,7 +73,7 @@ internal fun PlayerWide(
                 .clickable { info = true }
                 .padding(13.dp),
         ) {
-            CommentIcon(contentDescription = "Info", tint = Color.White, size = 22.dp)
+            CommentIcon(contentDescription = stringResource(R.string.player_info), tint = Color.White, size = 22.dp)
         }
         if (info) {
             ModalBottomSheet(

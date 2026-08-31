@@ -29,6 +29,8 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
+      - name: Detekt
+        run: ./gradlew :app:detekt -PcompileSdk=36 -PtargetSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
       - name: Debug keystore
         run: |
           mkdir -p ~/.android

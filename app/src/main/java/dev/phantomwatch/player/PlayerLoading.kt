@@ -26,9 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.phantomwatch.R
 import dev.phantomwatch.data.Title
 import kotlinx.coroutines.delay
 
@@ -49,11 +51,11 @@ internal fun PlayerFailedOverlay(show: Boolean, onPick: () -> Unit, onBack: () -
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Playback failed", color = Color.White, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+            Text(stringResource(R.string.player_playback_failed), color = Color.White, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onPick) { Text("Choose source") }
-                TextButton(onClick = onBack) { Text("Back") }
+                Button(onClick = onPick) { Text(stringResource(R.string.player_choose_source)) }
+                TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
             }
         }
     }
@@ -66,8 +68,8 @@ internal fun PlayerBuildFailed(error: String, onBack: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Player failed: $error")
-        Button(onClick = onBack) { Text("Back") }
+        Text(stringResource(R.string.player_build_failed, error))
+        Button(onClick = onBack) { Text(stringResource(R.string.common_back)) }
     }
 }
 
@@ -93,7 +95,7 @@ internal fun PlayerResolving(
     val stage: @Composable (Modifier) -> Unit = { mod ->
         Box(mod) {
             PlayerStage(
-                title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
+                title = if (season.isNotEmpty() && episode.isNotEmpty()) stringResource(R.string.title_season_episode, title, season, episode) else title,
                 fullscreen = false, isPlaying = false, stalled = true,
                 positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
                 flash = resolveErr, seekMark = null, seekInset = 0.dp, locked = false,
@@ -125,8 +127,8 @@ internal fun PlayerResolving(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             ) {
-                Button(onClick = onRetry) { Text("Retry") }
-                TextButton(onClick = onPickList) { Text("Choose") }
+                Button(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
+                TextButton(onClick = onPickList) { Text(stringResource(R.string.player_choose)) }
             }
         }
     }

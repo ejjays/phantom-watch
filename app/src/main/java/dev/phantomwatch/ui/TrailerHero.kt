@@ -42,6 +42,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,7 +67,7 @@ import dev.phantomwatch.player.playerClock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-/** Autoplaying trailer over the poster. Falls back to the poster while it resolves or if YouTube refuses. */
+// falls back to the poster while it resolves, or if YouTube refuses
 @Composable
 internal fun TrailerHero(
     videoId: String,
@@ -183,7 +184,7 @@ internal fun TrailerHero(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_play),
-                    contentDescription = "Play",
+                    contentDescription = stringResource(R.string.common_play),
                     tint = Color.White,
                     modifier = Modifier.size(22.dp),
                 )
@@ -197,7 +198,7 @@ internal fun TrailerHero(
             ) {
                 Icon(
                     painter = painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on),
-                    contentDescription = if (muted) "Unmute" else "Mute",
+                    contentDescription = if (muted) stringResource(R.string.player_unmute) else stringResource(R.string.player_mute),
                     tint = Color.White,
                     modifier = Modifier.size(16.dp),
                 )

@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
@@ -233,7 +234,7 @@ internal fun AppRoot() {
     crash?.let { text ->
         AlertDialog(
             onDismissRequest = { crash = null; CrashReport.clear(context) },
-            title = { Text("Last crash") },
+            title = { Text(stringResource(R.string.approot_crash_title)) },
             text = {
                 Text(
                     text.take(700),
@@ -249,17 +250,17 @@ internal fun AppRoot() {
                     }
                     val sent = runCatching {
                         context.startActivity(
-                            android.content.Intent.createChooser(send, "Send crash report"),
+                            android.content.Intent.createChooser(send, context.getString(R.string.approot_crash_chooser)),
                         )
                     }.isSuccess
                     if (sent) {
                         crash = null
                         CrashReport.clear(context)
                     }
-                }) { Text("Send") }
+                }) { Text(stringResource(R.string.approot_crash_send)) }
             },
             dismissButton = {
-                TextButton(onClick = { crash = null; CrashReport.clear(context) }) { Text("Dismiss") }
+                TextButton(onClick = { crash = null; CrashReport.clear(context) }) { Text(stringResource(R.string.approot_crash_dismiss)) }
             },
         )
     }
@@ -285,13 +286,13 @@ private fun LogFab() {
                     }
                 },
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-        ) { Text("LOG", style = MaterialTheme.typography.labelSmall) }
+        ) { Text(stringResource(R.string.approot_log), style = MaterialTheme.typography.labelSmall) }
     }
     if (open) {
         val clip = LocalClipboardManager.current
         AlertDialog(
             onDismissRequest = { open = false },
-            title = { Text("Logs (${AppLog.lines.size})") },
+            title = { Text(stringResource(R.string.approot_logs_title, AppLog.lines.size)) },
             text = {
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                     items(AppLog.lines) { line ->
@@ -305,11 +306,11 @@ private fun LogFab() {
             },
             confirmButton = {
                 Row {
-                    TextButton(onClick = { AppLog.clear() }) { Text("Clear") }
+                    TextButton(onClick = { AppLog.clear() }) { Text(stringResource(R.string.approot_logs_clear)) }
                     TextButton(onClick = {
                         clip.setText(AnnotatedString(AppLog.lines.joinToString("\n")))
-                    }) { Text("Copy all") }
-                    TextButton(onClick = { open = false }) { Text("Close") }
+                    }) { Text(stringResource(R.string.approot_logs_copy)) }
+                    TextButton(onClick = { open = false }) { Text(stringResource(R.string.common_close)) }
                 }
             },
         )

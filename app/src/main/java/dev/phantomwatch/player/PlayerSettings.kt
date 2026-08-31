@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -111,8 +112,8 @@ internal fun PlayerSettingsMenu(
         ) {
             when (page) {
                 1 -> {
-                    SettingsHeader("Quality") { page = 0 }
-                    SettingsRow("Auto", if (quality <= 0) qualityNow else null, 0, chevron = false, selected = quality <= 0) {
+                    SettingsHeader(stringResource(R.string.player_settings_quality)) { page = 0 }
+                    SettingsRow(stringResource(R.string.player_settings_auto), if (quality <= 0) qualityNow else null, 0, chevron = false, selected = quality <= 0) {
                         AppLog.d("quality auto")
                         onPickQuality(0)
                     }
@@ -124,11 +125,11 @@ internal fun PlayerSettingsMenu(
                     }
                 }
                 3 -> {
-                    SettingsHeader("Speed") { page = 0 }
+                    SettingsHeader(stringResource(R.string.player_settings_speed)) { page = 0 }
                     SPEEDS.forEach { s ->
                         SettingsRow(
                             speedLabel(s), null, 0, chevron = false, selected = s == speed,
-                            note = if (s == 1f) "(Normal)" else null,
+                            note = if (s == 1f) stringResource(R.string.player_settings_normal) else null,
                         ) {
                             AppLog.d("speed ${speedLabel(s)}")
                             onPickSpeed(s)
@@ -136,7 +137,7 @@ internal fun PlayerSettingsMenu(
                     }
                 }
                 2 -> {
-                    SettingsHeader("Dubs") { page = 0 }
+                    SettingsHeader(stringResource(R.string.player_settings_dubs)) { page = 0 }
                     dubs.forEach { d ->
                         val playing = if (d.base) current == null else d.label == current
                         SettingsRow(dubLabel(d.label), null, 0, chevron = false, selected = playing) {
@@ -148,27 +149,33 @@ internal fun PlayerSettingsMenu(
                 else -> {
                     if (qualities.size > 1) {
                         val pinned = if (quality > 0) qualities.firstOrNull { it.height == quality }?.label else null
-                        val qVal = pinned ?: (if (qualityNow != null) "Auto · $qualityNow" else "Auto")
-                        SettingsRow("Quality", qVal, R.drawable.ic_quality, chevron = true) {
+                        val autoLabel = if (qualityNow != null) {
+                            stringResource(R.string.player_settings_auto_now, qualityNow)
+                        } else {
+                            stringResource(R.string.player_settings_auto)
+                        }
+                        val qVal = pinned ?: autoLabel
+                        SettingsRow(stringResource(R.string.player_settings_quality), qVal, R.drawable.ic_quality, chevron = true) {
                             page = 1
                             AppLog.d("settings quality ${qualities.joinToString { it.label }}")
                         }
                     }
-                    SettingsRow("Speed", speedLabel(speed), R.drawable.ic_speed, chevron = true) {
+                    SettingsRow(stringResource(R.string.player_settings_speed), speedLabel(speed), R.drawable.ic_speed, chevron = true) {
                         page = 3
                         AppLog.d("settings speed ${speedLabel(speed)}")
                     }
                     if (dubs.isNotEmpty()) {
-                        val base = dubs.firstOrNull { it.base }?.let { dubLabel(it.label) } ?: "Sub"
-                        SettingsRow("Dubs", current?.let(::dubLabel) ?: base, R.drawable.ic_dubs, chevron = true) {
+                        val base = dubs.firstOrNull { it.base }?.let { dubLabel(it.label) }
+                            ?: stringResource(R.string.player_settings_sub)
+                        SettingsRow(stringResource(R.string.player_settings_dubs), current?.let(::dubLabel) ?: base, R.drawable.ic_dubs, chevron = true) {
                             page = 2
                             AppLog.d("settings dubs=${dubs.size} current=${current ?: "sub"}")
                         }
                     }
                     if (AiSubtitles.available) {
                         SettingsRow(
-                            "AI subtitles",
-                            if (AiSubtitles.showing) "On" else "Off",
+                            stringResource(R.string.player_settings_ai_subs),
+                            if (AiSubtitles.showing) stringResource(R.string.player_settings_on) else stringResource(R.string.player_settings_off),
                             R.drawable.ic_cc_on,
                             chevron = false,
                         ) {
@@ -191,7 +198,7 @@ private fun SettingsHeader(title: String, onBack: () -> Unit) {
     ) {
         Icon(
             painterResource(R.drawable.ic_chevron_right),
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.common_back),
             tint = Color.White.copy(alpha = 0.7f),
             modifier = Modifier.size(16.dp).rotate(180f),
         )
@@ -243,7 +250,7 @@ private fun SettingsRow(
             Spacer(Modifier.width(8.dp))
             Icon(
                 painterResource(R.drawable.ic_check),
-                contentDescription = "Selected", tint = Cyan, modifier = Modifier.size(16.dp),
+                contentDescription = stringResource(R.string.player_settings_selected), tint = Cyan, modifier = Modifier.size(16.dp),
             )
         }
     }

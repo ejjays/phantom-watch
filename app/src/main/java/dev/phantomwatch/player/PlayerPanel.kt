@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -308,7 +309,7 @@ fun PlayerPanel(
                 )
                 if (similar.isNotEmpty() && onOpenTitle != null) {
                     Spacer(Modifier.height(22.dp))
-                    Box(Modifier.padding(horizontal = 20.dp)) { SectionTitle("More Like This") }
+                    Box(Modifier.padding(horizontal = 20.dp)) { SectionTitle(stringResource(R.string.player_more_like_this)) }
                     Spacer(Modifier.height(10.dp))
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -359,7 +360,7 @@ fun PlayerPanel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "Story plot", color = Color.White, fontSize = 22.sp, fontFamily = Rubik,
+                            stringResource(R.string.player_story_plot), color = Color.White, fontSize = 22.sp, fontFamily = Rubik,
                             fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
                         )
                         Box(
@@ -369,7 +370,7 @@ fun PlayerPanel(
                                 }
                             }.padding(6.dp),
                         ) {
-                            CloseIcon(contentDescription = "Close", tint = Slate200, size = 22.dp)
+                            CloseIcon(contentDescription = stringResource(R.string.common_close), tint = Slate200, size = 22.dp)
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -426,7 +427,7 @@ private fun ThumbButton(
         ) {
             Icon(
                 painter = painterResource(if (up) R.drawable.ic_like else R.drawable.ic_dislike),
-                contentDescription = if (up) "Like" else "Dislike",
+                contentDescription = if (up) stringResource(R.string.player_like) else stringResource(R.string.player_dislike),
                 tint = tint,
                 modifier = Modifier.size(size).graphicsLayer {
                     alpha = 1f - fill
@@ -536,7 +537,7 @@ private fun PlayerInfo(
                             .padding(horizontal = 18.dp, vertical = 14.dp),
                     ) {
                         Text(
-                            "Story plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                            stringResource(R.string.player_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
                             fontWeight = FontWeight.Medium,
                         )
                         Spacer(Modifier.height(6.dp))
@@ -553,10 +554,10 @@ private fun PlayerInfo(
                     ThumbButton(true, stats, 24.dp, 14, voted) { onVote(Social.LIKE) }
                     ThumbButton(false, stats, 24.dp, 14, voted) { onVote(Social.DISLIKE) }
                         ActionIcon(onClick = { onComments() }) {
-                            CommentIcon(contentDescription = "Comments", tint = Slate300, size = 24.dp)
+                            CommentIcon(contentDescription = stringResource(R.string.comments_title), tint = Slate300, size = 24.dp)
                         }
                         Spacer(Modifier.weight(1f))
-                        ActionIcon { ShareIcon(contentDescription = "Share", tint = Slate300, size = 24.dp) }
+                        ActionIcon { ShareIcon(contentDescription = stringResource(R.string.common_share), tint = Slate300, size = 24.dp) }
                     }
                 }
                 if (isTv) {
@@ -576,7 +577,7 @@ private fun PlayerInfo(
                                     .onGloballyPositioned { onHeaderBottom?.invoke(it.positionInWindow().y) },
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                SectionTitle("Episodes")
+                                SectionTitle(stringResource(R.string.episodes_title))
                                 Spacer(Modifier.weight(1f))
                                 if (onEpisode != null) {
                                     Row(
@@ -584,10 +585,10 @@ private fun PlayerInfo(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Text(
-                                            "Full", color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
+                                            stringResource(R.string.player_episodes_full), color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
                                             fontWeight = FontWeight.Medium,
                                         )
-                                        ChevronRightIcon(contentDescription = "All episodes", tint = Slate200, size = 15.dp)
+                                        ChevronRightIcon(contentDescription = stringResource(R.string.player_all_episodes), tint = Slate200, size = 15.dp)
                                     }
                                 }
                             }
@@ -598,7 +599,7 @@ private fun PlayerInfo(
                                     CircularProgressIndicator(color = Cyan, modifier = Modifier.size(22.dp))
                                 }
                                 episodes.isEmpty() -> Text(
-                                    "No episodes available", color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
+                                    stringResource(R.string.player_no_episodes), color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
                                     modifier = Modifier.padding(horizontal = 20.dp).padding(vertical = 12.dp),
                                 )
                                 else -> {
@@ -655,7 +656,7 @@ private fun SimilarList(items: List<Title>, onOpen: (Title) -> Unit) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item(key = "header") { SectionTitle("More Like This") }
+        item(key = "header") { SectionTitle(stringResource(R.string.player_more_like_this)) }
         items(items, key = { it.kind + "-" + it.id }) { t ->
             Column(Modifier.fillMaxWidth().clickable { onOpen(t) }) {
                 Box(
@@ -707,10 +708,13 @@ private fun PlotBody(
             lineHeight = 24.sp,
         )
         val year = d?.year ?: media.year
+        val ratingLabel = stringResource(R.string.stat_rating)
+        val votesLabel = stringResource(R.string.stat_votes)
+        val releasedLabel = stringResource(R.string.stat_released)
         val cards = buildList {
-            d?.rating?.takeIf { it > 0 }?.let { add(String.format("%.1f", it) to "Rating") }
-            d?.votes?.takeIf { it > 0 }?.let { add(compactCount(it) to "Votes") }
-            year?.let { add(it to "Released") }
+            d?.rating?.takeIf { it > 0 }?.let { add(String.format("%.1f", it) to ratingLabel) }
+            d?.votes?.takeIf { it > 0 }?.let { add(compactCount(it) to votesLabel) }
+            year?.let { add(it to releasedLabel) }
         }
         if (cards.isNotEmpty()) {
             Spacer(Modifier.height(22.dp))
@@ -828,14 +832,14 @@ private fun RailPlot(media: Title, d: TitleDetail?, synopsis: String, onClose: (
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Story plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                stringResource(R.string.player_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
             )
             Box(
                 Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
-                CloseIcon(contentDescription = "Close", tint = Slate300, size = 18.dp)
+                CloseIcon(contentDescription = stringResource(R.string.common_close), tint = Slate300, size = 18.dp)
             }
         }
         HorizontalDivider(color = Color.White.copy(alpha = 0.1f))

@@ -49,6 +49,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -236,7 +237,7 @@ private fun HeroKind(item: Title, scale: Float = 1f) {
         )
         Spacer(Modifier.width(7.dp * scale))
         Text(
-            if (item.kind == "movie") "MOVIE" else "SERIES",
+            if (item.kind == "movie") stringResource(R.string.hero_kind_movie) else stringResource(R.string.hero_kind_series),
             color = Cyan,
             fontSize = 11.sp * scale,
             fontFamily = Rubik,
@@ -255,7 +256,10 @@ private fun HeroMeta(item: Title, detail: TitleDetail?, scale: Float = 1f) {
         }
         item.year?.let { Text(it, color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
         detail?.runtime?.takeIf { it > 0 }?.let {
-            Text(if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m", color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium)
+            Text(
+                if (it >= 60) stringResource(R.string.hero_runtime_hm, it / 60, it % 60) else stringResource(R.string.hero_runtime_m, it),
+                color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium,
+            )
         }
         detail?.genres?.take(2)?.takeIf { it.isNotEmpty() }?.let {
             Text(it.joinToString(" · "), color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -274,7 +278,7 @@ private fun HeroActions(item: Title, onOpen: (Title) -> Unit, scale: Float = 1f)
         ) {
             Icon(painterResource(R.drawable.ic_play_filled), contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp * scale))
             Spacer(Modifier.width(7.dp * scale))
-            Text("Play", color = Color.Black, fontFamily = Rubik, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale)
+            Text(stringResource(R.string.common_play), color = Color.Black, fontFamily = Rubik, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale)
         }
         Row(
             modifier = Modifier.height(42.dp * scale).clip(RoundedCornerShape(21.dp * scale)).background(Color.White.copy(alpha = 0.16f))
@@ -283,7 +287,7 @@ private fun HeroActions(item: Title, onOpen: (Title) -> Unit, scale: Float = 1f)
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Details", color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, fontSize = 14.sp * scale)
+            Text(stringResource(R.string.hero_details), color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, fontSize = 14.sp * scale)
         }
     }
 }

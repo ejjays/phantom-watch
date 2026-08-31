@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- i18n: every string the app renders now lives in `res/values/strings.xml` (161
+  strings plus one plural), so a translation is a resource file rather than a
+  Kotlin edit, and air dates follow the device locale. The brand name is the
+  only string marked non-translatable; the disabled torrent screens are still
+  hard-coded English.
+- net: cleartext HTTP is now refused app-wide except for `127.0.0.1`, so the update helper
+  keeps working but no https request can be silently downgraded. Every configured provider
+  host is already https; an http media host would have to be added to
+  `res/xml/network_security_config.xml`.
+- build: detekt 1.23.8 runs as its own CI job against a curated config and a
+  committed baseline (210 frozen findings, down from 1510 raw). It stays out of
+  `check` so phone builds keep their speed; the baseline may shrink, never grow.
+
 - community: authors can delete their comments (replies go with them) and anyone
   can report spam, harassment, spoilers or other; three reports hide a comment
   pending moderator review. The database enforces the same length, title, reply

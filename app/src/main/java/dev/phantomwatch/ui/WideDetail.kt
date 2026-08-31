@@ -40,6 +40,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.phantomwatch.R
@@ -104,7 +105,7 @@ internal fun WideDetail(
                     modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 16.dp, top = 8.dp)
                         .clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
                 ) {
-                    Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(22.dp))
                 }
             }
             Box(Modifier.weight(1f).fillMaxHeight()) {

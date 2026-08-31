@@ -19,7 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.phantomwatch.R
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.ui.Cyan
@@ -41,7 +43,7 @@ internal fun BoxScope.PlayerDownloadFab(
         containerColor = Color(0xE61E293B),
         contentColor = Cyan,
     ) {
-        DownloadIcon(contentDescription = "Download", tint = Cyan, size = 20.dp)
+        DownloadIcon(contentDescription = stringResource(R.string.player_download), tint = Cyan, size = 20.dp)
     }
 }
 
@@ -58,24 +60,24 @@ internal fun PlayerDownloadDialog(
     val context = LocalContext.current
     val installed = remember { PhantomDownload.isInstalled(context) }
     var installOnly by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var needsUpdate by remember { mutableStateOf(false) }
     val useInstall = installOnly || !installed
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Download with Phantom") },
+        title = { Text(stringResource(R.string.player_download_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(PhantomDownload.baseName(media.title, season, episode))
-                Text(if (videoH > 0) "${videoH}p" else "Auto quality", color = Cyan)
+                Text(if (videoH > 0) "${videoH}p" else stringResource(R.string.player_download_auto_quality), color = Cyan)
                 Text(
                     when {
-                        PhantomDownload.englishSub(stream.subs) != null -> "English subtitle included."
-                        stream.isHls -> "English subtitle added if the stream provides one."
-                        else -> "No separate English subtitle found."
+                        PhantomDownload.englishSub(stream.subs) != null -> stringResource(R.string.player_download_sub_included)
+                        stream.isHls -> stringResource(R.string.player_download_sub_added)
+                        else -> stringResource(R.string.player_download_sub_none)
                     },
                 )
-                Text("Saves to Movies/PhantomWatch.")
-                error?.let { Text(it, color = WatchRed) }
+                Text(stringResource(R.string.player_download_saves_to))
+                if (needsUpdate) Text(stringResource(R.string.player_download_needs_update), color = WatchRed)
             }
         },
         confirmButton = {
@@ -96,23 +98,23 @@ internal fun PlayerDownloadDialog(
                 )
                 if (job == null || !PhantomDownload.send(context, job)) {
                     installOnly = true
-                    error = "Phantom needs an update. Install the latest version and try again."
+                    needsUpdate = true
                 } else {
                     onDismiss()
-                    Toast.makeText(context, "Opening Phantom…", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.player_download_opening), Toast.LENGTH_SHORT).show()
                 }
             }) {
                 Text(
                     if (useInstall) {
-                        if (installed) "Update Phantom" else "Install Phantom"
+                        if (installed) stringResource(R.string.player_download_update) else stringResource(R.string.player_download_install)
                     } else {
-                        "Open Phantom"
+                        stringResource(R.string.player_download_open)
                     },
                 )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }

@@ -23,7 +23,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-/** Installs an update served by install.sh on loopback: the app writes the session itself. */
+// loopback only, and the app commits the session itself: this ROM can't read a content:// URI
 class UpdateInstallActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,7 +32,7 @@ class UpdateInstallActivity : Activity() {
         val url = intent.getStringExtra("url").orEmpty()
         if (!UpdateTrust.validUrl(url)) return finishWith("rejected url")
         if (!packageManager.canRequestPackageInstalls()) {
-            Toast.makeText(this, "Allow Phantom Watch to install apps, then run install.sh again", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.update_allow_install), Toast.LENGTH_LONG).show()
             runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
             return finishWith("no install appop")
         }
@@ -79,7 +79,7 @@ class UpdateInstallActivity : Activity() {
             verifyApk(cache)
             log("verified update ${cache.length()} bytes for $packageName")
             val installer = packageManager.packageInstaller
-            // A session left waiting for a tap blocks the next one once the system cap is hit.
+            // A session left waiting for a tap blocks the next one once the system cap is hit
             runCatching { installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } } }
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
             params.setSize(cache.length())

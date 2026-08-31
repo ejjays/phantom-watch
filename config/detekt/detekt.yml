@@ -1,0 +1,22 @@
+# detekt tuning. Everything not listed here keeps the bundled defaults.
+# Rationale: this is a Compose app on a phone build box, so the rules that punish
+# Compose by design are off, and the ones that catch real defects stay on.
+style:
+  MagicNumber:
+    active: false # dp, colors and track indices are inline by design
+  MaxLineLength:
+    maxLineLength: 160 # the tree is hand-wrapped; 120 flags 226 lines of noise
+  ReturnCount:
+    active: false # guard clauses are the house style
+  LoopWithTooManyJumpStatements:
+    active: false
+complexity:
+  TooManyFunctions:
+    active: false # one screen per file, screen files are long
+exceptions:
+  TooGenericExceptionCaught:
+    active: false # Android I/O and the JS bridge throw across the world
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - Composable

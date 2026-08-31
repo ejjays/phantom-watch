@@ -77,6 +77,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -342,7 +343,7 @@ fun PlayerStage(
                     ) {
                         Icon(
                             painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on),
-                            contentDescription = if (muted) "Unmute" else "Mute",
+                            contentDescription = if (muted) stringResource(R.string.player_unmute) else stringResource(R.string.player_mute),
                             tint = Color.White, modifier = Modifier.size(20.dp),
                         )
                     }
@@ -355,7 +356,7 @@ fun PlayerStage(
                     ) {
                         Icon(
                             painterResource(if (fullscreen) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen),
-                            contentDescription = if (fullscreen) "Exit fullscreen" else "Enter fullscreen",
+                            contentDescription = if (fullscreen) stringResource(R.string.player_exit_fullscreen) else stringResource(R.string.player_enter_fullscreen),
                             tint = Color.White, modifier = Modifier.size(20.dp),
                         )
                     }
@@ -380,9 +381,9 @@ fun PlayerStage(
                     contentAlignment = Alignment.Center,
                 ) {
                     if (isPlaying) {
-                        Icon(painterResource(R.drawable.ic_pause), contentDescription = "Pause", tint = Color.White, modifier = Modifier.size(26.dp))
+                        Icon(painterResource(R.drawable.ic_pause), contentDescription = stringResource(R.string.player_pause), tint = Color.White, modifier = Modifier.size(26.dp))
                     } else {
-                        Icon(painterResource(R.drawable.ic_play), contentDescription = "Play", tint = Color.White, modifier = Modifier.size(30.dp))
+                        Icon(painterResource(R.drawable.ic_play), contentDescription = stringResource(R.string.common_play), tint = Color.White, modifier = Modifier.size(30.dp))
                     }
                 }
             }
@@ -405,7 +406,7 @@ fun PlayerStage(
             ) {
                 Icon(
                     painterResource(if (locked) R.drawable.ic_lock else R.drawable.ic_unlock),
-                    contentDescription = if (locked) "Locked" else "Unlocked",
+                    contentDescription = if (locked) stringResource(R.string.player_locked) else stringResource(R.string.player_unlocked),
                     tint = Color.White, modifier = Modifier.size(20.dp),
                 )
             }
@@ -428,7 +429,7 @@ fun PlayerStage(
             ) {
                 Icon(
                     painterResource(R.drawable.ic_rotate_screen),
-                    contentDescription = "Rotate to landscape",
+                    contentDescription = stringResource(R.string.player_rotate_landscape),
                     tint = Color.White, modifier = Modifier.size(20.dp),
                 )
             }
@@ -589,7 +590,7 @@ private fun PlayerTopBar(
             ) {
                 Icon(
                     painterResource(if (fullscreen) R.drawable.ic_chevron_down else R.drawable.ic_back),
-                    contentDescription = if (fullscreen) "Exit fullscreen" else "Close player",
+                    contentDescription = if (fullscreen) stringResource(R.string.player_exit_fullscreen) else stringResource(R.string.player_close),
                     tint = Color.White, modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
             }
@@ -612,7 +613,7 @@ private fun PlayerTopBar(
             ) {
                 Icon(
                     painterResource(if (subsActive) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
-                    contentDescription = if (subsActive) "Turn subtitles off" else "Turn subtitles on",
+                    contentDescription = if (subsActive) stringResource(R.string.player_subs_off) else stringResource(R.string.player_subs_on),
                     tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
                     modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
@@ -626,7 +627,7 @@ private fun PlayerTopBar(
             ) {
                 Icon(
                     painterResource(R.drawable.ic_settings),
-                    contentDescription = "Player settings",
+                    contentDescription = stringResource(R.string.player_settings),
                     tint = if (settingsOn) Cyan else Color.White,
                     modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
@@ -821,7 +822,7 @@ private fun SkipIntroPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
             .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Skip intro", color = Color.White, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.player_skip_intro), color = Color.White, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(4.dp))
         Icon(
             painterResource(R.drawable.ic_chevron_right),

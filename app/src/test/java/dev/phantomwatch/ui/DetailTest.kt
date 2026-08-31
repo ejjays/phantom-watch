@@ -1,14 +1,21 @@
 package dev.phantomwatch.ui
 
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class DetailTest {
     @Test
     fun airFormatsIsoDate() {
-        assertEquals("Jan. 15, 2026", airLabel("2026-01-15"))
-        assertEquals("Dec. 26, 2026", airLabel("2026-12-26"))
-        assertEquals("Oct. 27, 1999", airLabel("1999-10-27"))
+        val saved = Locale.getDefault()
+        Locale.setDefault(Locale.US)
+        try {
+            assertEquals("Jan 15, 2026", airLabel("2026-01-15"))
+            assertEquals("Dec 26, 2026", airLabel("2026-12-26"))
+            assertEquals("Oct 27, 1999", airLabel("1999-10-27"))
+        } finally {
+            Locale.setDefault(saved)
+        }
     }
 
     @Test

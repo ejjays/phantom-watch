@@ -3,6 +3,7 @@ package dev.phantomwatch.social
 import android.content.Context
 import android.content.SharedPreferences
 import dev.phantomwatch.BuildConfig
+import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Http
 import java.time.OffsetDateTime
@@ -118,11 +119,11 @@ internal object Social {
         return Page(items, total)
     }
 
-    suspend fun post(kind: String, id: Int, text: String, parent: Long = 0): String? {
-        val (at, _) = session() ?: return "Sign-in unavailable"
+    suspend fun post(kind: String, id: Int, text: String, parent: Long = 0): Int? {
+        val (at, _) = session() ?: return R.string.social_signin_unavailable
         val body = text.trim()
-        if (kind !in setOf("movie", "tv") || id <= 0) return "Invalid title"
-        if (!validCommentBody(body)) return "Comments must be 1–500 characters"
+        if (kind !in setOf("movie", "tv") || id <= 0) return R.string.social_invalid_title
+        if (!validCommentBody(body)) return R.string.social_bad_body
         val payload = JSONObject()
             .put("kind", kind).put("tmdb_id", id).put("body", body)
         if (parent > 0) payload.put("parent_id", parent)
@@ -132,11 +133,11 @@ internal object Social {
         )
         return when {
             r.code in 200..299 -> null
-            r.body.contains("rate limit") || r.body.contains("wait before posting") || r.body.contains("slow down") -> "Please wait before posting again"
-            r.body.contains("invalid reply") -> "That reply is no longer available"
-            r.body.contains("invalid title") -> "Invalid title"
-            r.body.contains("comment must be") -> "Comments must be 1–500 characters"
-            else -> "Could not post"
+            r.body.contains("rate limit") || r.body.contains("wait before posting") || r.body.contains("slow down") -> R.string.social_rate_limited
+            r.body.contains("invalid reply") -> R.string.social_reply_gone
+            r.body.contains("invalid title") -> R.string.social_invalid_title
+            r.body.contains("comment must be") -> R.string.social_bad_body
+            else -> R.string.social_post_failed
         }
     }
 

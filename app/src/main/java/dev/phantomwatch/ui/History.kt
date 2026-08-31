@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import dev.phantomwatch.R
 import dev.phantomwatch.data.Resume
 import kotlinx.coroutines.launch
 
@@ -61,14 +64,15 @@ internal fun HistoryScreen(
 ) {
     val host = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ScreenHeader("History", onBack)
+            ScreenHeader(stringResource(R.string.history_title), onBack)
             if (recent.isEmpty()) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("Nothing watched yet.", color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
-                    Text("Start an episode and it shows up here", color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
+                    Text(stringResource(R.string.history_empty_body), color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
                 }
             } else {
                 LazyVerticalGrid(
@@ -84,8 +88,8 @@ internal fun HistoryScreen(
                             onDelete(gone)
                             scope.launch {
                                 val done = host.showSnackbar(
-                                    message = "Removed ${gone.title}",
-                                    actionLabel = "Undo",
+                                    message = ctx.getString(R.string.history_removed, gone.title),
+                                    actionLabel = ctx.getString(R.string.history_undo),
                                     duration = SnackbarDuration.Short,
                                 )
                                 if (done == SnackbarResult.ActionPerformed) onRestore(before)
@@ -132,7 +136,7 @@ private fun ContinueCard(
                 }
                 if (r.season.isNotEmpty()) {
                     Text(
-                        "S${r.season} E${r.episode}", color = Color.White, fontSize = 10.sp, fontFamily = Mono,
+                        stringResource(R.string.season_episode, r.season, r.episode), color = Color.White, fontSize = 10.sp, fontFamily = Mono,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.align(Alignment.TopStart).padding(badgeInset)
                             .clip(RoundedCornerShape(6.dp)).background(Color(0xCC1E1E1E))

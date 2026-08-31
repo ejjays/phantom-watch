@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -48,19 +49,21 @@ internal fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "Exit Phantom Watch?", color = Slate100, fontFamily = Rubik,
+                    stringResource(R.string.exit_title), color = Slate100, fontFamily = Rubik,
                     fontWeight = FontWeight.Bold, fontSize = 19.sp, textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Your progress is saved, so you can pick up right where you left off.",
+                    stringResource(R.string.exit_body),
                     color = Slate400, fontFamily = Rubik, fontSize = 14.sp, lineHeight = 20.sp,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(22.dp))
+                val cancel = stringResource(R.string.common_cancel)
+                val exit = stringResource(R.string.exit_confirm)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Pill("Cancel", Modifier.weight(1f), Color.White.copy(alpha = 0.10f), Color.White, FontWeight.SemiBold, onCancel)
-                    Pill("Exit", Modifier.weight(1f), Color.White, Color.Black, FontWeight.Bold, onExit)
+                    Pill(cancel, Modifier.weight(1f), Color.White.copy(alpha = 0.10f), Color.White, FontWeight.SemiBold, onCancel)
+                    Pill(exit, Modifier.weight(1f), Color.White, Color.Black, FontWeight.Bold, onExit)
                 }
             }
             Image(

@@ -62,6 +62,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +89,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 @Composable
 private fun ShimmerBox(modifier: Modifier = Modifier) {
@@ -183,11 +188,11 @@ fun DetailScreen(
                 Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text("Title unavailable", color = Slate100, fontSize = 15.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.detail_unavailable), color = Slate100, fontSize = 15.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
-                Text("Phantom could not load this title", color = Slate400, fontSize = 12.sp, fontFamily = Mono)
+                Text(stringResource(R.string.detail_load_failed), color = Slate400, fontSize = 12.sp, fontFamily = Mono)
                 Text(
-                    "Retry", color = Cyan, fontSize = 13.sp, fontFamily = Rubik,
+                    stringResource(R.string.common_retry), color = Cyan, fontSize = 13.sp, fontFamily = Rubik,
                     modifier = Modifier.padding(top = 10.dp).clickable { attempt++ },
                 )
             }
@@ -237,7 +242,7 @@ fun DetailScreen(
                     onClick = onClose,
                     modifier = Modifier.statusBarsPadding().padding(start = 16.dp, top = 8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
                 ) {
-                    Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 WatchBar(
                     isTv = d.kind != "movie",
@@ -352,19 +357,17 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
             .clickable(onClick = onViewAll).padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("View all $total episodes", color = Cyan, fontSize = 13.sp, fontFamily = Rubik)
+        Text(stringResource(R.string.detail_view_all_episodes, total), color = Cyan, fontSize = 13.sp, fontFamily = Rubik)
         ChevronRightIcon(contentDescription = null, tint = Cyan, size = 15.dp)
     }
 }
 
-internal fun airLabel(iso: String): String {
-    val p = iso.split("-")
-    if (p.size != 3) return iso
-    val m = listOf("Jan.", "Feb.", "Mar.", "Apr.", "May.", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.")
-        .getOrNull((p[1].toIntOrNull() ?: 0) - 1) ?: return iso
-    val d = p[2].toIntOrNull() ?: return iso
-    return "$m $d, ${p[0]}"
-}
+// Locale-aware and lenient on purpose: bad input falls back to the raw ISO string.
+internal fun airLabel(iso: String): String = runCatching {
+    LocalDate.parse(iso).format(
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()),
+    )
+}.getOrDefault(iso)
 
 @Composable
 internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = false, onClick: () -> Unit) {
@@ -383,7 +386,8 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""),
+                ep.air?.let { stringResource(R.string.detail_episode_air, ep.n, airLabel(it)) }
+                    ?: stringResource(R.string.detail_episode, ep.n),
                 color = if (playing) Cyan else Slate500, fontSize = 11.sp, fontFamily = Mono,
             )
             Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -393,7 +397,7 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
                 Modifier.clip(CircleShape).background(Cyan.copy(alpha = 0.15f))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                Text("PLAYING", color = Cyan, fontSize = 9.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.detail_playing), color = Cyan, fontSize = 9.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
             }
         } else {
             Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
@@ -420,7 +424,7 @@ internal fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, mod
                 } else {
                     Icon(painterResource(R.drawable.ic_play_filled), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(if (isTv) "Episodes" else "Watch Now", color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                    Text(if (isTv) stringResource(R.string.episodes_title) else stringResource(R.string.detail_watch_now), color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -512,7 +516,7 @@ internal fun EpisodesScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose, modifier = Modifier.size(38.dp)) {
-                    Icon(painterResource(R.drawable.ic_back), contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(6.dp))
                 if (searching) {
@@ -524,18 +528,18 @@ internal fun EpisodesScreen(
                         singleLine = true,
                         decorationBox = { inner ->
                             Box(contentAlignment = Alignment.CenterStart) {
-                                if (query.isEmpty()) Text("Search E2 or title…", color = Slate500, fontSize = 15.sp, fontFamily = Rubik)
+                                if (query.isEmpty()) Text(stringResource(R.string.detail_search_hint), color = Slate500, fontSize = 15.sp, fontFamily = Rubik)
                                 inner()
                             }
                         },
                     )
                     IconButton(onClick = { searching = false; query = "" }) {
-                        CloseIcon(contentDescription = "Close", tint = Slate200, size = 20.dp)
+                        CloseIcon(contentDescription = stringResource(R.string.common_close), tint = Slate200, size = 20.dp)
                     }
                 } else {
-                    Text("Episodes", color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.episodes_title), color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = { searching = true }) {
-                        Icon(painterResource(R.drawable.ic_search), contentDescription = "Search", tint = Color.White, modifier = Modifier.size(22.dp))
+                        Icon(painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.common_search), tint = Color.White, modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -571,11 +575,11 @@ internal fun EpisodesScreen(
                     }
                 }
                 shown.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (query.isNotEmpty()) "No matches for \"$query\"" else "No episodes found", color = Slate200, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                    Text(if (query.isNotEmpty()) stringResource(R.string.detail_no_matches, query) else stringResource(R.string.detail_no_episodes), color = Slate200, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
                 }
                 else -> {
                     if (query.isNotEmpty()) {
-                        Text("${shown.size} matches", color = Slate500, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                        Text(stringResource(R.string.detail_matches, shown.size), color = Slate500, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                     }
                     LazyColumn(modifier = Modifier.imePadding(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
                         items(shown, key = { it.n }) { ep ->
@@ -597,7 +601,11 @@ internal fun EpisodesScreen(
                                 Column(Modifier.weight(1f)) {
                                     Text(ep.name, color = Color.White, fontSize = 16.sp, lineHeight = 21.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                     Spacer(Modifier.height(4.dp))
-                                    Text("E${ep.n}" + (ep.air?.let { " · ${airLabel(it)}" } ?: ""), color = Slate400, fontSize = 13.sp, fontFamily = Mono)
+                                    Text(
+                                        ep.air?.let { stringResource(R.string.detail_episode_air, ep.n, airLabel(it)) }
+                                            ?: stringResource(R.string.detail_episode, ep.n),
+                                        color = Slate400, fontSize = 13.sp, fontFamily = Mono,
+                                    )
                                 }
                             }
                         }
@@ -641,7 +649,7 @@ internal fun DetailBody(
                                 modifier = Modifier.size(11.dp),
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text(if (d.kind == "movie") "Movie" else "Series", color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                            Text(if (d.kind == "movie") stringResource(R.string.detail_kind_movie) else stringResource(R.string.detail_kind_series), color = Slate300, fontSize = 10.sp, fontFamily = Mono)
                         }
                     }
                     if (d.cert != null) {
@@ -659,16 +667,19 @@ internal fun DetailBody(
                         Text(String.format("%.1f", d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.width(6.dp))
                     }
-                    Text(if (d.votes > 0) "${d.votes} votes" else "···", color = Slate500, fontSize = 11.sp, fontFamily = Mono)
+                    Text(
+                        if (d.votes > 0) stringResource(R.string.detail_votes, d.votes) else stringResource(R.string.detail_votes_none),
+                        color = Slate500, fontSize = 11.sp, fontFamily = Mono,
+                    )
                 }
             }
         }
         Spacer(Modifier.height(20.dp))
         Column {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetaCell("Rating", if (d.rating > 0) String.format("%.1f", d.rating) else "—")
-            MetaCell("Runtime", if (d.runtime > 0) "${d.runtime} min" else "—")
-            MetaCell("Released", d.year ?: "—")
+            MetaCell(stringResource(R.string.stat_rating), if (d.rating > 0) String.format("%.1f", d.rating) else stringResource(R.string.detail_value_none))
+            MetaCell(stringResource(R.string.stat_runtime), if (d.runtime > 0) stringResource(R.string.detail_runtime_min, d.runtime) else stringResource(R.string.detail_value_none))
+            MetaCell(stringResource(R.string.stat_released), d.year ?: stringResource(R.string.detail_value_none))
         }
         if (d.genres.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
@@ -688,7 +699,7 @@ internal fun DetailBody(
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text("Story Plot", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.detail_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
         if (d.overview.isNotEmpty()) {
             Text(d.overview, color = Slate300, fontSize = 14.sp, lineHeight = 24.sp, fontFamily = Rubik)
@@ -705,7 +716,7 @@ internal fun DetailBody(
         }
         if (d.kind != "movie") {
             Spacer(Modifier.height(12.dp))
-            Text("Episodes", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.episodes_title), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             if (d.seasons.isNotEmpty()) {
                 SeasonPreview(
@@ -736,7 +747,7 @@ internal fun DetailBody(
         }
         if (d.director != null) {
             Spacer(Modifier.height(12.dp))
-            Text("Director", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(person = d.director, size = 44.dp, loadPhoto = photosReady)
@@ -745,7 +756,7 @@ internal fun DetailBody(
             }
         } else if (pending) {
             Spacer(Modifier.height(12.dp))
-            Text("Director", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ShimmerBox(Modifier.size(44.dp))
@@ -755,7 +766,7 @@ internal fun DetailBody(
         }
         if (photosReady && d.cast.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
-            Text("Casts", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(d.cast.take(8), key = { it.name }) { p ->
@@ -768,7 +779,7 @@ internal fun DetailBody(
             }
         } else if (pending || !photosReady) {
             Spacer(Modifier.height(12.dp))
-            Text("Casts", color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 repeat(8) {

@@ -105,6 +105,7 @@ import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Title
+import dev.phantomwatch.R
 import dev.phantomwatch.data.withDub
 import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.provider.Providers
@@ -158,7 +159,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             val live = bundle.formats.filter { it.url !in Torrents.DeadReleases.urls }
             AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
-                resolveErr = if (JsProviders.engineDown) "Provider engine unavailable" else "No direct streams found"
+                resolveErr = context.getString(if (JsProviders.engineDown) R.string.player_engine_down else R.string.player_no_streams)
                 return@LaunchedEffect
             }
             val best = live.first()
@@ -169,7 +170,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            resolveErr = e.message ?: "resolve failed"
+            resolveErr = e.message ?: context.getString(R.string.player_resolve_failed)
         }
     }
     val rs = resolved
@@ -501,7 +502,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                         val pos = exo.currentPosition
                         val dur = exo.duration.takeIf { it > 0 } ?: 0L
                         val t0 = System.currentTimeMillis()
-                        var dense = false
                         while (System.currentTimeMillis() - t0 < 180000) {
                             if (!c.active) return@launch
                             if (dur > 0 && c.fileSize > 0 && c.fileIndex >= 0) {
@@ -575,7 +575,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                                 withContext(Dispatchers.IO) {
                                     Providers.directAll(media.id, media.kind, season, episode, media.title)
                                 }.first.firstOrNull { it.url !in Torrents.DeadReleases.urls }
-                            } catch (e: Exception) {
+                            } catch (_: Exception) {
                                 null
                             }
                             if (fresh == null) {

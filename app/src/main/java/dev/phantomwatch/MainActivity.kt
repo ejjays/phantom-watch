@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
                 this,
                 if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
             ),
-            if (playing) "Pause" else "Play", "",
+            if (playing) getString(R.string.player_pause) else getString(R.string.common_play), "",
             android.app.PendingIntent.getBroadcast(
                 this, 1,
                 android.content.Intent(ACT_PIP_TOGGLE).setPackage(packageName),
@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity() {
         )
         val close = android.app.RemoteAction(
             android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
-            "Close", "",
+            getString(R.string.common_close), "",
             android.app.PendingIntent.getBroadcast(
                 this, 2,
                 android.content.Intent(ACT_PIP_CLOSE).setPackage(packageName),

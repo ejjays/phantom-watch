@@ -72,6 +72,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -83,6 +85,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.phantomwatch.R
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.social.Social
 import kotlin.math.roundToInt
@@ -109,8 +112,8 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
     var input by remember { mutableStateOf("") }
     var replyParent by remember { mutableStateOf(0L) }
     var sending by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var actionError by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<Int?>(null) }
+    var actionError by remember { mutableStateOf<Pair<Int, Boolean>?>(null) }
     var reportTarget by remember { mutableStateOf<Social.Comment?>(null) }
     var deleteTarget by remember { mutableStateOf<Social.Comment?>(null) }
     var open by remember { mutableStateOf(emptySet<Long>()) }
@@ -221,12 +224,12 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Comments", color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                        stringResource(R.string.comments_title), color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.width(6.dp))
                     page?.let {
-                        Text("(${it.total})", color = Slate400, fontSize = 13.sp, fontFamily = Rubik)
+                        Text(stringResource(R.string.comments_count, it.total), color = Slate400, fontSize = 13.sp, fontFamily = Rubik)
                     }
                     Spacer(Modifier.weight(1f))
                     Box(
@@ -234,7 +237,7 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                             .clickable { state.targetState = false },
                         contentAlignment = Alignment.Center,
                     ) {
-                        CloseIcon(contentDescription = "Close comments", tint = Slate300, size = 18.dp)
+                        CloseIcon(contentDescription = stringResource(R.string.comments_close), tint = Slate300, size = 18.dp)
                     }
                 }
             }
@@ -243,9 +246,9 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                 when {
                     p == null && failed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Comments unavailable", color = Slate500, fontSize = 13.sp, fontFamily = Rubik)
+                            Text(stringResource(R.string.comments_unavailable), color = Slate500, fontSize = 13.sp, fontFamily = Rubik)
                             Text(
-                                "Tap to retry", color = Cyan, fontSize = 12.sp, fontFamily = Rubik,
+                                stringResource(R.string.comments_tap_retry), color = Cyan, fontSize = 12.sp, fontFamily = Rubik,
                                 modifier = Modifier.padding(top = 6.dp).clickable { attempt++ },
                             )
                         }
@@ -255,7 +258,7 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                     }
                     p.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "No comments yet — start the chat.",
+                            stringResource(R.string.comments_empty),
                             color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
                         )
                     }
@@ -288,8 +291,8 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
             deleteTarget?.let { comment ->
                 AlertDialog(
                     onDismissRequest = { deleteTarget = null },
-                    title = { Text("Delete comment?") },
-                    text = { Text("This will also remove replies to your comment.") },
+                    title = { Text(stringResource(R.string.comments_delete_title)) },
+                    text = { Text(stringResource(R.string.comments_delete_body)) },
                     confirmButton = {
                         TextButton(onClick = {
                             deleteTarget = null
@@ -297,21 +300,21 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                                 if (Social.deleteComment(comment.id)) {
                                     open = open - comment.id
                                     Social.comments(media.kind, id)?.let { page = it }
-                                    actionError = "Comment deleted"
+                                    actionError = R.string.comments_deleted to true
                                 } else {
-                                    actionError = "Could not delete comment"
+                                    actionError = R.string.comments_delete_failed to false
                                 }
                             }
-                        }) { Text("Delete") }
+                        }) { Text(stringResource(R.string.common_delete)) }
                     },
-                    dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } },
+                    dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
                 )
             }
             reportTarget?.let { comment ->
                 AlertDialog(
                     onDismissRequest = { reportTarget = null },
-                    title = { Text("Report comment") },
-                    text = { Text("Choose the reason for your report.") },
+                    title = { Text(stringResource(R.string.comments_report_title)) },
+                    text = { Text(stringResource(R.string.comments_report_body)) },
                     confirmButton = {
                         Column {
                             Social.ReportReason.entries.forEach { reason ->
@@ -319,20 +322,19 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                                     reportTarget = null
                                     scope.launch {
                                         val ok = Social.reportComment(comment.id, reason)
-                                        actionError = if (ok) "Report received" else "Could not report comment"
+                                        actionError = if (ok) R.string.comments_reported to true else R.string.comments_report_failed to false
                                     }
                                 }) { Text(reason.name.lowercase().replaceFirstChar { it.uppercase() }) }
                             }
                         }
                     },
-                    dismissButton = { TextButton(onClick = { reportTarget = null }) { Text("Cancel") } },
+                    dismissButton = { TextButton(onClick = { reportTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
                 )
             }
-            actionError?.let { message ->
+            actionError?.let { (message, ok) ->
                 Text(
-                    message,
-                    color = if (message == "Report received" || message == "Comment deleted") Cyan
-                    else Color(0xFFF87171),
+                    stringResource(message),
+                    color = if (ok) Cyan else Color(0xFFF87171),
                     fontSize = 12.sp,
                     fontFamily = Rubik,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -342,7 +344,7 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                 input = input,
                 onInput = { input = it.take(500) },
                 sending = sending,
-                error = error,
+                error = error?.let { stringResource(it) },
                 focus = focus,
                 onSubmit = submit,
             )
@@ -368,10 +370,10 @@ private fun RootThread(
                 replies.forEachIndexed { i, r ->
                     ReplyRow(r, i == replies.lastIndex, onReply, onDelete, onReport)
                 }
-                ToggleRow("Hide replies", Slate400, false, onToggle)
+                ToggleRow(stringResource(R.string.comments_hide_replies), Slate400, false, onToggle)
             } else {
                 val n = replies.size
-                ToggleRow("Show $n ${if (n == 1) "reply" else "replies"}", Cyan, true, onToggle)
+                ToggleRow(pluralStringResource(R.plurals.comments_show_replies, n, n), Cyan, true, onToggle)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -417,7 +419,7 @@ private fun RootRow(
             CommentBody(c.body, 15, 22)
             Spacer(Modifier.height(2.dp))
             Text(
-                "Reply", color = Slate400, fontSize = 12.sp, fontFamily = Rubik,
+                stringResource(R.string.comments_reply), color = Slate400, fontSize = 12.sp, fontFamily = Rubik,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onReply(c) }
                     .padding(horizontal = 2.dp, vertical = 5.dp),
@@ -460,7 +462,7 @@ private fun ReplyRow(
             CommentBody(c.body, 14, 20)
             Spacer(Modifier.height(1.dp))
             Text(
-                "Reply", color = Slate400, fontSize = 11.sp, fontFamily = Rubik,
+                stringResource(R.string.comments_reply), color = Slate400, fontSize = 11.sp, fontFamily = Rubik,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onReply(c) }
                     .padding(horizontal = 2.dp, vertical = 4.dp),
@@ -518,7 +520,7 @@ private fun NameRow(
             )
         }
         Text(
-            if (c.mine) "Delete" else "Report", color = Slate500, fontSize = 11.sp,
+            if (c.mine) stringResource(R.string.common_delete) else stringResource(R.string.comments_report), color = Slate500, fontSize = 11.sp,
             fontFamily = Rubik,
             modifier = Modifier.padding(start = 10.dp).clickable {
                 if (c.mine) onDelete(c) else onReport(c)
@@ -588,7 +590,7 @@ private fun Composer(
                     Box {
                         if (input.isEmpty()) {
                             Text(
-                                "Add a comment...", color = Slate500, fontSize = 15.sp,
+                                stringResource(R.string.comments_hint), color = Slate500, fontSize = 15.sp,
                                 fontFamily = Rubik,
                             )
                         }
@@ -602,7 +604,7 @@ private fun Composer(
                 contentAlignment = Alignment.Center,
             ) {
                 if (input.isNotBlank()) {
-                    SendIcon(contentDescription = "Post comment", tint = Cyan, size = 20.dp)
+                    SendIcon(contentDescription = stringResource(R.string.comments_post), tint = Cyan, size = 20.dp)
                 }
             }
         }
