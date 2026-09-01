@@ -805,8 +805,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         val c = androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
         if (fs) {
             c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            c.systemBarsBehavior =
-                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         } else {
             c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         }
@@ -824,13 +823,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     val smallScreen = cfg.smallestScreenWidthDp < 600
     fun rotationEnabled() = try {
         android.provider.Settings.System.getInt(
-            context.contentResolver,
-            android.provider.Settings.System.ACCELEROMETER_ROTATION,
-            0,
+            context.contentResolver, android.provider.Settings.System.ACCELEROMETER_ROTATION, 0,
         ) == 1
-    } catch (_: Exception) {
-        false
-    }
+    } catch (_: Exception) { false }
     fun toggleFullscreen() {
         fullscreen = !fullscreen
         if (smallScreen) activity?.requestedOrientation =
@@ -906,17 +901,18 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             delay(250)
         }
     }
+    PlaybackWatchdog(exo, stalled, stats.startup > 0, live) {
+        val s = Providers.nextStream(media, season, episode, live.url)
+        if (s != null) { live = s; attach(0) } else onGiveUp(live.url)
+    }
     val playerView = LocalView.current
     DisposableEffect(playing) {
         playerView.keepScreenOn = playing
         onDispose { playerView.keepScreenOn = false }
     }
-    LaunchedEffect(fullscreen) {
-        if (!fullscreen) locked = false
-    }
+    LaunchedEffect(fullscreen) { if (!fullscreen) locked = false }
     LaunchedEffect(locked, cfg.orientation) {
-        if (locked) activity?.requestedOrientation =
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        if (locked) activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
     val videoAspect = if (videoW > 0 && videoH > 0) videoW.toFloat() / videoH else 16f / 9f
     LaunchedEffect(videoW, videoH, enhReady, enhOut, enhSession) {
@@ -1028,6 +1024,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         subTopPx: Float? = null,
         onFullscreen: () -> Unit = { toggleFullscreen(); poke() },
         maxVideoH: androidx.compose.ui.unit.Dp? = null,
+        topPad: androidx.compose.ui.unit.Dp? = null,
     ) {
         PlayerStage(
             title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
@@ -1046,6 +1043,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         swipeHud = swipeHud,
         seekMark = seekMark,
         seekInset = seekInset,
+        topPad = topPad,
         shiftPx = shiftPx,
         videoShiftPx = videoShiftPx,
         sheetZoneTopPx = sheetZoneTopPx,
@@ -1077,9 +1075,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         onTogglePlay = ::togglePlay,
         onToggleLock = {
             locked = !locked
-            if (locked) {
-                controls = false
-            } else {
+            if (locked) controls = false
+            else {
                 if (fullscreen && orientListener.lastZone == 0) toggleFullscreen()
                 else if (!fullscreen) activity?.requestedOrientation = baseOrientation
                 poke()
@@ -1149,13 +1146,15 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         )
     }
     val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    // rail shell by width, so a portrait tablet and a free-form window get it too
+    val tablet = cfg.screenWidthDp >= 840
     Box(Modifier.fillMaxSize()) {
     NextUpHost(exo, media, season, episode, onEpisode)
     if (Pip.inPip) {
         stage(0.dp, false)
-    } else if (wide) {
+    } else if (tablet || wide) {
         PlayerWide(
-            media, season, episode, overview, videoAspect, fullscreen, !smallScreen,
+            media, season, episode, overview, videoAspect, fullscreen, tablet,
             onEpisode, onOpenTitle,
         ) { inset, style -> stage(inset, fullscreen, seekBar = true, subStyle = style) }
     } else {
@@ -1265,6 +1264,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     Box(Modifier.fillMaxSize().padding(top = stageTop)) {
                         stage(
                             navBottom * sheetProg, theater,
+                            topPad = statusTop * sheetProg,
                             shiftPx = { sheetShift() },
                             maxVideoH = videoCap,
                             videoShiftPx = { playerVideoShift(sheetShift(), stageHpx, videoHpx) },

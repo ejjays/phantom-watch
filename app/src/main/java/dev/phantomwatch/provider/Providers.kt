@@ -8,6 +8,7 @@ import dev.phantomwatch.data.Dub
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.withDub
 import dev.phantomwatch.data.Sub
+import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
 import dev.phantomwatch.torrent.Torrents
 import kotlinx.coroutines.Dispatchers
@@ -114,10 +115,10 @@ object Providers {
                             }
                         }
                     }
-                    val live = all
-                        .filter { it.url !in Torrents.DeadReleases.urls && !Torrents.DeadHosts.blocked(it.url) }
-                        .distinctBy { it.url }
-                    val ordered = JsProviders.sortOrder(live) ?: FormatOrder.sort(live)
+                    val live = all.filter { it.url !in Torrents.DeadReleases.urls }.distinctBy { it.url }
+                    val ordered = rankLast(JsProviders.sortOrder(live) ?: FormatOrder.sort(live)) {
+                        Torrents.DeadHosts.blocked(it)
+                    }
                     Triple(ordered, subs.distinctBy { it.url }, imdb.await())
                         .also { report(tmdbId, kind, season, episode, System.currentTimeMillis() - t0, live.size, ordered.firstOrNull(), results) }
                 }
@@ -279,5 +280,41 @@ object Providers {
         f.label.startsWith("hianime-") -> "HiAnime"
         f.label.startsWith("pinoy-") -> "Pinoy"
         else -> f.label
+    }
+
+    // a wrong ban must cost rank, not access: a banned host sinks instead of disappearing, so a
+    // title that only has banned formats still plays
+    internal fun rankLast(formats: List<VideoFormat>, blocked: (String) -> Boolean): List<VideoFormat> {
+        val (ok, banned) = formats.partition { !blocked(it.url) }
+        return ok + banned
+    }
+
+    // the fallback the player takes when a stream hangs: the best format the last resolve still
+    // holds, so a dead edge costs one switch instead of a trip through the sources list
+    internal fun nextFormat(
+        formats: List<VideoFormat>,
+        failedUrl: String,
+        dead: Set<String>,
+        blocked: (String) -> Boolean,
+    ): VideoFormat? {
+        val pool = formats.filter { it.url != failedUrl && it.url !in dead }
+        val open = pool.filterNot { blocked(it.url) }.ifEmpty { pool }
+        // an "auto" rung advertises a height it may not serve: only take one when nothing real is left
+        fun real(f: VideoFormat) = !f.label.endsWith("-auto")
+        return open.firstOrNull { real(it) && it.height >= 720 }
+            ?: open.firstOrNull { real(it) }
+            ?: open.firstOrNull()
+    }
+
+    suspend fun nextStream(media: Title, season: String, episode: String, failedUrl: String): Stream? {
+        // the bundle is usually cached; a re-resolve must not hold the player on a spinner
+        val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode) } ?: return null
+        val f = nextFormat(b.formats, failedUrl, Torrents.DeadReleases.urls, Torrents.DeadHosts::blocked)
+            ?: return null
+        AppLog.d("fallback ${providerName(f)} ${f.label} h=${f.height}")
+        return Stream(
+            url = f.url, isHls = f.isHls, subs = subsFor(f, b.subs), referer = f.referer,
+            sampleMp4 = null, imdb = b.imdb, headers = f.headers, enSubs = f.enSubs, intro = f.intro,
+        )
     }
 }

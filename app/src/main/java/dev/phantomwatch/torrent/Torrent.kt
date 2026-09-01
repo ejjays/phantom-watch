@@ -131,6 +131,7 @@ object Torrents {
 
     object DeadHosts {
         private val mem = mutableSetOf<String>()
+        private val hang = mutableMapOf<String, Long>()
         private var prefs: android.content.SharedPreferences? = null
 
         fun init(ctx: android.content.Context) {
@@ -171,9 +172,36 @@ object Torrents {
             return false
         }
 
-        fun forgive(url: String) {
+        // a hang is not one probe away from being fine - the host served the manifest and still
+        // stalled - so only its own expiry clears it, never the re-admit probe
+        fun markHang(url: String, hours: Long = 2) {
+            mark(url, hours)
             val h = hostOf(url)
             if (h.isEmpty()) return
+            val until = System.currentTimeMillis() + hours * 3_600_000
+            hang[h] = until
+            try {
+                prefs?.edit()?.putLong("hang|$h", until)?.apply()
+            } catch (_: Exception) {
+            }
+        }
+
+        fun hangBanned(url: String): Boolean {
+            val h = hostOf(url)
+            if (h.isEmpty()) return false
+            val until = hang[h] ?: try {
+                prefs?.getLong("hang|$h", 0) ?: 0
+            } catch (_: Exception) {
+                0
+            }
+            if (until <= System.currentTimeMillis()) return false
+            hang[h] = until
+            return true
+        }
+
+        fun forgive(url: String) {
+            val h = hostOf(url)
+            if (h.isEmpty() || hangBanned(url)) return
             mem.remove(h)
             try {
                 prefs?.edit()?.remove(h)?.apply()
