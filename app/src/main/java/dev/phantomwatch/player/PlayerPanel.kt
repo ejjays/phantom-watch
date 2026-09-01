@@ -237,7 +237,7 @@ fun PlayerPanel(
     }
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {
         val panelH = maxHeight
-        val railW = (maxWidth * 0.3f).coerceIn(320.dp, 420.dp)
+        val railW = (maxWidth * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(maxWidth * 0.45f)
         val slot = video
         if (slot != null) {
             // Tablets: video over the info on the left, a vertical up-next rail on the right.

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
@@ -24,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -90,7 +90,7 @@ internal fun PlayerResolving(
     BackHandler(onBack = onBack)
     val cfg = LocalConfiguration.current
     // Same shell the player uses once the stream lands, so resolving never flips the layout.
-    val tablet = cfg.orientation == Configuration.ORIENTATION_LANDSCAPE && cfg.smallestScreenWidthDp >= 600
+    val tablet = cfg.screenWidthDp >= 840
     val stageH = (minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat() * 9 / 16).dp
     val stage: @Composable (Modifier) -> Unit = { mod ->
         Box(mod) {
@@ -124,7 +124,7 @@ internal fun PlayerResolving(
         }
         if (resolveErr != null) {
             Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp),
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp).navigationBarsPadding(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             ) {
                 Button(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
