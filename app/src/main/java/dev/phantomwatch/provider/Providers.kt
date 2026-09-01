@@ -257,9 +257,9 @@ object Providers {
         val dubs = formats.mapNotNull { f -> f.dub?.let { "$it · ${providerName(f)}" to f } }
             .sortedByDescending { if (it.second.label.endsWith("-auto")) 1 else 0 }
             .distinctBy { it.first }
-            .map { (label, f) -> Dub(label, f.url, f.isHls, f.referer, f.headers, f.subs) }
+            .map { (label, f) -> Dub(label, f.url, f.isHls, f.referer, f.headers, f.subs, f.enSubs) }
         if (dubs.isEmpty()) return emptyList()
-        val back = Dub("$baseName · ${providerName(base)}", base.url, base.isHls, base.referer, base.headers, baseSubs, base = true)
+        val back = Dub("$baseName · ${providerName(base)}", base.url, base.isHls, base.referer, base.headers, baseSubs, base.enSubs, base = true)
         return listOf(back) + dubs
     }
 

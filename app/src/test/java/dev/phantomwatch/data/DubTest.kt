@@ -25,6 +25,15 @@ class DubTest {
         assertEquals(listOf(own), next.subs)
     }
 
+    // a dub with no en subs must not inherit the sub cut's flag, or OpenSubtitles is skipped for
+    // a reason that stopped being true the moment the cut changed
+    @Test
+    fun aDubBringsItsOwnEnSubsFlag() {
+        val cut = Stream("https://v/sub.m3u8", true, emptyList(), "", null, enSubs = true)
+        assertEquals(false, cut.withDub(dub).enSubs)
+        assertTrue(cut.withDub(dub.copy(enSubs = true)).enSubs)
+    }
+
     @Test
     fun baseChoiceGoesBackToTheSubCut() {
         val base = Dub("Sub · HiAnime", "https://v/sub.m3u8", true, "", subs = listOf(subCut), base = true)
