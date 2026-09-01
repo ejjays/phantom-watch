@@ -8,10 +8,10 @@ u-auto|love-moviebox-auto|-1080|true|true
 u-480|love-moviebox-480p|-480|true|true
 order
 u-1080-en
-u-1080-auto
 u-2160
 u-1080
 u-720
 u-1080-nonen
-u-auto
+u-1080-auto
 u-480
+u-auto

@@ -9,15 +9,16 @@
     return { formats: [], subs: [], skipped: true };
   }
 
-  // canonical pick order: real height first, then 1080p+ with EN subs, adaptive
-  // masters, EN subs, english audio, then height
+  // canonical pick order: real height first, then 1080p+ with EN subs, then a
+  // fixed rung over an adaptive master (the master's ABR settles low: 268p while
+  // its own 1080p rung served 804), EN subs, english audio, then height
   function rankOf(f) {
     var h = typeof f.height === 'number' ? f.height : 0;
     return [
       h < 0 ? 0 : 1,
       f.dub ? 0 : 1,
       (f.enSubs && h >= 1080) ? 1 : 0,
-      /-auto$/.test(f.label || '') ? 1 : 0,
+      /-auto$/.test(f.label || '') ? 0 : 1,
       f.enSubs ? 1 : 0,
       f.english !== false ? 1 : 0,
       h

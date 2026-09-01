@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- player: a stream that hangs now hands itself back instead of spinning forever. After 15s
+  without a first frame it drops the resume offset; after 30s of buffering it bans the host for
+  two hours, marks the url dead and walks to the next format the last resolve still holds —
+  preferring a real rung over an `auto` that can serve far less than it advertises — and only
+  falls through to the sources list when nothing is left. A banned host is ranked last
+  rather than filtered out, and a hang ban is never cleared by the one-byte re-admit probe, so a
+  wrong ban costs rank and not the title. Also one inset per edge, bottom controls clear the
+  display cutout, and the rail shell is picked by window width so a portrait tablet gets it too.
+- providers: a fixed rung now outranks an adaptive `auto` master. Measured on one title, the
+  master settled at 640x268 while its own `vap-1080p` rung served 1920x804 on the same link, so
+  the master's advertised height is not what it plays. `__pwRank` and `FormatOrder` move the
+  `auto` flag below the height comparators; the shared `pick_order.txt` fixture pins the new order.
 - i18n: every string the app renders now lives in `res/values/strings.xml` (161
   strings plus one plural), so a translation is a resource file rather than a
   Kotlin edit, and air dates follow the device locale. The brand name is the
