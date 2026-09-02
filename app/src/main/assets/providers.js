@@ -577,8 +577,12 @@
       });
       var dFormats = [dAuto].concat(dRungs);
       if (dIntro) dFormats.forEach(function (f) { f.intro = dIntro; });
-      // the dub cut has its own captions; the sub cut's timing does not always match its audio
-      dFormats.forEach(function (f) { f.subs = dSubs; });
+      // the dub cut usually points at the sub cut's own vtt, and that reads as JP captions over
+      // dub audio: keep only the captions the dub actually owns
+      var ownDubSubs = dSubs.filter(function (s) {
+        return !subs.some(function (o) { return o.url === s.url; });
+      });
+      dFormats.forEach(function (f) { f.subs = ownDubSubs; f.enSubs = ownDubSubs.length > 0; });
       formats = formats.concat(dFormats);
     }
     return { formats: formats, subs: subs };

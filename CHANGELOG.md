@@ -10,6 +10,11 @@
   rather than filtered out, and a hang ban is never cleared by the one-byte re-admit probe, so a
   wrong ban costs rank and not the title. Also one inset per edge, bottom controls clear the
   display cutout, and the rail shell is picked by window width so a portrait tablet gets it too.
+- subs: an English dub no longer shows the sub cut's captions. HiAnime's dub cut links to the
+  sub cut's own vtt (same url, same bytes), so the text describes dialogue the dub voice actors
+  are not saying and drifts against their timing; the leg keeps only captions the dub owns, and
+  OpenSubtitles is skipped on any dub because its English files are cut against the original
+  audio too.
 - providers: a fixed rung now outranks an adaptive `auto` master. Measured on one title, the
   master settled at 640x268 while its own `vap-1080p` rung served 1920x804 on the same link, so
   the master's advertised height is not what it plays. `__pwRank` and `FormatOrder` move the

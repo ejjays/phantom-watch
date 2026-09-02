@@ -68,6 +68,11 @@ internal class SubsController(
         osRunning = true
         scope.launch {
             try {
+                // a dub speaks a different script than the sub cut OS hashes against: its captions drift
+                if (stream.dub != null) {
+                    AppLog.d("os skipped, dub cut")
+                    return@launch
+                }
                 val key = BuildConfig.OS_API_KEY
                 if (key.isEmpty()) {
                     AppLog.d("os no api key")
