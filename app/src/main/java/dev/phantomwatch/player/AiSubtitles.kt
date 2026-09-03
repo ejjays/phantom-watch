@@ -36,24 +36,14 @@ import kotlinx.coroutines.withContext
 internal object AiSubtitles {
     // OFF pays nothing; AUTO only fills in when the provider ships no track; FORCE always wins.
     // AUTO is only a starting state: the gear shows the engine as on or off, never "auto"
-    enum class Mode { OFF, AUTO, FORCE }
+    enum class Mode { OFF, AUTO }
 
     var mode by mutableStateOf(Mode.OFF)
         private set
     var text by mutableStateOf("")
         private set
 
-    private var realTrack by mutableStateOf(false)
-
     val enabled: Boolean get() = mode != Mode.OFF
-    val force: Boolean get() = mode == Mode.FORCE
-
-    // what the gear row shows: on only when the engine is actually the thing on screen
-    val showing: Boolean get() = when (mode) {
-        Mode.OFF -> false
-        Mode.FORCE -> true
-        Mode.AUTO -> !realTrack
-    }
 
     val available: Boolean get() = BuildConfig.DEBUG && BuildConfig.DEEPGRAM_API_KEY.isNotBlank()
 
@@ -62,9 +52,6 @@ internal object AiSubtitles {
     // measured 1.2s behind at 93% recall, 6s cuts put every line up to six seconds behind
     private const val FINALIZE_FRAMES = 10
     private const val SESSION_MS = 9 * 60_000L
-    private const val PREFS = "phantom_ai"
-    private const val KEY_MODE = "mode"
-    private const val KEY_ON = "enabled"
     private const val RETRY_MS = 10_000L
     // v6: spoken-language output; older caches hold English-only fragments of foreign audio
     private const val CACHE_VER = 6
@@ -74,7 +61,6 @@ internal object AiSubtitles {
     private var scope: CoroutineScope? = null
     private var cacheFile: File? = null
     private var liveFile: File? = null
-    private var modeKey: String? = null
     private var streamRef: Stream? = null
     private var ticker: Job? = null
     private var job: Job? = null
@@ -117,28 +103,6 @@ internal object AiSubtitles {
         subsOff = value
     }
 
-    // one tap: on means "AI instead of the provider track", off means "no engine, no upload"
-    fun toggle() = set(if (showing) Mode.OFF else Mode.FORCE)
-
-    fun set(next: Mode) {
-        val value = if (available) next else Mode.OFF
-        if (mode == value) return
-        mode = value
-        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            ?.edit()?.putString(modeKey ?: KEY_MODE, value.name)?.apply()
-        AppLog.d("ai subs mode=${value.name.lowercase()} cached=${cacheFile?.isFile == true}")
-        if (value == Mode.OFF) {
-            // no engine means no upload: a batch already in flight is money spent for nothing
-            batch?.cancel()
-            batch = null
-            batchFor = null
-            stop()
-        } else {
-            maybeStart()
-            streamRef?.let { preRecorded(it) }
-        }
-    }
-
     fun attach(
         context: Context,
         player: ExoPlayer,
@@ -160,19 +124,12 @@ internal object AiSubtitles {
             listOf(base, season, episode).filter { it.isNotBlank() }.joinToString("-")
         cacheFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-$key.vtt")
         liveFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-live-$key.vtt")
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        // the choice belongs to the show, not the episode: toggling it every episode is not a choice
-        modeKey = if (base.isBlank()) null else "$KEY_MODE-$base"
-        // forcing the engine on is a per-title call; carrying it to the next film quietly
-        // replaced a studio track that was already there
-        val saved = modeKey?.let { prefs.getString(it, null) }
-            ?: prefs.getString(KEY_MODE, null)?.takeIf { it != Mode.FORCE.name }
-        mode = when {
-            !available -> Mode.OFF
-            saved != null -> Mode.values().firstOrNull { it.name == saved } ?: Mode.OFF
-            // older builds stored a boolean; on meant "fill in when the provider has nothing"
-            prefs.getBoolean(KEY_ON, false) -> Mode.AUTO
-            else -> Mode.OFF
+        // the engine only fills a gap: a dub whose own cut ships no captions. a provider track
+        // always wins, so nothing starts paying until that gap is confirmed
+        mode = if (available && stream.dub != null && stream.subs.isEmpty() && !stream.enSubs) {
+            Mode.AUTO
+        } else {
+            Mode.OFF
         }
         // a batch for another title is wasted bandwidth, but one for this title has to survive
         // closing and reopening the player, or it never finishes
@@ -254,7 +211,6 @@ internal object AiSubtitles {
         listener = null
         AiAudio.sink = null
         parked = false
-        realTrack = false
         arrived = null
         active = null
         activeUntil = 0L
@@ -357,7 +313,8 @@ internal object AiSubtitles {
         for (i in 0 until g.length) {
             g.getTrackFormat(i).language?.takeIf { it.isNotBlank() }?.let { return it }
         }
-        return null
+        // a dub's manifest rarely tags its audio, but the cut itself says what it is
+        return streamRef?.dub
     }
 
     private fun drain() {
@@ -408,8 +365,7 @@ internal object AiSubtitles {
             AppLog.d("ai subs mem=${(rt.totalMemory() - rt.freeMemory()) / 1_000_000}MB cues=${cues.size}")
         }
         val real = p.currentTracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
-        realTrack = real
-        val park = mode == Mode.OFF || subsOff || (real && mode == Mode.AUTO)
+        val park = !enabled || subsOff || real
         if (park != parked) {
             parked = park
             AppLog.d(if (park) "ai subs parked" else "ai subs resumed")

@@ -117,7 +117,7 @@ fun PlayerVideo(
         }
         // a real track always wins; AI only fills in when the provider ships none, unless the
         // user forced it
-        val ai = if (AiSubtitles.force) AiSubtitles.text else subCues.ifEmpty { AiSubtitles.text }
+        val ai = subCues.ifEmpty { AiSubtitles.text }
         SubtitleLayer(ai, subStyle, subTopPx)
     }
 }

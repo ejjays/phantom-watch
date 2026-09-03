@@ -172,17 +172,6 @@ internal fun PlayerSettingsMenu(
                             AppLog.d("settings dubs=${dubs.size} current=${current ?: "sub"}")
                         }
                     }
-                    if (AiSubtitles.available) {
-                        SettingsRow(
-                            stringResource(R.string.player_settings_ai_subs),
-                            if (AiSubtitles.showing) stringResource(R.string.player_settings_on) else stringResource(R.string.player_settings_off),
-                            R.drawable.ic_cc_on,
-                            chevron = false,
-                        ) {
-                            AiSubtitles.toggle()
-                            AppLog.d("settings ai subs=${if (AiSubtitles.showing) "on" else "off"}")
-                        }
-                    }
                 }
             }
         }
