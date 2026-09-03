@@ -47,6 +47,14 @@ internal object AiSubtitles {
 
     val available: Boolean get() = BuildConfig.DEBUG && BuildConfig.DEEPGRAM_API_KEY.isNotBlank()
 
+    // EXPERIMENTAL, off 2026-11-01. A dub with no captions fell back to the live socket alone,
+    // because PreRecorded needs an audio-only rendition the master does not publish and its only
+    // variant is 1.6 Mbps (~300MB per episode, over MAX_BYTES). Lines then arrived about a second
+    // late and read like video-call captions, not subtitles. Nothing starts until that pass can
+    // run: either a master that offers an audio rendition, or a local remux of the smallest
+    // variant. Flipping this on is the whole re-enable.
+    private const val EXPERIMENTAL = false
+
     private const val GRACE_MS = 700L
     // a line only exists once the provider closes the segment, so this timer is the lag: 1s cuts
     // measured 1.2s behind at 93% recall, 6s cuts put every line up to six seconds behind
@@ -126,7 +134,7 @@ internal object AiSubtitles {
         liveFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-live-$key.vtt")
         // the engine only fills a gap: a dub whose own cut ships no captions. a provider track
         // always wins, so nothing starts paying until that gap is confirmed
-        mode = if (available && stream.dub != null && stream.subs.isEmpty() && !stream.enSubs) {
+        mode = if (EXPERIMENTAL && available && stream.dub != null && stream.subs.isEmpty() && !stream.enSubs) {
             Mode.AUTO
         } else {
             Mode.OFF

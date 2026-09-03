@@ -10,11 +10,13 @@
   rather than filtered out, and a hang ban is never cleared by the one-byte re-admit probe, so a
   wrong ban costs rank and not the title. Also one inset per edge, bottom controls clear the
   display cutout, and the rail shell is picked by window width so a portrait tablet gets it too.
-- subs: a dub whose cut ships no captions of its own now gets Deepgram Nova-3 captions
-  automatically. The engine transcribes the dub audio, so its lines match what the actors say
-  instead of drifting against them. Nothing starts until the gap is confirmed (a dub cut with
-  no captions and no provider subs), a provider track always wins, and the AI row is gone from
-  the gear — debug builds only, and each run is billed per minute.
+- subs: **experimental, off** (`AiSubtitles.EXPERIMENTAL = false`). A dub whose cut ships no
+  captions of its own was wired to transcribe the dub audio with Deepgram Nova-3, which is the
+  only caption source that cannot drift against it. It stays off because the accurate pass
+  cannot run on a muxed master: with no audio-only rendition and a single 1.6 Mbps variant
+  (~300MB an episode) only the live socket was left, and its lines landed about a second late
+  and read like video-call captions. The AI row is gone from the gear; a provider track always
+  wins; debug builds only.
 - subs: an English dub no longer shows the sub cut's captions. HiAnime's dub cut links to the
   sub cut's own vtt (same url, same bytes), so the text describes dialogue the dub voice actors
   are not saying and drifts against their timing; the leg keeps only captions the dub owns, and
