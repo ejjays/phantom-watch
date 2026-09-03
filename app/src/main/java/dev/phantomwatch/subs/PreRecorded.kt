@@ -23,13 +23,10 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okio.Buffer
 import org.json.JSONObject
 
-/**
- * Transcribes the whole episode from its HLS audio in one pass, ahead of the playhead. The live
- * stream covers the opening minute; this replaces it with exact timing for everything after.
- */
+// one pass over the whole episode's HLS audio, ahead of the playhead: the live stream only
+// covers the opening minute, this replaces it with exact timing for everything after
 internal object PreRecorded {
-    // a 2.5h movie's audio rendition is ~160MB at 128kbps, so a feature-length film tripped the
-    // old 160MB cap right at the end of the download and never produced a transcript
+    // a 2.5h film is ~160MB at 128kbps: the old cap tripped right at the end and never produced a transcript
     private const val MAX_BYTES = 256L * 1024 * 1024
     private const val MAX_TEXT = 1L * 1024 * 1024
     private const val MAX_CHARS = 42
@@ -42,8 +39,7 @@ internal object PreRecorded {
         Http.client.newBuilder().readTimeout(180, TimeUnit.SECONDS).build()
     }
 
-    // the transcript call is minutes of upload plus ~1.5x realtime of processing; the shared
-    // client's 25s call cap killed it every time, so only the per-operation timeouts apply here
+    // minutes of upload plus ~1.5x realtime of processing: the shared client's 25s call cap killed it
     private val uploader: OkHttpClient by lazy {
         Http.client.newBuilder()
             .readTimeout(300, TimeUnit.SECONDS)
@@ -76,7 +72,6 @@ internal object PreRecorded {
         }
     }
 
-    /** Pulls the audio rendition when the manifest offers one, so only audio is downloaded. */
     private suspend fun download(
         url: String,
         headers: Map<String, String>,
@@ -85,10 +80,9 @@ internal object PreRecorded {
         out: File,
     ): String? {
         var base = url
+        var muxed = false
         var manifest = text(base, headers, referer) ?: return null
         if (manifest.contains("#EXT-X-STREAM-INF")) {
-            // without a separate audio rendition the only way in is the video mux, which can be
-            // hundreds of megabytes; that is not worth stalling playback for
             val audio = manifest.lineSequence()
                 .map { it.trim() }
                 .filter { it.startsWith("#EXT-X-MEDIA:") && it.contains("TYPE=AUDIO") }
@@ -98,8 +92,12 @@ internal object PreRecorded {
                         ?: lines.firstOrNull()
                 }
                 ?.let { attr(it, "URI") }
+                ?: smallest(manifest)?.also {
+                    muxed = true
+                    AppLog.d("ai subs batch no audio rendition, smallest variant")
+                }
                 ?: run {
-                    AppLog.d("ai subs batch no audio rendition")
+                    AppLog.d("ai subs batch no playable variant")
                     return null
                 }
             base = resolve(audio, base)
@@ -107,13 +105,11 @@ internal object PreRecorded {
         }
         val pl = parse(manifest, base)
         if (pl.parts.isEmpty()) return null
-        val mime = if (pl.map != null) "audio/mp4" else "video/mp2t"
+        val mime = if (pl.map != null && muxed) "video/mp4" else if (pl.map != null) "audio/mp4" else "video/mp2t"
         val aesKey = pl.keyUrl?.let { bytes(it, headers, referer) }?.takeIf { it.size == 16 }
         val parts = listOfNotNull(pl.map) + pl.parts
         val chunks = arrayOfNulls<ByteArray>(parts.size)
         val next = AtomicInteger(0)
-        // at most six segments held in memory: a straggler must not let the other workers run
-        // the whole episode ahead of the writer
         val window = Channel<Unit>(6)
         repeat(6) { window.trySend(Unit) }
         val lock = Any()
@@ -151,6 +147,31 @@ internal object PreRecorded {
             }
         }
         return if (out.length() > 0) mime else null
+    }
+
+    // a 1080p mux at 1.6 Mbps is 300MB for a 24-minute episode: mobile data spent on a maybe
+    private const val MAX_VARIANT_BPS = 900_000
+
+    private fun smallest(master: String): String? {
+        var best: Pair<Int, String>? = null
+        var pending = -1
+        for (line in master.lineSequence().map { it.trim() }) {
+            when {
+                line.startsWith("#EXT-X-STREAM-INF:") ->
+                    pending = Regex("BANDWIDTH=(\\d+)").find(line)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+                line.isEmpty() || line.startsWith("#") -> Unit
+                pending >= 0 -> {
+                    if (best == null || pending < best.first) best = pending to line
+                    pending = -1
+                }
+            }
+        }
+        val (bps, uri) = best ?: return null
+        if (bps > MAX_VARIANT_BPS) {
+            AppLog.d("ai subs batch variant ${bps / 1000}k too big")
+            return null
+        }
+        return uri
     }
 
     private fun parse(manifest: String, base: String): Playlist {
@@ -210,8 +231,6 @@ internal object PreRecorded {
         }
     }
 
-    // lines are built from the word timings rather than deepgram's utterances, which are not
-    // returned for every model: break on punctuation, a long gap, or a readable line length
     private fun cues(body: JSONObject): List<SubtitleCue> {
         val words = body.optJSONObject("results")
             ?.optJSONArray("channels")
@@ -276,8 +295,7 @@ internal object PreRecorded {
             }
         }.getOrNull()
 
-    // a manifest is a few hundred KB; reading past the cap means the URL is not one (a direct
-    // MP4 served where HLS was expected would otherwise fill the heap with the whole movie)
+    // a manifest is a few hundred KB: past the cap this is a direct MP4 that would fill the heap
     private fun text(url: String, headers: Map<String, String>, referer: String): String? =
         runCatching {
             client.newCall(req(url, headers, referer)).execute().use { r ->

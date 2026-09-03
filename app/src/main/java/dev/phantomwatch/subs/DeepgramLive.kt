@@ -12,10 +12,8 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import org.json.JSONObject
 
-/**
- * Streaming transcriber. Unlike a multimodal model it is built for this: it answers with interim
- * text about a second behind the audio and with word-level timestamps on every final.
- */
+// built for this, unlike a multimodal model: interim text about a second behind, word-level
+// timestamps on every final
 internal class DeepgramLive(
     private val key: String,
     private val language: String,
@@ -80,8 +78,7 @@ internal class DeepgramLive(
     fun send(frame: ShortArray) {
         if (!isOpen) return
         val w = ws ?: return
-        // a half-open socket keeps accepting sends into an unbounded queue; 10 s of backlog
-        // means the far end stopped reading, so drop it instead of growing the heap
+        // 10 s of backlog means the far end stopped reading, so drop it instead of growing the heap
         if (w.queueSize() > MAX_QUEUE) {
             AppLog.d("ai subs socket stalled")
             close()
@@ -96,7 +93,6 @@ internal class DeepgramLive(
         w.send(ByteString.of(*bytes))
     }
 
-    // forces the current segment out so a line never waits for the speaker to pause
     fun finalize() {
         if (isOpen) ws?.send("""{"type":"Finalize"}""")
     }
@@ -114,8 +110,7 @@ internal class DeepgramLive(
         // 10 s of 16 kHz mono at 32 KB/s
         private const val MAX_QUEUE = 320_000
 
-        // endpointing ends a segment after 300ms of quiet, which is what makes the line break
-        // at sentence boundaries instead of on a timer
+        // endpointing ends a segment after 300ms of quiet: lines break on sentences, not on a timer
         private const val QUERY =
             "encoding=linear16&sample_rate=16000&channels=1" +
                 "&interim_results=true&punctuate=true&smart_format=true&endpointing=300"
@@ -139,6 +134,7 @@ internal class DeepgramLive(
                 "ko", "kor" -> "ko"
                 "th", "tha" -> "th"
                 "zh", "zho", "chi", "cmn" -> "zh"
+                "english" -> "en"
                 else -> "multi"
             }
         }
@@ -157,8 +153,6 @@ internal class DeepgramLive(
                     ?.optJSONArray("alternatives")
                     ?.optJSONObject(0)
                 val text = alt?.optString("transcript")?.trim().orEmpty()
-                // interim results grow word by word; drawing them reads like a phone call, not
-                // a subtitle, so only finished segments become lines
                 if (text.isEmpty() || !msg.optBoolean("is_final")) {
                     null
                 } else {
