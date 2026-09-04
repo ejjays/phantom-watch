@@ -29,13 +29,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Generates subtitles for titles that ship none by streaming the player's own decoded audio to a
- * streaming ASR. The provider does its own endpointing, so cue times come from its word timestamps.
- */
+// streams the player's own audio to a streaming ASR: the provider does its own endpointing,
+// so cue times come from its word timestamps
 internal object AiSubtitles {
-    // OFF pays nothing; AUTO only fills in when the provider ships no track; FORCE always wins.
-    // AUTO is only a starting state: the gear shows the engine as on or off, never "auto"
     enum class Mode { OFF, AUTO }
 
     var mode by mutableStateOf(Mode.OFF)
@@ -47,17 +43,12 @@ internal object AiSubtitles {
 
     val available: Boolean get() = BuildConfig.DEBUG && BuildConfig.DEEPGRAM_API_KEY.isNotBlank()
 
-    // EXPERIMENTAL, off 2026-11-01. A dub with no captions fell back to the live socket alone,
-    // because PreRecorded needs an audio-only rendition the master does not publish and its only
-    // variant is 1.6 Mbps (~300MB per episode, over MAX_BYTES). Lines then arrived about a second
-    // late and read like video-call captions, not subtitles. Nothing starts until that pass can
-    // run: either a master that offers an audio rendition, or a local remux of the smallest
-    // variant. Flipping this on is the whole re-enable.
+    // off 2026-11-01: the live socket alone lags a second and reads like a video call. needs a
+    // master with an audio rendition, or a local remux of the smallest variant, before it can run
     private const val EXPERIMENTAL = false
 
     private const val GRACE_MS = 700L
-    // a line only exists once the provider closes the segment, so this timer is the lag: 1s cuts
-    // measured 1.2s behind at 93% recall, 6s cuts put every line up to six seconds behind
+    // the lag: 1s cuts measured 1.2s behind at 93% recall, 6s cuts put every line up to 6s behind
     private const val FINALIZE_FRAMES = 10
     private const val SESSION_MS = 9 * 60_000L
     private const val RETRY_MS = 10_000L
@@ -74,8 +65,7 @@ internal object AiSubtitles {
     private var job: Job? = null
     private var batch: Job? = null
     private var batchFor: File? = null
-    // a feature-length batch is minutes of upload plus processing; it must outlive the player
-    // screen, or closing the film throws away everything it paid for
+    // a feature-length batch must outlive the player screen, or closing the film throws it away
     private val bg = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var listener: Player.Listener? = null
     private val cues = mutableListOf<SubtitleCue>()
@@ -83,12 +73,9 @@ internal object AiSubtitles {
 
     private var anchor = 0L
 
-    // the ticker owns the player; the socket thread only reads this copy
     @Volatile
     private var posMs = 0L
 
-    // a line is only drawn once the provider has finished it, like a normal subtitle file; it
-    // then stays up for its own length instead of inside a window that has already gone by
     @Volatile
     private var arrived: SubtitleCue? = null
     private var active: SubtitleCue? = null
@@ -97,12 +84,10 @@ internal object AiSubtitles {
     @Volatile
     private var restart = false
 
-    // set from the CC button: turning the real track off is the user asking for the AI text
     @Volatile
     private var subsOff = false
 
-    // true while the AI text cannot be seen (real track selected, CC off, engine off); the
-    // socket is closed so no audio is uploaded for a line nobody reads
+    // socket closed while the text can't be seen, so no audio is uploaded for a line nobody reads
     @Volatile
     private var parked = false
     private var beat = 0L
@@ -125,22 +110,14 @@ internal object AiSubtitles {
         this.scope = scope
         streamRef = stream
         subsOff = false
-        // subKey is unset, so imdb alone would key the whole series: every episode would load
+        // subKey is unset, so imdb alone would key the whole series and every episode would load
         // the previous one's cues
         val base = stream.subKey.ifEmpty { stream.imdb ?: "" }
         val key = if (base.isBlank()) "" else
             listOf(base, season, episode).filter { it.isNotBlank() }.joinToString("-")
         cacheFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-$key.vtt")
         liveFile = if (key.isBlank()) null else File(context.cacheDir, "ai-v$CACHE_VER-live-$key.vtt")
-        // the engine only fills a gap: a dub whose own cut ships no captions. a provider track
-        // always wins, so nothing starts paying until that gap is confirmed
-        mode = if (EXPERIMENTAL && available && stream.dub != null && stream.subs.isEmpty() && !stream.enSubs) {
-            Mode.AUTO
-        } else {
-            Mode.OFF
-        }
-        // a batch for another title is wasted bandwidth, but one for this title has to survive
-        // closing and reopening the player, or it never finishes
+        mode = if (EXPERIMENTAL && fillsGap(stream)) Mode.AUTO else Mode.OFF
         if (batchFor != cacheFile) {
             batch?.cancel()
             batch = null
@@ -148,7 +125,6 @@ internal object AiSubtitles {
         }
         synchronized(cues) {
             cues.clear()
-            // only the batch file covers the whole episode; the live one is a partial stopgap
             (cacheFile?.takeIf { it.isFile } ?: liveFile?.takeIf { it.isFile })?.let {
                 cues.addAll(runCatching { Subtitles.parseCues(it.readText()) }.getOrDefault(emptyList()))
             }
@@ -158,17 +134,12 @@ internal object AiSubtitles {
         preRecorded(stream)
     }
 
-    // one accurate pass over the whole episode; it lands a minute or so in and takes over from
-    // the live stream, which is only ever a stopgap
     private fun preRecorded(stream: Stream) {
-        // the batch pass walks an HLS manifest; a direct MP4 has none and would be pulled whole
         if (!stream.isHls) return
         if (!enabled || !available || cacheFile?.isFile == true || batch?.isActive == true) return
         val dir = appContext?.cacheDir ?: return
         batchFor = cacheFile
         batch = bg.launch {
-            // the player reports its tracks a beat after attach; paying for a transcript of an
-            // episode that already has working subs is pure waste
             delay(3000)
             if (parked) {
                 AppLog.d("ai subs batch skipped, provider track")
@@ -180,7 +151,6 @@ internal object AiSubtitles {
                 stream.url, stream.headers, stream.referer, lang, BuildConfig.DEEPGRAM_API_KEY, dir,
             )
             if (lines.isNullOrEmpty()) return@launch
-            // the player may have moved to another title while this was transcribing
             if (batchFor != cacheFile) return@launch
             job?.cancel()
             job = null
@@ -202,10 +172,7 @@ internal object AiSubtitles {
     private fun maybeStart() {
         if (!enabled || !available) return
         val s = scope ?: return
-        // toggling the gear off stops this ticker; turning it back on has to bring it back
         if (ticker == null) ticker = s.launch { while (isActive) { overlay(); delay(100) } }
-        // a batch file covers the whole episode, so a live pass would only overwrite it with
-        // later, coarser cues; a live file is partial and still needs filling in
         if (job != null || cacheFile?.isFile == true) return
         job = s.launch(Dispatchers.IO) { stream() }
     }
@@ -227,10 +194,8 @@ internal object AiSubtitles {
     }
 
     private suspend fun stream() {
-        // bounded: a stalled consumer must drop audio, never grow the heap; 6 s is already more
-        // than the live path can use
+        // bounded: a stalled consumer must drop audio, never grow the heap
         val frames = Channel<ShortArray>(64)
-        // a cancelled stream must not clear the sink the next one already installed
         val tap: (ShortArray) -> Unit = { frames.trySend(it) }
         val l = object : Player.Listener {
             override fun onPositionDiscontinuity(
@@ -258,7 +223,6 @@ internal object AiSubtitles {
                 val now = SystemClock.elapsedRealtime()
                 if (live != null && !live.isOpen) live = null
                 if (parked) {
-                    // nothing is drawn, so nothing is uploaded: a closed socket costs nothing
                     live?.close()
                     live = null
                     lastTry = 0L
@@ -267,7 +231,6 @@ internal object AiSubtitles {
                 }
                 if (live == null) {
                     if (now - lastTry >= RETRY_MS) {
-                        // a backlog built up while the socket was down; play it live, not late
                         while (frames.tryReceive().isSuccess) Unit
                         live = open()
                         sessionStart = now
@@ -312,7 +275,11 @@ internal object AiSubtitles {
         return if (ok) live else null
     }
 
-    // tracks report the language the provider put on the selected audio rendition
+    private fun fillsGap(s: Stream): Boolean {
+        if (!available || s.dub == null) return false
+        return s.subs.isEmpty() && !s.enSubs
+    }
+
     private fun audioLanguage(): String? {
         val p = exo ?: return null
         val g = p.currentTracks.groups.firstOrNull {
@@ -321,7 +288,6 @@ internal object AiSubtitles {
         for (i in 0 until g.length) {
             g.getTrackFormat(i).language?.takeIf { it.isNotBlank() }?.let { return it }
         }
-        // a dub's manifest rarely tags its audio, but the cut itself says what it is
         return streamRef?.dub
     }
 
@@ -347,7 +313,6 @@ internal object AiSubtitles {
 
     private fun addCue(cue: SubtitleCue) {
         synchronized(cues) {
-            // re-watching a stretch replaces its old cues instead of stacking duplicates
             cues.removeAll { it.start < cue.end && cue.start < it.end }
             cues.add(cue)
             cues.sortBy { it.start }
@@ -365,7 +330,6 @@ internal object AiSubtitles {
 
     private fun overlay() {
         val p = exo ?: return
-        // a heap that only ever climbs is a leak; this line is what the crash report shows
         val now = SystemClock.elapsedRealtime()
         if (now - beat > 30_000) {
             beat = now
@@ -387,16 +351,13 @@ internal object AiSubtitles {
         }
         val pos = p.currentPosition
         posMs = pos
-        // the provider only hands over a line when the speaker stops, which is always after that
-        // line began; show it from now for its own length, and fall back to the saved timeline
+        // the provider closes a line after the speaker stops, so show it from now for its length
         arrived?.let {
             arrived = null
             active = it
             activeUntil = pos + (it.end - it.start).coerceIn(1500L, 10_000L)
         }
         val live = active?.takeIf { pos < activeUntil }?.text
-        // while the live pass is re-transcribing this stretch, the saved cues for it are stale
-        // and flash between the new lines; only a finished batch file is a stable timeline
         val cached = if (live == null && job == null) {
             synchronized(cues) { cues.lastOrNull { pos >= it.start && pos < it.end + GRACE_MS } }?.text
         } else {
