@@ -147,12 +147,12 @@ fun PlayerStage(
     onSheetDrag: (Float) -> Unit = {},
     onSheetDragEnd: (Float) -> Unit = {},
     titleBelow: Boolean = false,
-    barsInset: Boolean = true,
     lockButton: Boolean = true,
     rotateButton: Boolean = false,
     locked: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
+    canSettings: Boolean = true,
     muted: Boolean = false,
     showSpinner: Boolean = true,
     onScrub: (Float?) -> Unit = {},
@@ -181,10 +181,9 @@ fun PlayerStage(
     // the stage sits on the window edge in fullscreen and on phones in landscape; the portrait pane
     // is already pushed below the status bar, so it must not pad again
     val cfg = LocalConfiguration.current
-    val atEdge = fullscreen || (
-        cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
-            cfg.smallestScreenWidthDp < 600
-        )
+    val landscapePhone = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+        cfg.smallestScreenWidthDp < 600
+    val atEdge = fullscreen || landscapePhone
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val edgePx = with(LocalDensity.current) { (topInset + 12.dp).toPx() }
     // one bottom inset, never two: the caller's own lift and atEdge must not stack
@@ -443,15 +442,20 @@ fun PlayerStage(
         // Headers first in child order would sit under the scrim Box below, so it is drawn last and
         // pulled above it with a zIndex instead.
         if (controlsVisible && !locked) {
-            // Fullscreen shows the status bar again, so the header has to follow it down.
+            // Fullscreen shows the status bar again, so the header has to follow it down — on a phone
+            // the bar is tall enough to tuck the title into its empty lower half instead.
             Column(
                 Modifier.fillMaxWidth()
                     .onGloballyPositioned { headerH = it.size.height.toFloat() }
                     .then(
                         when {
                             // the pane hands back the height it gave up, so the bar follows it
-                            topPad != null && barsInset -> Modifier.padding(top = topPad)
-                            atEdge && barsInset -> Modifier
+                            topPad != null -> Modifier.padding(top = topPad)
+                            landscapePhone -> Modifier
+                                .padding(top = (topInset - 12.dp).coerceAtLeast(0.dp))
+                                .windowInsetsPadding(WindowInsets.displayCutout)
+                                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
+                            atEdge -> Modifier
                                 .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                                 .windowInsetsPadding(WindowInsets.displayCutout)
                                 .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
@@ -463,7 +467,8 @@ fun PlayerStage(
                 title = title,
                 fullscreen = fullscreen,
                 titleBelow = titleBelow,
-                barsInset = barsInset,
+                canSettings = canSettings,
+                topGap = if (landscapePhone) 2.dp else 8.dp,
                 large = fullscreen && seekBar && !titleBelow && LocalConfiguration.current.smallestScreenWidthDp >= 600,
                 subsOn = subsOn,
                 canSubs = canSubs,
@@ -570,7 +575,8 @@ private fun PlayerTopBar(
     title: String,
     fullscreen: Boolean,
     titleBelow: Boolean,
-    barsInset: Boolean,
+    canSettings: Boolean,
+    topGap: Dp,
     large: Boolean,
     subsOn: Boolean,
     canSubs: Boolean,
@@ -585,7 +591,7 @@ private fun PlayerTopBar(
     val iconBox = Modifier.size(48.dp)
     Column(
         Modifier.fillMaxWidth()
-            .padding(top = if (titleBelow) 4.dp else 8.dp).padding(end = if (large) 16.dp else 8.dp),
+            .padding(top = if (titleBelow) 4.dp else topGap).padding(end = if (large) 16.dp else 8.dp),
     ) {
         Row(
             Modifier.fillMaxWidth(),
@@ -632,13 +638,14 @@ private fun PlayerTopBar(
                 iconBox.focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
+                    enabled = canSettings,
                 ) { onSettings() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     painterResource(R.drawable.ic_settings),
                     contentDescription = stringResource(R.string.player_settings),
-                    tint = if (settingsOn) Cyan else Color.White,
+                    tint = if (settingsOn) Cyan else Color.White.copy(alpha = if (canSettings) 1f else 0.4f),
                     modifier = Modifier.size(if (large) 24.dp else 20.dp),
                 )
             }

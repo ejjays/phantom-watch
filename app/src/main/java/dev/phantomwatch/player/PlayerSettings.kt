@@ -40,6 +40,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -82,6 +83,8 @@ internal fun PlayerSettingsMenu(
     onDismiss: () -> Unit,
 ) {
     var page by remember { mutableStateOf(0) }
+    // the sheet is 232dp at most, so the pinned resolution has to give way to the row's own title
+    val phone = LocalConfiguration.current.smallestScreenWidthDp < 600
     val first = remember { FocusRequester() }
     val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
     LaunchedEffect(Unit) { if (keyboard) first.requestFocus() }
@@ -149,7 +152,7 @@ internal fun PlayerSettingsMenu(
                 else -> {
                     if (qualities.size > 1) {
                         val pinned = if (quality > 0) qualities.firstOrNull { it.height == quality }?.label else null
-                        val autoLabel = if (qualityNow != null) {
+                        val autoLabel = if (qualityNow != null && !phone) {
                             stringResource(R.string.player_settings_auto_now, qualityNow)
                         } else {
                             stringResource(R.string.player_settings_auto)

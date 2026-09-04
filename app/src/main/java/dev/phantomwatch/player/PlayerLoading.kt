@@ -89,7 +89,7 @@ internal fun PlayerResolving(
 ) {
     BackHandler(onBack = onBack)
     val cfg = LocalConfiguration.current
-    // Same shell the player uses once the stream lands, so resolving never flips the layout.
+    // same shell the player uses once the stream lands, so resolving never flips the layout
     val tablet = cfg.screenWidthDp >= 840
     val stageH = (minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat() * 9 / 16).dp
     val stage: @Composable (Modifier) -> Unit = { mod ->
@@ -99,7 +99,7 @@ internal fun PlayerResolving(
                 fullscreen = false, isPlaying = false, stalled = true,
                 positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
                 flash = resolveErr, seekMark = null, seekInset = 0.dp, locked = false,
-                subsOn = false, canSubs = false,
+                subsOn = false, canSubs = false, canSettings = false,
                 onBack = onBack, onFullscreen = {}, onTogglePlay = {}, onToggleLock = {},
                 onSeek = {}, onInteract = {}, onZoneTap = {}, onToggleSubs = {},
                 onSwipe = { _, _ -> }, onSwipeEnd = {},

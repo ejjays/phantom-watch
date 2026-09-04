@@ -858,7 +858,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     if (Pip.inPip) return@launch
                     if (zone == 0 && fsNow.value && !lockedNow.value) {
                         toggleFullscreen()
-                    } else if (zone == 1 && !fsNow.value && !smallScreen && rotationEnabled()) {
+                    } else if (zone == 1 && !fsNow.value && smallScreen && rotationEnabled()) {
                         // phones go fullscreen on rotate; tablets already have the side panel
                         toggleFullscreen()
                     }
@@ -1017,7 +1017,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         onSheetDrag: (Float) -> Unit = {},
         onSheetDragEnd: (Float) -> Unit = {},
         titleBelow: Boolean = false,
-        barsInset: Boolean = true,
         lockButton: Boolean = true,
         rotateButton: Boolean = false, onRotate: () -> Unit = {},
         subStyle: Pair<Float, Float>? = null,
@@ -1050,7 +1049,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         onSheetDrag = onSheetDrag,
         onSheetDragEnd = onSheetDragEnd,
         titleBelow = titleBelow,
-        barsInset = barsInset,
         lockButton = lockButton,
         rotateButton = rotateButton, onRotate = onRotate,
         locked = locked,
