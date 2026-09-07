@@ -26,6 +26,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
+import dev.phantomwatch.lan.LanShare
 import dev.phantomwatch.subs.SubtitleCue
 import dev.phantomwatch.subs.Subtitles
 import dev.phantomwatch.torrent.DownloadControl
@@ -220,8 +221,11 @@ internal fun sourceFor(
     firstUri: Uri?,
     download: DownloadControl?,
     meta: MediaMetadata?,
-): MediaSource = buildMediaFactory(context, stream, mediaHeaders(stream), download)
-    .createMediaSource(itemFor(stream.url, stream.isHls, configsFor(subs, firstUri), meta))
+): MediaSource {
+    LanShare.onStream(stream, subs)
+    return buildMediaFactory(context, stream, mediaHeaders(stream), download)
+        .createMediaSource(itemFor(stream.url, stream.isHls, configsFor(subs, firstUri), meta))
+}
 
 @OptIn(UnstableApi::class)
 internal fun buildPreviewPlayer(context: android.content.Context, stream: Stream): ExoPlayer {

@@ -69,6 +69,8 @@
     <string name="player_settings_on">On</string>
     <string name="player_settings_off">Off</string>
     <string name="player_settings_selected">Selected</string>
+    <string name="player_share_copied">Link copied</string>
+    <string name="player_share_off">Sharing off</string>
 
     <string name="sources_back">‹ Back</string>
     <string name="sources_finding_release">Finding best release…</string>

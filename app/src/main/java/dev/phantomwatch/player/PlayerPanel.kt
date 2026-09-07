@@ -1,5 +1,9 @@
 package dev.phantomwatch.player
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -76,6 +80,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
@@ -97,6 +102,7 @@ import dev.phantomwatch.data.Episode
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
+import dev.phantomwatch.lan.LanShare
 import dev.phantomwatch.social.Social
 import dev.phantomwatch.ui.Bg
 import dev.phantomwatch.ui.ChevronRightIcon
@@ -485,6 +491,7 @@ private fun PlayerInfo(
     onHeaderBottom: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     // Hoisted above the episode branch: a fetch toggling that branch out and back in would
     // rebuild the state and flash the chip cyan again mid-session.
     var freshChip by remember { mutableStateOf(true) }
@@ -557,7 +564,9 @@ private fun PlayerInfo(
                             CommentIcon(contentDescription = stringResource(R.string.comments_title), tint = Slate300, size = 24.dp)
                         }
                         Spacer(Modifier.weight(1f))
-                        ActionIcon { ShareIcon(contentDescription = stringResource(R.string.common_share), tint = Slate300, size = 24.dp) }
+                        ActionIcon(onClick = { shareLink(context) }) {
+                            ShareIcon(contentDescription = stringResource(R.string.common_share), tint = Slate300, size = 24.dp)
+                        }
                     }
                 }
                 if (isTv) {
@@ -844,5 +853,24 @@ private fun RailPlot(media: Title, d: TitleDetail?, synopsis: String, onClose: (
         }
         HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
         PlotBody(media, d, synopsis, Modifier.fillMaxSize().nestedScroll(nested), scroll)
+    }
+}
+
+// One tap shares the current stream on the LAN and copies the URL; tapping again stops it.
+private fun shareLink(context: Context) {
+    if (LanShare.state is LanShare.State.Running) {
+        LanShare.stop()
+        Toast.makeText(context, context.getString(R.string.player_share_off), Toast.LENGTH_SHORT).show()
+        return
+    }
+    LanShare.start(context)
+    when (val state = LanShare.state) {
+        is LanShare.State.Running -> {
+            context.getSystemService(ClipboardManager::class.java)
+                ?.setPrimaryClip(ClipData.newPlainText("url", state.urls.first()))
+            Toast.makeText(context, context.getString(R.string.player_share_copied), Toast.LENGTH_SHORT).show()
+        }
+        is LanShare.State.Failed -> Toast.makeText(context, state.why, Toast.LENGTH_SHORT).show()
+        else -> Unit
     }
 }

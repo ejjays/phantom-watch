@@ -246,6 +246,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         Pip.active = true
         Pip.player = exo
         onDispose {
+            dev.phantomwatch.lan.LanShare.stop()
             val mine = exo.currentMediaItem?.localConfiguration?.uri?.toString() == live.url
             if (mine) { Pip.active = false; if (Pip.player === exo) Pip.player = null }
             if (mine && (stats.startup > 0 || stats.err.isNotEmpty())) {
