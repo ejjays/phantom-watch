@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "PhantomWatch"
 include(":app")
+include(":spike")
