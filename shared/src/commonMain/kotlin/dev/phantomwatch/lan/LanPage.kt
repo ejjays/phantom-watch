@@ -1,8 +1,8 @@
 package dev.phantomwatch.lan
 
-// Chrome has no HLS support, so the page pulls hls.js (pinned 1.7.4, checked 2026-11-01).
-// No "$" anywhere below: this is a Kotlin raw string.
-internal object LanPage {
+// Chrome has no HLS support, so the page pulls hls.js (pinned 1.7.4, checked 2026-11-01)
+// no "$" anywhere below: this is a Kotlin raw string
+object LanPage {
     data class Track(val label: String, val path: String, val default: Boolean)
 
     fun html(src: String, hls: Boolean, tracks: List<Track>): String = PAGE
