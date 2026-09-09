@@ -2,3 +2,4 @@ kotlin/
 node_modules/
 package.json
 package-lock.json
+composeResources/

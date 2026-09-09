@@ -25,8 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,8 +33,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import dev.phantomwatch.R
 import dev.phantomwatch.data.Title
+import dev.phantomwatch.res.*
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun PosterCard(
@@ -56,11 +55,10 @@ fun PosterCard(
                 AsyncImage(model = poster, contentDescription = item.title, modifier = Modifier.size(width, height), contentScale = ContentScale.Crop)
             } else {
                 Box(Modifier.size(width, height), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
+                    Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
                 }
             }
         }
-        // No poster means no art to name the card, so the rail keeps that one label.
         if (caption || item.poster == null) {
             var centered by remember { mutableStateOf(false) }
             Text(
@@ -75,11 +73,9 @@ fun PosterCard(
 }
 
 @Composable
-internal fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) -> Unit) {
+fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) -> Unit) {
     val radius = (width * 0.24f)
     val density = LocalDensity.current
-    // A glyph taller than this hides most of itself behind the poster; "10" needs a smaller
-    // glyph and a wider lead-in or its second digit disappears under the poster.
     val wide = rank > 9
     val glyph = height * if (wide) 0.40f else 0.60f
     val lead = width * if (wide) 0.46f else 0.34f
@@ -89,15 +85,12 @@ internal fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (
             fontFamily = Rubik,
             fontWeight = FontWeight.Bold,
             lineHeight = glyph.toSp(),
-            platformStyle = PlatformTextStyle(includeFontPadding = false),
         )
     }
     val hairline = with(density) { Stroke(3.dp.toPx()) }
     val shape = RoundedCornerShape(radius.value.dp)
     Box(Modifier.width(width + lead).height(height).pressClick { onOpen(item) }) {
-        // Line box keeps the descent, so the glyph lands ~0.2em above the slot's bottom.
         val slot = Modifier.align(Alignment.BottomStart).offset(y = glyph * 0.2f)
-        // Filled glyph with an outline laid over it: a stroke alone reads as wireframe, not plate.
         Text("$rank", style = face.copy(color = SurfaceColor), maxLines = 1, modifier = slot)
         Text("$rank", style = face.copy(color = Color.White.copy(alpha = 0.62f), drawStyle = hairline), maxLines = 1, modifier = slot)
         Box(
@@ -109,7 +102,7 @@ internal fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (
                 AsyncImage(model = poster, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(maxOf(13.dp, width * 0.13f)))
+                    Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(maxOf(13.dp, width * 0.13f)))
                 }
             }
         }

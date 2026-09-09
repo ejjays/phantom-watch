@@ -14,8 +14,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -75,7 +73,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -513,7 +510,8 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: 
     }
 }
 
-private val SearchTextStyle = TextStyle(color = Color.White, fontSize = 12.sp, fontFamily = Rubik)
+private val SearchTextStyle: TextStyle
+    @Composable get() = TextStyle(color = Color.White, fontSize = 12.sp, fontFamily = Rubik)
 
 @Composable
 private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () -> Unit) {
@@ -561,17 +559,6 @@ private fun <T> stableCallback(block: (T) -> Unit): (T) -> Unit {
 private fun stableCallback0(block: () -> Unit): () -> Unit {
     val latest = rememberUpdatedState(block)
     return remember { { latest.value() } }
-}
-
-@Composable
-internal fun Modifier.pressClick(onClick: () -> Unit): Modifier {
-    val src = remember { MutableInteractionSource() }
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, label = "press")
-    return graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-    }.clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
