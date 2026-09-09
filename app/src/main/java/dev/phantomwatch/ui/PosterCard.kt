@@ -51,8 +51,9 @@ fun PosterCard(
     val titleSize = if (width >= 150.dp) 16.sp else 12.sp
     Column(Modifier.width(width).pressClick { onOpen(item) }) {
         Box(Modifier.clip(RoundedCornerShape(radius.value.dp)).background(Color.White.copy(alpha = 0.05f))) {
-            if (item.poster != null) {
-                AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.size(width, height), contentScale = ContentScale.Crop)
+            val poster = item.poster
+            if (poster != null) {
+                AsyncImage(model = poster, contentDescription = item.title, modifier = Modifier.size(width, height), contentScale = ContentScale.Crop)
             } else {
                 Box(Modifier.size(width, height), contentAlignment = Alignment.Center) {
                     Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
@@ -103,8 +104,9 @@ internal fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (
             Modifier.align(Alignment.BottomEnd).size(width, height)
                 .clip(shape).background(Color.White.copy(alpha = 0.05f)),
         ) {
-            if (item.poster != null) {
-                AsyncImage(model = item.poster, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            val poster = item.poster
+            if (poster != null) {
+                AsyncImage(model = poster, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(maxOf(13.dp, width * 0.13f)))

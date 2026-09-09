@@ -638,7 +638,7 @@ internal fun DetailBody(
                 Text(d.title, color = Color.White, fontSize = 20.sp, lineHeight = 28.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (d.year != null) Text(d.year, color = Slate400, fontSize = 12.sp, fontFamily = Mono)
+                    d.year?.let { Text(it, color = Slate400, fontSize = 12.sp, fontFamily = Mono) }
                     Spacer(Modifier.width(6.dp))
                     Box(Modifier.clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -652,10 +652,10 @@ internal fun DetailBody(
                             Text(if (d.kind == "movie") stringResource(R.string.detail_kind_movie) else stringResource(R.string.detail_kind_series), color = Slate300, fontSize = 10.sp, fontFamily = Mono)
                         }
                     }
-                    if (d.cert != null) {
+                    d.cert?.let { cert ->
                         Spacer(Modifier.width(6.dp))
                         Box(Modifier.clip(RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                            Text(d.cert, color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                            Text(cert, color = Slate300, fontSize = 10.sp, fontFamily = Mono)
                         }
                     }
                 }
@@ -745,14 +745,15 @@ internal fun DetailBody(
                 }
             }
         }
-        if (d.director != null) {
+        val dir = d.director
+        if (dir != null) {
             Spacer(Modifier.height(12.dp))
             Text(stringResource(R.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(person = d.director, size = 44.dp, loadPhoto = photosReady)
+                Avatar(person = dir, size = 44.dp, loadPhoto = photosReady)
                 Spacer(Modifier.width(10.dp))
-                Text(d.director.name, color = Slate300, fontSize = 14.sp, fontFamily = Rubik)
+                Text(dir.name, color = Slate300, fontSize = 14.sp, fontFamily = Rubik)
             }
         } else if (pending) {
             Spacer(Modifier.height(12.dp))

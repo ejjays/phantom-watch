@@ -83,7 +83,7 @@ data class Stream(
 )
 
 // a dub plays only its own captions: the sub cut's timing drifts against dub audio
-internal fun Stream.withDub(d: Dub): Stream = copy(
+fun Stream.withDub(d: Dub): Stream = copy(
     url = d.url, isHls = d.isHls, referer = d.referer, headers = d.headers,
     dub = if (d.base) null else d.label, subs = d.subs, enSubs = d.enSubs,
 )

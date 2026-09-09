@@ -131,8 +131,8 @@ private fun ContinueCard(
     ) {
         Column(Modifier.width(width).pressClick { onPlay(r) }) {
             Box(Modifier.size(width, width * 1.5f).clip(RoundedCornerShape(radius)).background(SurfaceColor)) {
-                if (r.poster != null) {
-                    AsyncImage(model = r.poster, contentDescription = r.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                r.poster?.let { poster ->
+                    AsyncImage(model = poster, contentDescription = r.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
                 if (r.season.isNotEmpty()) {
                     Text(

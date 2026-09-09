@@ -122,12 +122,12 @@ internal class SubsController(
                         AppLog.d("os unhashable")
                     }
                 }
-                if (stream.imdb.isNullOrEmpty()) {
+                val im = stream.imdb
+                if (im.isNullOrEmpty()) {
                     AppLog.d("os no imdb, stop")
                     return@launch
                 }
-                AppLog.d("os imdb ${stream.imdb}")
-                val im = stream.imdb
+                AppLog.d("os imdb $im")
                 val ck = if (season.isEmpty()) "imdb-$im" else "imdb-$im-s$season-e$episode"
                 OsSubs.cached(context.cacheDir, ck)?.let { f ->
                     showOsSub(f, ck)

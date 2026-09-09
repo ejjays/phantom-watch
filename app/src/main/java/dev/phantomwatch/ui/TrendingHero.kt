@@ -250,9 +250,9 @@ private fun HeroKind(item: Title, scale: Float = 1f) {
 @Composable
 private fun HeroMeta(item: Title, detail: TitleDetail?, scale: Float = 1f) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * scale)) {
-        if (item.rating != null && item.rating > 0) {
+        item.rating?.takeIf { it > 0 }?.let { r ->
             Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp * scale))
-            Text(String.format("%.1f", item.rating), color = Slate200, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(String.format("%.1f", r), color = Slate200, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
         }
         item.year?.let { Text(it, color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
         detail?.runtime?.takeIf { it > 0 }?.let {
