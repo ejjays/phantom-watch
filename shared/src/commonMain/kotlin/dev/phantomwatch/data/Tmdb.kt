@@ -1,15 +1,16 @@
 package dev.phantomwatch.data
 
-import dev.phantomwatch.core.AppLog
-import dev.phantomwatch.core.Http
-import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.core.Log
+import dev.phantomwatch.json.JSONObject
+import dev.phantomwatch.core.httpJson
+import dev.phantomwatch.core.ioDispatcher
 
 object Tmdb {
-    suspend fun imdbOf(tmdb: String, kind: String, key: String): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun imdbOf(tmdb: String, kind: String, key: String): String? = kotlinx.coroutines.withContext(ioDispatcher) {
         try {
             val path = if (kind == "movie") "movie" else "tv"
-            val data = Http.getJson(
-                "${RemoteConfig.tmdbBase()}/$path/$tmdb/external_ids?api_key=$key",
+            val data = httpJson(
+                "${TmdbHost.base}/$path/$tmdb/external_ids?api_key=$key",
                 "https://www.themoviedb.org/",
             ) ?: return@withContext null
             data.optString("imdb_id").takeIf { it.startsWith("tt") }
@@ -19,9 +20,9 @@ object Tmdb {
     }
 
     internal fun img(path: String?, size: String): String? =
-        path?.takeIf { it.startsWith("/") }?.let { "${RemoteConfig.tmdbImage()}$size$it" }
+        path?.takeIf { it.startsWith("/") }?.let { "${TmdbHost.image}$size$it" }
 
-    internal fun titleOf(e: org.json.JSONObject): Title? {
+    internal fun titleOf(e: JSONObject): Title? {
         val type = e.optString("media_type").ifEmpty {
             if (e.has("title")) "movie" else "tv"
         }
@@ -41,9 +42,9 @@ object Tmdb {
         )
     }
 
-    fun trending(apiKey: String): List<Title> {
-        val data = Http.getJson(
-            "${RemoteConfig.tmdbBase()}/trending/all/week?api_key=$apiKey",
+    suspend fun trending(apiKey: String): List<Title> {
+        val data = httpJson(
+            "${TmdbHost.base}/trending/all/week?api_key=$apiKey",
             "https://www.themoviedb.org/",
         ) ?: return emptyList()
         val results = data.optJSONArray("results") ?: return emptyList()
@@ -51,15 +52,15 @@ object Tmdb {
         for (i in 0 until results.length()) {
             titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
         }
-        AppLog.d("trending ${out.size}")
+        Log.d("trending ${out.size}")
         return out.distinctBy { it.kind to it.id }
     }
 
     /** Null means the request failed — never a page count of 1, which would end pagination. */
-    fun rail(apiKey: String, path: String, page: Int = 1): RailPage? {
+    suspend fun rail(apiKey: String, path: String, page: Int = 1): RailPage? {
         return try {
-            val data = Http.getJson(
-                "${RemoteConfig.tmdbBase()}/$path?api_key=$apiKey&page=$page",
+            val data = httpJson(
+                "${TmdbHost.base}/$path?api_key=$apiKey&page=$page",
                 "https://www.themoviedb.org/",
             ) ?: return null
             val results = data.optJSONArray("results") ?: return null
@@ -73,11 +74,11 @@ object Tmdb {
         }
     }
 
-    fun detail(apiKey: String, kind: String, id: String): TitleDetail? {
+    suspend fun detail(apiKey: String, kind: String, id: String): TitleDetail? {
         return try {
             val path = if (kind == "movie") "movie" else "tv"
-            val e = Http.getJson(
-                "${RemoteConfig.tmdbBase()}/$path/$id?api_key=$apiKey&append_to_response=credits,content_ratings,release_dates,videos",
+            val e = httpJson(
+                "${TmdbHost.base}/$path/$id?api_key=$apiKey&append_to_response=credits,content_ratings,release_dates,videos",
                 "https://www.themoviedb.org/",
             ) ?: return null
             val name = e.optString("title").ifEmpty { e.optString("name") }
@@ -182,11 +183,11 @@ object Tmdb {
         }
     }
 
-    fun similar(apiKey: String, kind: String, id: String): List<Title> {
+    suspend fun similar(apiKey: String, kind: String, id: String): List<Title> {
         return try {
             val path = if (kind == "movie") "movie" else "tv"
-            val data = Http.getJson(
-                "${RemoteConfig.tmdbBase()}/$path/$id/similar?api_key=$apiKey",
+            val data = httpJson(
+                "${TmdbHost.base}/$path/$id/similar?api_key=$apiKey",
                 "https://www.themoviedb.org/",
             ) ?: return emptyList()
             val results = data.optJSONArray("results") ?: return emptyList()
@@ -200,10 +201,10 @@ object Tmdb {
         }
     }
 
-    fun season(apiKey: String, tvId: String, season: Int): List<Episode> {
+    suspend fun season(apiKey: String, tvId: String, season: Int): List<Episode> {
         return try {
-            val e = Http.getJson(
-                "${RemoteConfig.tmdbBase()}/tv/$tvId/season/$season?api_key=$apiKey",
+            val e = httpJson(
+                "${TmdbHost.base}/tv/$tvId/season/$season?api_key=$apiKey",
                 "https://www.themoviedb.org/",
             ) ?: return emptyList()
             val out = mutableListOf<Episode>()

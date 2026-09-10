@@ -24,10 +24,14 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
         }
         wasmJsMain.dependencies {
             implementation("io.coil-kt.coil3:coil-network-ktor3:3.6.3")
             implementation("io.ktor:ktor-client-js:3.1.0")
+        }
+        androidMain.dependencies {
+            implementation("com.squareup.okhttp3:okhttp:4.12.0")
         }
     }
 }

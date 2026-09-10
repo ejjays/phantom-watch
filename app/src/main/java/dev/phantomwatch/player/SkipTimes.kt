@@ -4,7 +4,7 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Http
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import dev.phantomwatch.json.JSONObject
 
 // AniSkip keys on MAL episode + runtime, so it fits any provider's cut of the same episode
 object SkipTimes {

@@ -6,10 +6,13 @@ import java.util.concurrent.TimeUnit
 import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
+import dev.phantomwatch.json.JSONObject
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object Http {
-    const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
+    const val UA = BROWSER_UA
     private const val PLAYER = "https://player.vidlove.cc"
 
     val client: OkHttpClient = OkHttpClient.Builder()
@@ -57,3 +60,8 @@ object Http {
         throw RuntimeException("${last?.javaClass?.simpleName}: ${last?.message}")
     }
 }
+
+actual val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+
+actual suspend fun httpJson(url: String, referer: String): JSONObject? =
+    withContext(ioDispatcher) { Http.getJson(url, referer) }

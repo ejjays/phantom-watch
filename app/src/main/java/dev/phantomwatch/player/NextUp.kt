@@ -52,7 +52,7 @@ private data class NextUp(val season: String, val episode: String, val name: Str
 internal fun nextInSeason(numbers: List<Int>, current: Int): Int? =
     numbers.filter { it > current }.minOrNull()
 
-private fun findNextUp(id: String, season: String, episode: String): NextUp? {
+private suspend fun findNextUp(id: String, season: String, episode: String): NextUp? {
     val s = season.toIntOrNull() ?: return null
     val e = episode.toIntOrNull() ?: return null
     val key = RemoteConfig.tmdbKey()

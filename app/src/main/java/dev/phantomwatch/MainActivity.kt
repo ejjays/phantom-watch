@@ -20,7 +20,7 @@ import dev.phantomwatch.social.Social
 
 class MainActivity : ComponentActivity() {
     // Android 13+ blocks every notification until the user grants this, which would silently
-    // kill the media card while the foreground service keeps running.
+    // kill the media card while the foreground service keeps running
     private val notifPerm =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
 
@@ -31,7 +31,6 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
-        // phones stay portrait; tablets and desktop windows follow the display
         if (resources.configuration.smallestScreenWidthDp < 600) {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
@@ -50,6 +49,10 @@ class MainActivity : ComponentActivity() {
             )
         }
         RemoteConfig.load(this)
+        dev.phantomwatch.core.Log.sink = AppLog::d
+        dev.phantomwatch.data.TmdbHost.key = RemoteConfig.tmdbKey()
+        dev.phantomwatch.data.TmdbHost.base = RemoteConfig.tmdbBase()
+        dev.phantomwatch.data.TmdbHost.image = RemoteConfig.tmdbImage()
         JsProviders.init(applicationContext)
         TrailerBridge.init(applicationContext)
         Social.init(applicationContext)

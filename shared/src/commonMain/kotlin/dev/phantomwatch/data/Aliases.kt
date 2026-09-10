@@ -1,6 +1,6 @@
 package dev.phantomwatch.data
 
-// TMDB duplicate listings that should show and behave as the canonical title
+// TMDB duplicate listings that should behave as the canonical title
 object Aliases {
     private class Canon(
         val id: String, val title: String, val poster: String, val backdrop: String, val year: String,
