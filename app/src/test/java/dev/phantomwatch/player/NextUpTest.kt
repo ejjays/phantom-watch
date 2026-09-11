@@ -1,5 +1,6 @@
 package dev.phantomwatch.player
 
+import dev.phantomwatch.data.Recent
 import dev.phantomwatch.data.Resume
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -8,11 +9,11 @@ import org.junit.Test
 
 class NextUpTest {
     private fun entry(id: String, season: String = "1", episode: String = "1", pos: Long = 60_000) =
-        Resume.Recent("tv", id, "Show $id", "https://img/$id.jpg", season, episode, pos, 600_000)
+        Recent("tv", id, "Show $id", "https://img/$id.jpg", season, episode, pos, 600_000)
 
     @Test
     fun newestFirstAndOneCardPerTitle() {
-        var list = emptyList<Resume.Recent>()
+        var list = emptyList<Recent>()
         list = Resume.mergeRecent(list, entry("1", episode = "1"))
         list = Resume.mergeRecent(list, entry("2"))
         list = Resume.mergeRecent(list, entry("1", episode = "2"))
@@ -22,7 +23,7 @@ class NextUpTest {
 
     @Test
     fun keepsAtMostTwelve() {
-        var list = emptyList<Resume.Recent>()
+        var list = emptyList<Recent>()
         repeat(20) { list = Resume.mergeRecent(list, entry("$it")) }
         assertEquals(12, list.size)
         assertEquals("19", list.first().id)

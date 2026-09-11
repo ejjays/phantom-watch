@@ -12,17 +12,6 @@ object Resume {
     private const val RECENT = "recent"
     private const val RECENT_MAX = 12
 
-    internal data class Recent(
-        val kind: String,
-        val id: String,
-        val title: String,
-        val poster: String?,
-        val season: String,
-        val episode: String,
-        val positionMs: Long,
-        val durationMs: Long,
-    )
-
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 

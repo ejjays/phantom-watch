@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -29,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,9 +45,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.rememberLottieComposition
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.data.Aliases
+import dev.phantomwatch.data.Resume
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
@@ -60,6 +66,7 @@ import dev.phantomwatch.torrent.TORRENTS_ENABLED
 import dev.phantomwatch.torrent.TorrentEngine
 import dev.phantomwatch.torrent.Torrents
 import dev.phantomwatch.ui.BrowseState
+import dev.phantomwatch.ui.DetailPane
 import dev.phantomwatch.ui.HomeScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -123,6 +130,24 @@ internal fun AppRoot() {
                         browse.backToEpisodes = m.kind == "tv"
                         if (m.kind != "tv") browse.openTitle = null
                         screen = Screen.Player(m.title, null, null, null, m, seas, ep, Screen.Home)
+                    },
+                    loadRecent = { Resume.recent(context) },
+                    onRemoveRecent = { Resume.remove(context, it.kind, it.id, it.season, it.episode) },
+                    onRestoreRecent = { Resume.restore(context, it) },
+                    onExitApp = { (context as? android.app.Activity)?.finish() },
+                    searchGhost = { ghost, run ->
+                        val comp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lottie_search))
+                        key(run) {
+                            LottieAnimation(
+                                composition = comp,
+                                iterations = 1,
+                                isPlaying = true,
+                                modifier = Modifier.size(ghost),
+                            )
+                        }
+                    },
+                    detailPane = { item, onClose, onPlay, startEpisodes ->
+                        DetailPane(item, onClose, onPlay, startEpisodes, onClose)
                     },
                 )
                 is Screen.Player -> {

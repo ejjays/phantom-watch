@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Phantom Watch</string>
+
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_close">Close</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_play">Play</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_search">Search</string>
+    <string name="common_share">Share</string>
+    <string name="season_episode">S%1$s E%2$s</string>
+    <string name="title_season_episode">%1$s · S%2$s E%3$s</string>
+    <string name="episodes_title">Episodes</string>
+    <string name="history_title">History</string>
+    <string name="stat_rating">Rating</string>
+    <string name="stat_runtime">Runtime</string>
+    <string name="stat_released">Released</string>
+    <string name="stat_votes">Votes</string>
+
+    <string name="approot_crash_title">Last crash</string>
+    <string name="approot_crash_send">Send</string>
+    <string name="approot_crash_dismiss">Dismiss</string>
+    <string name="approot_crash_chooser">Send crash report</string>
+    <string name="approot_log">LOG</string>
+    <string name="approot_logs_title">Logs (%1$d)</string>
+    <string name="approot_logs_clear">Clear</string>
+    <string name="approot_logs_copy">Copy all</string>
+
+    <string name="update_allow_install">Allow Phantom Watch to install apps, then run install.sh again</string>
+
+    <string name="next_up_title">UP NEXT</string>
+    <string name="next_up_playing_in">Playing in %1$ds</string>
+    <string name="next_up_play_now">Play now</string>
+
+    <string name="player_playback_failed">Playback failed</string>
+    <string name="player_choose_source">Choose source</string>
+    <string name="player_build_failed">Player failed: %1$s</string>
+    <string name="player_choose">Choose</string>
+    <string name="player_mute">Mute</string>
+    <string name="player_unmute">Unmute</string>
+    <string name="player_enter_fullscreen">Enter fullscreen</string>
+    <string name="player_exit_fullscreen">Exit fullscreen</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_locked">Locked</string>
+    <string name="player_unlocked">Unlocked</string>
+    <string name="player_rotate_landscape">Rotate to landscape</string>
+    <string name="player_close">Close player</string>
+    <string name="player_subs_off">Turn subtitles off</string>
+    <string name="player_subs_on">Turn subtitles on</string>
+    <string name="player_settings">Player settings</string>
+    <string name="player_skip_intro">Skip intro</string>
+    <string name="player_more_like_this">More Like This</string>
+    <string name="player_story_plot">Story plot</string>
+    <string name="player_like">Like</string>
+    <string name="player_dislike">Dislike</string>
+    <string name="player_all_episodes">All episodes</string>
+    <string name="player_no_episodes">No episodes available</string>
+    <string name="player_episodes_full">Full</string>
+    <string name="player_info">Info</string>
+    <string name="player_settings_quality">Quality</string>
+    <string name="player_settings_auto">Auto</string>
+    <string name="player_settings_auto_now">Auto · %1$s</string>
+    <string name="player_settings_speed">Speed</string>
+    <string name="player_settings_normal">(Normal)</string>
+    <string name="player_settings_dubs">Dubs</string>
+    <string name="player_settings_sub">Sub</string>
+    <string name="player_settings_on">On</string>
+    <string name="player_settings_off">Off</string>
+    <string name="player_settings_selected">Selected</string>
+    <string name="player_share_copied">Link copied</string>
+    <string name="player_share_off">Sharing off</string>
+
+    <string name="sources_back">‹ Back</string>
+    <string name="sources_finding_release">Finding best release…</string>
+    <string name="sources_trying_direct">Trying direct streams…</string>
+    <string name="sources_no_streams">No streams found</string>
+
+    <string name="browse_brand" translatable="false">Phantom</string>
+    <string name="browse_search_hint">Search movies or shows</string>
+    <string name="browse_tmdb_failed">Could not reach TMDB.</string>
+    <string name="browse_tap_retry">Tap retry below</string>
+    <string name="browse_explore_more">Explore More</string>
+    <string name="browse_see_all">See all</string>
+    <string name="browse_searching">Searching for “%1$s”…</string>
+    <string name="browse_no_results">No results</string>
+    <string name="browse_results_for">%1$d results for “%2$s”</string>
+    <string name="browse_nothing_found">Nothing found out there.</string>
+    <string name="browse_try_another">Try another title</string>
+    <string name="browse_recent_search">Recent search</string>
+    <string name="browse_search_prompt">Let\'s Grab a Movie</string>
+    <string name="browse_all_pages">That is everything — %1$d pages</string>
+
+    <string name="comments_title">Comments</string>
+    <string name="comments_count">(%1$d)</string>
+    <string name="comments_close">Close comments</string>
+    <string name="comments_unavailable">Comments unavailable</string>
+    <string name="comments_tap_retry">Tap to retry</string>
+    <string name="comments_empty">No comments yet — start the chat.</string>
+    <string name="comments_delete_title">Delete comment?</string>
+    <string name="comments_delete_body">This will also remove replies to your comment.</string>
+    <string name="comments_report_title">Report comment</string>
+    <string name="comments_report_body">Choose the reason for your report.</string>
+    <string name="comments_report">Report</string>
+    <string name="comments_reply">Reply</string>
+    <string name="comments_hide_replies">Hide replies</string>
+    <plurals name="comments_show_replies">
+        <item quantity="one">Show %1$d reply</item>
+        <item quantity="other">Show %1$d replies</item>
+    </plurals>
+    <string name="comments_hint">Add a comment...</string>
+    <string name="comments_post">Post comment</string>
+
+    <string name="detail_unavailable">Title unavailable</string>
+    <string name="detail_load_failed">Phantom could not load this title</string>
+    <string name="detail_view_all_episodes">View all %1$d episodes</string>
+    <string name="detail_playing">PLAYING</string>
+    <string name="detail_watch_now">Watch Now</string>
+    <string name="detail_search_hint">Search E2 or title…</string>
+    <string name="detail_no_matches">No matches for \"%1$s\"</string>
+    <string name="detail_no_episodes">No episodes found</string>
+    <string name="detail_matches">%1$d matches</string>
+    <string name="detail_kind_movie">Movie</string>
+    <string name="detail_kind_series">Series</string>
+    <string name="detail_votes">%1$d votes</string>
+    <string name="detail_votes_none">···</string>
+    <string name="detail_value_none">—</string>
+    <string name="detail_runtime_min">%1$d min</string>
+    <string name="detail_story_plot">Story Plot</string>
+    <string name="detail_director">Director</string>
+    <string name="detail_cast">Casts</string>
+    <string name="detail_episode">E%1$d</string>
+    <string name="detail_episode_air">E%1$d · %2$s</string>
+
+    <string name="hero_kind_movie">MOVIE</string>
+    <string name="hero_kind_series">SERIES</string>
+    <string name="hero_details">Details</string>
+    <string name="hero_runtime_hm">%1$dh %2$dm</string>
+    <string name="hero_runtime_m">%1$dm</string>
+
+    <string name="exit_title">Exit Phantom Watch?</string>
+    <string name="exit_body">Your progress is saved, so you can pick up right where you left off.</string>
+    <string name="exit_confirm">Exit</string>
+
+    <string name="rail_popular">Top 10 Movies Today</string>
+    <string name="rail_top">Top Rated</string>
+    <string name="rail_now">Now Playing</string>
+    <string name="rail_tv_popular">Popular Series</string>
+    <string name="rail_tv_top">Top Rated Series</string>
+    <string name="rail_airing">Airing Today</string>
+
+    <string name="comments_deleted">Comment deleted</string>
+    <string name="comments_delete_failed">Could not delete comment</string>
+    <string name="comments_reported">Report received</string>
+    <string name="comments_report_failed">Could not report comment</string>
+
+    <string name="social_signin_unavailable">Sign-in unavailable</string>
+    <string name="social_invalid_title">Invalid title</string>
+    <string name="social_bad_body">Comments must be 1–500 characters</string>
+    <string name="social_rate_limited">Please wait before posting again</string>
+    <string name="social_reply_gone">That reply is no longer available</string>
+    <string name="social_post_failed">Could not post</string>
+
+    <string name="player_download">Download</string>
+    <string name="player_download_title">Download with Phantom</string>
+    <string name="player_download_auto_quality">Auto quality</string>
+    <string name="player_download_sub_included">English subtitle included.</string>
+    <string name="player_download_sub_added">English subtitle added if the stream provides one.</string>
+    <string name="player_download_sub_none">No separate English subtitle found.</string>
+    <string name="player_download_saves_to">Saves to Movies/PhantomWatch.</string>
+    <string name="player_download_needs_update">Phantom needs an update. Install the latest version and try again.</string>
+    <string name="player_download_opening">Opening Phantom…</string>
+    <string name="player_download_update">Update Phantom</string>
+    <string name="player_download_install">Install Phantom</string>
+    <string name="player_download_open">Open Phantom</string>
+
+    <string name="player_engine_down">Provider engine unavailable</string>
+    <string name="player_no_streams">No direct streams found</string>
+    <string name="player_resolve_failed">resolve failed</string>
+
+    <string name="history_empty_title">Nothing watched yet.</string>
+    <string name="history_empty_body">Start an episode and it shows up here</string>
+    <string name="history_removed">Removed %1$s</string>
+    <string name="history_undo">Undo</string>
+</resources>

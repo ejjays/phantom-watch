@@ -22,18 +22,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import dev.phantomwatch.R
+import dev.phantomwatch.res.*
 
 @Composable
-internal fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
+fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     // Most of the 56dp mark sits above the card; 16dp of it overlaps the edge.
     val overhang = 40.dp
@@ -49,25 +49,25 @@ internal fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    stringResource(R.string.exit_title), color = Slate100, fontFamily = Rubik,
+                    stringResource(Res.string.exit_title), color = Slate100, fontFamily = Rubik,
                     fontWeight = FontWeight.Bold, fontSize = 19.sp, textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    stringResource(R.string.exit_body),
+                    stringResource(Res.string.exit_body),
                     color = Slate400, fontFamily = Rubik, fontSize = 14.sp, lineHeight = 20.sp,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(22.dp))
-                val cancel = stringResource(R.string.common_cancel)
-                val exit = stringResource(R.string.exit_confirm)
+                val cancel = stringResource(Res.string.common_cancel)
+                val exit = stringResource(Res.string.exit_confirm)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Pill(cancel, Modifier.weight(1f), Color.White.copy(alpha = 0.10f), Color.White, FontWeight.SemiBold, onCancel)
                     Pill(exit, Modifier.weight(1f), Color.White, Color.Black, FontWeight.Bold, onExit)
                 }
             }
             Image(
-                painterResource(R.drawable.pirate), contentDescription = null,
+                painterResource(Res.drawable.pirate), contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.align(Alignment.TopCenter).offset(y = -overhang)
                     .size(56.dp).clip(RoundedCornerShape(16.dp)),

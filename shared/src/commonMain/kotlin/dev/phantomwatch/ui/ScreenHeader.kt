@@ -14,25 +14,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.phantomwatch.R
+import dev.phantomwatch.res.*
 
 /** Screen title for the pushed views (See all, History): the back arrow carries the title. */
 @Composable
-internal fun ScreenHeader(title: String, onBack: () -> Unit) {
-    val screenW = LocalConfiguration.current.screenWidthDp.dp
+fun ScreenHeader(title: String, onBack: () -> Unit) {
+    val screenW = screenWidthDp()
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(start = 8.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
-            Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(painterResource(Res.drawable.ic_back), contentDescription = stringResource(Res.string.common_back), tint = Color.White, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(4.dp))
         Text(

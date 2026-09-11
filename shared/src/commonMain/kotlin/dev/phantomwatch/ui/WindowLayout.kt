@@ -6,18 +6,18 @@ import androidx.compose.ui.unit.dp
 private val ExpandedMin = 840.dp
 private val PosterCellMin = 120.dp
 
-internal fun isExpanded(width: Dp): Boolean = width >= ExpandedMin
+fun isExpanded(width: Dp): Boolean = width >= ExpandedMin
 
-internal fun gridColumns(width: Dp): Int =
+fun gridColumns(width: Dp): Int =
     (width / PosterCellMin).toInt().coerceIn(3, 6)
 
-internal fun gridCell(width: Dp, columns: Int): Dp =
+fun gridCell(width: Dp, columns: Int): Dp =
     ((width - 32.dp - 12.dp * (columns - 1)) / columns).coerceAtLeast(1.dp)
 
-/** Featured rails: phone gets 150dp cards (~2.5 visible); tablet scales wider. */
-internal fun featuredCell(width: Dp): Dp =
+// phone gets 150dp cards (~2.5 visible); tablet scales wider
+fun featuredCell(width: Dp): Dp =
     if (isExpanded(width)) (gridCell(width, 6) * 1.12f).coerceIn(162.dp, 280.dp) else 150.dp
 
-/** Explore grid runs one step denser than the featured rails. */
-internal fun exploreColumns(width: Dp): Int =
+// one step denser than the featured rails
+fun exploreColumns(width: Dp): Int =
     (width / (featuredCell(width) * 0.72f + 12.dp)).toInt().coerceIn(3, 10)

@@ -1,6 +1,5 @@
 package dev.phantomwatch.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -73,13 +72,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -88,26 +85,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil3.compose.AsyncImage
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import androidx.annotation.StringRes
-import com.airbnb.lottie.compose.rememberLottieComposition
-import dev.phantomwatch.R
-import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.res.*
+import org.jetbrains.compose.resources.StringResource
+import dev.phantomwatch.core.ioDispatcher
+import dev.phantomwatch.core.nowMs
+import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.data.Aliases
-import dev.phantomwatch.data.Resume
+import dev.phantomwatch.data.Recent
 import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-internal data class RailState(
+data class RailState(
     val key: String,
     val title: String,
     val path: String,
@@ -117,20 +111,20 @@ internal data class RailState(
     val loadingMore: Boolean = false,
 )
 
-private data class RailDef(val key: String, @StringRes val title: Int, val path: String)
+private data class RailDef(val key: String, val title: StringResource, val path: String)
 
 private val RailDefs = listOf(
-    RailDef("popular", R.string.rail_popular, "movie/popular"),
-    RailDef("top", R.string.rail_top, "movie/top_rated"),
-    RailDef("now", R.string.rail_now, "movie/now_playing"),
-    RailDef("tv-popular", R.string.rail_tv_popular, "tv/popular"),
-    RailDef("tv-top", R.string.rail_tv_top, "tv/top_rated"),
-    RailDef("airing", R.string.rail_airing, "tv/airing_today"),
+    RailDef("popular", Res.string.rail_popular, "movie/popular"),
+    RailDef("top", Res.string.rail_top, "movie/top_rated"),
+    RailDef("now", Res.string.rail_now, "movie/now_playing"),
+    RailDef("tv-popular", Res.string.rail_tv_popular, "tv/popular"),
+    RailDef("tv-top", Res.string.rail_tv_top, "tv/top_rated"),
+    RailDef("airing", Res.string.rail_airing, "tv/airing_today"),
 )
 
 private val RuleEdge = Color.White.copy(alpha = 0.16f)
 
-internal class BrowseState {
+class BrowseState {
     var openTitle by mutableStateOf<Title?>(null)
     var backToEpisodes by mutableStateOf(false)
     var searchOpen by mutableStateOf(false)
@@ -141,7 +135,7 @@ internal class BrowseState {
     var railKey by mutableStateOf<String?>(null)
     var trending by mutableStateOf<List<Title>>(emptyList())
     var rails by mutableStateOf<List<RailState>>(emptyList())
-    var recent by mutableStateOf<List<Resume.Recent>>(emptyList())
+    var recent by mutableStateOf<List<Recent>>(emptyList())
     var exploreItems by mutableStateOf<List<Title>>(emptyList())
     var explorePage by mutableStateOf(0)
     var exploreTotal by mutableStateOf(1)
@@ -153,12 +147,21 @@ internal class BrowseState {
 }
 
 @Composable
-internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) -> Unit) {
-    val key = RemoteConfig.tmdbKey()
-    val ctx = LocalContext.current
+fun HomeScreen(
+    browse: BrowseState,
+    onWatch: (Title, String, String) -> Unit,
+    loadRecent: () -> List<Recent> = { emptyList() },
+    onRemoveRecent: (Recent) -> Unit = {},
+    onRestoreRecent: (List<Recent>) -> Unit = {},
+    onExitApp: () -> Unit = {},
+    searchGhost: @Composable (Dp, Int) -> Unit = { _, _ -> },
+    detailPane: @Composable (Title?, () -> Unit, (Title, String, String) -> Unit, Boolean) -> Unit = { _, _, _, _ -> },
+) {
+    val key = TmdbHost.key
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    val railLabels = RailDefs.map { stringResource(it.title) }
     var searching by remember { mutableStateOf(false) }
     var searchSeq by remember { mutableStateOf(0) }
     var exploreMore by remember { mutableStateOf(false) }
@@ -171,12 +174,12 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
             val hadContent = browse.rails.any { it.items.isNotEmpty() }
             browse.loading = true
             try {
-                val foundTrending = withContext(Dispatchers.IO) { Tmdb.trending(key) }
-                val foundRails = withContext(Dispatchers.IO) {
-                    RailDefs.map { def ->
-                        val label = ctx.getString(def.title)
+                val foundTrending = withContext(ioDispatcher) { Tmdb.trending(key) }
+                val foundRails = withContext(ioDispatcher) {
+                    RailDefs.mapIndexed { i, def ->
+                        val label = railLabels[i]
                         val r = Tmdb.rail(key, def.path, 1)
-                            ?: return@map RailState(def.key, label, def.path, emptyList(), 1, 1)
+                            ?: return@mapIndexed RailState(def.key, label, def.path, emptyList(), 1, 1)
                         RailState(def.key, label, def.path, r.items, 1, r.totalPages)
                     }
                 }
@@ -191,7 +194,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
             } finally {
                 browse.loading = false
                 browse.loaded = true
-                browse.loadedAt = System.currentTimeMillis()
+                browse.loadedAt = nowMs()
             }
         }
     }
@@ -202,7 +205,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
         scope.launch {
             browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = true) else it }
             try {
-                val r = withContext(Dispatchers.IO) { Tmdb.rail(key, rail.path, rail.page + 1) }
+                val r = withContext(ioDispatcher) { Tmdb.rail(key, rail.path, rail.page + 1) }
                 // Keep page/totalPages on a failed page so the next scroll retries it.
                 if (r == null) {
                     browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = false) else it }
@@ -230,7 +233,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
         scope.launch {
             try {
                 // Dedupe set and page walk stay off the main thread: both grow with every page.
-                val (page, total, fresh) = withContext(Dispatchers.IO) {
+                val (page, total, fresh) = withContext(ioDispatcher) {
                     val seen = (browse.rails.flatMap { it.items } + browse.exploreItems)
                         .mapTo(HashSet()) { "${it.kind}-${it.id}" }
                     var page = browse.explorePage
@@ -257,14 +260,13 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
         }
     }
 
-    LaunchedEffect(Unit) { browse.recent = withContext(Dispatchers.IO) { Resume.recent(ctx) } }
+    LaunchedEffect(Unit) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
     // TMDB's popular list drifts daily, so a process that survives for days would otherwise
     // keep serving the rows it fetched on day one.
-    LifecycleResumeEffect(Unit) {
+    OnResumeEffect {
         val onHomeTop = !browse.searchOpen && browse.railKey == null && !browse.historyOpen &&
             browse.homeScroll.firstVisibleItemIndex == 0
-        if (onHomeTop && (!browse.loaded || System.currentTimeMillis() - browse.loadedAt > 6 * 60 * 60 * 1000L)) loadBrowse()
-        onPauseOrDispose { }
+        if (onHomeTop && (!browse.loaded || nowMs() - browse.loadedAt > 6 * 60 * 60 * 1000L)) loadBrowse()
     }
     LaunchedEffect(browse.query) {
         val term = browse.query.trim()
@@ -280,7 +282,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
         searchSeq += 1
         val mine = searchSeq
         try {
-            val found = withContext(Dispatchers.IO) { Search.titles(term) }
+            val found = withContext(ioDispatcher) { Search.titles(term) }
             if (mine == searchSeq) {
                 browse.results = found
                 browse.resultsFor = term
@@ -307,7 +309,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
     val inSearch = browse.query.trim().length >= 2
     val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
     var exitAsk by remember { mutableStateOf(false) }
-    BackHandler {
+    PlatformBackHandler(enabled = true) {
         when {
             browse.searchOpen -> {
                 browse.searchOpen = false
@@ -318,7 +320,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
             else -> exitAsk = true
         }
     }
-    val screenW = LocalConfiguration.current.screenWidthDp.dp
+    val screenW = screenWidthDp()
     val expanded = isExpanded(screenW)
     // Tablets open the detail fullscreen (two columns of its own); phones keep the sliding sheet.
     val wideDetail = expanded && selected != null
@@ -371,6 +373,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                             cols = cols,
                             gridW = gridW,
                             onOpen = openItem,
+                            searchGhost = searchGhost,
                         )
                         2 -> openRail?.let {
                             RailGrid(
@@ -397,11 +400,11 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                                 browse.recent = browse.recent.filterNot {
                                     it.kind == r.kind && it.id == r.id && it.season == r.season && it.episode == r.episode
                                 }
-                                scope.launch(Dispatchers.IO) { Resume.remove(ctx, r.kind, r.id, r.season, r.episode) }
+                                scope.launch(ioDispatcher) { onRemoveRecent(r) }
                             },
                             onRestore = { list ->
                                 browse.recent = list
-                                scope.launch(Dispatchers.IO) { Resume.restore(ctx, list) }
+                                scope.launch(ioDispatcher) { onRestoreRecent(list) }
                             },
                         )
                         else -> BrowseBody(
@@ -438,7 +441,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
             }
         }
         if (wideDetail) {
-            DetailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes, closeDetail)
+            detailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes)
         }
         if (!expanded) {
             AnimatedVisibility(
@@ -446,7 +449,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                 enter = slideInVertically(tween(350), initialOffsetY = { it }) + fadeIn(tween(350)),
                 exit = slideOutVertically(tween(350), targetOffsetY = { it }) + fadeOut(tween(350)),
             ) {
-                DetailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes, closeDetail)
+                detailPane(selected, closeDetail, watchFromDetail, browse.backToEpisodes)
             }
         }
         if (exitAsk) {
@@ -454,7 +457,7 @@ internal fun HomeScreen(browse: BrowseState, onWatch: (Title, String, String) ->
                 onCancel = { exitAsk = false },
                 onExit = {
                     exitAsk = false
-                    (ctx as? android.app.Activity)?.finish()
+                    onExitApp()
                 },
             )
         }
@@ -485,25 +488,25 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AsyncImage(
-                model = R.drawable.pirate,
+                model = Res.drawable.pirate,
                 contentDescription = null,
                 modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)),
             )
             Spacer(Modifier.width(8.dp))
-            val screenW = LocalConfiguration.current.screenWidthDp.dp
-            Text(stringResource(R.string.browse_brand), color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            val screenW = screenWidthDp()
+            Text(stringResource(Res.string.browse_brand), color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Box(
                 Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.common_search), tint = Color.White, modifier = Modifier.size(22.dp))
+                Icon(painterResource(Res.drawable.ic_search), contentDescription = stringResource(Res.string.common_search), tint = Color.White, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(8.dp))
             Box(
                 Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onHistory),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(painterResource(R.drawable.ic_history), contentDescription = stringResource(R.string.history_title), tint = Color.White, modifier = Modifier.size(22.dp))
+                Icon(painterResource(Res.drawable.ic_history), contentDescription = stringResource(Res.string.history_title), tint = Color.White, modifier = Modifier.size(22.dp))
             }
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f * solid)))
@@ -525,7 +528,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
             Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(painterResource(Res.drawable.ic_back), contentDescription = stringResource(Res.string.common_back), tint = Color.White, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(8.dp))
         Row(
@@ -540,7 +543,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
                 singleLine = true,
                 cursorBrush = SolidColor(Cyan),
                 decorationBox = { inner ->
-                    if (query.isEmpty()) BasicText(stringResource(R.string.browse_search_hint), style = SearchTextStyle.copy(color = Color(0xFF939392)))
+                    if (query.isEmpty()) BasicText(stringResource(Res.string.browse_search_hint), style = SearchTextStyle.copy(color = Color(0xFF939392)))
                     inner()
                 },
             )
@@ -601,12 +604,12 @@ private fun BrowseBody(
     }
     if (failed) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(stringResource(R.string.browse_tmdb_failed), color = Cyan, fontFamily = Mono, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(stringResource(Res.string.browse_tmdb_failed), color = Cyan, fontFamily = Mono, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
-            Text(stringResource(R.string.browse_tap_retry), color = Slate400, fontFamily = Mono, fontSize = 12.sp)
+            Text(stringResource(Res.string.browse_tap_retry), color = Slate400, fontFamily = Mono, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
             androidx.compose.material3.TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.common_retry), color = Cyan, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.common_retry), color = Cyan, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             }
         }
         return
@@ -638,7 +641,7 @@ private fun BrowseBody(
                 ) {
                     Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, RuleEdge))))
                     Text(
-                        stringResource(R.string.browse_explore_more), color = Slate200, fontSize = if (isExpanded(width)) 28.sp else 20.sp,
+                        stringResource(Res.string.browse_explore_more), color = Slate200, fontSize = if (isExpanded(width)) 28.sp else 20.sp,
                         fontFamily = Rubik, fontWeight = FontWeight.Bold,
                     )
                     Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(RuleEdge, Color.Transparent))))
@@ -701,7 +704,7 @@ private fun RailSection(
             if (!ranked) {
                 Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(R.string.browse_see_all), color = Cyan, fontSize = if (isExpanded(width)) 15.sp else 13.sp,
+                        stringResource(Res.string.browse_see_all), color = Cyan, fontSize = if (isExpanded(width)) 15.sp else 13.sp,
                         fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
                     )
                     ChevronRightIcon(contentDescription = null, tint = Cyan, size = if (isExpanded(width)) 18.dp else 15.dp)
@@ -734,21 +737,22 @@ private fun SearchBody(
     cols: Int,
     gridW: androidx.compose.ui.unit.Dp,
     onOpen: (Title) -> Unit,
+    searchGhost: @Composable (Dp, Int) -> Unit,
 ) {
     if (query.trim().length >= 2) {
         Column(Modifier.fillMaxSize()) {
             Text(
-                if (searching) stringResource(R.string.browse_searching, query)
-                else if (results.isEmpty()) stringResource(R.string.browse_no_results)
-                else stringResource(R.string.browse_results_for, results.size, query),
+                if (searching) stringResource(Res.string.browse_searching, query)
+                else if (results.isEmpty()) stringResource(Res.string.browse_no_results)
+                else stringResource(Res.string.browse_results_for, results.size, query),
                 color = Slate400, fontSize = 12.sp, fontFamily = Mono,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (results.isEmpty() && !searching) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(stringResource(R.string.browse_nothing_found), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
+                    Text(stringResource(Res.string.browse_nothing_found), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
-                    Text(stringResource(R.string.browse_try_another), color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
+                    Text(stringResource(Res.string.browse_try_another), color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
                 }
             } else {
                 LazyVerticalGrid(
@@ -766,7 +770,7 @@ private fun SearchBody(
         }
     } else if (recents.isNotEmpty()) {
         Column(Modifier.fillMaxSize()) {
-            Text(stringResource(R.string.browse_recent_search), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            Text(stringResource(Res.string.browse_recent_search), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(recents, key = { "${it.kind}-${it.id}" }) { item ->
                     PosterCard(item = item, width = 120.dp, height = 160.dp, onOpen = onOpen)
@@ -781,17 +785,9 @@ private fun SearchBody(
             var run by remember { mutableStateOf(0) }
             LaunchedEffect(imeVisible) { if (imeVisible) run++ }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val comp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lottie_search))
-                key(run) {
-                    LottieAnimation(
-                        composition = comp,
-                        iterations = 1,
-                        isPlaying = true,
-                        modifier = Modifier.size(ghost),
-                    )
-                }
+                searchGhost(ghost, run)
                 Spacer(Modifier.height(20.dp))
-                Text(stringResource(R.string.browse_search_prompt), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.browse_search_prompt), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -829,7 +825,7 @@ private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Ti
             } else if (rail.page >= rail.totalPages) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        stringResource(R.string.browse_all_pages, rail.totalPages),
+                        stringResource(Res.string.browse_all_pages, rail.totalPages),
                         color = Slate600, fontSize = 11.sp, fontFamily = Mono, textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                     )

@@ -46,18 +46,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import dev.phantomwatch.R
-import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.res.*
+import dev.phantomwatch.core.ioDispatcher
+import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
@@ -69,7 +69,7 @@ import kotlinx.coroutines.withContext
 private const val HERO_MS = 9000
 
 @Composable
-internal fun TrendingHero(
+fun TrendingHero(
     trending: List<Title>,
     paused: Boolean,
     onOpen: (Title) -> Unit,
@@ -93,7 +93,7 @@ private fun PhoneHeroCarousel(
     onOpen: (Title) -> Unit,
     listState: LazyListState,
 ) {
-    val heroH = (LocalConfiguration.current.screenHeightDp.dp * 0.58f).coerceIn(420.dp, 510.dp)
+    val heroH = (screenHeightDp() * 0.58f).coerceIn(420.dp, 510.dp)
     val heroPx = with(LocalDensity.current) { heroH.toPx() }
     val hidden by remember(listState, heroPx) {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= heroPx.toInt() }
@@ -102,7 +102,7 @@ private fun PhoneHeroCarousel(
     val pagerState = rememberPagerState { items.size }
     val scope = rememberCoroutineScope()
     var details by remember(items) { mutableStateOf<Map<String, TitleDetail>>(emptyMap()) }
-    val key = remember { RemoteConfig.tmdbKey() }
+    val key = remember { TmdbHost.key }
 
     val curPage = pagerState.currentPage
     LaunchedEffect(curPage, items, key) {
@@ -110,7 +110,7 @@ private fun PhoneHeroCarousel(
             val item = items[i]
             val id = "${item.kind}-${item.id}"
             if (details[id] != null) continue
-            withContext(Dispatchers.IO) { Tmdb.detail(key, item.kind, item.id) }?.let { details = details + (id to it) }
+            withContext(ioDispatcher) { Tmdb.detail(key, item.kind, item.id) }?.let { details = details + (id to it) }
         }
     }
 
@@ -230,14 +230,14 @@ private fun PhoneHeroCarousel(
 private fun HeroKind(item: Title, scale: Float = 1f) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            painter = painterResource(if (item.kind == "movie") R.drawable.ic_kind_movie else R.drawable.ic_kind_series),
+            painter = painterResource(if (item.kind == "movie") Res.drawable.ic_kind_movie else Res.drawable.ic_kind_series),
             contentDescription = null,
             tint = Cyan,
             modifier = Modifier.size(15.dp * scale),
         )
         Spacer(Modifier.width(7.dp * scale))
         Text(
-            if (item.kind == "movie") stringResource(R.string.hero_kind_movie) else stringResource(R.string.hero_kind_series),
+            if (item.kind == "movie") stringResource(Res.string.hero_kind_movie) else stringResource(Res.string.hero_kind_series),
             color = Cyan,
             fontSize = 11.sp * scale,
             fontFamily = Rubik,
@@ -251,13 +251,13 @@ private fun HeroKind(item: Title, scale: Float = 1f) {
 private fun HeroMeta(item: Title, detail: TitleDetail?, scale: Float = 1f) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * scale)) {
         item.rating?.takeIf { it > 0 }?.let { r ->
-            Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp * scale))
-            Text(String.format("%.1f", r), color = Slate200, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Icon(painterResource(Res.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp * scale))
+            Text(fmt1(r), color = Slate200, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
         }
         item.year?.let { Text(it, color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
         detail?.runtime?.takeIf { it > 0 }?.let {
             Text(
-                if (it >= 60) stringResource(R.string.hero_runtime_hm, it / 60, it % 60) else stringResource(R.string.hero_runtime_m, it),
+                if (it >= 60) stringResource(Res.string.hero_runtime_hm, it / 60, it % 60) else stringResource(Res.string.hero_runtime_m, it),
                 color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium,
             )
         }
@@ -276,9 +276,9 @@ private fun HeroActions(item: Title, onOpen: (Title) -> Unit, scale: Float = 1f)
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(R.drawable.ic_play_filled), contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp * scale))
+            Icon(painterResource(Res.drawable.ic_play_filled), contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp * scale))
             Spacer(Modifier.width(7.dp * scale))
-            Text(stringResource(R.string.common_play), color = Color.Black, fontFamily = Rubik, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale)
+            Text(stringResource(Res.string.common_play), color = Color.Black, fontFamily = Rubik, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale)
         }
         Row(
             modifier = Modifier.height(42.dp * scale).clip(RoundedCornerShape(21.dp * scale)).background(Color.White.copy(alpha = 0.16f))
@@ -287,12 +287,11 @@ private fun HeroActions(item: Title, onOpen: (Title) -> Unit, scale: Float = 1f)
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.hero_details), color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, fontSize = 14.sp * scale)
+            Text(stringResource(Res.string.hero_details), color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, fontSize = 14.sp * scale)
         }
     }
 }
 
-/** Full-bleed billboard kept for tablets. */
 @Composable
 private fun TabletBillboard(
     items: List<Title>,
@@ -301,9 +300,9 @@ private fun TabletBillboard(
     width: Dp,
     listState: LazyListState,
 ) {
-    val heroH = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.7f, width * 0.62f).coerceAtLeast(240.dp)
+    val heroH = minOf(screenHeightDp() * 0.7f, width * 0.62f).coerceAtLeast(240.dp)
     val heroPx = with(LocalDensity.current) { heroH.toPx() }
-    // Off-screen the billboard must stop animating: its zoom repaints the whole hero every frame.
+    // off-screen the billboard must stop animating: its zoom repaints the whole hero every frame
     val hidden by remember(listState, heroPx) {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= heroPx.toInt() }
     }
@@ -311,14 +310,14 @@ private fun TabletBillboard(
     var index by remember(items) { mutableIntStateOf(0) }
     var details by remember(items) { mutableStateOf<Map<String, TitleDetail>>(emptyMap()) }
     val progress = remember { Animatable(0f) }
-    val key = remember { RemoteConfig.tmdbKey() }
+    val key = remember { TmdbHost.key }
 
     LaunchedEffect(index, items, key) {
         for (i in listOf(index, (index + 1) % items.size)) {
             val item = items[i]
             val id = "${item.kind}-${item.id}"
             if (details[id] != null) continue
-            withContext(Dispatchers.IO) { Tmdb.detail(key, item.kind, item.id) }?.let { details = details + (id to it) }
+            withContext(ioDispatcher) { Tmdb.detail(key, item.kind, item.id) }?.let { details = details + (id to it) }
         }
     }
 
@@ -333,7 +332,6 @@ private fun TabletBillboard(
         val textW = minOf(680.dp, maxWidth * 0.62f)
         val s = (maxWidth / 1150.dp).coerceIn(1.2f, 1.5f)
         val zoom = remember { Animatable(1.06f) }
-        // A scaled full-bleed bitmap is re-composited every frame, so never pay for it during a scroll.
         val scrolling = listState.isScrollInProgress
         LaunchedEffect(hidden, scrolling) {
             if (hidden || scrolling) zoom.stop()

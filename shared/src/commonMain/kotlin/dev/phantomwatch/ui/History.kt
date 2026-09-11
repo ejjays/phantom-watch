@@ -39,8 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,31 +46,32 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import dev.phantomwatch.R
-import dev.phantomwatch.data.Resume
+import dev.phantomwatch.data.Recent
+import dev.phantomwatch.res.*
+import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun HistoryScreen(
-    recent: List<Resume.Recent>,
+fun HistoryScreen(
+    recent: List<Recent>,
     cols: Int,
     gridW: Dp,
     onBack: () -> Unit,
-    onPlay: (Resume.Recent) -> Unit,
-    onDelete: (Resume.Recent) -> Unit,
-    onRestore: (List<Resume.Recent>) -> Unit,
+    onPlay: (Recent) -> Unit,
+    onDelete: (Recent) -> Unit,
+    onRestore: (List<Recent>) -> Unit,
 ) {
     val host = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val ctx = LocalContext.current
+    val undoLabel = stringResource(Res.string.history_undo)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ScreenHeader(stringResource(R.string.history_title), onBack)
+            ScreenHeader(stringResource(Res.string.history_title), onBack)
             if (recent.isEmpty()) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(stringResource(R.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
+                    Text(stringResource(Res.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
-                    Text(stringResource(R.string.history_empty_body), color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
+                    Text(stringResource(Res.string.history_empty_body), color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
                 }
             } else {
                 LazyVerticalGrid(
@@ -83,13 +82,14 @@ internal fun HistoryScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(recent, key = { "history-${it.kind}-${it.id}" }) { r ->
+                        val removedMsg = stringResource(Res.string.history_removed, r.title)
                         ContinueCard(r, gridW, onPlay) { gone ->
                             val before = recent
                             onDelete(gone)
                             scope.launch {
                                 val done = host.showSnackbar(
-                                    message = ctx.getString(R.string.history_removed, gone.title),
-                                    actionLabel = ctx.getString(R.string.history_undo),
+                                    message = removedMsg,
+                                    actionLabel = undoLabel,
                                     duration = SnackbarDuration.Short,
                                 )
                                 if (done == SnackbarResult.ActionPerformed) onRestore(before)
@@ -107,10 +107,10 @@ internal fun HistoryScreen(
 
 @Composable
 private fun ContinueCard(
-    r: Resume.Recent,
+    r: Recent,
     width: Dp,
-    onPlay: (Resume.Recent) -> Unit,
-    onDelete: (Resume.Recent) -> Unit,
+    onPlay: (Recent) -> Unit,
+    onDelete: (Recent) -> Unit,
 ) {
     val frac = if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else 0f
     val radius = width * 0.24f
@@ -136,7 +136,7 @@ private fun ContinueCard(
                 }
                 if (r.season.isNotEmpty()) {
                     Text(
-                        stringResource(R.string.season_episode, r.season, r.episode), color = Color.White, fontSize = 10.sp, fontFamily = Mono,
+                        stringResource(Res.string.season_episode, r.season, r.episode), color = Color.White, fontSize = 10.sp, fontFamily = Mono,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.align(Alignment.TopStart).padding(badgeInset)
                             .clip(RoundedCornerShape(6.dp)).background(Color(0xCC1E1E1E))

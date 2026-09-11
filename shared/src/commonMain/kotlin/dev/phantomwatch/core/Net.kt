@@ -2,8 +2,11 @@ package dev.phantomwatch.core
 
 import dev.phantomwatch.json.JSONObject
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlin.time.Clock
 
 const val BROWSER_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
+
+fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 expect val ioDispatcher: CoroutineDispatcher
 

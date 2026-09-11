@@ -92,3 +92,15 @@ data class RailPage(
     val items: List<Title>,
     val totalPages: Int,
 )
+
+// one "continue watching" row entry
+data class Recent(
+    val kind: String,
+    val id: String,
+    val title: String,
+    val poster: String?,
+    val season: String,
+    val episode: String,
+    val positionMs: Long,
+    val durationMs: Long,
+)

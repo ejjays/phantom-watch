@@ -11,16 +11,6 @@ import androidx.compose.ui.unit.Dp
 import dev.phantomwatch.R
 
 @Composable
-internal fun ChevronRightIcon(contentDescription: String?, tint: Color, size: Dp) {
-    Icon(
-        painter = painterResource(R.drawable.ic_chevron_right),
-        contentDescription = contentDescription,
-        tint = tint,
-        modifier = Modifier.size(size),
-    )
-}
-
-@Composable
 internal fun ChevronLeftIcon(contentDescription: String?, tint: Color, size: Dp) {
     Icon(
         painter = painterResource(R.drawable.ic_chevron_right),
