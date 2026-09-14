@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +68,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -85,7 +87,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import dev.phantomwatch.res.*
 import org.jetbrains.compose.resources.StringResource
 import dev.phantomwatch.core.ioDispatcher
@@ -487,10 +488,11 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: 
             Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = Res.drawable.pirate,
+            Image(
+                painter = painterResource(Res.drawable.pirate),
                 contentDescription = null,
-                modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)),
             )
             Spacer(Modifier.width(8.dp))
             val screenW = screenWidthDp()
