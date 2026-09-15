@@ -1,6 +1,5 @@
 package dev.phantomwatch.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -59,10 +58,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,13 +65,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import dev.phantomwatch.R
-import dev.phantomwatch.core.AppLog
-import dev.phantomwatch.core.RemoteConfig
-import dev.phantomwatch.core.isWifi
+import dev.phantomwatch.core.Log
+import dev.phantomwatch.data.TmdbHost
+import dev.phantomwatch.core.ioDispatcher
+import dev.phantomwatch.core.nowMs
+import dev.phantomwatch.res.*
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import dev.phantomwatch.data.DetailCache
 import dev.phantomwatch.data.Episode
 import dev.phantomwatch.data.Person
@@ -84,15 +80,9 @@ import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
-import dev.phantomwatch.provider.Resolve
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
 
 @Composable
 private fun ShimmerBox(modifier: Modifier = Modifier) {
@@ -103,6 +93,19 @@ private fun ShimmerBox(modifier: Modifier = Modifier) {
     )
 }
 
+// Everything the tablet layout needs, so the screen itself can stay platform-free.
+class WideDetailArgs(
+    val item: Title,
+    val d: TitleDetail,
+    val pending: Boolean,
+    val photosReady: Boolean,
+    val checking: Boolean,
+    val onClose: () -> Unit,
+    val onWatch: (Title, String, String) -> Unit,
+    val onWatchPress: () -> Unit,
+    val onViewAll: () -> Unit,
+)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
@@ -111,68 +114,63 @@ fun DetailScreen(
     onWatch: (Title, String, String) -> Unit,
     startEpisodes: Boolean = false,
     onEpisodesExit: (() -> Unit)? = null,
+    prefetchStream: (Title) -> Unit = {},
+    precacheImages: (List<String>) -> Unit = {},
+    wideDetail: @Composable (WideDetailArgs) -> Unit = {},
 ) {
-    val key = RemoteConfig.tmdbKey()
+    val key = TmdbHost.key
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     var detail by remember(item.id) { mutableStateOf(DetailCache.detail(item.kind, item.id)) }
     var failed by remember { mutableStateOf(false) }
     var attempt by remember { mutableStateOf(0) }
     var episodesOpen by remember(startEpisodes) { mutableStateOf(startEpisodes) }
     var checking by remember { mutableStateOf(false) }
     var photosReady by remember { mutableStateOf(detail != null) }
-    BackHandler(onBack = onClose)
+    PlatformBackHandler(enabled = true) { onClose() }
 
-    val t0 = remember(item.id, item.kind) { System.nanoTime() }
-    fun ms() = (System.nanoTime() - t0) / 1000000
+    val t0 = remember(item.id, item.kind) { nowMs() }
+    fun ms() = nowMs() - t0
     LaunchedEffect(item.id, item.kind) {
-        AppLog.d("detail open ${item.kind}/${item.id} ${item.title}")
+        Log.d("detail open ${item.kind}/${item.id} ${item.title}")
     }
     LaunchedEffect(item.id, item.kind) {
         if (item.kind != "movie") return@LaunchedEffect
         delay(1200)
-        if (!isWifi(context)) {
-            AppLog.d("prefetch skipped ${item.title} (metered)")
-            return@LaunchedEffect
-        }
-        Resolve.prefetch(item, "", "")
+        prefetchStream(item)
     }
     LaunchedEffect(item.id, item.kind) {
         delay(600)
         photosReady = true
-        AppLog.d("detail photos ready")
+        Log.d("detail photos ready")
     }
     LaunchedEffect(item.id, item.kind, attempt) {
         if (detail != null) return@LaunchedEffect
         failed = false
-        val start = System.nanoTime()
-        AppLog.d("detail fetch start ${item.kind}/${item.id}")
+        val start = nowMs()
+        Log.d("detail fetch start ${item.kind}/${item.id}")
         var result: TitleDetail? = null
         try {
-            result = withContext(Dispatchers.IO) { Tmdb.detail(key, item.kind, item.id) }
+            result = withContext(ioDispatcher) { Tmdb.detail(key, item.kind, item.id) }
         } catch (_: Exception) {
         }
-        val elapsed = (System.nanoTime() - start) / 1000000
+        val elapsed = nowMs() - start
         val dd = result
-        AppLog.d("detail fetch end +${elapsed}ms null=${dd == null} genres=${dd?.genres?.size ?: 0} cast=${dd?.cast?.size ?: 0} ov=${dd?.overview?.length ?: 0} heroSame=${(dd?.backdrop ?: dd?.poster) == (item.backdrop ?: item.poster)}")
+        Log.d("detail fetch end +${elapsed}ms null=${dd == null} genres=${dd?.genres?.size ?: 0} cast=${dd?.cast?.size ?: 0} ov=${dd?.overview?.length ?: 0} heroSame=${(dd?.backdrop ?: dd?.poster) == (item.backdrop ?: item.poster)}")
         val precache = ((dd?.cast.orEmpty()) + listOfNotNull(dd?.director)).mapNotNull { it.photo }.take(9)
         if (precache.isNotEmpty()) {
-            val loader = SingletonImageLoader.get(context)
-            precache.forEach { url ->
-                loader.enqueue(ImageRequest.Builder(context).data(url).build())
-            }
-            AppLog.d("detail precache ${precache.size}")
+            precacheImages(precache)
+            Log.d("detail precache ${precache.size}")
         }
         val wait = 400 - elapsed
         if (wait > 0) delay(wait)
         detail = result
         failed = result == null
         if (result != null) DetailCache.put(result)
-        AppLog.d("detail applied +${ms()}ms")
+        Log.d("detail applied +${ms()}ms")
     }
 
-    val heroH = minOf(413f, LocalConfiguration.current.screenHeightDp * 0.5f).dp
-    val wide = isExpanded(LocalConfiguration.current.screenWidthDp.dp)
+    val heroH = minOf(413f, screenHeightDp().value * 0.5f).dp
+    val wide = isExpanded(screenWidthDp())
     Box(Modifier.fillMaxSize().background(Bg)) {
         val d = detail ?: TitleDetail(
             id = item.id, kind = item.kind, title = item.title, overview = "",
@@ -188,29 +186,31 @@ fun DetailScreen(
                 Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(stringResource(R.string.detail_unavailable), color = Slate100, fontSize = 15.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.detail_unavailable), color = Slate100, fontSize = 15.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.detail_load_failed), color = Slate400, fontSize = 12.sp, fontFamily = Mono)
+                Text(stringResource(Res.string.detail_load_failed), color = Slate400, fontSize = 12.sp, fontFamily = Mono)
                 Text(
-                    stringResource(R.string.common_retry), color = Cyan, fontSize = 13.sp, fontFamily = Rubik,
+                    stringResource(Res.string.common_retry), color = Cyan, fontSize = 13.sp, fontFamily = Rubik,
                     modifier = Modifier.padding(top = 10.dp).clickable { attempt++ },
                 )
             }
-            wide -> WideDetail(
-                item = item, d = d, pending = pending, photosReady = photosReady, checking = checking,
-                onClose = onClose,
-                onWatch = onWatch,
-                onWatchPress = {
-                    scope.launch {
-                        checking = true
-                        try {
-                            if (d.kind == "movie") onWatch(item, "", "") else episodesOpen = true
-                        } finally {
-                            checking = false
+            wide -> wideDetail(
+                WideDetailArgs(
+                    item = item, d = d, pending = pending, photosReady = photosReady, checking = checking,
+                    onClose = onClose,
+                    onWatch = onWatch,
+                    onWatchPress = {
+                        scope.launch {
+                            checking = true
+                            try {
+                                if (d.kind == "movie") onWatch(item, "", "") else episodesOpen = true
+                            } finally {
+                                checking = false
+                            }
                         }
-                    }
-                },
-                onViewAll = { episodesOpen = true },
+                    },
+                    onViewAll = { episodesOpen = true },
+                ),
             )
             else -> {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxSize().verticalScroll(rememberScrollState()).align(Alignment.TopCenter)) {
@@ -221,7 +221,7 @@ fun DetailScreen(
                     ) {
                         val hero = (item.backdrop ?: item.poster) ?: (d.backdrop ?: d.poster)
                         if (hero != null) {
-                            AsyncImage(model = hero, contentDescription = null, modifier = Modifier.fillMaxWidth().height(heroH), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, onSuccess = { AppLog.d("detail hero ok +${ms()}ms") }, onError = { AppLog.d("detail hero err +${ms()}ms") })
+                            AsyncImage(model = hero, contentDescription = null, modifier = Modifier.fillMaxWidth().height(heroH), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, onSuccess = { Log.d("detail hero ok +${ms()}ms") }, onError = { Log.d("detail hero err +${ms()}ms") })
                         } else {
                             Spacer(Modifier.fillMaxWidth().height(120.dp))
                         }
@@ -242,7 +242,7 @@ fun DetailScreen(
                     onClick = onClose,
                     modifier = Modifier.statusBarsPadding().padding(start = 16.dp, top = 8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
                 ) {
-                    Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(Res.drawable.ic_back), contentDescription = stringResource(Res.string.common_back), tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 WatchBar(
                     isTv = d.kind != "movie",
@@ -272,6 +272,7 @@ fun DetailScreen(
                         episodesOpen = false
                         onWatch(item, s, e)
                     },
+                    precacheImages = precacheImages,
                 )
             }
         }
@@ -300,7 +301,7 @@ private fun MetaCell(label: String, value: String) {
 @Composable
 private fun Avatar(person: Person, size: androidx.compose.ui.unit.Dp, loadPhoto: Boolean = true) {
     if (person.photo != null && loadPhoto) {
-        AsyncImage(model = person.photo, contentDescription = person.name, modifier = Modifier.size(size).clip(CircleShape), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("detail img ok ${person.name}") }, onError = { AppLog.d("detail img err ${person.name}") })
+        AsyncImage(model = person.photo, contentDescription = person.name, modifier = Modifier.size(size).clip(CircleShape), contentScale = ContentScale.Crop, onSuccess = { Log.d("detail img ok ${person.name}") }, onError = { Log.d("detail img err ${person.name}") })
     } else {
         val initials = person.name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("")
         Box(Modifier.size(size).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
@@ -311,16 +312,16 @@ private fun Avatar(person: Person, size: androidx.compose.ui.unit.Dp, loadPhoto:
 
 @Composable
 private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (String, String) -> Unit, onViewAll: () -> Unit) {
-    val key = RemoteConfig.tmdbKey()
+    val key = TmdbHost.key
     val seasons = detail.seasons
     var seasonIdx by remember(detail.id) { mutableStateOf(seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0) }
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
     LaunchedEffect(detail.id, seasonIdx, start) {
         if (!start) return@LaunchedEffect
-        AppLog.d("detail season start")
+        Log.d("detail season start")
         val n = seasons.getOrNull(seasonIdx)?.number ?: 1
         try {
-            val all = withContext(Dispatchers.IO) { Tmdb.season(key, detail.id, n) }
+            val all = withContext(ioDispatcher) { Tmdb.season(key, detail.id, n) }
             if (all.isNotEmpty()) {
                 DetailCache.putSeason(detail.kind, detail.id, n)
                 DetailCache.putEpisodes(detail.kind, detail.id, n, all)
@@ -328,7 +329,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
             episodes = all.take(3)
         } catch (_: Exception) {
         }
-        AppLog.d("detail season end ${episodes.size}")
+        Log.d("detail season end ${episodes.size}")
     }
     if (seasons.size > 1) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -357,17 +358,23 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
             .clickable(onClick = onViewAll).padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(stringResource(R.string.detail_view_all_episodes, total), color = Cyan, fontSize = 13.sp, fontFamily = Rubik)
+        Text(stringResource(Res.string.detail_view_all_episodes, total), color = Cyan, fontSize = 13.sp, fontFamily = Rubik)
         ChevronRightIcon(contentDescription = null, tint = Cyan, size = 15.dp)
     }
 }
 
-// Locale-aware and lenient on purpose: bad input falls back to the raw ISO string.
-internal fun airLabel(iso: String): String = runCatching {
-    LocalDate.parse(iso).format(
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()),
-    )
-}.getOrDefault(iso)
+// Lenient on purpose: bad input falls back to the raw ISO string. Fixed en-US shape because
+// java.time's localized formatter has no multiplatform twin.
+private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+internal fun airLabel(iso: String): String {
+    val p = iso.split('-')
+    val y = p.getOrNull(0)?.toIntOrNull() ?: return iso
+    val m = p.getOrNull(1)?.toIntOrNull() ?: return iso
+    val d = p.getOrNull(2)?.toIntOrNull() ?: return iso
+    if (m !in 1..12) return iso
+    return "${MONTHS[m - 1]} $d, $y"
+}
 
 @Composable
 internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = false, onClick: () -> Unit) {
@@ -380,14 +387,14 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
             AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
         } else {
             Box(Modifier.size(120.dp, 68.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.05f)), contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
+                Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
             }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                ep.air?.let { stringResource(R.string.detail_episode_air, ep.n, airLabel(it)) }
-                    ?: stringResource(R.string.detail_episode, ep.n),
+                ep.air?.let { stringResource(Res.string.detail_episode_air, ep.n, airLabel(it)) }
+                    ?: stringResource(Res.string.detail_episode, ep.n),
                 color = if (playing) Cyan else Slate500, fontSize = 11.sp, fontFamily = Mono,
             )
             Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -397,16 +404,16 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
                 Modifier.clip(CircleShape).background(Cyan.copy(alpha = 0.15f))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                Text(stringResource(R.string.detail_playing), color = Cyan, fontSize = 9.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.detail_playing), color = Cyan, fontSize = 9.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
             }
         } else {
-            Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
+            Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
         }
     }
 }
 
 @Composable
-internal fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modifier: Modifier = Modifier) {
+fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().clip(CircleShape)
@@ -422,9 +429,9 @@ internal fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, mod
                 if (checking) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
                 } else {
-                    Icon(painterResource(R.drawable.ic_play_filled), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(Res.drawable.ic_play_filled), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(if (isTv) stringResource(R.string.episodes_title) else stringResource(R.string.detail_watch_now), color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                    Text(if (isTv) stringResource(Res.string.episodes_title) else stringResource(Res.string.detail_watch_now), color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -432,13 +439,14 @@ internal fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, mod
 }
 
 @Composable
-internal fun EpisodesScreen(
+fun EpisodesScreen(
     detail: TitleDetail?,
     topInset: Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
     onClose: () -> Unit,
     onEpisode: (String, String) -> Unit,
+    precacheImages: (List<String>) -> Unit = {},
 ) {
-    val key = RemoteConfig.tmdbKey()
+    val key = TmdbHost.key
     val seasons = detail?.seasons.orEmpty()
     var seasonIdx by remember(detail?.id) {
         val def = seasons.indexOfFirst { it.number > 0 }.takeIf { it >= 0 } ?: 0
@@ -450,13 +458,12 @@ internal fun EpisodesScreen(
     var loading by remember { mutableStateOf(initial == null) }
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    val context = LocalContext.current
-    BackHandler(onBack = onClose)
+    PlatformBackHandler(enabled = true) { onClose() }
 
-    val t0 = remember(detail?.id) { System.nanoTime() }
-    fun ms() = (System.nanoTime() - t0) / 1000000
+    val t0 = remember(detail?.id) { nowMs() }
+    fun ms() = nowMs() - t0
     LaunchedEffect(detail?.id) {
-        detail?.let { AppLog.d("ep open ${it.kind}/${it.id} ${it.title}") }
+        detail?.let { Log.d("ep open ${it.kind}/${it.id} ${it.title}") }
     }
     LaunchedEffect(detail?.id, seasonIdx) {
         val d = detail ?: return@LaunchedEffect
@@ -469,26 +476,23 @@ internal fun EpisodesScreen(
             return@LaunchedEffect
         }
         loading = true
-        val start = System.nanoTime()
+        val start = nowMs()
         val first = episodes.isEmpty()
-        AppLog.d("ep fetch start ${d.id} s$seasonIdx")
+        Log.d("ep fetch start ${d.id} s$seasonIdx")
         var result = emptyList<Episode>()
         try {
-            result = withContext(Dispatchers.IO) {
+            result = withContext(ioDispatcher) {
                 Tmdb.season(key, d.id, n)
             }
         } catch (_: Exception) {
             result = emptyList()
         }
-        val elapsed = (System.nanoTime() - start) / 1000000
-        AppLog.d("ep fetch end +${elapsed}ms n=${result.size}")
+        val elapsed = nowMs() - start
+        Log.d("ep fetch end +${elapsed}ms n=${result.size}")
         val stills = result.mapNotNull { it.still }.take(12)
         if (stills.isNotEmpty()) {
-            val loader = SingletonImageLoader.get(context)
-            stills.forEach { url ->
-                loader.enqueue(ImageRequest.Builder(context).data(url).build())
-            }
-            AppLog.d("ep precache ${stills.size}")
+            precacheImages(stills)
+            Log.d("ep precache ${stills.size}")
         }
         if (first) {
             val wait = 400 - elapsed
@@ -497,7 +501,7 @@ internal fun EpisodesScreen(
         episodes = result
         loading = false
         if (result.isNotEmpty()) DetailCache.putEpisodes(d.kind, d.id, n, result)
-        AppLog.d("ep applied +${ms()}ms n=${result.size}")
+        Log.d("ep applied +${ms()}ms n=${result.size}")
     }
 
     val shown = remember(query, episodes) {
@@ -516,7 +520,7 @@ internal fun EpisodesScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose, modifier = Modifier.size(38.dp)) {
-                    Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(Res.drawable.ic_back), contentDescription = stringResource(Res.string.common_back), tint = Color.White, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(6.dp))
                 if (searching) {
@@ -528,18 +532,18 @@ internal fun EpisodesScreen(
                         singleLine = true,
                         decorationBox = { inner ->
                             Box(contentAlignment = Alignment.CenterStart) {
-                                if (query.isEmpty()) Text(stringResource(R.string.detail_search_hint), color = Slate500, fontSize = 15.sp, fontFamily = Rubik)
+                                if (query.isEmpty()) Text(stringResource(Res.string.detail_search_hint), color = Slate500, fontSize = 15.sp, fontFamily = Rubik)
                                 inner()
                             }
                         },
                     )
                     IconButton(onClick = { searching = false; query = "" }) {
-                        CloseIcon(contentDescription = stringResource(R.string.common_close), tint = Slate200, size = 20.dp)
+                        CloseIcon(contentDescription = stringResource(Res.string.common_close), tint = Slate200, size = 20.dp)
                     }
                 } else {
-                    Text(stringResource(R.string.episodes_title), color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(stringResource(Res.string.episodes_title), color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = { searching = true }) {
-                        Icon(painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.common_search), tint = Color.White, modifier = Modifier.size(22.dp))
+                        Icon(painterResource(Res.drawable.ic_search), contentDescription = stringResource(Res.string.common_search), tint = Color.White, modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -575,11 +579,11 @@ internal fun EpisodesScreen(
                     }
                 }
                 shown.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (query.isNotEmpty()) stringResource(R.string.detail_no_matches, query) else stringResource(R.string.detail_no_episodes), color = Slate200, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                    Text(if (query.isNotEmpty()) stringResource(Res.string.detail_no_matches, query) else stringResource(Res.string.detail_no_episodes), color = Slate200, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
                 }
                 else -> {
                     if (query.isNotEmpty()) {
-                        Text(stringResource(R.string.detail_matches, shown.size), color = Slate500, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                        Text(stringResource(Res.string.detail_matches, shown.size), color = Slate500, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                     }
                     LazyColumn(modifier = Modifier.imePadding(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
                         items(shown, key = { it.n }) { ep ->
@@ -592,9 +596,9 @@ internal fun EpisodesScreen(
                                 val thumb = ep.still ?: (detail?.backdrop ?: detail?.poster)
                                 Box(Modifier.width(thumbW).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.05f))) {
                                     if (thumb != null) {
-                                        AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("ep still ok E${ep.n}") }, onError = { AppLog.d("ep still err E${ep.n}") })
+                                        AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop, onSuccess = { Log.d("ep still ok E${ep.n}") }, onError = { Log.d("ep still err E${ep.n}") })
                                     } else {
-                                        Icon(painterResource(R.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.align(Alignment.Center).size(18.dp))
+                                        Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.align(Alignment.Center).size(18.dp))
                                     }
                                 }
                                 Spacer(Modifier.width(12.dp))
@@ -602,8 +606,8 @@ internal fun EpisodesScreen(
                                     Text(ep.name, color = Color.White, fontSize = 16.sp, lineHeight = 21.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        ep.air?.let { stringResource(R.string.detail_episode_air, ep.n, airLabel(it)) }
-                                            ?: stringResource(R.string.detail_episode, ep.n),
+                                        ep.air?.let { stringResource(Res.string.detail_episode_air, ep.n, airLabel(it)) }
+                                            ?: stringResource(Res.string.detail_episode, ep.n),
                                         color = Slate400, fontSize = 13.sp, fontFamily = Mono,
                                     )
                                 }
@@ -619,7 +623,7 @@ internal fun EpisodesScreen(
 /** Title, meta, plot, episodes, director and cast: the sheet shared by the phone and tablet layouts. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun DetailBody(
+fun DetailBody(
     item: Title,
     d: TitleDetail,
     pending: Boolean,
@@ -631,7 +635,7 @@ internal fun DetailBody(
     Column(modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
             if ((item.poster ?: d.poster) != null) {
-                AsyncImage(model = item.poster ?: d.poster, contentDescription = null, modifier = Modifier.size(120.dp, 176.dp).clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Crop, onSuccess = { AppLog.d("detail poster ok") }, onError = { AppLog.d("detail poster err") })
+                AsyncImage(model = item.poster ?: d.poster, contentDescription = null, modifier = Modifier.size(120.dp, 176.dp).clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Crop, onSuccess = { Log.d("detail poster ok") }, onError = { Log.d("detail poster err") })
                 Spacer(Modifier.width(12.dp))
             }
             Column(Modifier.weight(1f)) {
@@ -643,13 +647,13 @@ internal fun DetailBody(
                     Box(Modifier.clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                painter = painterResource(if (d.kind == "movie") R.drawable.ic_kind_movie else R.drawable.ic_kind_series),
+                                painter = painterResource(if (d.kind == "movie") Res.drawable.ic_kind_movie else Res.drawable.ic_kind_series),
                                 contentDescription = null,
                                 tint = Slate300,
                                 modifier = Modifier.size(11.dp),
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text(if (d.kind == "movie") stringResource(R.string.detail_kind_movie) else stringResource(R.string.detail_kind_series), color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                            Text(if (d.kind == "movie") stringResource(Res.string.detail_kind_movie) else stringResource(Res.string.detail_kind_series), color = Slate300, fontSize = 10.sp, fontFamily = Mono)
                         }
                     }
                     d.cert?.let { cert ->
@@ -661,14 +665,14 @@ internal fun DetailBody(
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
+                    Icon(painterResource(Res.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     if (d.rating > 0) {
-                        Text(String.format("%.1f", d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                        Text(fmt1(d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(
-                        if (d.votes > 0) stringResource(R.string.detail_votes, d.votes) else stringResource(R.string.detail_votes_none),
+                        if (d.votes > 0) stringResource(Res.string.detail_votes, d.votes) else stringResource(Res.string.detail_votes_none),
                         color = Slate500, fontSize = 11.sp, fontFamily = Mono,
                     )
                 }
@@ -677,9 +681,9 @@ internal fun DetailBody(
         Spacer(Modifier.height(20.dp))
         Column {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetaCell(stringResource(R.string.stat_rating), if (d.rating > 0) String.format("%.1f", d.rating) else stringResource(R.string.detail_value_none))
-            MetaCell(stringResource(R.string.stat_runtime), if (d.runtime > 0) stringResource(R.string.detail_runtime_min, d.runtime) else stringResource(R.string.detail_value_none))
-            MetaCell(stringResource(R.string.stat_released), d.year ?: stringResource(R.string.detail_value_none))
+            MetaCell(stringResource(Res.string.stat_rating), if (d.rating > 0) fmt1(d.rating) else stringResource(Res.string.detail_value_none))
+            MetaCell(stringResource(Res.string.stat_runtime), if (d.runtime > 0) stringResource(Res.string.detail_runtime_min, d.runtime) else stringResource(Res.string.detail_value_none))
+            MetaCell(stringResource(Res.string.stat_released), d.year ?: stringResource(Res.string.detail_value_none))
         }
         if (d.genres.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
@@ -699,7 +703,7 @@ internal fun DetailBody(
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text(stringResource(R.string.detail_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(Res.string.detail_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
         if (d.overview.isNotEmpty()) {
             Text(d.overview, color = Slate300, fontSize = 14.sp, lineHeight = 24.sp, fontFamily = Rubik)
@@ -716,7 +720,7 @@ internal fun DetailBody(
         }
         if (d.kind != "movie") {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.episodes_title), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.episodes_title), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             if (d.seasons.isNotEmpty()) {
                 SeasonPreview(
@@ -748,7 +752,7 @@ internal fun DetailBody(
         val dir = d.director
         if (dir != null) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(person = dir, size = 44.dp, loadPhoto = photosReady)
@@ -757,7 +761,7 @@ internal fun DetailBody(
             }
         } else if (pending) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ShimmerBox(Modifier.size(44.dp))
@@ -767,7 +771,7 @@ internal fun DetailBody(
         }
         if (photosReady && d.cast.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(d.cast.take(8), key = { it.name }) { p ->
@@ -780,7 +784,7 @@ internal fun DetailBody(
             }
         } else if (pending || !photosReady) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 repeat(8) {
