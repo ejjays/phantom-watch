@@ -169,10 +169,6 @@ fun DetailScreen(
         Log.d("detail applied +${ms()}ms")
     }
 
-    val heroH = minOf(413f, screenHeightDp().value * 0.5f).dp
-    // The sheet has to reach the bottom of the window: a short synopsis would otherwise leave a
-    // band of bare background between the card and the floating watch bar.
-    val minCardH = (screenHeightDp() - heroH + 120.dp).coerceAtLeast(0.dp)
     val wide = isExpanded(screenWidthDp())
     Box(Modifier.fillMaxSize().background(Bg)) {
         val d = detail ?: TitleDetail(
@@ -215,7 +211,11 @@ fun DetailScreen(
                     onViewAll = { episodesOpen = true },
                 ),
             )
-            else -> {
+            else -> BoxWithConstraints(Modifier.fillMaxSize()) {
+                val heroH = minOf(413.dp, maxHeight * 0.5f)
+                // The sheet has to reach the bottom of the window: a short synopsis would otherwise
+                // leave a band of bare background between the card and the floating watch bar.
+                val minCardH = (maxHeight - heroH + 120.dp).coerceAtLeast(0.dp)
                 Column(Modifier.widthIn(max = 720.dp).fillMaxSize().verticalScroll(rememberScrollState()).align(Alignment.TopCenter)) {
                     Box(
                         Modifier.fillMaxWidth()
