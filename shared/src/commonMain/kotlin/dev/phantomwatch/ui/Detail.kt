@@ -116,7 +116,7 @@ fun DetailScreen(
     onEpisodesExit: (() -> Unit)? = null,
     prefetchStream: (Title) -> Unit = {},
     precacheImages: (List<String>) -> Unit = {},
-    wideDetail: @Composable (WideDetailArgs) -> Unit = {},
+    wideDetail: (@Composable (WideDetailArgs) -> Unit)? = null,
 ) {
     val key = TmdbHost.key
     val scope = rememberCoroutineScope()
@@ -193,7 +193,7 @@ fun DetailScreen(
                     modifier = Modifier.padding(top = 10.dp).clickable { attempt++ },
                 )
             }
-            wide -> wideDetail(
+            wide && wideDetail != null -> wideDetail(
                 WideDetailArgs(
                     item = item, d = d, pending = pending, photosReady = photosReady, checking = checking,
                     onClose = onClose,

@@ -1,20 +1,19 @@
 package dev.phantomwatch.ui
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// Android's LocalConfiguration is not in common Compose; the window container is.
+// LocalConfiguration is not in common Compose, and the wasm canvas never fills in
+// LocalWindowInfo.containerSize, so each platform answers for itself
 @Composable
-fun screenWidthDp(): Dp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+expect fun screenWidthDp(): Dp
 
 @Composable
-fun screenHeightDp(): Dp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+expect fun screenHeightDp(): Dp
 
-// String.format is JVM-only; ratings only ever need one decimal.
+// String.format is JVM-only; ratings only ever need one decimal
 fun fmt1(x: Double): String {
     val scaled = (x * 10).roundToInt()
     return "${scaled / 10}.${abs(scaled % 10)}"
