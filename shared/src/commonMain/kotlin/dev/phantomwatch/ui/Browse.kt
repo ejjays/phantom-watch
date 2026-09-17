@@ -154,7 +154,7 @@ fun HomeScreen(
     loadRecent: () -> List<Recent> = { emptyList() },
     onRemoveRecent: (Recent) -> Unit = {},
     onRestoreRecent: (List<Recent>) -> Unit = {},
-    onExitApp: () -> Unit = {},
+    onExitApp: (() -> Unit)? = null,
     searchGhost: @Composable (Dp, Int) -> Unit = { _, _ -> },
     detailPane: @Composable (Title?, () -> Unit, (Title, String, String) -> Unit, Boolean) -> Unit = { _, _, _, _ -> },
 ) {
@@ -310,15 +310,18 @@ fun HomeScreen(
     val inSearch = browse.query.trim().length >= 2
     val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
     var exitAsk by remember { mutableStateOf(false) }
-    PlatformBackHandler(enabled = true) {
+    // Registered first so the more specific handler below wins on Android (last callback wins).
+    if (onExitApp != null) PlatformBackHandler(enabled = true) { exitAsk = true }
+    // Only registers while one of the in-screen views is up, so back at home falls through to the
+    // host (exit dialog on Android, the browser itself on web).
+    PlatformBackHandler(enabled = browse.searchOpen || browse.railKey != null || browse.historyOpen) {
         when {
             browse.searchOpen -> {
                 browse.searchOpen = false
                 browse.query = ""
             }
             browse.railKey != null -> browse.railKey = null
-            browse.historyOpen -> browse.historyOpen = false
-            else -> exitAsk = true
+            else -> browse.historyOpen = false
         }
     }
     val screenW = screenWidthDp()
@@ -458,7 +461,7 @@ fun HomeScreen(
                 onCancel = { exitAsk = false },
                 onExit = {
                     exitAsk = false
-                    onExitApp()
+                    onExitApp?.invoke()
                 },
             )
         }
