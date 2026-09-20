@@ -6,8 +6,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.browser.window
 
-// One browser-history entry exists while any screen wants back handling. Popstate goes to the
-// innermost handler; with none registered the browser's own back (leave the site) wins.
+// one browser-history entry while any screen wants back handling: popstate goes to the innermost
+// handler, and with none registered the browser's own back wins
 private val backHandlers = mutableListOf<() -> Unit>()
 private var sentinel = false
 private var trapInstalled = false
@@ -50,4 +50,12 @@ private fun installTrap() {
 @Composable
 actual fun OnResumeEffect(block: () -> Unit) {
     LaunchedEffect(Unit) { block() }
+}
+
+actual fun initialPath(): String? = window.location.hash.removePrefix("#").ifBlank { null }
+
+actual fun syncRoute(path: String) {
+    if (window.location.hash.removePrefix("#") != path) {
+        window.history.replaceState(null, "", "#$path")
+    }
 }

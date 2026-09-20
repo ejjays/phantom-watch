@@ -126,14 +126,15 @@ private val RailDefs = listOf(
 private val RuleEdge = Color.White.copy(alpha = 0.16f)
 
 class BrowseState {
+    val nav = NavStack(Route.fromPath(initialPath()))
+    val searchOpen: Boolean get() = nav.top is Route.Search
+    val historyOpen: Boolean get() = nav.top is Route.History
+    val railKey: String? get() = (nav.top as? Route.Rail)?.key
     var openTitle by mutableStateOf<Title?>(null)
     var backToEpisodes by mutableStateOf(false)
-    var searchOpen by mutableStateOf(false)
-    var historyOpen by mutableStateOf(false)
     var query by mutableStateOf("")
     var results by mutableStateOf<List<Title>>(emptyList())
     var resultsFor by mutableStateOf("")
-    var railKey by mutableStateOf<String?>(null)
     var trending by mutableStateOf<List<Title>>(emptyList())
     var rails by mutableStateOf<List<RailState>>(emptyList())
     var recent by mutableStateOf<List<Recent>>(emptyList())
@@ -145,6 +146,13 @@ class BrowseState {
     var loaded by mutableStateOf(false)
     var loadedAt by mutableStateOf(0L)
     val homeScroll = LazyListState()
+
+    fun back(): Boolean {
+        val leaving = nav.top
+        if (!nav.pop()) return false
+        if (leaving is Route.Search) query = ""
+        return true
+    }
 }
 
 @Composable
@@ -262,11 +270,11 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
+    LaunchedEffect(browse.nav.top) { syncRoute(browse.nav.top.path) }
     // TMDB's popular list drifts daily, so a process that survives for days would otherwise
     // keep serving the rows it fetched on day one.
     OnResumeEffect {
-        val onHomeTop = !browse.searchOpen && browse.railKey == null && !browse.historyOpen &&
-            browse.homeScroll.firstVisibleItemIndex == 0
+        val onHomeTop = browse.nav.top is Route.Home && browse.homeScroll.firstVisibleItemIndex == 0
         if (onHomeTop && (!browse.loaded || nowMs() - browse.loadedAt > 6 * 60 * 60 * 1000L)) loadBrowse()
     }
     LaunchedEffect(browse.query) {
@@ -314,16 +322,7 @@ fun HomeScreen(
     if (onExitApp != null) PlatformBackHandler(enabled = true) { exitAsk = true }
     // Only registers while one of the in-screen views is up, so back at home falls through to the
     // host (exit dialog on Android, the browser itself on web).
-    PlatformBackHandler(enabled = browse.searchOpen || browse.railKey != null || browse.historyOpen) {
-        when {
-            browse.searchOpen -> {
-                browse.searchOpen = false
-                browse.query = ""
-            }
-            browse.railKey != null -> browse.railKey = null
-            else -> browse.historyOpen = false
-        }
-    }
+    PlatformBackHandler(enabled = browse.nav.canPop) { browse.back() }
     val screenW = screenWidthDp()
     val expanded = isExpanded(screenW)
     // Tablets open the detail fullscreen (two columns of its own); phones keep the sliding sheet.
@@ -340,12 +339,12 @@ fun HomeScreen(
         onWatch(t, s, e)
     }
     val openItem = stableCallback<Title> { openDetail(it) }
-    val seeAll = stableCallback<String> { browse.railKey = it }
+    val seeAll = stableCallback<String> { browse.nav.push(Route.Rail(it)) }
     val railEnd = stableCallback<String> { loadMoreRail(it) }
     val gridEnd = stableCallback0 { loadMoreExplore() }
     val retryBrowse = stableCallback0 { loadBrowse() }
 
-    val home = !browse.searchOpen && openRail == null && !browse.historyOpen
+    val home = browse.nav.top is Route.Home
     Box(Modifier.fillMaxSize().background(Bg)) {
         if (!wideDetail) {
             Column(Modifier.fillMaxSize()) {
@@ -353,14 +352,14 @@ fun HomeScreen(
                     SearchHeader(
                         query = browse.query,
                         onQuery = { browse.query = it },
-                        onBack = { browse.searchOpen = false; browse.query = "" },
+                        onBack = { browse.back() },
                     )
                 }
                 AnimatedContent(
-                    targetState = when {
-                        browse.searchOpen -> 1
-                        openRail != null -> 2
-                        browse.historyOpen -> 3
+                    targetState = when (browse.nav.top) {
+                        is Route.Search -> 1
+                        is Route.Rail -> 2
+                        is Route.History -> 3
                         else -> 0
                     },
                     transitionSpec = {
@@ -383,7 +382,7 @@ fun HomeScreen(
                             RailGrid(
                                 rail = it,
                                 width = contentW,
-                                onBack = { browse.railKey = null },
+                                onBack = { browse.back() },
                                 onOpen = openItem,
                                 onEnd = { loadMoreRail(it.key) },
                             )
@@ -392,7 +391,7 @@ fun HomeScreen(
                             recent = browse.recent,
                             cols = cols,
                             gridW = gridW,
-                            onBack = { browse.historyOpen = false },
+                            onBack = { browse.back() },
                             onPlay = { r ->
                                 onWatch(
                                     Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster),
@@ -437,8 +436,8 @@ fun HomeScreen(
                 }
                 Box(Modifier.align(Alignment.TopStart).fillMaxWidth()) {
                     BrowseHeader(
-                        onSearch = { browse.searchOpen = true },
-                        onHistory = { browse.historyOpen = true },
+                        onSearch = { browse.nav.push(Route.Search) },
+                        onHistory = { browse.nav.push(Route.History) },
                         scrolled = scrolled,
                     )
                 }

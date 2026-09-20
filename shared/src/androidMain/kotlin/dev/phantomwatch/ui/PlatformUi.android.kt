@@ -16,3 +16,7 @@ actual fun OnResumeEffect(block: () -> Unit) {
         onPauseOrDispose { }
     }
 }
+
+actual fun initialPath(): String? = null
+
+actual fun syncRoute(path: String) = Unit
