@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onGloballyPositioned
 import coil3.compose.AsyncImage
 import kotlinx.browser.document
@@ -39,18 +40,20 @@ fun WebTrailer(videoId: String?, poster: String?, modifier: Modifier = Modifier)
 @Composable
 private fun TrailerFrame(videoId: String, modifier: Modifier) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
+    // Compose lays out in device pixels; the iframe lives in CSS pixels.
+    val scale = LocalDensity.current.density.takeIf { it > 0f } ?: 1f
     val frame = remember(videoId) { iframe(videoId) }
 
     DisposableEffect(frame) {
         document.body?.appendChild(frame)
         onDispose { frame.parentNode?.removeChild(frame) }
     }
-    LaunchedEffect(bounds) {
+    LaunchedEffect(bounds, scale) {
         val s = frame.style
-        s.left = "${bounds.left.toInt()}px"
-        s.top = "${bounds.top.toInt()}px"
-        s.width = "${bounds.width.toInt()}px"
-        s.height = "${bounds.height.toInt()}px"
+        s.left = "${(bounds.left / scale).toInt()}px"
+        s.top = "${(bounds.top / scale).toInt()}px"
+        s.width = "${(bounds.width / scale).toInt()}px"
+        s.height = "${(bounds.height / scale).toInt()}px"
         s.visibility = if (bounds.width > 0f) "visible" else "hidden"
     }
     Box(modifier.onGloballyPositioned { bounds = it.boundsInWindow() })
