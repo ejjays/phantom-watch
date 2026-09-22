@@ -29,12 +29,6 @@ internal fun DetailPane(
             val loader = SingletonImageLoader.get(ctx)
             urls.forEach { loader.enqueue(ImageRequest.Builder(ctx).data(it).build()) }
         },
-        wideDetail = { a ->
-            WideDetail(
-                item = a.item, d = a.d, pending = a.pending, photosReady = a.photosReady,
-                checking = a.checking, onClose = a.onClose, onWatch = a.onWatch,
-                onWatchPress = a.onWatchPress, onViewAll = a.onViewAll,
-            )
-        },
+        wideDetail = { a -> TabletDetail(a) },
     )
 }
