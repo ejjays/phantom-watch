@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailScreen
 import dev.phantomwatch.ui.HomeScreen
+import dev.phantomwatch.ui.WebTrailer
 import dev.phantomwatch.ui.WideDetail
 
 @Composable
@@ -20,9 +21,11 @@ fun SpikeApp() {
                 if (item != null) DetailScreen(
                     item, onClose, onWatch, startEpisodes,
                     wideDetail = { a ->
+                        val art = (a.item.backdrop ?: a.item.poster) ?: (a.d.backdrop ?: a.d.poster)
                         WideDetail(
                             a.item, a.d, a.pending, a.photosReady, a.checking,
                             a.onClose, a.onWatch, a.onWatchPress, a.onViewAll,
+                            hero = { m -> WebTrailer(a.d.trailer, art, m) },
                         )
                     },
                 )
