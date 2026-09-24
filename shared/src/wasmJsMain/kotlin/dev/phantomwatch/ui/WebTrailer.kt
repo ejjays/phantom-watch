@@ -17,6 +17,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import coil3.compose.AsyncImage
 import kotlinx.browser.document
+import kotlinx.coroutines.delay
 import kotlin.js.toJsString
 import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLIFrameElement
@@ -25,16 +26,6 @@ import org.w3c.dom.HTMLElement
 private const val BUTTON_PX = 32
 private const val BUTTON_INSET = 12
 
-/**
- * Autoplaying YouTube trailer.
- *
- * The phone plays a resolved stream through ExoPlayer; a browser cannot, because googlevideo
- * refuses cross-origin playback. So this drops a YouTube iframe on top of the canvas instead and
- * keeps it in sync with the composable's window rect.
- *
- * Autoplay with sound is blocked, so it starts muted and the button unmutes it — same affordance
- * as the phone, drawn in the DOM because the iframe sits above the canvas.
- */
 @Composable
 fun WebTrailer(videoId: String?, poster: String?, modifier: Modifier = Modifier) {
     Box(modifier) {
@@ -50,8 +41,10 @@ fun WebTrailer(videoId: String?, poster: String?, modifier: Modifier = Modifier)
 @Composable
 private fun TrailerFrame(videoId: String, modifier: Modifier) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
-    var muted by remember(videoId) { mutableStateOf(true) }
-    // Compose lays out in device pixels; the DOM lives in CSS pixels.
+    // sound on by default; the URL still says mute=1 so autoplay is never refused outright
+    var muted by remember(videoId) { mutableStateOf(false) }
+    var loaded by remember(videoId) { mutableStateOf(false) }
+    // Compose lays out in device pixels; the DOM lives in CSS pixels
     val scale = LocalDensity.current.density.takeIf { it > 0f } ?: 1f
     val frame = remember(videoId) { iframe() }
     val button = remember(videoId) { muteButton() }
@@ -69,6 +62,11 @@ private fun TrailerFrame(videoId: String, modifier: Modifier) {
         button.addEventListener("click", onClick)
         onDispose { button.removeEventListener("click", onClick) }
     }
+    DisposableEffect(frame) {
+        val onLoad: (org.w3c.dom.events.Event) -> Unit = { loaded = true }
+        frame.addEventListener("load", onLoad)
+        onDispose { frame.removeEventListener("load", onLoad) }
+    }
     LaunchedEffect(bounds, scale) {
         val w = bounds.width / scale
         val left = bounds.left / scale
@@ -81,7 +79,7 @@ private fun TrailerFrame(videoId: String, modifier: Modifier) {
         val b = button.style
         b.left = "${(left + w - BUTTON_INSET - BUTTON_PX).toInt()}px"
         b.top = "${(top + BUTTON_INSET).toInt()}px"
-        // Load only once it has a size: an iframe that starts hidden never begins autoplaying.
+        // load only once it has a size: an iframe that starts hidden never begins autoplaying
         if (w > 0f) {
             s.visibility = "visible"
             b.visibility = "visible"
@@ -94,7 +92,15 @@ private fun TrailerFrame(videoId: String, modifier: Modifier) {
     LaunchedEffect(muted) {
         button.innerHTML = if (muted) ICON_MUTED else ICON_SOUND
         button.title = if (muted) "Unmute" else "Mute"
-        frame.contentWindow?.postMessage(command(if (muted) "mute" else "unMute").toJsString(), "*")
+    }
+    // no ready callback without the full iframe API, so the same command is repeated after load
+    LaunchedEffect(muted, loaded) {
+        if (!loaded) return@LaunchedEffect
+        val cmd = command(if (muted) "mute" else "unMute").toJsString()
+        repeat(3) {
+            frame.contentWindow?.postMessage(cmd, "*")
+            delay(800)
+        }
     }
     Box(modifier.onGloballyPositioned { bounds = it.boundsInWindow() })
 }
@@ -113,7 +119,6 @@ private fun iframe(): HTMLIFrameElement {
     s.position = "fixed"
     s.border = "0"
     s.background = "#000"
-    // matches the 24dp card radius in WideDetail
     s.borderRadius = "24px"
     s.visibility = "hidden"
     s.zIndex = "1"
