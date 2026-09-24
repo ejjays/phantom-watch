@@ -8,6 +8,29 @@
   <script type="importmap">
   { "imports": { "@js-joda/core": "./node_modules/@js-joda/core/dist/js-joda.esm.js" } }
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <script>
+    // Called from Kotlin (external fun) to feed a <video> element: hls.js for HLS streams,
+    // plain src for everything else.
+    window.pwAttach = function (v, url) {
+      if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
+      if (window.Hls && window.Hls.isSupported()) {
+        const h = new window.Hls({ enableWorker: true });
+        h.loadSource(url);
+        h.attachMedia(v);
+        v.__pwHls = h;
+      } else {
+        v.src = url;
+      }
+      const p = v.play();
+      if (p && p.catch) p.catch(function () {});
+    };
+    window.pwDetach = function (v) {
+      if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
+      v.removeAttribute('src');
+      v.load();
+    };
+  </script>
 </head>
 <body>
 <div id="app"></div>
