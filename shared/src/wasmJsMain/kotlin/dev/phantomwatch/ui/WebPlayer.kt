@@ -30,13 +30,13 @@ import org.w3c.dom.events.Event
  * scrubber would sit underneath it.
  */
 @Composable
-fun WebPlayer(url: String, onBack: () -> Unit) {
+fun WebPlayer(urls: List<String>, onBack: () -> Unit) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val scale = LocalDensity.current.density.takeIf { it > 0f } ?: 1f
     val video = remember { video() }
     val back = remember { backButton() }
 
-    DisposableEffect(url) {
+    DisposableEffect(Unit) {
         document.body?.appendChild(video)
         document.body?.appendChild(back)
         onDispose {
@@ -62,26 +62,29 @@ fun WebPlayer(url: String, onBack: () -> Unit) {
         val ready = bounds.width > 0f
         s.visibility = if (ready) "visible" else "hidden"
         b.visibility = if (ready) "visible" else "hidden"
-        if (ready) attach(video, url)
+        if (ready) attach(video, urls)
     }
     Box(Modifier.fillMaxSize().background(Color.Black).onGloballyPositioned { bounds = it.boundsInWindow() })
 }
 
 // Provided by index.html: hls.js when the browser cannot play HLS on its own.
-private external fun pwAttach(v: HTMLVideoElement, url: String)
+private external fun pwAttach(v: HTMLVideoElement, urlsJson: String)
 
 private external fun pwDetach(v: HTMLVideoElement)
 
-private var attachedUrl: String? = null
+private var attached: String? = null
 
-private fun attach(v: HTMLVideoElement, url: String) {
-    if (attachedUrl == url) return
-    attachedUrl = url
-    pwAttach(v, url)
+// The list is the fallback chain: index.html moves to the next source on a fatal error.
+private fun attach(v: HTMLVideoElement, urls: List<String>) {
+    if (urls.isEmpty()) return
+    val json = urls.joinToString(",", "[", "]") { "\"" + it.replace("\\", "\\\\").replace("\"", "\\\"") + "\"" }
+    if (attached == json) return
+    attached = json
+    pwAttach(v, json)
 }
 
 private fun detach(v: HTMLVideoElement) {
-    attachedUrl = null
+    attached = null
     pwDetach(v)
 }
 

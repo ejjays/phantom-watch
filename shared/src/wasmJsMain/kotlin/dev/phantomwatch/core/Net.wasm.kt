@@ -11,7 +11,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 
-private val client = HttpClient(Js) {
+internal val client = HttpClient(Js) {
     expectSuccess = false
     install(HttpTimeout) {
         requestTimeoutMillis = 25_000

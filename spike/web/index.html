@@ -10,23 +10,37 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <script>
-    // Called from Kotlin (external fun) to feed a <video> element: hls.js for HLS streams,
-    // plain src for everything else.
-    window.pwAttach = function (v, url) {
-      if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
-      if (window.Hls && window.Hls.isSupported()) {
-        const h = new window.Hls({ enableWorker: true });
-        h.loadSource(url);
-        h.attachMedia(v);
-        v.__pwHls = h;
-      } else {
-        v.src = url;
+    // Called from Kotlin (external fun) with a JSON array of sources, best first.
+    // hls.js for HLS, plain src for direct files; a fatal error moves to the next source.
+    window.pwAttach = function (v, urlsJson) {
+      var urls = [];
+      try { urls = JSON.parse(urlsJson); } catch (e) { return; }
+      var i = 0;
+      function load(url) {
+        if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
+        v.removeAttribute('src');
+        if (window.Hls && window.Hls.isSupported()) {
+          var h = new window.Hls({ enableWorker: true });
+          h.on(window.Hls.Events.ERROR, function (_, d) {
+            if (!d.fatal) return;
+            h.destroy(); v.__pwHls = null;
+            if (++i < urls.length) load(urls[i]);
+          });
+          h.loadSource(url);
+          h.attachMedia(v);
+          v.__pwHls = h;
+        } else {
+          v.onerror = function () { if (++i < urls.length) load(urls[i]); };
+          v.src = url;
+        }
+        var p = v.play();
+        if (p && p.catch) p.catch(function () {});
       }
-      const p = v.play();
-      if (p && p.catch) p.catch(function () {});
+      if (urls.length) load(urls[0]);
     };
     window.pwDetach = function (v) {
       if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
+      v.onerror = null;
       v.removeAttribute('src');
       v.load();
     };
