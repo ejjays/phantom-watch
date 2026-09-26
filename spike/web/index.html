@@ -3,10 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Phantom Watch - Compose/Wasm spike</title>
-  <style>html,body{margin:0;height:100%;background:#000;color:#ddd}#app{height:100%}</style>
+  <title>Phantom Watch</title>
+  <style>
+    html,body{margin:0;height:100%;background:#000;color:#ddd}#app{height:100%}
+    #boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+      font:14px system-ui,sans-serif;color:#888;pointer-events:none}
+  </style>
   <script type="importmap">
   { "imports": { "@js-joda/core": "./node_modules/@js-joda/core/dist/js-joda.esm.js" } }
+  </script>
+  <script>
+    // A 24 MB wasm leaves the page black for a while; say so instead of looking broken.
+    (function () {
+      var t0 = Date.now();
+      function boot() { return document.getElementById('boot'); }
+      var iv = setInterval(function () {
+        var b = boot();
+        if (!b) return;
+        var app = document.getElementById('app');
+        if (app && app.childElementCount > 0) { clearInterval(iv); b.remove(); return; }
+        b.textContent = 'Loading… ' + Math.round((Date.now() - t0) / 1000) + 's';
+      }, 250);
+      var seen = [];
+      function note(kind, args) {
+        var parts = [];
+        for (var i = 0; i < args.length; i++) {
+          var a = args[i];
+          try { parts.push(a && (a.stack || a.message) ? String(a.stack || a.message) : String(a)); }
+          catch (e) { parts.push('?'); }
+        }
+        seen.push(kind + ': ' + parts.join(' | '));
+        var b = boot();
+        if (b) b.textContent = seen.join(' // ').slice(0, 400);
+        document.title = 'PWERR ' + seen.join(' // ').slice(0, 500);
+      }
+      var orig = console.error;
+      console.error = function () { note('error', arguments); return orig.apply(console, arguments); };
+      window.addEventListener('error', function (e) { note('window.error', [e.error || e.message]); });
+      window.addEventListener('unhandledrejection', function (e) { note('reject', [e.reason]); });
+    })();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <script>
@@ -48,6 +83,7 @@
 </head>
 <body>
 <div id="app"></div>
+<div id="boot">Loading…</div>
 <script type="module" src="./kotlin/PhantomWatch-spike.mjs"></script>
 </body>
 </html>
