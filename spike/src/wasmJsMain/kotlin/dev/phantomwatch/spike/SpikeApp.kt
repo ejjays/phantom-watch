@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import dev.phantomwatch.core.PlaySource
 import dev.phantomwatch.core.resolveSources
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailScreen
@@ -33,7 +34,7 @@ import kotlinx.coroutines.launch
 fun SpikeApp() {
     val browse = remember { BrowseState() }
     val scope = rememberCoroutineScope()
-    var sources by remember { mutableStateOf<List<String>>(emptyList()) }
+    var sources by remember { mutableStateOf<List<PlaySource>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -52,7 +53,7 @@ fun SpikeApp() {
                                 try {
                                     val r = resolveSources(PW_URL, PW_KEY, item.kind, item.id, season, episode)
                                     if (r.isEmpty()) error = "No source for ${item.title}"
-                                    else sources = r.map { it.url }
+                                    else sources = r
                                 } catch (e: Exception) {
                                     error = e.message ?: "resolve failed"
                                 }

@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import dev.phantomwatch.core.PlaySource
 import kotlinx.browser.document
 import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLVideoElement
@@ -30,7 +31,7 @@ import org.w3c.dom.events.Event
  * scrubber would sit underneath it.
  */
 @Composable
-fun WebPlayer(urls: List<String>, onBack: () -> Unit) {
+fun WebPlayer(sources: List<PlaySource>, onBack: () -> Unit) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val scale = LocalDensity.current.density.takeIf { it > 0f } ?: 1f
     val video = remember { video() }
@@ -62,7 +63,7 @@ fun WebPlayer(urls: List<String>, onBack: () -> Unit) {
         val ready = bounds.width > 0f
         s.visibility = if (ready) "visible" else "hidden"
         b.visibility = if (ready) "visible" else "hidden"
-        if (ready) attach(video, urls)
+        if (ready) attach(video, sources)
     }
     Box(Modifier.fillMaxSize().background(Color.Black).onGloballyPositioned { bounds = it.boundsInWindow() })
 }
@@ -75,9 +76,13 @@ private external fun pwDetach(v: HTMLVideoElement)
 private var attached: String? = null
 
 // The list is the fallback chain: index.html moves to the next source on a fatal error.
-private fun attach(v: HTMLVideoElement, urls: List<String>) {
-    if (urls.isEmpty()) return
-    val json = urls.joinToString(",", "[", "]") { "\"" + it.replace("\\", "\\\\").replace("\"", "\\\"") + "\"" }
+// hls.js only ever sees HLS; a direct MP4 through it is a fatal error, not a fallback.
+private fun attach(v: HTMLVideoElement, sources: List<PlaySource>) {
+    if (sources.isEmpty()) return
+    val json = sources.joinToString(",", "[", "]") { s ->
+        val url = s.url.replace("\\", "\\\\").replace("\"", "\\\"")
+        "{\"u\":\"$url\",\"h\":${s.hls}}"
+    }
     if (attached == json) return
     attached = json
     pwAttach(v, json)

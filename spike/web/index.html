@@ -45,36 +45,61 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <script>
-    // Called from Kotlin (external fun) with a JSON array of sources, best first.
-    // hls.js for HLS, plain src for direct files; a fatal error moves to the next source.
-    window.pwAttach = function (v, urlsJson) {
-      var urls = [];
-      try { urls = JSON.parse(urlsJson); } catch (e) { return; }
+    // Called from Kotlin (external fun) with [{u,h}] sources, best first. hls.js is only
+    // used for HLS: handing it a plain MP4 is a fatal error, so those go straight to src.
+    window.pwAttach = function (v, sourcesJson) {
+      var list = [];
+      try { list = JSON.parse(sourcesJson); } catch (e) { return; }
       var i = 0;
-      function load(url) {
+      // play() fires ~10 s after the tap that started the resolve, so the browser's
+      // transient activation has expired and an unmuted play() is rejected. Fall back
+      // to muted (always allowed) and offer one tap to restore sound.
+      function start(v) {
+        var p = v.play();
+        if (!p || !p.catch) return;
+        p.catch(function () {
+          v.muted = true;
+          var q = v.play();
+          if (q && q.catch) q.catch(function () {});
+          unmuteButton(v);
+        });
+      }
+      function unmuteButton(v) {
+        if (v.__pwUnmute) return;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = 'Tap for sound';
+        b.style.cssText = 'position:fixed;right:16px;bottom:96px;z-index:20;padding:8px 14px;border:0;' +
+          'border-radius:20px;background:rgba(0,0,0,.72);color:#fff;font:13px system-ui;cursor:pointer';
+        b.onclick = function () { v.muted = false; b.remove(); v.__pwUnmute = null; };
+        document.body.appendChild(b);
+        v.__pwUnmute = b;
+      }
+      function load(item) {
         if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
+        v.onerror = null;
         v.removeAttribute('src');
-        if (window.Hls && window.Hls.isSupported()) {
+        if (item.h && window.Hls && window.Hls.isSupported()) {
           var h = new window.Hls({ enableWorker: true });
           h.on(window.Hls.Events.ERROR, function (_, d) {
             if (!d.fatal) return;
             h.destroy(); v.__pwHls = null;
-            if (++i < urls.length) load(urls[i]);
+            if (++i < list.length) load(list[i]);
           });
-          h.loadSource(url);
+          h.loadSource(item.u);
           h.attachMedia(v);
           v.__pwHls = h;
         } else {
-          v.onerror = function () { if (++i < urls.length) load(urls[i]); };
-          v.src = url;
+          v.onerror = function () { if (++i < list.length) load(list[i]); };
+          v.src = item.u;
         }
-        var p = v.play();
-        if (p && p.catch) p.catch(function () {});
+        start(v);
       }
-      if (urls.length) load(urls[0]);
+      if (list.length) load(list[0]);
     };
     window.pwDetach = function (v) {
       if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
+      if (v.__pwUnmute) { v.__pwUnmute.remove(); v.__pwUnmute = null; }
       v.onerror = null;
       v.removeAttribute('src');
       v.load();
