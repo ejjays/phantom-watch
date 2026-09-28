@@ -35,13 +35,14 @@ fun SpikeApp() {
     val browse = remember { BrowseState() }
     val scope = rememberCoroutineScope()
     var sources by remember { mutableStateOf<List<PlaySource>>(emptyList()) }
+    var playTitle by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
         Box(Modifier.fillMaxSize()) {
             if (sources.isNotEmpty()) {
-                WebPlayer(sources, onBack = { sources = emptyList() })
+                WebPlayer(sources, playTitle, onBack = { sources = emptyList() })
             } else {
                 HomeScreen(
                     browse = browse,
@@ -53,7 +54,12 @@ fun SpikeApp() {
                                 try {
                                     val r = resolveSources(PW_URL, PW_KEY, item.kind, item.id, season, episode)
                                     if (r.isEmpty()) error = "No source for ${item.title}"
-                                    else sources = r
+                                    else {
+                                        playTitle =
+                                            if (season.isNotEmpty() && episode.isNotEmpty()) "${item.title} · S$season E$episode"
+                                            else item.title
+                                        sources = r
+                                    }
                                 } catch (e: Exception) {
                                     error = e.message ?: "resolve failed"
                                 }
