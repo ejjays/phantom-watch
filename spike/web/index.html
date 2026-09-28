@@ -25,7 +25,9 @@
         b.textContent = 'Loading… ' + Math.round((Date.now() - t0) / 1000) + 's';
       }, 250);
       var seen = [];
-      function note(kind, args) {
+      // console.error is a diagnostic channel (Kotlin/Wasm prints deprecation notices there),
+      // so only an uncaught throw gets to rewrite the tab title.
+      function note(kind, args, fatal) {
         var parts = [];
         for (var i = 0; i < args.length; i++) {
           var a = args[i];
@@ -35,12 +37,12 @@
         seen.push(kind + ': ' + parts.join(' | '));
         var b = boot();
         if (b) b.textContent = seen.join(' // ').slice(0, 400);
-        document.title = 'PWERR ' + seen.join(' // ').slice(0, 500);
+        if (fatal) document.title = 'PWERR ' + seen.join(' // ').slice(0, 500);
       }
       var orig = console.error;
-      console.error = function () { note('error', arguments); return orig.apply(console, arguments); };
-      window.addEventListener('error', function (e) { note('window.error', [e.error || e.message]); });
-      window.addEventListener('unhandledrejection', function (e) { note('reject', [e.reason]); });
+      console.error = function () { note('error', arguments, false); return orig.apply(console, arguments); };
+      window.addEventListener('error', function (e) { note('window.error', [e.error || e.message], true); });
+      window.addEventListener('unhandledrejection', function (e) { note('reject', [e.reason], true); });
     })();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
