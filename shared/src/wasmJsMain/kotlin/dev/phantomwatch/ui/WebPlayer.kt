@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import dev.phantomwatch.core.PlaySource
+import dev.phantomwatch.core.SubSource
 import kotlinx.browser.document
 import org.w3c.dom.HTMLVideoElement
 import org.w3c.dom.events.Event
@@ -28,7 +29,7 @@ import org.w3c.dom.events.Event
  * the element paints above the Compose canvas.
  */
 @Composable
-fun WebPlayer(sources: List<PlaySource>, title: String, onBack: () -> Unit) {
+fun WebPlayer(sources: List<PlaySource>, subs: List<SubSource>, title: String, onBack: () -> Unit) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val scale = LocalDensity.current.density.takeIf { it > 0f } ?: 1f
     val video = remember { video() }
@@ -55,7 +56,7 @@ fun WebPlayer(sources: List<PlaySource>, title: String, onBack: () -> Unit) {
         s.height = "${(bounds.height / scale).toInt()}px"
         val ready = bounds.width > 0f
         s.visibility = if (ready) "visible" else "hidden"
-        if (ready) attach(video, sources)
+        if (ready) attach(video, sources, subs)
     }
     Box(Modifier.fillMaxSize().background(Color.Black).onGloballyPositioned { bounds = it.boundsInWindow() })
 }
@@ -69,13 +70,27 @@ private external fun pwTitle(v: HTMLVideoElement, title: String)
 
 private var attached: String? = null
 
+private fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
+
 // The list is the fallback chain: player.js moves to the next source on a fatal error.
 // hls.js only ever sees HLS; a direct MP4 through it is a fatal error, not a fallback.
-private fun attach(v: HTMLVideoElement, sources: List<PlaySource>) {
+// One JSON document for both lists: player.js keeps the format list for the quality menu and
+// fetches the subtitle track itself (the proxy already serves it with CORS).
+private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<SubSource>) {
     if (sources.isEmpty()) return
-    val json = sources.joinToString(",", "[", "]") { s ->
-        val url = s.url.replace("\\", "\\\\").replace("\"", "\\\"")
-        "{\"u\":\"$url\",\"h\":${s.hls}}"
+    val json = buildString {
+        append("{\"src\":[")
+        sources.forEachIndexed { i, s ->
+            if (i > 0) append(',')
+            append("{\"u\":\"").append(esc(s.url)).append("\",\"h\":").append(s.hls)
+                .append(",\"l\":\"").append(esc(s.label)).append("\"}")
+        }
+        append("],\"subs\":[")
+        subs.forEachIndexed { i, s ->
+            if (i > 0) append(',')
+            append("{\"l\":\"").append(esc(s.label)).append("\",\"u\":\"").append(esc(s.url)).append("\"}")
+        }
+        append("]}")
     }
     if (attached == json) return
     attached = json

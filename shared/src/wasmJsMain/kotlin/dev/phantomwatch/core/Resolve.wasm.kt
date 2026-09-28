@@ -10,12 +10,16 @@ import io.ktor.http.contentType
 
 data class PlaySource(val url: String, val label: String, val h: Int, val hls: Boolean)
 
+data class SubSource(val label: String, val url: String)
+
+data class Resolved(val formats: List<PlaySource>, val subs: List<SubSource>)
+
 // Web only: a browser cannot send the Referer/UA the provider CDNs demand, so a server
 // resolves and relays. Android keeps its native resolver.
 suspend fun resolveSources(
     server: String, key: String,
     kind: String, id: String, season: String = "", episode: String = "",
-): List<PlaySource> {
+): Resolved {
     val req = JSONObject()
         .put("kind", kind).put("id", id).put("season", season).put("episode", episode)
     val res = client.post("$server/resolve") {
@@ -25,11 +29,20 @@ suspend fun resolveSources(
     }
     if (res.status.value != 200) throw RuntimeException("resolve http ${res.status.value}")
     val body = JSONObject(res.bodyAsText())
-    val arr = body.optJSONArray("formats") ?: return emptyList()
-    return (0 until arr.length()).mapNotNull { i ->
-        val f = arr.optJSONObject(i) ?: return@mapNotNull null
+
+    val fa = body.optJSONArray("formats")
+    val formats = (0 until (fa?.length() ?: 0)).mapNotNull { i ->
+        val f = fa!!.optJSONObject(i) ?: return@mapNotNull null
         val url = f.optString("url")
         if (url.isEmpty()) null
         else PlaySource(url, f.optString("label"), f.optInt("h"), f.optString("hls") == "true")
     }
+    val sa = body.optJSONArray("subs")
+    val subs = (0 until (sa?.length() ?: 0)).mapNotNull { i ->
+        val s = sa!!.optJSONObject(i) ?: return@mapNotNull null
+        val url = s.optString("url")
+        if (url.isEmpty()) null
+        else SubSource(s.optString("label").ifEmpty { "Subtitles" }, url)
+    }
+    return Resolved(formats, subs)
 }

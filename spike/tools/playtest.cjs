@@ -92,9 +92,13 @@ async function resolve(body) {
 
   const js = async (e) => (await call('Runtime.evaluate', { expression: e, returnByValue: true })).result.value;
 
-  async function play(label, formats, shot) {
-    const list = formats.slice(0, 12).map((f) => ({ u: f.url, h: !!f.hls }));
+  async function play(label, formats, subs, shot) {
+    const doc = {
+      src: formats.slice(0, 12).map((f) => ({ u: f.url, h: !!f.hls, l: f.label || '' })),
+      subs: (subs || []).map((s) => ({ l: s.label || '', u: s.url })),
+    };
     const html = `<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;height:100%;background:#000}</style>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 <script src="./icons.js"></script>
@@ -103,9 +107,9 @@ async function resolve(body) {
 <script>
 var v = document.getElementById('v');
 v.style.position='fixed'; v.style.background='#000'; v.style.objectFit='contain';
-v.style.left='0px'; v.style.top='0px'; v.style.width=innerWidth+'px'; v.style.height=innerHeight+'px';
+v.style.left='0px'; v.style.top='0px'; v.style.width='100vw'; v.style.height='100vh';
 window.pwTitle(v, ${JSON.stringify(label)});
-window.pwAttach(v, ${JSON.stringify(JSON.stringify(list))});
+window.pwAttach(v, ${JSON.stringify(JSON.stringify(doc))});
 </script>`;
     fs.writeFileSync(path.join(WEB, '__play.html'), html);
     await call('Page.navigate', { url: 'http://127.0.0.1:' + WEB_PORT + '/__play.html?t=' + Date.now() });
@@ -137,6 +141,68 @@ window.pwAttach(v, ${JSON.stringify(JSON.stringify(list))});
       console.log('  still moving ->', await js('document.querySelector("video").currentTime.toFixed(1)'));
     }
 
+    // subtitles + gear menu (jump to a real cue so a gap cannot fake a failure)
+    await js('(function(){var v=document.querySelector("video"),c=v.__pw.S.cues;if(c.length)v.currentTime=(c[Math.min(40,c.length-1)].s+500)/1000})()');
+    await sleep(1500);
+    const sub = await js(`(function(){var b=document.querySelector('.pw-subtext'),c=document.querySelector('.pw-cc');
+      return JSON.stringify({text:b.textContent.slice(0,60), on:b.dataset.on, px:b.style.fontSize,
+        cues:document.querySelector('video').__pw.S.cues.length,
+        ccOff:c.dataset.off, ccOn:c.dataset.on, ccDisabled:c.disabled})})()`);
+    console.log('  subs ->', sub);
+
+    // the same cue on a portrait phone: the picture is 390x219 inside a 390x844 box
+    await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await sleep(800);
+    console.log('  portrait ->', await js(`(function(){var v=document.querySelector('video'),b=document.querySelector('.pw-subtext');
+      var r=b.getBoundingClientRect(),s=document.querySelector('.pw-subs').getBoundingClientRect();
+      return JSON.stringify({px:b.style.fontSize, box:Math.round(s.width)+'x'+Math.round(s.height),
+        top:Math.round(s.top), text:Math.round(r.width)+'x'+Math.round(r.height), vw:v.videoWidth, vh:v.videoHeight})})()`));
+    {
+      const r = await call('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(path.join(OUT, 'p-portrait.png'), Buffer.from(r.data, 'base64'));
+      console.log('  shot p-portrait.png');
+      await js('document.querySelector(".pw-gear").click()');
+      await sleep(300);
+      const m = await call('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(path.join(OUT, 'p-portrait-menu.png'), Buffer.from(m.data, 'base64'));
+      console.log('  menu portrait ->', await js(`(function(){var w=document.querySelector('.pw-menu').getBoundingClientRect();
+        return JSON.stringify({w:Math.round(w.width), rows:[].map.call(document.querySelectorAll('.pw-menu .pw-mrow'),function(r){return r.textContent.trim()+' ('+Math.round(r.scrollWidth)+'/'+Math.round(r.clientWidth)+')'})})})()`));
+      await js('document.querySelector(".pw-gear").click()');
+      await sleep(200);
+    }
+    await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+    await sleep(400);
+
+    await js('document.querySelector(".pw-gear").click()');
+    await sleep(300);
+    console.log('  menu ->', await js(`(function(){var m=document.querySelector('.pw-menu');
+      return JSON.stringify({on:m.dataset.on, rows:[].map.call(m.querySelectorAll('.pw-mrow'),function(r){return r.textContent.trim()})})})()`));
+
+    if (shot) {
+      const r = await call('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(path.join(OUT, 'p-menu.png'), Buffer.from(r.data, 'base64'));
+      console.log('  shot p-menu.png');
+    }
+
+    await js('document.querySelector(".pw-mrow").click()');
+    await sleep(300);
+    console.log('  page ->', await js(`(function(){var m=document.querySelector('.pw-menu');
+      return JSON.stringify({rows:[].map.call(m.querySelectorAll('.pw-mrow'),function(r){return r.textContent.trim()})})})()`));
+    await js('document.querySelector(".pw-mhead").click()');
+    await sleep(200);
+    console.log('  root ->', await js(`(function(){var m=document.querySelector('.pw-menu');
+      return JSON.stringify({rows:[].map.call(m.querySelectorAll('.pw-mrow'),function(r){return r.textContent.trim()})})})()`));
+
+    // a rung switch reloads the source; the playhead must survive it
+    const before = await js('document.querySelector("video").currentTime');
+    await js('document.querySelectorAll(".pw-menu .pw-mrow")[0].click()');
+    await sleep(200);
+    await js('(function(){var r=document.querySelectorAll(".pw-menu .pw-mrow");r[r.length-1].click()})()');
+    await sleep(5000);
+    console.log('  rung switch from', before.toFixed(1), '->', await js(`(function(){var v=document.querySelector("video");
+      return JSON.stringify({t:+v.currentTime.toFixed(1), rs:v.readyState, paused:v.paused, err:v.error?v.error.code:0,
+        menu:document.querySelector('.pw-menu').dataset.on})})()`));
+
     if (shot) {
       // controls auto-hide after 3 s; one centre tap brings them back
       await js('document.querySelector(".pw-zone[data-z=c]").click()');
@@ -151,11 +217,11 @@ window.pwAttach(v, ${JSON.stringify(JSON.stringify(list))});
 
   if (movieId !== '-') {
     console.log('MP4 path:');
-    await play('movie ' + movieId, movie.formats, 'p-mp4.png');
+    await play('movie ' + movieId, movie.formats, movie.subs, 'p-mp4.png');
   }
   if (show.formats.length) {
     console.log('HLS path:');
-    await play('tv ' + tv.join('x'), show.formats, 'p-hls.png');
+    await play('tv ' + tv.join('x'), show.formats, show.subs, 'p-hls.png');
   }
 
   chrome.kill();

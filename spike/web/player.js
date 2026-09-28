@@ -28,7 +28,7 @@
     // scrim starts under the header, exactly like the Compose offset
     + '.pw-scrim{position:absolute;left:0;right:0;bottom:0;top:var(--hh,56px);background:rgba(0,0,0,.4)}'
 
-    + '.pw-top{position:absolute;left:0;right:0;top:0;padding:8px 8px 0 0;display:flex;align-items:center;min-height:56px}'
+    + '.pw-top{position:absolute;left:0;right:0;top:0;padding:8px 8px 0 0;display:flex;align-items:center;min-height:56px;z-index:2}'
     + '.pw-ib{background:none;border:0;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}'
     + '.pw-ib:focus{outline:none}'
     + '.pw-ib:focus-visible{outline:2px solid ' + CYAN + ';outline-offset:-2px;border-radius:50%}'
@@ -40,7 +40,7 @@
     + '.pw-gear[data-on="1"]{color:' + CYAN + '}'
     + '.pw-glyph{width:20px;height:20px;display:block}'
 
-    + '.pw-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 16px 8px;display:flex;flex-direction:column}'
+    + '.pw-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 16px 8px;display:flex;flex-direction:column;z-index:2}'
     + '.pw-seek{position:relative;height:24px;touch-action:none;cursor:pointer}'
     + '.pw-scrubtime{position:absolute;left:0;right:0;bottom:24px;text-align:center;font:12px PWMono,monospace;color:#fff;padding-bottom:4px;display:none}'
     + '.pw-scrubtime[data-on="1"]{display:block}'
@@ -90,7 +90,27 @@
     + '.pw-flash{position:absolute;left:50%;top:12.5%;transform:translateX(-50%);max-width:80%;display:none;'
     + 'padding:6px 12px;border-radius:999px;background:rgba(0,0,0,.7);font-size:16px;font-weight:700;text-align:center}'
     + '.pw-flash[data-on="1"]{display:block}'
-    + '.pw-flash[data-tap="1"]{cursor:pointer}';
+    + '.pw-flash[data-tap="1"]{cursor:pointer}'
+
+    + '.pw-subs{position:fixed;display:flex;justify-content:center;align-items:flex-end;pointer-events:none;padding:0 8px;z-index:1}'
+    + '.pw-subtext{color:#fff;text-align:center;white-space:pre-line;background:rgba(8,12,16,.8);display:none;transform:translateY(-14px)}'
+    + '.pw-subtext[data-on="1"]{display:inline-block}'
+
+    + '.pw-menu{position:absolute;right:12px;top:60px;width:min(55%,232px);max-height:55%;overflow-y:auto;'
+    + 'background:rgba(0,0,0,.92);border-radius:12px;padding:4px 0;display:none;z-index:6}'
+    + '.pw-menu[data-on="1"]{display:block}'
+    + '.pw-mrow{display:flex;align-items:center;padding:12px 14px;font-size:14px;color:#fff;cursor:pointer}'
+    + '.pw-mrow:hover{background:rgba(255,255,255,.08)}'
+    + '.pw-mrow[data-sel="1"]{color:' + CYAN + '}'
+    + '.pw-mlabel{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    + '.pw-mnote{color:#94A3B8}'
+    + '.pw-mval{margin-left:auto;color:rgba(255,255,255,.55);font-size:13px;padding-left:8px;white-space:nowrap}'
+    + '.pw-mrow .pw-glyph{width:18px;height:18px;margin-right:12px}'
+    + '.pw-mchev{width:16px;height:16px;margin-left:6px;opacity:.6}'
+    + '.pw-mcheck{width:16px;height:16px;margin-left:8px;color:' + CYAN + '}'
+    + '.pw-mchev svg,.pw-mcheck svg{display:block}'
+    + '.pw-mhead{display:flex;align-items:center;padding:12px 10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer}'
+    + '.pw-mhead .pw-glyph{width:16px;height:16px;margin-right:6px;transform:rotate(180deg);opacity:.7}';
 
   function el(tag, cls) {
     var e = document.createElement(tag);
@@ -128,6 +148,7 @@
       '<div class="pw-scrim pw-fade"></div>'
       + '<div class="pw-zones"><div class="pw-zone" data-z="l"></div>'
       + '<div class="pw-zone" data-z="c"></div><div class="pw-zone" data-z="r"></div></div>'
+      + '<div class="pw-subs"><span class="pw-subtext"></span></div>'
       + '<div class="pw-top pw-fade"></div>'
       + '<div class="pw-bottom pw-fade"><div class="pw-seek">'
       + '<div class="pw-scrubtime"></div>'
@@ -139,7 +160,7 @@
       + '<div class="pw-hud" data-side="r"><div class="pw-hud-in"></div></div>'
       + '<svg class="pw-spin" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" '
       + 'stroke="' + CYAN + '" stroke-width="4" stroke-linecap="round" stroke-dasharray="80 200"/></svg>'
-      + '<div class="pw-flash"></div>';
+      + '<div class="pw-flash"></div><div class="pw-menu"></div>';
 
     var top = st.querySelector('.pw-top');
     var back = glyph('back', 'pw-back');
@@ -155,8 +176,6 @@
     cc.disabled = true;
     var gear = glyph('settings', 'pw-gear');
     gear.setAttribute('aria-label', 'Settings');
-    gear.dataset.off = '1';
-    gear.disabled = true;
     top.appendChild(back);
     top.appendChild(title);
     top.appendChild(cc);
@@ -192,8 +211,12 @@
       played: played, buf: buf, thumb: thumb, seek: seek, flash: flash,
       hud: hud, hudN: hudIn.querySelector('.pw-hud-n'),
       hudIcon: hudIn.querySelector('.pw-hud-icon'),
+      subsWrap: st.querySelector('.pw-subs'), subsEl: st.querySelector('.pw-subtext'),
+      menu: st.querySelector('.pw-menu'),
       scrub: null, drag: false, hideTimer: 0, hudTimer: 0, lastTap: 0, lastSide: '',
-      accSide: '', accTotal: 0, accAt: 0, raf: 0,
+      accSide: '', accTotal: 0, accAt: 0, raf: 0, flashTimer: 0,
+      formats: [], idx: 0, tracks: [], cues: [], subOn: true, subCur: '', subKey: '',
+      pendingSeek: null, speed: 1, open: false, page: 0, auto: true, qh: 0,
     };
     return S;
   }
@@ -204,6 +227,7 @@
   }
 
   function render(S) {
+    renderSubs(S);
     var dur = duration(S);
     var pos = S.v.currentTime * 1000;
     var frac = dur > 0 ? Math.min(1, pos / dur) : 0;
@@ -232,6 +256,117 @@
     }
   }
 
+  // SubtitleLayer in player/PlayerVideo.kt: bottom-centre of the video rect, 5.33% of its height,
+  // 14 px up, #080C10 at 80% with a 0.52em radius.
+  function subTime(s) {
+    var m = /^(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})$/.exec(s.trim());
+    if (!m) return -1;
+    return ((+(m[1] || 0) * 60 + +m[2]) * 60 + +m[3]) * 1000 + +(m[4] + '00').slice(0, 3);
+  }
+
+  function parseCues(text) {
+    var out = [];
+    var blocks = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split(/\n{2,}/);
+    for (var i = 0; i < blocks.length; i++) {
+      var lines = blocks[i].split('\n'), at = -1;
+      for (var j = 0; j < lines.length; j++) if (lines[j].indexOf('-->') > 0) { at = j; break; }
+      if (at < 0) continue;
+      var span = lines[at].split('-->');
+      var start = subTime(span[0]);
+      var end = subTime((span[1] || '').trim().split(/\s+/)[0]);
+      if (start < 0 || end <= start) continue;
+      var body = lines.slice(at + 1).join('\n').replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      if (body.trim()) out.push({ s: start, e: end, t: body });
+    }
+    return out.sort(function (a, b) { return a.s - b.s; });
+  }
+
+  function setSub(S, text) {
+    if (text === S.subCur) return;
+    S.subCur = text;
+    S.subsEl.textContent = text;
+    S.subsEl.dataset.on = text ? '1' : '0';
+  }
+
+  // The <video> box is not the picture: object-fit:contain letterboxes it, and a portrait phone
+  // gives a 360x800 box around a 360x202 frame. Size and anchor to the picture itself.
+  function pictureRect(S) {
+    var r = S.v.getBoundingClientRect();
+    var vw = S.v.videoWidth, vh = S.v.videoHeight;
+    if (!vw || !vh || !r.width || !r.height) return r;
+    var k = Math.min(r.width / vw, r.height / vh);
+    var w = vw * k, h = vh * k;
+    return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h };
+  }
+
+  function renderSubs(S) {
+    if (!S.subOn || !S.cues.length) { setSub(S, ''); return; }
+    var r = pictureRect(S);
+    if (r.height <= 0) { setSub(S, ''); return; }
+    var key = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height);
+    if (key !== S.subKey) {
+      S.subKey = key;
+      var px = r.height * 0.0533;
+      S.subsWrap.style.left = r.left + 'px';
+      S.subsWrap.style.top = r.top + 'px';
+      S.subsWrap.style.width = r.width + 'px';
+      S.subsWrap.style.height = r.height + 'px';
+      S.subsEl.style.fontSize = px + 'px';
+      S.subsEl.style.lineHeight = (px * 1.2) + 'px';
+      S.subsEl.style.borderRadius = (px * 0.52) + 'px';
+      S.subsEl.style.padding = (px * 0.33) + 'px ' + (px * 0.59) + 'px';
+    }
+    var t = S.v.currentTime * 1000, cues = S.cues;
+    var lo = 0, hi = cues.length;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (cues[mid].e <= t) lo = mid + 1; else hi = mid;
+    }
+    var parts = [];
+    for (var i = lo; i < cues.length && cues[i].s <= t; i++) parts.push(cues[i].t);
+    setSub(S, parts.join('\n'));
+  }
+
+  function subIcon(S) {
+    var on = S.subOn && S.cues.length > 0;
+    S.cc.innerHTML = '<span class="pw-glyph">' + (on ? ICON.cc_on : ICON.cc_off) + '</span>';
+    S.cc.dataset.on = on ? '1' : '0';
+    S.cc.setAttribute('aria-label', on ? 'Turn subtitles off' : 'Turn subtitles on');
+  }
+
+  // First track that parses wins. Providers ship one track per language and media3's selector
+  // defaults to English, so English goes first; everything else stays as a fallback.
+  function loadSubs(S) {
+    S.cues = [];
+    S.subCur = '';
+    S.cc.disabled = true;
+    S.cc.dataset.off = '1';
+    subIcon(S);
+    var list = S.tracks.slice().sort(function (a, b) {
+      return (/english/i.test(b.l || '') ? 1 : 0) - (/english/i.test(a.l || '') ? 1 : 0);
+    });
+    var i = 0;
+    function tryNext() {
+      if (i >= list.length || !S.v.__pw) return;
+      var track = list[i++];
+      fetch(track.u, { credentials: 'omit' })
+        .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.text(); })
+        .then(function (txt) {
+          var cues = parseCues(txt);
+          if (!cues.length) throw new Error('no cues');
+          if (!S.v.__pw) return;
+          S.cues = cues;
+          S.cc.disabled = false;
+          S.cc.dataset.off = '0';
+          subIcon(S);
+          render(S);
+        })
+        .catch(function () { tryNext(); });
+    }
+    tryNext();
+  }
+
   function tick(S) {
     render(S);
     if (!S.v.paused && !S.v.ended) S.raf = requestAnimationFrame(function () { tick(S); });
@@ -250,6 +385,7 @@
   }
 
   function hide(S) {
+    dismissMenu(S);
     S.stage.dataset.on = '0';
     clearTimeout(S.hideTimer);
   }
@@ -297,6 +433,7 @@
 
   function zone(S, z) {
     if (S.stage.dataset.lock === '1') { poke(S); return; }
+    if (S.open) { closeMenu(S); return; }
     var now = Date.now();
     var prev = S.lastSide;
     var prevAt = S.lastTap;
@@ -337,6 +474,23 @@
     });
 
     S.playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(S); });
+
+    S.cc.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (S.cc.disabled) return;
+      S.subOn = !S.subOn;
+      subIcon(S);
+      renderSubs(S);
+      poke(S);
+    });
+
+    S.gear.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (S.open) closeMenu(S);
+      else openMenu(S);
+    });
+
+    S.menu.addEventListener('click', function (e) { e.stopPropagation(); });
 
     S.mute.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -385,6 +539,13 @@
     v.addEventListener('play', function () { setPlayIcon(S); startLoop(S); });
     v.addEventListener('pause', function () { setPlayIcon(S); render(S); });
     v.addEventListener('ended', function () { setPlayIcon(S); render(S); });
+    v.addEventListener('loadedmetadata', function () {
+      if (S.pendingSeek != null) {
+        try { v.currentTime = S.pendingSeek; } catch (e) {}
+        S.pendingSeek = null;
+      }
+      render(S);
+    });
     v.addEventListener('timeupdate', function () {
       var dur = duration(S);
       if (!S.drag && S.scrub != null && dur > 0 && Math.abs(v.currentTime * 1000 - S.scrub * dur) < 1500) {
@@ -405,6 +566,7 @@
 
     S.onFs = function () {
       var on = document.fullscreenElement === S.stage;
+      S.subKey = '';
       S.stage.dataset.fs = on ? '1' : '0';
       S.fs.innerHTML = '<span class="pw-glyph">' + (on ? ICON.fullscreen_exit : ICON.fullscreen) + '</span>';
       S.fs.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Enter fullscreen');
@@ -413,7 +575,7 @@
       S.back.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Close player');
     };
     S.onKey = onKey(S);
-    S.onResize = function () { render(S); };
+    S.onResize = function () { S.subKey = ''; render(S); };
     document.addEventListener('fullscreenchange', S.onFs);
     window.addEventListener('keydown', S.onKey);
     window.addEventListener('resize', S.onResize);
@@ -430,6 +592,10 @@
     return function (e) {
       if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
       var k = e.key;
+      if (S.open) {
+        if (k === 'Escape') { e.preventDefault(); closeMenu(S); }
+        return;
+      }
       if (k === ' ' || k === 'Enter') { e.preventDefault(); togglePlay(S); return; }
       if (k === 'ArrowLeft') { e.preventDefault(); accSeek(S, 'l'); poke(S); return; }
       if (k === 'ArrowRight') { e.preventDefault(); accSeek(S, 'r'); poke(S); return; }
@@ -442,6 +608,150 @@
     S.flash.textContent = text;
     S.flash.dataset.on = text ? '1' : '0';
     S.flash.dataset.tap = tap ? '1' : '0';
+  }
+
+  // ---- settings menu: PlayerSettings.kt, minus the dub page (the proxy resolves one cut) ----
+
+  var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+  function speedLabel(x) {
+    return (x === Math.floor(x) ? Math.floor(x) : x) + '×';
+  }
+
+  // labels are "<leg>-1080p" / "<leg>-hd-720p" / "<leg>-auto"
+  function heightOf(label) {
+    var m = /(\d{3,4})p/.exec(label || '');
+    return m ? +m[1] : 0;
+  }
+
+  function qualities(S) {
+    var seen = {}, out = [];
+    for (var i = 0; i < S.formats.length; i++) {
+      var h = heightOf(S.formats[i].l);
+      if (h > 0 && !seen[h]) { seen[h] = 1; out.push(h); }
+    }
+    return out.sort(function (a, b) { return b - a; });
+  }
+
+  function menuRow(label, value, icon, chevron, selected, note, onClick) {
+    var r = el('div', 'pw-mrow');
+    if (icon) r.innerHTML = '<span class="pw-glyph">' + (ICON[icon] || '') + '</span>';
+    var t = el('span', 'pw-mlabel');
+    t.textContent = label;
+    if (note) {
+      var n = el('span', 'pw-mnote');
+      n.textContent = '  ' + note;
+      t.appendChild(n);
+    }
+    r.appendChild(t);
+    if (value) {
+      var v = el('span', 'pw-mval');
+      v.textContent = value;
+      r.appendChild(v);
+    }
+    if (chevron) {
+      var c = el('span', 'pw-mchev');
+      c.innerHTML = ICON.chevron_right || '';
+      r.appendChild(c);
+    }
+    if (selected) {
+      var k = el('span', 'pw-mcheck');
+      k.innerHTML = ICON.check || '';
+      r.appendChild(k);
+      r.dataset.sel = '1';
+    }
+    r.addEventListener('click', function (e) { e.stopPropagation(); onClick(); });
+    return r;
+  }
+
+  function menuHead(S, title) {
+    var h = el('div', 'pw-mhead');
+    h.innerHTML = '<span class="pw-glyph">' + (ICON.chevron_right || '') + '</span>';
+    h.appendChild(document.createTextNode(title));
+    h.addEventListener('click', function (e) { e.stopPropagation(); S.page = 0; menuRender(S); });
+    return h;
+  }
+
+  function menuRender(S) {
+    var m = S.menu;
+    m.innerHTML = '';
+    if (S.page === 1) {
+      m.appendChild(menuHead(S, 'Quality'));
+      m.appendChild(menuRow('Auto', S.auto && S.qh ? S.qh + 'p' : null, null, false, S.auto, null,
+        function () { pickQuality(S, 0); }));
+      qualities(S).forEach(function (h) {
+        m.appendChild(menuRow(h + 'p', null, null, false, !S.auto && S.qh === h, null,
+          function () { pickQuality(S, h); }));
+      });
+    } else if (S.page === 2) {
+      m.appendChild(menuHead(S, 'Speed'));
+      SPEEDS.forEach(function (x) {
+        m.appendChild(menuRow(speedLabel(x), null, null, false, x === S.speed, x === 1 ? 'Normal' : null,
+          function () { pickSpeed(S, x); }));
+      });
+    } else {
+      var q = qualities(S);
+      if (q.length > 1) {
+        // Android hides the auto resolution on the root row (phone layout); it only shows
+        // inside the quality list, which keeps the row short enough never to ellipsize.
+        var qv = S.auto ? 'Auto' : S.qh + 'p';
+        m.appendChild(menuRow('Quality', qv, 'quality', true, false, null,
+          function () { S.page = 1; menuRender(S); }));
+      }
+      m.appendChild(menuRow('Speed', speedLabel(S.speed), 'speed', true, false, null,
+        function () { S.page = 2; menuRender(S); }));
+    }
+  }
+
+  function openMenu(S) {
+    S.open = true;
+    S.page = 0;
+    S.menu.dataset.on = '1';
+    S.gear.dataset.on = '1';
+    S.stage.dataset.on = '1';
+    clearTimeout(S.hideTimer);
+    menuRender(S);
+  }
+
+  function closeMenu(S) {
+    if (!S.open) return;
+    dismissMenu(S);
+    poke(S);
+  }
+
+  function dismissMenu(S) {
+    if (!S.open) return;
+    S.open = false;
+    S.page = 0;
+    S.menu.dataset.on = '0';
+    S.gear.dataset.on = '0';
+  }
+
+  // Switching rung reloads the source, so keep the playhead and let loadedmetadata restore it.
+  function pickQuality(S, h) {
+    var idx = 0, qh = h;
+    if (h > 0) {
+      for (var i = 0; i < S.formats.length; i++) {
+        if (heightOf(S.formats[i].l) === h) { idx = i; break; }
+      }
+    } else {
+      qh = heightOf(S.formats[0].l);
+    }
+    S.auto = h <= 0;
+    S.qh = qh;
+    closeMenu(S);
+    if (idx === S.idx) return;
+    S.pendingSeek = S.v.currentTime;
+    load(S, S.formats[idx], idx);
+  }
+
+  function pickSpeed(S, x) {
+    S.speed = x;
+    S.v.playbackRate = x;
+    closeMenu(S);
+    flash(S, 'Speed ' + speedLabel(x));
+    clearTimeout(S.flashTimer);
+    S.flashTimer = setTimeout(function () { flash(S, ''); }, 1200);
   }
 
   // Autoplay: play() runs seconds after the tap that started the resolve, so the browser's
@@ -461,8 +771,11 @@
     });
   }
 
-  function load(S, item) {
+  function load(S, item, idx) {
     var v = S.v;
+    S.idx = idx == null ? 0 : idx;
+    v.__pw.list = S.formats;
+    v.__pw.i = S.idx;
     S.stage.dataset.stall = '1';
     if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
     v.onerror = null;
@@ -488,13 +801,14 @@
   function next(S) {
     var st = S.v.__pw;
     if (!st) return;
-    if (++st.i < st.list.length) load(S, st.list[st.i]);
+    if (++st.i < st.list.length) load(S, st.list[st.i], st.i);
     else S.stage.dataset.stall = '0';
   }
 
   window.pwAttach = function (v, sourcesJson) {
-    var list = [];
-    try { list = JSON.parse(sourcesJson); } catch (e) { return; }
+    var doc;
+    try { doc = JSON.parse(sourcesJson); } catch (e) { return; }
+    var list = (doc && doc.src) || [];
     if (!list.length) return;
 
     var S = v.__pw ? v.__pw.S : null;
@@ -518,9 +832,15 @@
     }
     v.__pw.list = list;
     v.__pw.i = 0;
+    S.formats = list;
+    S.tracks = (doc && doc.subs) || [];
+    S.qh = heightOf(list[0].l);
+    S.auto = true;
+    S.subKey = '';
     S.scrub = null;
     setPlayIcon(S);
-    load(S, list[0]);
+    load(S, list[0], 0);
+    loadSubs(S);
   };
 
   window.pwDetach = function (v) {
@@ -532,6 +852,9 @@
     if (S.raf) cancelAnimationFrame(S.raf);
     clearTimeout(S.hideTimer);
     clearTimeout(S.hudTimer);
+    clearTimeout(S.flashTimer);
+    S.open = false;
+    S.menu.dataset.on = '0';
     document.removeEventListener('fullscreenchange', S.onFs);
     window.removeEventListener('keydown', S.onKey);
     window.removeEventListener('resize', S.onResize);

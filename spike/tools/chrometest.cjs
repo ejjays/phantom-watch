@@ -43,7 +43,7 @@ v.style.position='fixed'; v.style.background='#000'; v.style.objectFit='contain'
 v.style.left='0px'; v.style.top='0px'; v.style.width=innerWidth+'px'; v.style.height=innerHeight+'px';
 v.poster = '${poster}';
 window.pwTitle(v, 'The Bear · S1 E3');
-window.pwAttach(v, JSON.stringify([{u:'./__t.wav',h:false}]));
+window.pwAttach(v, JSON.stringify({src:[{u:'./__t.wav',h:false,l:'paradise-1080p'},{u:'./__t.wav',h:false,l:'paradise-720p'}],subs:[]}));
 </script></body></html>`);
 }
 
@@ -152,6 +152,21 @@ const get = (p) => new Promise((res, rej) => http.get('http://127.0.0.1:' + PORT
   await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x + b.w * 0.5, y, button: 'left', clickCount: 1 });
   await sleep(400);
   console.log('after seek t=', await js('document.querySelector("video").currentTime'));
+
+  const rows = `[].map.call(document.querySelectorAll(".pw-menu .pw-mrow"),function(r){return r.textContent.trim()}).join(" | ")`;
+  await js('document.querySelector(".pw-gear").click()');
+  await sleep(300);
+  console.log('menu root:', await js(`(function(){return document.querySelector(".pw-menu").dataset.on+" "+${rows}})()`));
+  await shot('t-menu.png');
+  await js('document.querySelectorAll(".pw-menu .pw-mrow")[0].click()');
+  await sleep(300);
+  console.log('menu quality:', await js(`(function(){return ${rows}})()`));
+  await shot('t-menu-q.png');
+  await js('document.querySelector(".pw-mhead").click()');
+  await sleep(200);
+  await js('document.querySelector(".pw-gear").click()');
+  await sleep(200);
+  console.log('menu closed:', await js('document.querySelector(".pw-menu").dataset.on'));
 
   await js('document.querySelector(".pw-stage").dataset.fs="1"');
   await sleep(200);

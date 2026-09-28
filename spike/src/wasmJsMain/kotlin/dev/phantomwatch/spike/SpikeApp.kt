@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.phantomwatch.core.PlaySource
+import dev.phantomwatch.core.SubSource
 import dev.phantomwatch.core.resolveSources
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailScreen
@@ -35,6 +36,7 @@ fun SpikeApp() {
     val browse = remember { BrowseState() }
     val scope = rememberCoroutineScope()
     var sources by remember { mutableStateOf<List<PlaySource>>(emptyList()) }
+    var subs by remember { mutableStateOf<List<SubSource>>(emptyList()) }
     var playTitle by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -42,7 +44,7 @@ fun SpikeApp() {
     MaterialTheme(colorScheme = darkColorScheme()) {
         Box(Modifier.fillMaxSize()) {
             if (sources.isNotEmpty()) {
-                WebPlayer(sources, playTitle, onBack = { sources = emptyList() })
+                WebPlayer(sources, subs, playTitle, onBack = { sources = emptyList() })
             } else {
                 HomeScreen(
                     browse = browse,
@@ -53,12 +55,13 @@ fun SpikeApp() {
                             scope.launch {
                                 try {
                                     val r = resolveSources(PW_URL, PW_KEY, item.kind, item.id, season, episode)
-                                    if (r.isEmpty()) error = "No source for ${item.title}"
+                                    if (r.formats.isEmpty()) error = "No source for ${item.title}"
                                     else {
                                         playTitle =
                                             if (season.isNotEmpty() && episode.isNotEmpty()) "${item.title} · S$season E$episode"
                                             else item.title
-                                        sources = r
+                                        sources = r.formats
+                                        subs = r.subs
                                     }
                                 } catch (e: Exception) {
                                     error = e.message ?: "resolve failed"

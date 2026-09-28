@@ -5,7 +5,8 @@ import re, pathlib
 
 WANT = ["ic_back", "ic_chevron_down", "ic_cc_on", "ic_cc_off", "ic_settings",
         "ic_volume_on", "ic_volume_off", "ic_fullscreen", "ic_fullscreen_exit",
-        "ic_play", "ic_pause", "ic_lock", "ic_unlock", "ic_seek_chevron"]
+        "ic_play", "ic_pause", "ic_lock", "ic_unlock", "ic_seek_chevron",
+        "ic_quality", "ic_speed", "ic_check", "ic_chevron_right"]
 SRC = pathlib.Path("app/src/main/res/drawable")
 OUT = pathlib.Path("spike/web/icons.js")
 
