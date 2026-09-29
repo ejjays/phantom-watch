@@ -14,7 +14,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import dev.phantomwatch.player.TrailerAudio
 
-/** Tablet detail on the phone: the shared layout, with the trailer and its ambient glow behind. */
+// the shared tablet layout, with the phone's trailer and glow behind it
 @Composable
 internal fun TabletDetail(a: WideDetailArgs) {
     val art = (a.item.backdrop ?: a.item.poster) ?: (a.d.backdrop ?: a.d.poster)
