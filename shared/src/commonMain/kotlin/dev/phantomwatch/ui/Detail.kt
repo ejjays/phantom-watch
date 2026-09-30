@@ -371,7 +371,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
 // java.time's localized formatter has no multiplatform twin.
 private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
-internal fun airLabel(iso: String): String {
+fun airLabel(iso: String): String {
     val p = iso.split('-')
     val y = p.getOrNull(0)?.toIntOrNull() ?: return iso
     val m = p.getOrNull(1)?.toIntOrNull() ?: return iso
