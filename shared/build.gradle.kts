@@ -12,6 +12,8 @@ kotlin {
         namespace = "dev.phantomwatch.shared"
         compileSdk = compileSdkVersion
         minSdk = 26
+        // compose resources ship as assets; AGP 9's KMP library drops them without this
+        androidResources.enable = true
     }
     wasmJs {
         browser()
