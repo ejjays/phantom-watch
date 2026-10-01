@@ -18,8 +18,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 LINE_CAPS = {
     "app/src/main/java": 900,
     "app/src/test/java": 400,
-    # providers.js is the single home for every leg's extractor; it grows with each provider
-    "app/src/main/assets/providers.js": 900,
+    # providers.js is the single home for every leg's extractor and the bridge loads this
+    # one asset (no split without an APK), so the cap moves with the leg count: ~30/leg.
+    "app/src/main/assets/providers.js": 950,
     "app/src/main/assets": 700,
     "worker": 700,
     "checks": 400,

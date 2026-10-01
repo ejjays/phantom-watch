@@ -299,6 +299,37 @@
     return list.length ? Math.max.apply(null, list.map(function (f) { return f.height; })) : 0;
   }
 
+  // cinesrc "light" -> lightspeed.st. The cdn gates on Origin, not Referer ("404 Removed"),
+  // and only the master carries the audio group: the rungs are video-only, so a rung
+  // picked from the master plays silent.
+  async function light(ctx) {
+    var cfg = ctx.cfg || {};
+    var referer = cfg.referer || 'https://cinesrc.st/';
+    var origin = referer.replace(/\/+$/, '');
+    var query = '?apiKey=' + (cfg.key || '392948') + '&provider=' + (cfg.provider || 'light') + '&id=' + ctx.tmdbId;
+    query += ctx.kind === 'movie' ? '&type=movie' : '&type=tv&season=' + ctx.season + '&episode=' + ctx.episode;
+    var api = (cfg.api || 'https://cinesrc.st/api/stream').replace(/\/+$/, '');
+    var r = await http({ url: api + query, timeout: 12 });
+    if (!r || r.error) return empty();
+    if (r.code === 404) return /no_streams/.test(r.body || '') ? skipped() : empty();
+    if (r.code !== 200) return empty();
+    var root;
+    try { root = JSON.parse(r.body); } catch (e) { return empty(); }
+    var master = ((root.url || [])[0] || {}).url || '';
+    if (master.indexOf('http') !== 0) return empty();
+    var m = await http({ url: master, referer: referer, headers: { Origin: origin }, timeout: 10 });
+    var manifest = m && m.code === 200 ? m.body : '';
+    var audio = manifest.split(/\r?\n/).some(function (l) {
+      return l.indexOf('TYPE=AUDIO') > 0 && /LANGUAGE="?en/i.test(l) && !/commentary/i.test(l);
+    });
+    var subs = (root.captions || []).filter(function (c) { return c && c.url && c.language === 'en'; })
+      .map(function (c) { return { label: c.display || 'English', url: c.url, src: 'light' }; });
+    var f = fmt(master, true, 'light-auto', maxHeight(masterVariants(manifest, master)));
+    f.headers = { Referer: referer, Origin: origin };
+    f.enSubs = subs.length > 0; f.enAudio = audio; f.english = audio;
+    return { formats: [f], subs: subs };
+  }
+
   async function zee(ctx) {
     var cfg = ctx.cfg || {};
     var api = cfg.api || 'https://core.vidzee.wtf';
@@ -854,7 +885,7 @@
   }
 
   var legs = {
-    love: love, rock: rock, vix: vix, zee: zee,
+    love: love, rock: rock, vix: vix, zee: zee, light: light,
     paradise: paradise, vap: vap, vidlink: vidlink, hianime: hianime, pinoy: pinoy,
   };
 

@@ -1,5 +1,5 @@
 {
-  "version": 24,
+  "version": 27,
   "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
   "services": {
     "tmdb": {
@@ -39,6 +39,13 @@
       "api": "https://core.vidzee.wtf",
       "origin": "https://player.vidzee.wtf",
       "source": "dcloud"
+    },
+    "light": {
+      "enabled": true,
+      "api": "https://cinesrc.st/api/stream",
+      "key": "392948",
+      "provider": "light",
+      "referer": "https://cinesrc.st/"
     },
     "paradise": {
       "enabled": true,
