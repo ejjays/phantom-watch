@@ -7,9 +7,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import dev.phantomwatch.core.AppLog
 
-// the rungs this stream really carries, so the picker can never offer a resolution the provider lacks
+// the rungs this stream really carries, so the picker can never offer a resolution the provider
+// lacks; a single-rendition stream still counts, so the menu can report what is playing
 internal fun videoGroupOf(tracks: Tracks?): Tracks.Group? =
-    tracks?.groups?.filter { it.type == C.TRACK_TYPE_VIDEO && it.length > 1 }?.maxByOrNull { it.length }
+    tracks?.groups?.filter { it.type == C.TRACK_TYPE_VIDEO }?.maxByOrNull { it.length }
 
 // a cinemascope encode is 1920x800; users still call that 1080p, so the label comes from the long side
 internal fun qualityLabel(w: Int, h: Int): String = when (maxOf(w, h)) {

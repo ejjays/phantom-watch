@@ -150,14 +150,15 @@ internal fun PlayerSettingsMenu(
                     }
                 }
                 else -> {
-                    if (qualities.size > 1) {
+                    // shown even for a one-rung stream: it is the only way to see what is playing
+                    if (qualities.isNotEmpty()) {
                         val pinned = if (quality > 0) qualities.firstOrNull { it.height == quality }?.label else null
                         val autoLabel = if (qualityNow != null && !phone) {
                             stringResource(R.string.player_settings_auto_now, qualityNow)
                         } else {
                             stringResource(R.string.player_settings_auto)
                         }
-                        val qVal = pinned ?: autoLabel
+                        val qVal = pinned ?: qualities.singleOrNull()?.label ?: autoLabel
                         SettingsRow(stringResource(R.string.player_settings_quality), qVal, R.drawable.ic_quality, chevron = true) {
                             page = 1
                             AppLog.d("settings quality ${qualities.joinToString { it.label }}")
