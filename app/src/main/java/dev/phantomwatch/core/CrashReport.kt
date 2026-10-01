@@ -33,8 +33,26 @@ object CrashReport {
             appendLine()
             appendLine("--- last log ---")
             AppLog.lines.takeLast(150).forEach { appendLine(it) }
+        }.take(60000)
+        ctx.filesDir.resolve(FILE).writeText(text)
+        mirror(ctx, text)
+    }
+
+    // no adb on this tablet, so a crash that kills the UI before its dialog shows is otherwise
+    // unreadable: drop a copy where the user and Termux can open it
+    private fun mirror(ctx: Context, text: String) {
+        if (android.os.Build.VERSION.SDK_INT < 29) return
+        runCatching {
+            val uri = ctx.contentResolver.insert(
+                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "pw-crash.txt")
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                },
+            ) ?: return
+            ctx.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
         }
-        ctx.filesDir.resolve(FILE).writeText(text.take(60000))
     }
 
     fun pending(ctx: Context): String? =
