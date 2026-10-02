@@ -44,7 +44,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
@@ -490,14 +489,14 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: 
             Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val screenW = screenWidthDp()
             Image(
-                painter = painterResource(Res.drawable.pirate),
+                painter = painterResource(Res.drawable.phantom_logo),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)),
+                modifier = Modifier.size(if (isExpanded(screenW)) 24.dp else 22.dp),
             )
             Spacer(Modifier.width(8.dp))
-            val screenW = screenWidthDp()
             Text(stringResource(Res.string.browse_brand), color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Box(
                 Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onSearch),

@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -35,8 +34,10 @@ import dev.phantomwatch.res.*
 @Composable
 fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
     val shape = RoundedCornerShape(26.dp)
-    // Most of the 56dp mark sits above the card; 16dp of it overlaps the edge.
-    val overhang = 40.dp
+    // One size everywhere: the card is capped at 380dp, so a tablet-only step just looked oversized.
+    // Most of the mark sits above the card, ~18dp overlaps the edge.
+    val icon = 64.dp
+    val overhang = icon * 0.714f
     Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         // The top padding is the icon's overhang, so the window does not clip its upper half.
         // fillMaxWidth must come after widthIn, or it forces the node past the 380dp cap and the
@@ -67,10 +68,8 @@ fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
                 }
             }
             Image(
-                painterResource(Res.drawable.pirate), contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.align(Alignment.TopCenter).offset(y = -overhang)
-                    .size(56.dp).clip(RoundedCornerShape(16.dp)),
+                painterResource(Res.drawable.phantom_logo), contentDescription = null,
+                modifier = Modifier.align(Alignment.TopCenter).offset(y = -overhang).size(icon),
             )
         }
     }
