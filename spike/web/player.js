@@ -9,6 +9,32 @@
   var ICON = window.PW_ICONS || {};
   var EASE = 'cubic-bezier(.4,0,.2,1)';
 
+  // Console trail for playback problems; see index.html for the sink.
+  function log(t, m) { if (window.pwLog) window.pwLog(t, m); }
+
+  // Same rule as the app's Resume.kt: drop the first 10s and the last 30s, so an episode that
+  // ended does not reopen at the end.
+  var POS_PREFIX = 'pw.pos.';
+  function posKey(v) { return v.__pwTitle ? POS_PREFIX + v.__pwTitle : ''; }
+  function savePos(v) {
+    var k = posKey(v);
+    if (!k || !v.duration || !isFinite(v.duration)) return;
+    try {
+      if (v.currentTime < 10 || v.currentTime >= v.duration - 30) localStorage.removeItem(k);
+      else localStorage.setItem(k, String(Math.floor(v.currentTime)));
+    } catch (e) {}
+  }
+  function restorePos(S) {
+    var v = S.v, k = posKey(v);
+    if (!k) return;
+    var t = 0;
+    try { t = parseInt(localStorage.getItem(k) || '0', 10) || 0; } catch (e) {}
+    if (t > 0 && v.duration > 0 && t < v.duration - 30) {
+      v.currentTime = t;
+      log('play', 'resume at ' + t + 's');
+    }
+  }
+
   var CSS = ''
     + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/rubik_regular.ttf) format("truetype");font-weight:400}'
     + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/rubik_medium.ttf) format("truetype");font-weight:500}'
@@ -17,7 +43,7 @@
     + '@font-face{font-family:PWMono;src:url(./composeResources/dev.phantomwatch.res/font/ibmplexmono_regular.ttf) format("truetype");font-weight:400}'
     + '@font-face{font-family:PWMono;src:url(./composeResources/dev.phantomwatch.res/font/ibmplexmono_semibold.ttf) format("truetype");font-weight:600}'
 
-    + '.pw-stage{position:fixed;inset:0;z-index:2;font-family:PWRubik,system-ui,sans-serif;'
+    + '.pw-stage{position:fixed;left:0;top:0;right:auto;bottom:auto;width:100%;height:100%;z-index:2;font-family:PWRubik,system-ui,sans-serif;'
     + 'color:#fff;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}'
     + '.pw-stage *{box-sizing:border-box;margin:0;padding:0}'
     + '.pw-zones{position:absolute;inset:0;display:flex}'
@@ -25,8 +51,9 @@
     + '.pw-fade{opacity:0;visibility:hidden;transition:opacity .25s ' + EASE + ',visibility 0s .25s}'
     + '.pw-stage[data-on="1"] .pw-fade{opacity:1;visibility:visible;transition:opacity .25s ' + EASE + ',visibility 0s}'
 
-    // scrim starts under the header, exactly like the Compose offset
-    + '.pw-scrim{position:absolute;left:0;right:0;bottom:0;top:var(--hh,56px);background:rgba(0,0,0,.4)}'
+    // Full-height: the header sits on top of the scrim (z-index 2), so its icons stay legible
+    // while the picture behind it dims with the rest.
+    + '.pw-scrim{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(0,0,0,.4)}'
 
     + '.pw-top{position:absolute;left:0;right:0;top:0;padding:8px 8px 0 0;display:flex;align-items:center;min-height:56px;z-index:2}'
     + '.pw-ib{background:none;border:0;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}'
@@ -62,6 +89,10 @@
     + '.pw-playbtn:focus-visible{outline:2px solid ' + CYAN + ';outline-offset:2px}'
     + '.pw-playbtn svg{width:26px;height:26px}'
     + '.pw-playbtn[data-paused="1"] svg{width:30px;height:30px}'
+    // The glyph wrapper is 20px elsewhere; here it has to match the icon or the svg overflows
+    // it and the button's flex centring centres the wrapper, not the icon.
+    + '.pw-playbtn .pw-glyph{width:26px;height:26px}'
+    + '.pw-playbtn[data-paused="1"] .pw-glyph{width:30px;height:30px}'
     + '.pw-stage[data-stall="1"] .pw-playbtn,.pw-stage[data-stall="1"] .pw-hud{display:none}'
 
     + '.pw-lock{position:absolute;left:8px;top:50%;width:44px;height:44px;margin-top:-22px;border:0;background:none;'
@@ -112,6 +143,16 @@
     + '.pw-mhead{display:flex;align-items:center;padding:12px 10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer}'
     + '.pw-mhead .pw-glyph{width:16px;height:16px;margin-right:6px;transform:rotate(180deg);opacity:.7}';
 
+  // The stage is sized by the Compose side: on a tablet the video is one pane of a split layout.
+  var STAGE = null;
+  window.pwBounds = function (left, top, width, height) {
+    if (!STAGE) return;
+    STAGE.style.left = left + 'px';
+    STAGE.style.top = top + 'px';
+    STAGE.style.width = width + 'px';
+    STAGE.style.height = height + 'px';
+  };
+
   function el(tag, cls) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -144,6 +185,7 @@
   function build(v) {
     injectCss();
     var st = el('div', 'pw-stage');
+    STAGE = st;
     st.innerHTML =
       '<div class="pw-scrim pw-fade"></div>'
       + '<div class="pw-zones"><div class="pw-zone" data-z="l"></div>'
@@ -166,8 +208,7 @@
     var back = glyph('back', 'pw-back');
     back.setAttribute('aria-label', 'Close player');
     back.addEventListener('click', function () {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else document.dispatchEvent(new Event('pwback'));
+      document.dispatchEvent(new Event('pwback'));
     });
     var title = el('div', 'pw-title');
     var cc = glyph('cc_off', 'pw-cc');
@@ -218,6 +259,7 @@
       formats: [], idx: 0, tracks: [], cues: [], subOn: true, subCur: '', subKey: '',
       pendingSeek: null, speed: 1, open: false, page: 0, auto: true, qh: 0,
     };
+    st.__pwS = S;
     return S;
   }
 
@@ -307,7 +349,13 @@
     var key = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height);
     if (key !== S.subKey) {
       S.subKey = key;
-      var px = r.height * 0.0533;
+      // The app sizes captions off min(shortSide / aspect, drawn height), not the drawn height
+      // alone (PlayerScreen.kt:1242), so a wide window does not inflate them. Fraction 0.0533,
+      // floored at 13dp (15dp in fullscreen).
+      var aspect = r.width / r.height;
+      var shortSide = Math.min(window.innerWidth, window.innerHeight);
+      var basis = Math.min(shortSide / aspect, r.height);
+      var px = Math.max(basis * 0.0533, STAGE && STAGE.dataset.fs === '1' ? 15 : 13);
       S.subsWrap.style.left = r.left + 'px';
       S.subsWrap.style.top = r.top + 'px';
       S.subsWrap.style.width = r.width + 'px';
@@ -347,6 +395,7 @@
       return (/english/i.test(b.l || '') ? 1 : 0) - (/english/i.test(a.l || '') ? 1 : 0);
     });
     var i = 0;
+    if (!list.length) log('subs', 'none offered');
     function tryNext() {
       if (i >= list.length || !S.v.__pw) return;
       var track = list[i++];
@@ -356,13 +405,17 @@
           var cues = parseCues(txt);
           if (!cues.length) throw new Error('no cues');
           if (!S.v.__pw) return;
+          log('subs', 'loaded ' + cues.length + ' cues (' + (track.l || '?') + ')');
           S.cues = cues;
           S.cc.disabled = false;
           S.cc.dataset.off = '0';
           subIcon(S);
           render(S);
         })
-        .catch(function () { tryNext(); });
+        .catch(function (e) {
+          log('subs', 'fail ' + (track.l || '?') + ': ' + (e && e.message));
+          tryNext();
+        });
     }
     tryNext();
   }
@@ -458,14 +511,52 @@
     }, 330);
   }
 
-  function setFullscreen(S, on) {
-    if (on) {
-      var r = S.stage.requestFullscreen && S.stage.requestFullscreen();
-      if (r && r.catch) r.catch(function () {});
-    } else if (document.fullscreenElement) {
-      document.exitFullscreen();
+  // Real fullscreen: the browser only paints the fullscreen element's subtree, and the <video>
+  // is a body child, so it has to be the whole document that goes fullscreen — Compose then
+  // drops to the stage-only layout, which is what the user actually sees.
+  var INAPP = false;
+  function setFullscreen() {
+    if (INAPP) { INAPP = false; document.dispatchEvent(new Event('pwfs')); return; }
+    if (document.fullscreenElement) { document.exitFullscreen().catch(function () {}); return; }
+    var el = document.documentElement;
+    if (!el.requestFullscreen) { INAPP = true; document.dispatchEvent(new Event('pwfs')); return; }
+    try {
+      var p = el.requestFullscreen();
+      if (p && p.catch) p.catch(function () { INAPP = true; document.dispatchEvent(new Event('pwfs')); });
+    } catch (e) {
+      INAPP = true;
+      document.dispatchEvent(new Event('pwfs'));
     }
   }
+  window.pwFsState = function () { return INAPP || !!document.fullscreenElement; };
+  document.addEventListener('fullscreenchange', function () {
+    if (!document.fullscreenElement) INAPP = false;
+    document.dispatchEvent(new Event('pwfs'));
+  });
+
+  // Called by WebPlayer.kt once it has flipped its own fullscreen flag: the video takes the whole
+  // window, so the chrome only has to redraw its icons and unlock itself on the way out.
+  window.pwFullscreen = function (on) {
+    if (!STAGE) return;
+    if (!on && (document.fullscreenElement || INAPP)) {
+      INAPP = false;
+      if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+    }
+    STAGE.dataset.fs = on ? '1' : '0';
+    if (!on) STAGE.dataset.lock = '0';
+    var fsBtn = STAGE.querySelector('.pw-fs');
+    var backBtn = STAGE.querySelector('.pw-back');
+    if (fsBtn) {
+      fsBtn.innerHTML = '<span class="pw-glyph">' + (on ? ICON.fullscreen_exit : ICON.fullscreen) + '</span>';
+      fsBtn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Enter fullscreen');
+    }
+    if (backBtn) {
+      backBtn.innerHTML = '<span class="pw-glyph">' + (on ? ICON.chevron_down : ICON.back) + '</span>';
+      backBtn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Close player');
+    }
+    // The caption size is keyed to the picture rect, so force a re-measure.
+    if (STAGE.__pwS) STAGE.__pwS.subKey = '';
+  };
 
   function wire(S) {
     var v = S.v;
@@ -500,7 +591,7 @@
 
     S.fs.addEventListener('click', function (e) {
       e.stopPropagation();
-      setFullscreen(S, !document.fullscreenElement);
+      setFullscreen();
       poke(S);
     });
 
@@ -546,11 +637,17 @@
       }
       render(S);
     });
+    v.addEventListener('loadedmetadata', function () {
+      if (S.restored) return;
+      S.restored = true;
+      restorePos(S);
+    });
     v.addEventListener('timeupdate', function () {
       var dur = duration(S);
       if (!S.drag && S.scrub != null && dur > 0 && Math.abs(v.currentTime * 1000 - S.scrub * dur) < 1500) {
         S.scrub = null;
       }
+      if (Date.now() - (S.savedAt || 0) > 5000) { S.savedAt = Date.now(); savePos(v); }
       if (S.raf === 0) render(S);
     });
     v.addEventListener('progress', function () { render(S); });
@@ -560,23 +657,20 @@
       if (!v.muted) flash(S, '');
     });
     v.addEventListener('waiting', function () { S.stage.dataset.stall = '1'; });
-    v.addEventListener('playing', function () { S.stage.dataset.stall = '0'; startLoop(S); });
+    v.addEventListener('playing', function () {
+      S.stage.dataset.stall = '0';
+      if (S.loggedAt !== S.idx) {
+        S.loggedAt = S.idx;
+        log('play', 'player ready ' + (S.formats[S.idx] && S.formats[S.idx].l || '?') +
+          ' ' + v.videoWidth + 'x' + v.videoHeight);
+      }
+      startLoop(S);
+    });
     v.addEventListener('canplay', function () { S.stage.dataset.stall = '0'; });
     v.addEventListener('error', function () { S.stage.dataset.stall = '0'; });
 
-    S.onFs = function () {
-      var on = document.fullscreenElement === S.stage;
-      S.subKey = '';
-      S.stage.dataset.fs = on ? '1' : '0';
-      S.fs.innerHTML = '<span class="pw-glyph">' + (on ? ICON.fullscreen_exit : ICON.fullscreen) + '</span>';
-      S.fs.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Enter fullscreen');
-      if (!on) S.stage.dataset.lock = '0';
-      S.back.innerHTML = '<span class="pw-glyph">' + (on ? ICON.chevron_down : ICON.back) + '</span>';
-      S.back.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Close player');
-    };
     S.onKey = onKey(S);
     S.onResize = function () { S.subKey = ''; render(S); };
-    document.addEventListener('fullscreenchange', S.onFs);
     window.addEventListener('keydown', S.onKey);
     window.addEventListener('resize', S.onResize);
   }
@@ -600,7 +694,7 @@
       if (k === 'ArrowLeft') { e.preventDefault(); accSeek(S, 'l'); poke(S); return; }
       if (k === 'ArrowRight') { e.preventDefault(); accSeek(S, 'r'); poke(S); return; }
       if (k === 'm' || k === 'M') { S.v.muted = !S.v.muted; poke(S); return; }
-      if (k === 'f' || k === 'F') { setFullscreen(S, !document.fullscreenElement); poke(S); }
+      if (k === 'f' || k === 'F') { setFullscreen(); poke(S); }
     };
   }
 
@@ -763,6 +857,7 @@
     p.catch(function (err) {
       if (err && err.name === 'AbortError') return;
       if (!v.muted) {
+        log('play', 'autoplay blocked (' + (err && err.name) + '), retrying muted');
         v.muted = true;
         var q = v.play();
         if (q && q.catch) q.catch(function () {});
@@ -774,6 +869,8 @@
   function load(S, item, idx) {
     var v = S.v;
     S.idx = idx == null ? 0 : idx;
+    log('play', 'direct play ' + (item.l || '?') + ' height=' + (item.h || 0) +
+      ' hls=' + (item.h ? 'true' : 'false') + ' #' + S.idx + '/' + S.formats.length);
     v.__pw.list = S.formats;
     v.__pw.i = S.idx;
     S.stage.dataset.stall = '1';
@@ -784,6 +881,8 @@
       var h = new window.Hls({ enableWorker: true });
       h.on(window.Hls.Events.ERROR, function (_, d) {
         if (!d.fatal) return;
+        var code = d.response && d.response.code ? ' http=' + d.response.code : '';
+        log('play', 'player error ' + (d.details || d.type || '?') + code + ' #' + S.idx);
         h.destroy();
         v.__pwHls = null;
         next(S);
@@ -792,7 +891,10 @@
       h.attachMedia(v);
       v.__pwHls = h;
     } else {
-      v.onerror = function () { next(S); };
+      v.onerror = function () {
+        log('play', 'player error code=' + (v.error && v.error.code) + ' #' + S.idx);
+        next(S);
+      };
       v.src = item.u;
     }
     start(S);
@@ -801,8 +903,13 @@
   function next(S) {
     var st = S.v.__pw;
     if (!st) return;
-    if (++st.i < st.list.length) load(S, st.list[st.i], st.i);
-    else S.stage.dataset.stall = '0';
+    if (++st.i < st.list.length) {
+      log('play', 'relink #' + st.i + ' ' + (st.list[st.i].l || '?') + ' at ' + Math.floor(S.v.currentTime) + 's');
+      load(S, st.list[st.i], st.i);
+    } else {
+      log('play', 'player error no source left after ' + st.list.length);
+      S.stage.dataset.stall = '0';
+    }
   }
 
   window.pwAttach = function (v, sourcesJson) {
@@ -846,6 +953,7 @@
   window.pwDetach = function (v) {
     var st = v.__pw;
     if (!st) return;
+    savePos(v);
     v.__pw = null;
     var S = st.S;
     if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
@@ -855,7 +963,6 @@
     clearTimeout(S.flashTimer);
     S.open = false;
     S.menu.dataset.on = '0';
-    document.removeEventListener('fullscreenchange', S.onFs);
     window.removeEventListener('keydown', S.onKey);
     window.removeEventListener('resize', S.onResize);
     v.onerror = null;

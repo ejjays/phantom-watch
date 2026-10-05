@@ -2,7 +2,6 @@ package dev.phantomwatch.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -19,17 +18,22 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import dev.phantomwatch.core.PlaySource
 import dev.phantomwatch.core.SubSource
+import dev.phantomwatch.core.pwLog
 import kotlinx.browser.document
 import org.w3c.dom.HTMLVideoElement
 import org.w3c.dom.events.Event
 
-/**
- * Web player. The phone runs media3 on a SurfaceView; a browser gets a <video> element parked
- * under the same composable rect. Chrome, gestures and keys live in spike/web/player.js because
- * the element paints above the Compose canvas.
- */
+// the phone runs media3 on a SurfaceView; a browser gets a <video> element parked under the
+// same composable rect, with chrome, gestures and keys in spike/web/player.js
 @Composable
-fun WebPlayer(sources: List<PlaySource>, subs: List<SubSource>, title: String, onBack: () -> Unit) {
+fun WebPlayer(
+    sources: List<PlaySource>,
+    subs: List<SubSource>,
+    title: String,
+    onBack: () -> Unit,
+    fullscreen: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val scale = LocalDensity.current.density.takeIf { it > 0f } ?: 1f
     val video = remember { video() }
@@ -48,6 +52,7 @@ fun WebPlayer(sources: List<PlaySource>, subs: List<SubSource>, title: String, o
         onDispose { document.removeEventListener("pwback", onClick) }
     }
     LaunchedEffect(title) { pwTitle(video, title) }
+    LaunchedEffect(fullscreen) { pwFullscreen(fullscreen) }
     LaunchedEffect(bounds, scale) {
         val s = video.style
         s.left = "${(bounds.left / scale).toInt()}px"
@@ -56,26 +61,31 @@ fun WebPlayer(sources: List<PlaySource>, subs: List<SubSource>, title: String, o
         s.height = "${(bounds.height / scale).toInt()}px"
         val ready = bounds.width > 0f
         s.visibility = if (ready) "visible" else "hidden"
-        if (ready) attach(video, sources, subs)
+        if (ready) {
+            attach(video, sources, subs)
+            pwBounds(bounds.left / scale, bounds.top / scale, bounds.width / scale, bounds.height / scale)
+        }
     }
-    Box(Modifier.fillMaxSize().background(Color.Black).onGloballyPositioned { bounds = it.boundsInWindow() })
+    Box(modifier.background(Color.Black).onGloballyPositioned { bounds = it.boundsInWindow() })
 }
 
-// Provided by spike/web/player.js.
+// provided by spike/web/player.js
 private external fun pwAttach(v: HTMLVideoElement, sourcesJson: String)
 
 private external fun pwDetach(v: HTMLVideoElement)
 
 private external fun pwTitle(v: HTMLVideoElement, title: String)
 
+private external fun pwBounds(left: Float, top: Float, width: Float, height: Float)
+
+private external fun pwFullscreen(on: Boolean)
+
 private var attached: String? = null
 
 private fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
 
-// The list is the fallback chain: player.js moves to the next source on a fatal error.
-// hls.js only ever sees HLS; a direct MP4 through it is a fatal error, not a fallback.
-// One JSON document for both lists: player.js keeps the format list for the quality menu and
-// fetches the subtitle track itself (the proxy already serves it with CORS).
+// the list is the fallback chain: player.js moves to the next source on a fatal error, and
+// hls.js only ever sees HLS. one JSON document for both lists
 private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<SubSource>) {
     if (sources.isEmpty()) return
     val json = buildString {
@@ -94,6 +104,7 @@ private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<Su
     }
     if (attached == json) return
     attached = json
+    pwLog("player", "attach ${sources.size} sources, ${subs.size} subs")
     pwAttach(v, json)
 }
 

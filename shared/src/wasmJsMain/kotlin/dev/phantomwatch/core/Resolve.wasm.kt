@@ -14,8 +14,10 @@ data class SubSource(val label: String, val url: String)
 
 data class Resolved(val formats: List<PlaySource>, val subs: List<SubSource>)
 
-// Web only: a browser cannot send the Referer/UA the provider CDNs demand, so a server
-// resolves and relays. Android keeps its native resolver.
+private var lastCfg = -1
+
+// web only: a browser cannot send the Referer/UA the provider CDNs demand, so a server
+// resolves and relays. Android keeps its native resolver
 suspend fun resolveSources(
     server: String, key: String,
     kind: String, id: String, season: String = "", episode: String = "",
@@ -44,5 +46,32 @@ suspend fun resolveSources(
         if (url.isEmpty()) null
         else SubSource(s.optString("label").ifEmpty { "Subtitles" }, url)
     }
+
+    val legs = body.optJSONObject("legs")
+    if (legs != null) {
+        val it = legs.keys()
+        while (it.hasNext()) {
+            val name = it.next()
+            val l = legs.optJSONObject(name) ?: continue
+            val state = when {
+                l.optBoolean("skip") -> "skip"
+                l.optBoolean("ok") -> "ok ${l.optInt("formats")}"
+                else -> "none"
+            }
+            val err = l.optString("err")
+            pwLog("leg", "$name $state ${l.optInt("ms")}ms" + if (err.isEmpty()) "" else " $err")
+        }
+    }
+    val pick = body.optJSONObject("pick")
+    val cfgVersion = body.optInt("cfg")
+    if (cfgVersion != lastCfg) {
+        lastCfg = cfgVersion
+        pwLog("cfg", "v$cfgVersion")
+    }
+    pwLog(
+        "resolve",
+        "$kind/$id -> ${formats.size} formats, ${subs.size} subs, ${body.optInt("ms")}ms, pick " +
+            (pick?.let { "${it.optString("src")} ${it.optInt("h")}p" } ?: "none"),
+    )
     return Resolved(formats, subs)
 }

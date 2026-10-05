@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Phantom Watch</title>
+  <!-- No favicon: an empty data URI stops the console 404 without adding a file. -->
+  <link rel="icon" href="data:,">
   <style>
     html,body{margin:0;height:100%;background:#000;color:#ddd}#app{height:100%}
     #boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
@@ -43,6 +45,20 @@
       console.error = function () { note('error', arguments, false); return orig.apply(console, arguments); };
       window.addEventListener('error', function (e) { note('window.error', [e.error || e.message], true); });
       window.addEventListener('unhandledrejection', function (e) { note('reject', [e.reason], true); });
+    })();
+  </script>
+  <script>
+    // The web counterpart of the phone's AppLog FAB. Every step lands in the console as
+    // "[PW] tag message"; `copy(pwDump())` in DevTools hands back the whole session as text.
+    (function () {
+      var buf = window.__pwLog = [];
+      window.pwLog = function (tag, msg) {
+        buf.push('[' + tag + '] ' + msg);
+        if (buf.length > 800) buf.shift();
+        console.log('%c[PW]%c ' + tag + ' %c' + msg,
+          'color:#22d3ee;font-weight:700', 'color:#f472b6', 'color:#9ca3af');
+      };
+      window.pwDump = function () { return buf.join('\n'); };
     })();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>

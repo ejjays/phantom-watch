@@ -21,8 +21,8 @@ internal val client = HttpClient(Js) {
 
 actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
 
-// A browser drops User-Agent/Referer on its own; sending them is harmless and keeps the
-// call sites identical to Android. Providers that demand them still cannot work here.
+// a browser drops User-Agent/Referer on its own, so sending them keeps the call sites identical
+// to Android. providers that demand them still cannot work here
 actual suspend fun httpJson(url: String, referer: String): JSONObject? {
     var last: Exception? = null
     repeat(3) { attempt ->
@@ -42,6 +42,7 @@ actual suspend fun httpJson(url: String, referer: String): JSONObject? {
             return JSONObject(body)
         } catch (e: Exception) {
             last = e
+            pwLog("http", "${url.substringAfter("://").take(64)} ${e::class.simpleName}: ${e.message}")
             if (e is RuntimeException && e.message?.startsWith("http ") == true) throw e
             delay(1000L * (attempt + 1))
         }
