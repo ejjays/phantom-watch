@@ -103,7 +103,7 @@ import kotlinx.coroutines.withContext
 
 data class RailState(
     val key: String,
-    val title: String,
+    val title: StringResource,
     val path: String,
     val items: List<Title> = emptyList(),
     val page: Int = 1,
@@ -169,7 +169,6 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-    val railLabels = RailDefs.map { stringResource(it.title) }
     var searching by remember { mutableStateOf(false) }
     var searchSeq by remember { mutableStateOf(0) }
     var exploreMore by remember { mutableStateOf(false) }
@@ -184,11 +183,10 @@ fun HomeScreen(
             try {
                 val foundTrending = withContext(ioDispatcher) { Tmdb.trending(key) }
                 val foundRails = withContext(ioDispatcher) {
-                    RailDefs.mapIndexed { i, def ->
-                        val label = railLabels[i]
+                    RailDefs.map { def ->
                         val r = Tmdb.rail(key, def.path, 1)
-                            ?: return@mapIndexed RailState(def.key, label, def.path, emptyList(), 1, 1)
-                        RailState(def.key, label, def.path, r.items, 1, r.totalPages)
+                            ?: return@map RailState(def.key, def.title, def.path, emptyList(), 1, 1)
+                        RailState(def.key, def.title, def.path, r.items, 1, r.totalPages)
                     }
                 }
                 browse.trending = foundTrending.take(12)
@@ -701,7 +699,7 @@ private fun RailSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                rail.title, color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
+                stringResource(rail.title), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
                 fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
             )
             if (!ranked) {
@@ -807,7 +805,7 @@ private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Ti
             .collect { idx -> if (idx != null && idx >= rail.items.size - 3) onEnd() }
     }
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader(rail.title, onBack)
+        ScreenHeader(stringResource(rail.title), onBack)
         LazyVerticalGrid(
             columns = GridCells.Fixed(cols),
             state = state,
