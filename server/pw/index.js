@@ -13,6 +13,17 @@ const PORT = Number(process.env.PORT || 8787);
 const KEY = process.env.PW_KEY || '';
 const SECRET = process.env.PW_SECRET || '';
 const TMDB = process.env.TMDB_KEY || '';
+const TELEMETRY = process.env.TELEMETRY_URL || '';
+const TELEMETRY_KEY = process.env.TELEMETRY_KEY || '';
+
+// The app keeps this map on the device (Torrents.DeadHosts). A relay without it re-tries a CDN
+// that just started 403ing on every single resolve.
+const DEAD = new Map();
+const BAN_MS = 30 * 60 * 1000;
+const hostOf = (u) => { try { return new URL(u).host; } catch (e) { return ''; } };
+const banned = (f) => { const t = DEAD.get(hostOf(f.url)); return t != null && t > Date.now(); };
+const ban = (f) => { const h = hostOf(f.url); if (h) DEAD.set(h, Date.now() + BAN_MS); };
+const forgive = (f) => { DEAD.delete(hostOf(f.url)); };
 
 if (!SECRET) { console.error('PW_SECRET missing'); process.exit(1); }
 
@@ -139,12 +150,28 @@ async function handleResolve(req, res, base) {
   }
 
   const ranked = pw.rank(all).filter((f) => f && f.url);
-  if (ranked.length && !(await alive(ranked[0]))) {
-    stats[ranked[0].src] = Object.assign({}, stats[ranked[0].src], { dead: true });
-    ranked.shift();
-  }
 
-  const pick = ranked[0] || null;
+  // One probe per host, best-ranked first: clears a stale ban, or sets a fresh one. The app gets
+  // this signal from playback failures; the relay has no such feedback, so the probe is all it has.
+  const probed = new Set();
+  const heads = [];
+  for (const f of ranked) {
+    const h = hostOf(f.url);
+    if (!h || probed.has(h)) continue;
+    if (probed.size >= 3) break;
+    probed.add(h);
+    heads.push(f);
+  }
+  await Promise.all(heads.map(async (f) => {
+    if (await alive(f)) { forgive(f); return; }
+    ban(f);
+    stats[f.src] = Object.assign({}, stats[f.src], { dead: true });
+  }));
+
+  // Banned hosts sink to the back of the fallback chain, like the app's rankLast.
+  const ordered = ranked.filter((f) => !banned(f)).concat(ranked.filter(banned));
+
+  const pick = ordered[0] || null;
   const wire = (f) => ({
     url: proxyUrl(base, f.url, headersFor(f)),
     h: Number.isFinite(f.height) ? f.height : 0,
@@ -155,9 +182,34 @@ async function handleResolve(req, res, base) {
   });
   const usable = pick ? subs.filter((s) => !s.src || String(pick.label || '').startsWith(s.src) || s.src === pick.src) : subs;
 
+  // Same event probe.js posts, so /health and the alerts see web traffic too.
+  if (TELEMETRY) {
+    const tel = {};
+    for (const r of legs) {
+      if (r.skipped) continue;
+      const maxH = r.formats.reduce((a, f) => Math.max(a, f.height || 0), 0);
+      const en = r.subs.some((s) => /english/i.test(s.label || ''));
+      tel[r.leg] = [r.formats.length, r.ms, maxH, en ? 1 : 0];
+    }
+    fetch(TELEMETRY, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        k: TELEMETRY_KEY, src: 'web', v: 'web', cfg: cfg.version || 0,
+        kind: job.kind, id: job.tmdbId, s: job.season, e: job.episode,
+        ms: Date.now() - t0, f: ordered.length, pick: pick ? pick.src : '', legs: tel,
+        h: pick && Number.isFinite(pick.height) ? pick.height : 0,
+        hls: pick && pick.isHls ? 1 : 0,
+        ens: pick && pick.enSubs ? 1 : 0,
+      }),
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => {});
+  }
+
   return json(res, 200, {
+    cfg: cfg.version || 0,
     pick: pick ? wire(pick) : null,
-    formats: ranked.slice(0, 12).map(wire),
+    formats: ordered.slice(0, 12).map(wire),
     subs: usable.map((s) => ({ label: s.label || 'Subtitles', url: proxyUrl(base, s.url, subHeaders(s, pick)), src: s.src })),
     legs: stats,
     ms: Date.now() - t0,
