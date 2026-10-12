@@ -66,7 +66,6 @@ private fun dubLabel(l: String): String = l.substringBefore(" · ")
 
 internal fun speedLabel(s: Float): String = if (s == s.toInt().toFloat()) "${s.toInt()}×" else "${s}×"
 
-// panel hangs under the top bar like a real player's gear menu: same edge as the gear, one page deep
 @Composable
 internal fun PlayerSettingsMenu(
     topPad: Dp,
@@ -83,7 +82,6 @@ internal fun PlayerSettingsMenu(
     onDismiss: () -> Unit,
 ) {
     var page by remember { mutableStateOf(0) }
-    // the sheet is 232dp at most, so the pinned resolution has to give way to the row's own title
     val phone = LocalConfiguration.current.smallestScreenWidthDp < 600
     val first = remember { FocusRequester() }
     val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
@@ -100,7 +98,6 @@ internal fun PlayerSettingsMenu(
             Modifier.align(Alignment.TopEnd).padding(top = topPad, end = 12.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
                 .widthIn(max = minOf(maxWidth * 0.55f, 232.dp))
-                // the portrait pane is short and the sheet covers its lower half, so fit the pane
                 .heightIn(max = paneH?.minus(topPad)?.coerceAtLeast(96.dp) ?: (maxHeight * 0.55f))
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black.copy(alpha = 0.92f))
@@ -116,12 +113,16 @@ internal fun PlayerSettingsMenu(
             when (page) {
                 1 -> {
                     SettingsHeader(stringResource(R.string.player_settings_quality)) { page = 0 }
-                    SettingsRow(stringResource(R.string.player_settings_auto), if (quality <= 0) qualityNow else null, 0, chevron = false, selected = quality <= 0) {
-                        AppLog.d("quality auto")
-                        onPickQuality(0)
+                    // one rung means auto and that rung are the same choice, so auto is noise
+                    if (qualities.size > 1) {
+                        SettingsRow(stringResource(R.string.player_settings_auto), if (quality <= 0) qualityNow else null, 0, chevron = false, selected = quality <= 0) {
+                            AppLog.d("quality auto")
+                            onPickQuality(0)
+                        }
                     }
                     qualities.forEach { r ->
-                        SettingsRow(r.label, null, 0, chevron = false, selected = r.height == quality) {
+                        val only = qualities.size == 1 && quality <= 0
+                        SettingsRow(r.label, null, 0, chevron = false, selected = only || r.height == quality) {
                             AppLog.d("quality ${r.label} h=${r.height}")
                             onPickQuality(r.height)
                         }
@@ -150,7 +151,6 @@ internal fun PlayerSettingsMenu(
                     }
                 }
                 else -> {
-                    // shown even for a one-rung stream: it is the only way to see what is playing
                     if (qualities.isNotEmpty()) {
                         val pinned = if (quality > 0) qualities.firstOrNull { it.height == quality }?.label else null
                         val autoLabel = if (qualityNow != null && !phone) {
