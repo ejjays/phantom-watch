@@ -102,8 +102,6 @@ enum class SeekSide { Left, Right }
 
 data class SeekMark(val side: SeekSide, val total: Int)
 
-data class SwipeHud(val brightness: Boolean, val frac: Float)
-
 fun playerClock(ms: Long): String {
     val s = (ms / 1000).toInt().coerceAtLeast(0)
     val h = s / 3600
@@ -185,7 +183,8 @@ fun PlayerStage(
         cfg.smallestScreenWidthDp < 600
     val atEdge = fullscreen || landscapePhone
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
-    val edgePx = with(LocalDensity.current) { (topInset + 12.dp).toPx() }
+    // only a stage that owns the window edge has to give the status bar its swipe strip
+    val edgePx = with(LocalDensity.current) { (if (atEdge) topInset else 0.dp).toPx() }
     // one bottom inset, never two: the caller's own lift and atEdge must not stack
     val navPad = if (atEdge) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() else 0.dp
     val edgeSides = (if (atEdge) WindowInsets.navigationBars else WindowInsets(0))
@@ -300,8 +299,11 @@ fun PlayerStage(
                 )
             }
         }
+        // The swipe readout owns the screen while it is up, exactly like YouTube: the chrome fades
+        // so the pill never lands on a button.
+        val chrome = controlsVisible && !locked && swipeHud == null
         AnimatedVisibility(
-            visible = controlsVisible && !locked,
+            visible = chrome,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
         ) {
@@ -370,7 +372,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = controlsVisible && !stalled && !locked,
+            visible = chrome && !stalled,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + scaleIn(
                 tween(300, easing = FastOutSlowInEasing), initialScale = 0.85f,
             ),
@@ -394,7 +396,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = fullscreen && lockButton && controlsVisible,
+            visible = fullscreen && lockButton && controlsVisible && swipeHud == null,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
             modifier = Modifier.align(Alignment.CenterStart)
@@ -417,7 +419,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = fullscreen && rotateButton && controlsVisible,
+            visible = fullscreen && rotateButton && controlsVisible && swipeHud == null,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
             modifier = Modifier.align(Alignment.CenterEnd)
@@ -440,8 +442,13 @@ fun PlayerStage(
             }
         }
         // Headers first in child order would sit under the scrim Box below, so it is drawn last and
-        // pulled above it with a zIndex instead.
-        if (controlsVisible && !locked) {
+        // pulled above it with a zIndex instead. A swipe readout takes the top strip for itself, as
+        // on YouTube, so the bar fades out instead of sitting under the pill.
+        AnimatedVisibility(
+            visible = chrome,
+            enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
+            exit = fadeOut(tween(150, easing = FastOutSlowInEasing)),
+        ) {
             // Fullscreen shows the status bar again, so the header has to follow it down — on a phone
             // the bar is tall enough to tuck the title into its empty lower half instead.
             Column(
@@ -512,12 +519,20 @@ fun PlayerStage(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
-        if (swipeHud != null) {
-            SwipeHudPill(
-                swipeHud,
-                Modifier.align(if (swipeHud.brightness) Alignment.CenterStart else Alignment.CenterEnd)
-                    .padding(horizontal = 40.dp),
-            )
+        // Top of the picture, under the status bar whatever the mode: the pane already sits below
+        // it, fullscreen/landscape own the window edge, and the theater sheet hands its inset back.
+        val hud = swipeHud
+        var lastHud by remember { mutableStateOf<SwipeHud?>(null) }
+        LaunchedEffect(hud) { if (hud != null) lastHud = hud }
+        val shownHud = hud ?: lastHud
+        AnimatedVisibility(
+            visible = hud != null,
+            enter = fadeIn(tween(120)),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier.align(Alignment.TopCenter)
+                .padding(top = (topPad ?: if (atEdge) topInset else 0.dp) + 12.dp),
+        ) {
+            shownHud?.let { SwipeHudPill(it, Modifier.width(minOf(maxWidth * 0.62f, 220.dp))) }
         }
         val mark = seekMark
         var lastMark by remember { mutableStateOf<SeekMark?>(null) }
@@ -845,48 +860,6 @@ private fun SkipIntroPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
             painterResource(R.drawable.ic_chevron_right),
             contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp),
         )
-    }
-}
-
-@Composable
-private fun SwipeHudPill(hud: SwipeHud, modifier: Modifier = Modifier) {
-    Box(
-        modifier.width(40.dp).height(150.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.Black.copy(alpha = 0.6f)),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Column(
-            Modifier.fillMaxSize().padding(vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                painterResource(
-                    when {
-                        hud.brightness -> R.drawable.ic_brightness
-                        hud.frac <= 0f -> R.drawable.ic_volume_off
-                        else -> R.drawable.ic_volume_on
-                    },
-                ),
-                contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.height(12.dp))
-            Box(
-                Modifier.weight(1f).width(3.dp).clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.BottomCenter,
-            ) {
-                Box(
-                    Modifier.fillMaxWidth().fillMaxHeight(hud.frac.coerceIn(0f, 1f))
-                        .clip(RoundedCornerShape(2.dp)).background(Color.White),
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "${(hud.frac * 100).roundToInt()}",
-                color = Color.White, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
-            )
-        }
     }
 }
 
