@@ -10,12 +10,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Snackbar
@@ -33,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,11 +61,13 @@ fun HistoryScreen(
     onBack: () -> Unit,
     onPlay: (Recent) -> Unit,
     onDelete: (Recent) -> Unit,
-    onRestore: (List<Recent>) -> Unit,
+    onRestore: (Recent, Int) -> Unit,
 ) {
     val host = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val undoLabel = stringResource(Res.string.history_undo)
+    // a swipe settles against the list as it is now, not the one this card was first composed with
+    val latest = rememberUpdatedState(recent)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ScreenHeader(stringResource(Res.string.history_title), onBack)
@@ -81,25 +85,36 @@ fun HistoryScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(recent, key = { "history-${it.kind}-${it.id}" }) { r ->
+                    itemsIndexed(recent, key = { _, r -> "history-${r.kind}-${r.id}" }) { i, r ->
                         val removedMsg = stringResource(Res.string.history_removed, r.title)
-                        ContinueCard(r, gridW, onPlay) { gone ->
-                            val before = recent
+                        ContinueCard(r, gridW, onPlay, Modifier.animateItem()) { gone ->
+                            // undo puts this one card back where it was; restoring a snapshot would
+                            // also resurrect anything deleted since this card was composed
+                            val at = latest.value.indexOfFirst {
+                                it.kind == gone.kind && it.id == gone.id &&
+                                    it.season == gone.season && it.episode == gone.episode
+                            }.takeIf { it >= 0 } ?: i
                             onDelete(gone)
                             scope.launch {
+                                // newest swipe owns the bar: a queued snackbar would keep the old
+                                // title on screen while a different card just vanished
+                                host.currentSnackbarData?.dismiss()
                                 val done = host.showSnackbar(
                                     message = removedMsg,
                                     actionLabel = undoLabel,
                                     duration = SnackbarDuration.Short,
                                 )
-                                if (done == SnackbarResult.ActionPerformed) onRestore(before)
+                                if (done == SnackbarResult.ActionPerformed) onRestore(gone, at)
                             }
                         }
                     }
                 }
             }
         }
-        SnackbarHost(host, Modifier.align(Alignment.BottomCenter)) {
+        SnackbarHost(
+            host,
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 12.dp),
+        ) {
             Snackbar(snackbarData = it, containerColor = SurfaceColor, contentColor = Slate100, actionColor = Cyan)
         }
     }
@@ -110,6 +125,7 @@ private fun ContinueCard(
     r: Recent,
     width: Dp,
     onPlay: (Recent) -> Unit,
+    modifier: Modifier = Modifier,
     onDelete: (Recent) -> Unit,
 ) {
     val frac = if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else 0f
@@ -118,7 +134,7 @@ private fun ContinueCard(
     val badgeInset = (radius * 0.34f).coerceAtLeast(8.dp)
     val dismiss = rememberSwipeToDismissBoxState(
         confirmValueChange = {
-            if (it == SwipeToDismissBoxValue.EndToStart) onDelete(r)
+            if (it != SwipeToDismissBoxValue.Settled) onDelete(r)
             true
         },
     )
@@ -126,7 +142,7 @@ private fun ContinueCard(
     LaunchedEffect(Unit) { dismiss.reset() }
     SwipeToDismissBox(
         state = dismiss,
-        enableDismissFromStartToEnd = false,
+        modifier = modifier,
         backgroundContent = {},
     ) {
         Column(Modifier.width(width).pressClick { onPlay(r) }) {

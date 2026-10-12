@@ -402,7 +402,9 @@ fun HomeScreen(
                                 }
                                 scope.launch(ioDispatcher) { onRemoveRecent(r) }
                             },
-                            onRestore = { list ->
+                            onRestore = { r, at ->
+                                val list = browse.recent.toMutableList()
+                                list.add(at.coerceIn(0, list.size), r)
                                 browse.recent = list
                                 scope.launch(ioDispatcher) { onRestoreRecent(list) }
                             },
