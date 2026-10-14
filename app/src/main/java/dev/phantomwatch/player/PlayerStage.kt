@@ -122,6 +122,8 @@ fun PlayerStage(
     durationMs: Long,
     intro: LongRange? = null,
     onSkipIntro: () -> Unit = {},
+    outro: LongRange? = null,
+    onNextEpisode: (() -> Unit)? = null,
     dubs: List<Dub> = emptyList(),
     currentDub: String? = null,
     onPickDub: (Dub) -> Unit = {},
@@ -556,14 +558,17 @@ fun PlayerStage(
                 }
             }
         }
-        if (intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip) {
+        val inIntro = intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip
+        val inOutro = !inIntro && outro != null && onNextEpisode != null && durationMs > 0 && positionMs in outro && !Pip.inPip
+        if (inIntro || inOutro) {
             // the pane's own bottom is under the info sheet, so it has to ride the video shift like
             // the seek bar does or the pill is drawn behind the sheet in portrait
-            SkipIntroPill(
-                Modifier.align(Alignment.BottomEnd)
+            PlayerPill(
+                text = stringResource(if (inIntro) R.string.player_skip_intro else R.string.player_next_episode),
+                modifier = Modifier.align(Alignment.BottomEnd)
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
                     .padding(end = 16.dp, bottom = maxOf(seekInset, navPad) + if (controlsVisible) 64.dp else 16.dp),
-            ) { onSkipIntro() }
+            ) { if (inIntro) onSkipIntro() else onNextEpisode?.invoke() }
         }
         if (stalled && showSpinner) {
             Box(
@@ -850,7 +855,7 @@ private fun ScrubPreview(
 }
 
 @Composable
-private fun SkipIntroPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun PlayerPill(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
         modifier.height(32.dp).clip(RoundedCornerShape(16.dp))
             .background(Color.Black.copy(alpha = 0.55f))
@@ -864,7 +869,7 @@ private fun SkipIntroPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            stringResource(R.string.player_skip_intro), color = Color.White, fontSize = 12.sp,
+            text, color = Color.White, fontSize = 12.sp,
             fontFamily = Rubik, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
         )
         Spacer(Modifier.width(1.dp))

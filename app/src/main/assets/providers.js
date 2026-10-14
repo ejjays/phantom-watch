@@ -706,8 +706,10 @@
     auto.enSubs = enSubs;
     auto.enAudio = e2.audio;
     var intro = introOf((ep.skipData || {}).intro);
+    var outro = introOf((ep.skipData || {}).outro);
     var formats = [auto].concat(rungs);
     if (intro) formats.forEach(function (f) { f.intro = intro; });
+    if (outro) formats.forEach(function (f) { f.outro = outro; });
     return { formats: formats, subs: subs };
   }
 

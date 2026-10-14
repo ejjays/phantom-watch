@@ -6,6 +6,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SkipTimesTest {
+    private val opening = listOf("op", "mixed-op")
+
     @Test
     fun picksTheOpeningWindowInMillis() {
         val json = JSONObject(
@@ -13,7 +15,7 @@ class SkipTimesTest {
                 {"skipType":"op","interval":{"startTime":55.2,"endTime":145.0}},
                 {"skipType":"ed","interval":{"startTime":1338.0,"endTime":1428.0}}]}""",
         )
-        assertEquals(55200L..145000L, SkipTimes.windowOf(json))
+        assertEquals(55200L..145000L, SkipTimes.windowOf(json, opening))
     }
 
     @Test
@@ -24,12 +26,22 @@ class SkipTimesTest {
                 {"skipType":"recap","interval":{"startTime":30.0,"endTime":40.0}},
                 {"skipType":"mixed-op","interval":{"startTime":186.0,"endTime":276.0}}]}""",
         )
-        assertEquals(186000L..276000L, SkipTimes.windowOf(json))
+        assertEquals(186000L..276000L, SkipTimes.windowOf(json, opening))
+    }
+
+    @Test
+    fun picksTheEndingWindowWhenAskedForIt() {
+        val json = JSONObject(
+            """{"found":true,"results":[
+                {"skipType":"op","interval":{"startTime":3.392,"endTime":93.392}},
+                {"skipType":"ed","interval":{"startTime":1317.66,"endTime":1375.66}}]}""",
+        )
+        assertEquals(1317660L..1375660L, SkipTimes.windowOf(json, listOf("ed")))
     }
 
     @Test
     fun noOpeningMeansNoWindow() {
-        assertNull(SkipTimes.windowOf(JSONObject("""{"found":false,"results":[]}""")))
-        assertNull(SkipTimes.windowOf(JSONObject("{}")))
+        assertNull(SkipTimes.windowOf(JSONObject("""{"found":false,"results":[]}"""), opening))
+        assertNull(SkipTimes.windowOf(JSONObject("{}"), opening))
     }
 }

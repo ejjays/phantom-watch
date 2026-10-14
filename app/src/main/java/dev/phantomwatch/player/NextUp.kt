@@ -47,12 +47,12 @@ import kotlinx.coroutines.withContext
 
 private const val NEXT_SECONDS = 10
 
-private data class NextUp(val season: String, val episode: String, val name: String)
+internal data class NextUp(val season: String, val episode: String, val name: String)
 
 internal fun nextInSeason(numbers: List<Int>, current: Int): Int? =
     numbers.filter { it > current }.minOrNull()
 
-private suspend fun findNextUp(id: String, season: String, episode: String): NextUp? {
+internal suspend fun findNextUp(id: String, season: String, episode: String): NextUp? {
     val s = season.toIntOrNull() ?: return null
     val e = episode.toIntOrNull() ?: return null
     val key = RemoteConfig.tmdbKey()
@@ -65,6 +65,16 @@ private suspend fun findNextUp(id: String, season: String, episode: String): Nex
         ?: Tmdb.season(key, id, next.number).also { if (it.isNotEmpty()) DetailCache.putEpisodes("tv", id, next.number, it) }
     val first = more.firstOrNull() ?: return null
     return NextUp(next.number.toString(), first.n.toString(), first.name)
+}
+
+@Composable
+internal fun rememberNextUp(media: Title, season: String, episode: String): NextUp? {
+    var up by remember(media.id, season, episode) { mutableStateOf<NextUp?>(null) }
+    LaunchedEffect(media.id, season, episode) {
+        if (media.kind != "tv") return@LaunchedEffect
+        up = withContext(Dispatchers.IO) { runCatching { findNextUp(media.id, season, episode) }.getOrNull() }
+    }
+    return up
 }
 
 @Composable

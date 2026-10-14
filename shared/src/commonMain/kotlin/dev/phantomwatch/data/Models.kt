@@ -80,6 +80,7 @@ data class Stream(
     val intro: LongRange? = null,
     val dub: String? = null,
     val dubs: List<Dub> = emptyList(),
+    val outro: LongRange? = null,
 )
 
 // a dub plays only its own captions: the sub cut's timing drifts against dub audio
@@ -93,7 +94,6 @@ data class RailPage(
     val totalPages: Int,
 )
 
-// one "continue watching" row entry
 data class Recent(
     val kind: String,
     val id: String,

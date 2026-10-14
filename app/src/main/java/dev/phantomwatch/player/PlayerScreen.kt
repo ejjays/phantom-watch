@@ -713,10 +713,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var locked by remember { mutableStateOf(false) }
     var positionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
-    LaunchedEffect(live.url, durationMs > 0) {
-        if (live.intro == null && durationMs > 0) SkipTimes.fallback(media.id, episode.ifBlank { "1" }, durationMs)?.let { live = live.copy(intro = it) }
-        live.intro?.let { AppLog.d("intro ${it.first / 1000}-${it.last / 1000}s") }
-    }
+    LaunchedEffect(live.url, durationMs > 0) { live = SkipTimes.fill(live, media.id, season, episode, durationMs) }
     var bufferedMs by remember { mutableStateOf(0L) }
     var videoW by remember { mutableStateOf(0) }
     var videoH by remember { mutableStateOf(0) }
@@ -1008,6 +1005,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         } catch (_: Exception) {
         }
     }
+    val next = rememberNextUp(media, season, episode)
     @Composable
     fun stage(
         seekInset: androidx.compose.ui.unit.Dp,
@@ -1035,6 +1033,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         positionMs = positionMs,
         durationMs = durationMs,
         intro = live.intro, dubs = live.dubs,
+        outro = live.outro, onNextEpisode = next?.let { up -> { onEpisode(up.season, up.episode) } },
         currentDub = live.dub, onPickDub = ::playDub,
         qualities = q.rungs, quality = q.current, qualityNow = nowLabel, onPickQuality = { pickQuality(exo, q.group, it) },
         speed = speed, onPickSpeed = { speed = it; speedNote = "Speed ${speedLabel(it)}"; AppLog.d("speed ${it}x") },
