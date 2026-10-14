@@ -181,6 +181,7 @@ fun PlayerStage(
     val cfg = LocalConfiguration.current
     val landscapePhone = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
         cfg.smallestScreenWidthDp < 600
+    val portrait = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     val atEdge = fullscreen || landscapePhone
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     // only a stage that owns the window edge has to give the status bar its swipe strip
@@ -525,6 +526,8 @@ fun PlayerStage(
         var lastHud by remember { mutableStateOf<SwipeHud?>(null) }
         LaunchedEffect(hud) { if (hud != null) lastHud = hud }
         val shownHud = hud ?: lastHud
+        // a portrait pane is the whole phone width, so the readout has to stay a compact fraction of it
+        val hudW = if (portrait) minOf(maxWidth * 0.5f, 180.dp) else minOf(maxWidth * 0.62f, 220.dp)
         AnimatedVisibility(
             visible = hud != null,
             enter = fadeIn(tween(120)),
@@ -532,7 +535,7 @@ fun PlayerStage(
             modifier = Modifier.align(Alignment.TopCenter)
                 .padding(top = (topPad ?: if (atEdge) topInset else 0.dp) + 12.dp),
         ) {
-            shownHud?.let { SwipeHudPill(it, Modifier.width(minOf(maxWidth * 0.62f, 220.dp))) }
+            shownHud?.let { SwipeHudPill(it, Modifier.width(hudW)) }
         }
         val mark = seekMark
         var lastMark by remember { mutableStateOf<SeekMark?>(null) }
