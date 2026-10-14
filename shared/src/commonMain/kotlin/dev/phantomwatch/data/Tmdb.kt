@@ -4,6 +4,9 @@ import dev.phantomwatch.core.Log
 import dev.phantomwatch.json.JSONObject
 import dev.phantomwatch.core.httpJson
 import dev.phantomwatch.core.ioDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 object Tmdb {
     suspend fun imdbOf(tmdb: String, kind: String, key: String): String? = kotlinx.coroutines.withContext(ioDispatcher) {
@@ -56,7 +59,7 @@ object Tmdb {
         return out.distinctBy { it.kind to it.id }
     }
 
-    /** Null means the request failed — never a page count of 1, which would end pagination. */
+    // null means the request failed; a page count of 1 would end pagination
     suspend fun rail(apiKey: String, path: String, page: Int = 1): RailPage? {
         return try {
             val data = httpJson(
@@ -184,21 +187,152 @@ object Tmdb {
     }
 
     suspend fun similar(apiKey: String, kind: String, id: String): List<Title> {
+        val path = if (kind == "movie") "movie" else "tv"
+        val ref = "https://www.themoviedb.org/"
         return try {
-            val path = if (kind == "movie") "movie" else "tv"
-            val data = httpJson(
-                "${TmdbHost.base}/$path/$id/similar?api_key=$apiKey",
-                "https://www.themoviedb.org/",
-            ) ?: return emptyList()
-            val results = data.optJSONArray("results") ?: return emptyList()
-            val out = mutableListOf<Title>()
-            for (i in 0 until results.length()) {
-                titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
+            val (anchor, recs, sims) = coroutineScope {
+                val a = async {
+                    runCatching {
+                        httpJson("${TmdbHost.base}/$path/$id?api_key=$apiKey&append_to_response=credits", ref)
+                    }.getOrNull()
+                }
+                val r = async {
+                    runCatching {
+                        httpJson("${TmdbHost.base}/$path/$id/recommendations?api_key=$apiKey", ref)
+                    }.getOrNull()
+                }
+                val s = async {
+                    runCatching {
+                        httpJson("${TmdbHost.base}/$path/$id/similar?api_key=$apiKey", ref)
+                    }.getOrNull()
+                }
+                Triple(a.await(), r.await(), s.await())
             }
-            out.distinctBy { it.kind to it.id }
+            val lang = anchor?.optString("original_language").orEmpty()
+            val genres = mutableSetOf<Int>()
+            anchor?.optJSONArray("genres")?.let { arr ->
+                for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { genres.add(it.optInt("id", -1)) }
+            }
+            val year = anchor?.optString("release_date").orEmpty()
+                .ifEmpty { anchor?.optString("first_air_date").orEmpty() }.take(4).toIntOrNull() ?: 0
+
+            // the same director or lead beats a genre match, and is the only signal that pulls a
+            // franchise title out of its own sequels
+            val credits = anchor?.optJSONObject("credits")
+            val crew = credits?.optJSONArray("crew")
+            val director = if (crew == null) null else (0 until crew.length()).firstNotNullOfOrNull { i ->
+                crew.optJSONObject(i)?.takeIf { it.optString("job") == "Director" }?.optInt("id", -1)?.takeIf { it > 0 }
+            }
+            val lead = credits?.optJSONArray("cast")?.optJSONObject(0)?.optInt("id", -1)?.takeIf { it > 0 }
+            val shelves = if (kind != "movie") emptyList() else coroutineScope {
+                listOfNotNull(
+                    director?.let { "${TmdbHost.base}/discover/movie?api_key=$apiKey&with_crew=$it&sort_by=vote_count.desc&vote_count.gte=300" to 3.0 },
+                    lead?.let { "${TmdbHost.base}/discover/movie?api_key=$apiKey&with_cast=$it&sort_by=vote_count.desc&vote_count.gte=300" to 2.6 },
+                ).map { (url, weight) ->
+                    async { picks(runCatching { httpJson(url, ref) }.getOrNull(), weight) }
+                }.awaitAll()
+            }
+
+            val byId = LinkedHashMap<String, Pick>()
+            for (p in picks(recs, 3.0) + picks(sims, 1.0) + shelves.flatten()) {
+                val k = "${p.title.kind}:${p.title.id}"
+                val old = byId[k]
+                if (old == null || p.source > old.source) byId[k] = p
+            }
+
+            fun score(p: Pick): Double {
+                var s = p.source
+                if (lang.isNotEmpty() && p.lang == lang) s += 2.5
+                s += p.genres.count { it in genres }.coerceAtMost(2) * 1.2
+                // IMDb-style weighted rating: a 7.5 from 118 votes must not beat an 8.2 from 2 000
+                val w = p.votes.toDouble()
+                s += ((w * p.rating + 500 * 6.5) / (w + 500) - 6.5) * 0.9
+                if (year > 0 && p.year > 0) s -= kotlin.math.abs(p.year - year).coerceAtMost(40) * 0.012
+                return s
+            }
+
+            fun rank(list: Collection<Pick>) = list.sortedWith(
+                compareByDescending<Pick> { score(it) }.thenByDescending { it.votes },
+            )
+
+            var ranked = rank(byId.values.filter { it.title.id != id && it.votes >= 25 && it.rating >= 5.5 })
+            if (ranked.size < 8 && genres.isNotEmpty()) {
+                val langParam = if (lang.isNotEmpty()) "&with_original_language=$lang" else ""
+                val extra = runCatching {
+                    httpJson(
+                        "${TmdbHost.base}/discover/$path?api_key=$apiKey&with_genres=${genres.joinToString(",")}" +
+                            "&sort_by=vote_count.desc&vote_count.gte=300$langParam",
+                        ref,
+                    )
+                }.getOrNull()
+                val have = byId.keys.toMutableSet()
+                val add = picks(extra, 0.5)
+                    .filter { it.rating >= 5.5 && have.add("${it.title.kind}:${it.title.id}") }
+                ranked = rank(ranked + add)
+            }
+            // TMDB hands back every Batman film for a Batman film: a shared title word pushes the
+            // rest of that family down, so the row stays varied
+            val picked = mutableListOf<Pick>()
+            val seen = HashMap<String, Int>()
+            val pool = ranked.toMutableList()
+            while (pool.isNotEmpty() && picked.size < 20) {
+                var best = 0
+                var bestScore = Double.NEGATIVE_INFINITY
+                for (i in pool.indices) {
+                    val s = score(pool[i]) - titleTokens(pool[i].title.title).sumOf { 1.8 * (seen[it] ?: 0) }
+                    if (s > bestScore) {
+                        bestScore = s
+                        best = i
+                    }
+                }
+                val p = pool.removeAt(best)
+                titleTokens(p.title.title).forEach { seen[it] = (seen[it] ?: 0) + 1 }
+                picked.add(p)
+            }
+            picked.map { it.title }
         } catch (_: Exception) {
             emptyList()
         }
+    }
+
+    private val StopWords = setOf(
+        "the", "and", "with", "from", "that", "this", "part", "movie", "film", "story", "into", "your", "their",
+    )
+
+    private fun titleTokens(title: String): Set<String> =
+        title.lowercase().split(Regex("[^a-z0-9]+"))
+            .filter { it.length >= 4 && it !in StopWords }
+            .toSet()
+
+    private class Pick(
+        val title: Title,
+        val votes: Int,
+        val rating: Double,
+        val lang: String,
+        val genres: Set<Int>,
+        val year: Int,
+        val source: Double,
+    )
+
+    private fun picks(data: JSONObject?, source: Double): List<Pick> {
+        val results = data?.optJSONArray("results") ?: return emptyList()
+        val out = mutableListOf<Pick>()
+        for (i in 0 until results.length()) {
+            val e = results.optJSONObject(i) ?: continue
+            val t = titleOf(e) ?: continue
+            if (t.poster == null) continue
+            val genres = mutableSetOf<Int>()
+            e.optJSONArray("genre_ids")?.let { arr ->
+                for (j in 0 until arr.length()) genres.add(arr.optInt(j, -1))
+            }
+            out.add(
+                Pick(
+                    t, e.optInt("vote_count"), e.optDouble("vote_average", 0.0),
+                    e.optString("original_language"), genres, t.year?.toIntOrNull() ?: 0, source,
+                ),
+            )
+        }
+        return out
     }
 
     suspend fun season(apiKey: String, tvId: String, season: Int): List<Episode> {
