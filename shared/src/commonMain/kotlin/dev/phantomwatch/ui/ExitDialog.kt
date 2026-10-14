@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,15 +35,11 @@ import dev.phantomwatch.res.*
 @Composable
 fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
     val shape = RoundedCornerShape(26.dp)
-    // One size everywhere: the card is capped at 380dp, so a tablet-only step just looked oversized.
-    // Most of the mark sits above the card, ~18dp overlaps the edge.
     val icon = 64.dp
     val overhang = icon * 0.714f
     Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        // The top padding is the icon's overhang, so the window does not clip its upper half.
-        // fillMaxWidth must come after widthIn, or it forces the node past the 380dp cap and the
-        // card sits off-centre inside a wider invisible box on tablets.
-        Box(Modifier.padding(horizontal = 24.dp).widthIn(max = 380.dp).fillMaxWidth().padding(top = overhang)) {
+        BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(minOf(maxWidth * 0.78f, 380.dp)).padding(top = overhang)) {
             Column(
                 Modifier.fillMaxWidth().clip(shape).background(SurfaceColor)
                     .border(1.dp, Color.White.copy(alpha = 0.08f), shape)
@@ -71,6 +68,7 @@ fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
                 painterResource(Res.drawable.phantom_logo), contentDescription = null,
                 modifier = Modifier.align(Alignment.TopCenter).offset(y = -overhang).size(icon),
             )
+            }
         }
     }
 }

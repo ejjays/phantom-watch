@@ -139,8 +139,8 @@
     <string name="hero_runtime_hm">%1$dh %2$dm</string>
     <string name="hero_runtime_m">%1$dm</string>
 
-    <string name="exit_title">Exit Phantom Watch?</string>
-    <string name="exit_body">Your progress is saved, so you can pick up right where you left off.</string>
+    <string name="exit_title">Confirm Exit?</string>
+    <string name="exit_body">Come back soon.</string>
     <string name="exit_confirm">Exit</string>
 
     <string name="rail_popular">Top 10 Movies Today</string>
