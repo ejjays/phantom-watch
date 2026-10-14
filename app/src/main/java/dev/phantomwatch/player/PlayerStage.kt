@@ -557,8 +557,12 @@ fun PlayerStage(
             }
         }
         if (intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip) {
+            // the pane's own bottom is under the info sheet, so it has to ride the video shift like
+            // the seek bar does or the pill is drawn behind the sheet in portrait
             SkipIntroPill(
-                Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
+                Modifier.align(Alignment.BottomEnd)
+                    .offset { IntOffset(0, -shiftPx().roundToInt()) }
+                    .padding(end = 16.dp, bottom = maxOf(seekInset, navPad) + if (controlsVisible) 64.dp else 16.dp),
             ) { onSkipIntro() }
         }
         if (stalled && showSpinner) {
@@ -848,20 +852,25 @@ private fun ScrubPreview(
 @Composable
 private fun SkipIntroPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
-        modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.7f))
-            .focusRing(RoundedCornerShape(50)).clickable(
+        modifier.height(32.dp).clip(RoundedCornerShape(16.dp))
+            .background(Color.Black.copy(alpha = 0.55f))
+            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .focusRing(RoundedCornerShape(16.dp)).clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
             )
-            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 12.dp, end = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(stringResource(R.string.player_skip_intro), color = Color.White, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(4.dp))
+        Text(
+            stringResource(R.string.player_skip_intro), color = Color.White, fontSize = 12.sp,
+            fontFamily = Rubik, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
+        )
+        Spacer(Modifier.width(1.dp))
         Icon(
             painterResource(R.drawable.ic_chevron_right),
-            contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp),
+            contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp),
         )
     }
 }

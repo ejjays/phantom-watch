@@ -715,6 +715,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var durationMs by remember { mutableStateOf(0L) }
     LaunchedEffect(live.url, durationMs > 0) {
         if (live.intro == null && durationMs > 0) SkipTimes.fallback(media.id, episode.ifBlank { "1" }, durationMs)?.let { live = live.copy(intro = it) }
+        live.intro?.let { AppLog.d("intro ${it.first / 1000}-${it.last / 1000}s") }
     }
     var bufferedMs by remember { mutableStateOf(0L) }
     var videoW by remember { mutableStateOf(0) }
