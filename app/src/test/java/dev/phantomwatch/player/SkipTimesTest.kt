@@ -44,4 +44,23 @@ class SkipTimesTest {
         assertNull(SkipTimes.windowOf(JSONObject("""{"found":false,"results":[]}"""), opening))
         assertNull(SkipTimes.windowOf(JSONObject("{}"), opening))
     }
+
+    @Test
+    fun openEndedCreditsRunToTheEndOfTheFile() {
+        val json = JSONObject("""{"credits":[{"start_ms":3183000,"end_ms":null}]}""")
+        assertEquals(3183000L..3240000L, SkipTimes.creditsWindow(json, 3240000L))
+    }
+
+    @Test
+    fun creditsFromALongerCutAreClampedOrDropped() {
+        val json = JSONObject("""{"credits":[{"start_ms":3183000,"end_ms":3400000}]}""")
+        assertEquals(3183000L..3240000L, SkipTimes.creditsWindow(json, 3240000L))
+        assertNull(SkipTimes.creditsWindow(json, 3000000L))
+    }
+
+    @Test
+    fun creditsAtZeroMeanUntimed() {
+        assertNull(SkipTimes.creditsWindow(JSONObject("""{"credits":[{"start_ms":0,"end_ms":0}]}"""), 3_000_000L))
+        assertNull(SkipTimes.creditsWindow(JSONObject("""{"intro":[{"start_ms":1000,"end_ms":2000}]}"""), 3_000_000L))
+    }
 }

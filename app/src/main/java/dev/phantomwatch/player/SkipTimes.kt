@@ -22,7 +22,7 @@ object SkipTimes {
         return null
     }
 
-    /** Fills whatever the provider did not send: opening from AniSkip, ending from IntroDB first. */
+    // fills what the provider did not send: opening from AniSkip, ending from the indexes
     suspend fun fill(s: Stream, tmdbId: String, season: String, episode: String, durationMs: Long): Stream {
         if (durationMs < 60_000) return s
         var out = s
@@ -31,7 +31,7 @@ object SkipTimes {
             outro(tmdbId, out.imdb, season.ifBlank { "1" }, episode.ifBlank { "1" }, durationMs)?.let { out = out.copy(outro = it) }
         }
         out.intro?.let { AppLog.d("intro ${it.first / 1000}-${it.last / 1000}s") }
-        out.outro?.let { AppLog.d("outro ${it.first / 1000}-${it.last / 1000}s") }
+        out.outro?.let { AppLog.d("outro ${it.first / 1000}-${it.last / 1000}s dur=${durationMs / 1000}s") }
         return out
     }
 
@@ -39,15 +39,41 @@ object SkipTimes {
         aniSkip(tmdbId, episode, durationMs, "types[]=op&types[]=mixed-op", listOf("op", "mixed-op"))
     }
 
+    // each index is timed on one release, so a window that starts past the end describes another cut
     suspend fun outro(tmdbId: String, imdb: String?, season: String, episode: String, durationMs: Long): LongRange? =
         withContext(Dispatchers.IO) {
             val s = season.toIntOrNull()
             val e = episode.toIntOrNull()
-            val window = if (s != null && e != null) introDb(imdb, s, e) else null
-            window ?: aniSkip(tmdbId, episode, durationMs, "types[]=ed", listOf("ed"))
+            fun fits(w: LongRange?) = w?.takeIf { it.first in 1 until durationMs }
+            val tv = if (s != null && e != null) introDb(imdb, s, e) else null
+            val anime = if (fits(tv) == null) aniSkip(tmdbId, episode, durationMs, "types[]=ed", listOf("ed")) else null
+            fits(tv) ?: fits(anime) ?: fits(if (s != null && e != null) theIntroDb(imdb, s, e, durationMs) else null)
         }
 
-    // community-timed, no key, and the only source that covers live-action too
+    // TVDB-mapped credits, and end_ms is usually null, i.e. "runs to the end": the one shape that
+    // still lands on the credits when the provider serves a shorter cut
+    private suspend fun theIntroDb(imdb: String?, season: Int, episode: Int, durationMs: Long): LongRange? {
+        val id = imdb?.removePrefix("tt")?.takeIf { it.isNotEmpty() } ?: return null
+        val json = runCatching {
+            Http.getJson(
+                "https://api.theintrodb.org/v4/media?imdb_id=tt$id&season=$season&episode=$episode",
+                "https://theintrodb.org/",
+            )
+        }.getOrNull() ?: return null
+        return creditsWindow(json, durationMs)?.also {
+            AppLog.d("theintrodb tt$id s${season}e$episode ${it.first / 1000}-${it.last / 1000}s")
+        }
+    }
+
+    internal fun creditsWindow(json: JSONObject, durationMs: Long): LongRange? {
+        val c = json.optJSONArray("credits")?.optJSONObject(0) ?: return null
+        val start = if (c.has("start_ms")) c.optLong("start_ms") else (c.optDouble("start_sec") * 1000).toLong()
+        if (start <= 0) return null
+        val end = if (c.has("end_ms")) c.optLong("end_ms") else 0L
+        val last = if (end > start) minOf(end, durationMs) else durationMs
+        return if (start < last) start..last else null
+    }
+
     private suspend fun introDb(imdb: String?, season: Int, episode: Int): LongRange? {
         val id = imdb?.removePrefix("tt")?.takeIf { it.isNotEmpty() } ?: return null
         val json = runCatching {

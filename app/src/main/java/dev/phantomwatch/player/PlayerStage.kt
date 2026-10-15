@@ -176,6 +176,8 @@ fun PlayerStage(
     var headerH by remember { mutableFloatStateOf(0f) }
     var settings by remember { mutableStateOf(false) }
     val keys = onKeySeek
+    val inIntro = intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip
+    val inOutro = !inIntro && outro != null && onNextEpisode != null && durationMs > 0 && positionMs in outro && !Pip.inPip
     val stageFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { if (keys != null) stageFocus.requestFocus() }
     // the stage sits on the window edge in fullscreen and on phones in landscape; the portrait pane
@@ -271,6 +273,15 @@ fun PlayerStage(
                     }
                     e.key == Key.F -> {
                         onFullscreen()
+                        true
+                    }
+                    // the pills are the only way to advance or skip, so the keys ride the same window
+                    e.key == Key.N && inOutro -> {
+                        onNextEpisode?.invoke()
+                        true
+                    }
+                    e.key == Key.S && inIntro -> {
+                        onSkipIntro()
                         true
                     }
                     else -> false
@@ -558,8 +569,7 @@ fun PlayerStage(
                 }
             }
         }
-        val inIntro = intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip
-        val inOutro = !inIntro && outro != null && onNextEpisode != null && durationMs > 0 && positionMs in outro && !Pip.inPip
+        LaunchedEffect(inOutro) { if (inOutro) AppLog.d("outro pill on ${positionMs / 1000}s") }
         if (inIntro || inOutro) {
             // the pane's own bottom is under the info sheet, so it has to ride the video shift like
             // the seek bar does or the pill is drawn behind the sheet in portrait

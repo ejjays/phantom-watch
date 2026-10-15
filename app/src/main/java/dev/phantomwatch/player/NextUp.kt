@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import dev.phantomwatch.R
+import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
@@ -58,6 +59,12 @@ internal suspend fun findNextUp(id: String, season: String, episode: String): Ne
     val key = RemoteConfig.tmdbKey()
     val eps = DetailCache.episodes("tv", id, s)
         ?: Tmdb.season(key, id, s).also { if (it.isNotEmpty()) DetailCache.putEpisodes("tv", id, s, it) }
+    // no season data is "unknown", not "no next episode": without a target the pill and the end
+    // card both vanish and the episode can only be advanced by hand
+    if (eps.isEmpty()) {
+        AppLog.d("next up guess s${s}e${e + 1}, no season data")
+        return NextUp(s.toString(), (e + 1).toString(), "")
+    }
     val n = nextInSeason(eps.map { it.n }, e)
     if (n != null) return NextUp(s.toString(), n.toString(), eps.firstOrNull { it.n == n }?.name.orEmpty())
     val next = DetailCache.detail("tv", id)?.seasons?.firstOrNull { it.number > s } ?: return null
@@ -73,8 +80,23 @@ internal fun rememberNextUp(media: Title, season: String, episode: String): Next
     LaunchedEffect(media.id, season, episode) {
         if (media.kind != "tv") return@LaunchedEffect
         up = withContext(Dispatchers.IO) { runCatching { findNextUp(media.id, season, episode) }.getOrNull() }
+        AppLog.d("next up ${up?.let { "s${it.season}e${it.episode}" } ?: "none"}")
     }
     return up
+}
+
+// timings are cut for another release, so clamp to this file: a window that stops before the end
+// was cut for this release's structure and is trusted; one that runs to the end is the ambiguous
+// "credits at the end" case the indexes get a minute wrong, so it never surfaces past three minutes
+internal fun outroWindow(known: LongRange?, durationMs: Long, hasNext: Boolean): LongRange? {
+    if (durationMs <= 0) return known
+    val latest = (durationMs - 180_000).coerceAtLeast(0)
+    if (known != null && known.first < durationMs) {
+        val start = (known.first - 15_000).coerceAtLeast(0)
+        val precise = known.last < durationMs - 5_000
+        return (if (precise) start else minOf(start, latest))..minOf(known.last, durationMs)
+    }
+    return if (hasNext) latest..durationMs else null
 }
 
 @Composable
@@ -101,6 +123,7 @@ internal fun NextUpHost(
     LaunchedEffect(ended) {
         if (!ended) return@LaunchedEffect
         if (next == null) next = withContext(Dispatchers.IO) { runCatching { findNextUp(media.id, season, episode) }.getOrNull() }
+        AppLog.d("ended next=${next?.let { "s${it.season}e${it.episode}" } ?: "none"}")
         val up = next ?: return@LaunchedEffect
         left = NEXT_SECONDS
         while (left > 0) {

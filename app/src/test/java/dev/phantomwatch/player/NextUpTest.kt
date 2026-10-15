@@ -54,4 +54,15 @@ class NextUpTest {
         assertEquals(2, nextInSeason(listOf(1, 3, 2), 1))
         assertNull(nextInSeason(listOf(1, 2, 3), 3))
     }
+
+    @Test
+    fun outroWindowNeverOpensLaterThanThreeMinutesFromTheEnd() {
+        // credits running to the end of the file: capped, a late index must not hide the pill
+        assertEquals(2_270_000L..2_450_000L, outroWindow(2_387_000L..2_450_000L, 2_450_000L, true))
+        // an ED that stops before the next-episode preview is trusted, minus the lead-in
+        assertEquals(1_302_000L..1_376_000L, outroWindow(1_317_000L..1_376_000L, 1_407_000L, true))
+        // no index at all still offers the last three minutes
+        assertEquals(2_270_000L..2_450_000L, outroWindow(null, 2_450_000L, true))
+        assertNull(outroWindow(null, 2_450_000L, false))
+    }
 }
