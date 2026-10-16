@@ -123,7 +123,7 @@ fun DetailScreen(
     var detail by remember(item.id) { mutableStateOf(DetailCache.detail(item.kind, item.id)) }
     var failed by remember { mutableStateOf(false) }
     var attempt by remember { mutableStateOf(0) }
-    var episodesOpen by remember(startEpisodes) { mutableStateOf(startEpisodes) }
+    var episodesOpen by remember(startEpisodes) { mutableStateOf(startEpisodes && item.kind != "movie") }
     var checking by remember { mutableStateOf(false) }
     var photosReady by remember { mutableStateOf(detail != null) }
     PlatformBackHandler(enabled = true) { onClose() }

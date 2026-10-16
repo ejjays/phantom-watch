@@ -305,6 +305,8 @@ fun HomeScreen(
         focusManager.clearFocus()
         val t = Aliases.resolve(item)
         browse.openTitle = t
+        // the flag is for the title you just played, not the next one you tap
+        browse.backToEpisodes = false
         selected = t
         recents.removeAll { it.kind == t.kind && it.id == t.id }
         recents.add(0, t)
