@@ -8,23 +8,25 @@
   <link rel="icon" href="data:,">
   <style>
     html,body{margin:0;height:100%;background:#000;color:#ddd}#app{height:100%}
-    #boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-      font:14px system-ui,sans-serif;color:#888;pointer-events:none}
+    #boot{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:14px;pointer-events:none}
+    #boot img{width:96px;height:96px;animation:pw-pulse 1.6s ease-in-out infinite}
+    #boot-msg{font:12px system-ui,sans-serif;color:#777;max-width:70ch;text-align:center}
+    @keyframes pw-pulse{0%,100%{opacity:.45}50%{opacity:1}}
+    @media (prefers-reduced-motion:reduce){#boot img{animation:none;opacity:.8}}
   </style>
   <script type="importmap">
   { "imports": { "@js-joda/core": "./node_modules/@js-joda/core/dist/js-joda.esm.js" } }
   </script>
   <script>
-    // A 24 MB wasm leaves the page black for a while; say so instead of looking broken.
+    // A 24 MB wasm leaves the page black for a while; the logo pulses instead of looking broken.
     (function () {
-      var t0 = Date.now();
       function boot() { return document.getElementById('boot'); }
       var iv = setInterval(function () {
         var b = boot();
         if (!b) return;
         var app = document.getElementById('app');
-        if (app && app.childElementCount > 0) { clearInterval(iv); b.remove(); return; }
-        b.textContent = 'Loading… ' + Math.round((Date.now() - t0) / 1000) + 's';
+        if (app && app.childElementCount > 0) { clearInterval(iv); b.remove(); }
       }, 250);
       var seen = [];
       // console.error is a diagnostic channel (Kotlin/Wasm prints deprecation notices there),
@@ -37,8 +39,9 @@
           catch (e) { parts.push('?'); }
         }
         seen.push(kind + ': ' + parts.join(' | '));
-        var b = boot();
-        if (b) b.textContent = seen.join(' // ').slice(0, 400);
+        // Only a fatal throw replaces the logo; console.error is too noisy to paint over it.
+        var m = fatal && document.getElementById('boot-msg');
+        if (m) m.textContent = seen.join(' // ').slice(0, 400);
         if (fatal) document.title = 'PWERR ' + seen.join(' // ').slice(0, 500);
       }
       var orig = console.error;
@@ -69,7 +72,7 @@
 </head>
 <body>
 <div id="app"></div>
-<div id="boot">Loading…</div>
+<div id="boot"><img src="./phantom.svg" alt="Phantom Watch"><div id="boot-msg"></div></div>
 <script type="module" src="./kotlin/PhantomWatch-spike.mjs"></script>
 </body>
 </html>
