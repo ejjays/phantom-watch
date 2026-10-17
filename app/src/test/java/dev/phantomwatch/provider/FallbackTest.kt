@@ -56,4 +56,18 @@ class FallbackTest {
         val list = listOf(f("https://vap/x", "vap-auto", 804))
         assertEquals("https://vap/x", Providers.nextFormat(list, "https://z/q", emptySet()) { false }?.url)
     }
+
+    @Test
+    fun englishSubsBeatAHigherRealRung() {
+        val auto = f("https://vix/x", "vix-auto", 720).copy(enSubs = true)
+        val real = f("https://rock/y", "rock-1080p", 1080)
+        assertEquals("https://vix/x", Providers.nextFormat(listOf(auto, real), "https://z/q", emptySet()) { false }?.url)
+    }
+
+    @Test
+    fun aRealRungWithTheSameEnglishSubsBeatsAuto() {
+        val auto = f("https://vix/x", "vix-auto", 1080).copy(enSubs = true)
+        val real = f("https://vix/y", "vix-1080p", 1080).copy(enSubs = true)
+        assertEquals("https://vix/y", Providers.nextFormat(listOf(auto, real), "https://z/q", emptySet()) { false }?.url)
+    }
 }

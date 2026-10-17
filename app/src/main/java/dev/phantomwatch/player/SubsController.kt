@@ -23,6 +23,7 @@ import dev.phantomwatch.torrent.DownloadControl
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,7 +31,7 @@ import kotlinx.coroutines.withContext
 internal class SubsController(
     private val context: Context,
     private val exo: ExoPlayer,
-    private val stream: Stream,
+    private val streamProvider: () -> Stream,
     private val season: String,
     private val episode: String,
     private val download: DownloadControl?,
@@ -38,6 +39,8 @@ internal class SubsController(
     private val tracks: () -> Tracks?,
     private val attach: (List<Sub>, Uri?, Long, Boolean) -> Unit,
 ) {
+    private val stream: Stream get() = streamProvider()
+
     var subsOff by mutableStateOf(false)
         private set
     var aiSubUrl by mutableStateOf<String?>(null)
@@ -47,7 +50,8 @@ internal class SubsController(
 
     private var aiCues: List<SubtitleCue> = emptyList()
     private var aiRunning = false
-    private var osRunning = false
+    private var osJob: Job? = null
+    private var osFor = ""
     private var lastNeed = 0
     private var lastSubSel = ""
 
@@ -64,12 +68,17 @@ internal class SubsController(
     }
 
     fun runOsSubs() {
-        if (osRunning) return
-        osRunning = true
-        scope.launch {
+        val s = stream
+        if (s.url != osFor) {
+            osFor = s.url
+            osJob?.cancel()
+            osJob = null
+        }
+        if (osJob?.isActive == true) return
+        osJob = scope.launch {
             try {
                 // a dub speaks a different script than the sub cut OS hashes against: its captions drift
-                if (stream.dub != null) {
+                if (s.dub != null) {
                     AppLog.d("os skipped, dub cut")
                     return@launch
                 }
@@ -78,7 +87,7 @@ internal class SubsController(
                     AppLog.d("os no api key")
                     return@launch
                 }
-                if (stream.enSubs) {
+                if (s.enSubs) {
                     AppLog.d("os skipped, provider en subs")
                     return@launch
                 }
@@ -87,7 +96,8 @@ internal class SubsController(
                     AppLog.d("os skipped, ai subs on")
                     return@launch
                 }
-                if (stream.subs.isNotEmpty()) {
+                // provider subs only fill the gap when one of them is English
+                if (hasEnglishSubs(s.subs)) {
                     AppLog.d("os skipped, stream subs")
                     return@launch
                 }
@@ -101,9 +111,9 @@ internal class SubsController(
                     AppLog.d("os skipped, embed subs")
                     return@launch
                 }
-                val headers = mediaHeaders(stream)
-                if (!stream.isHls) {
-                    val hh = withContext(Dispatchers.IO) { OsSubs.hashOf(stream.url, headers) }
+                val headers = mediaHeaders(s)
+                if (!s.isHls) {
+                    val hh = withContext(Dispatchers.IO) { OsSubs.hashOf(s.url, headers) }
                     if (hh != null) {
                         val (hash, size) = hh
                         AppLog.d("os hash $hash $size")
@@ -114,7 +124,7 @@ internal class SubsController(
                                 }
                             }
                         if (hf != null) {
-                            showOsSub(hf, hash)
+                            showOsSub(hf, hash, s)
                             return@launch
                         }
                         AppLog.d("os no hash match")
@@ -122,7 +132,7 @@ internal class SubsController(
                         AppLog.d("os unhashable")
                     }
                 }
-                val im = stream.imdb
+                val im = s.imdb
                 if (im.isNullOrEmpty()) {
                     AppLog.d("os no imdb, stop")
                     return@launch
@@ -130,7 +140,7 @@ internal class SubsController(
                 AppLog.d("os imdb $im")
                 val ck = if (season.isEmpty()) "imdb-$im" else "imdb-$im-s$season-e$episode"
                 OsSubs.cached(context.cacheDir, ck)?.let { f ->
-                    showOsSub(f, ck)
+                    showOsSub(f, ck, s)
                     return@launch
                 }
                 val f = withContext(Dispatchers.IO) {
@@ -142,7 +152,7 @@ internal class SubsController(
                     AppLog.d("os imdb none")
                     return@launch
                 }
-                showOsSub(f, ck)
+                showOsSub(f, ck, s)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -151,9 +161,9 @@ internal class SubsController(
         }
     }
 
-    private fun showOsSub(f: java.io.File, hash: String) {
+    private fun showOsSub(f: java.io.File, hash: String, s: Stream) {
         val label = "English (OpenSubtitles)"
-        val merged = (stream.subs + Sub(label, Uri.fromFile(f).toString())).distinctBy { it.url }
+        val merged = (s.subs + Sub(label, Uri.fromFile(f).toString())).distinctBy { it.url }
         osTrack = "en:$label"
         attach(merged, null, exo.currentPosition, exo.isPlaying)
         AppLog.d("subs source=OpenSubtitles $hash")
@@ -230,15 +240,16 @@ internal class SubsController(
     }
 
     suspend fun sync() {
-        AiSubtitles.attach(context, exo, stream, scope, season, episode)
+        val s = stream
+        AiSubtitles.attach(context, exo, s, scope, season, episode)
         try {
-            if (stream.inSync) {
+            if (s.inSync) {
                 AppLog.d("sync skipped, same-release subs")
                 return
             }
             runQwenSubs()
             val c = download
-            if (c != null && !stream.inSync) {
+            if (c != null && !s.inSync) {
                 var waited = 0
                 var lastAiDl = 0L
                 while (waited < 600000) {

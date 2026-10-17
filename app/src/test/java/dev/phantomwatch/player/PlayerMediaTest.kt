@@ -3,6 +3,7 @@ package dev.phantomwatch.player
 import androidx.media3.common.C
 import androidx.media3.common.TrackSelectionParameters
 import dev.phantomwatch.data.Stream
+import dev.phantomwatch.data.Sub
 import dev.phantomwatch.subs.SubtitleCue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -102,5 +103,11 @@ class PlayerMediaTest {
         assertEquals("0:00", playerClock(0))
         assertEquals("1:05", playerClock(65000))
         assertEquals("1:02:03", playerClock(3723000))
+    }
+
+    @Test
+    fun onlyEnglishProviderSubsFillTheGap() {
+        assertFalse(hasEnglishSubs(listOf(Sub("Deutsch", "de"), Sub("Français", "fr"))))
+        assertTrue(hasEnglishSubs(listOf(Sub("Deutsch", "de"), Sub("English", "en"))))
     }
 }

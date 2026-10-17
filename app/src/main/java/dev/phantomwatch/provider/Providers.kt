@@ -302,22 +302,25 @@ object Providers {
     ): VideoFormat? {
         val pool = formats.filter { it.url != failedUrl && it.url !in dead }
         val open = pool.filterNot { blocked(it.url) }.ifEmpty { pool }
-        // an "auto" rung advertises a height it may not serve: only take one when nothing real is left
-        fun real(f: VideoFormat) = !f.label.endsWith("-auto")
-        return open.firstOrNull { real(it) && it.height >= 720 }
-            ?: open.firstOrNull { real(it) }
-            ?: open.firstOrNull()
+        val first = open.firstOrNull() ?: return null
+        // the list is already ranked, so an English-sub leg is first. an "auto" rung advertises
+        // a height it may not serve; prefer a real rung only when it keeps those subtitles
+        if (!first.label.endsWith("-auto")) return first
+        val real = open.filter { !it.label.endsWith("-auto") && it.enSubs == first.enSubs }
+        return real.firstOrNull { it.height >= 720 } ?: real.firstOrNull() ?: first
     }
 
-    suspend fun nextStream(media: Title, season: String, episode: String, failedUrl: String): Stream? {
-        // the bundle is usually cached; a re-resolve must not hold the player on a spinner
-        val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode) } ?: return null
+    suspend fun nextStream(media: Title, season: String, episode: String, failedUrl: String, fresh: Boolean = false): Stream? {
+        // the first fallback is served from the 5-min bundle; a later failure may mean its
+        // signed urls expired, so that one gets a fresh resolve
+        val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode, fresh) } ?: return null
         val f = nextFormat(b.formats, failedUrl, Torrents.DeadReleases.urls, Torrents.DeadHosts::blocked)
             ?: return null
         AppLog.d("fallback ${providerName(f)} ${f.label} h=${f.height}")
         return Stream(
             url = f.url, isHls = f.isHls, subs = subsFor(f, b.subs), referer = f.referer,
             sampleMp4 = null, imdb = b.imdb, headers = f.headers, enSubs = f.enSubs, intro = f.intro,
+            dub = f.dub, outro = f.outro,
         )
     }
 }

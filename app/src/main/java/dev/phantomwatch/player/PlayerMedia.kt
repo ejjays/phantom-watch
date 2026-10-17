@@ -16,6 +16,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.FileDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -23,6 +24,8 @@ import androidx.media3.exoplayer.ScrubbingModeParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
@@ -30,6 +33,7 @@ import dev.phantomwatch.lan.LanShare
 import dev.phantomwatch.subs.SubtitleCue
 import dev.phantomwatch.subs.Subtitles
 import dev.phantomwatch.torrent.DownloadControl
+import dev.phantomwatch.torrent.Torrents
 
 internal fun trackName(f: Format): String {
     val lab = f.label ?: ""
@@ -89,6 +93,9 @@ internal fun looksEnglish(name: String): Boolean {
     val l = name.lowercase()
     return l.substringBefore(":").startsWith("en") || "english" in l
 }
+
+// provider tracks only fill the gap when one of them is actually English
+internal fun hasEnglishSubs(subs: List<Sub>): Boolean = subs.any { looksEnglish(it.label) }
 
 internal fun <B : TrackSelectionParameters.Builder> B.textTrack(disabled: Boolean): B =
     apply { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, disabled) }
@@ -169,6 +176,36 @@ internal fun mediaHeaders(stream: Stream): Map<String, String> {
         ref + (stream.auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
 }
 
+// 429 is a rate limit and 403 is usually an expired token or a geo block: retrying either for
+// 15s only holds the player on a spinner before the same response. Surface them at once and let
+// the player switch to another leg.
+@UnstableApi
+private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
+    override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+        val code = (loadErrorInfo.exception as? HttpDataSource.InvalidResponseCodeException)?.responseCode
+        if (code == 403 || code == 429) return C.TIME_UNSET
+        return super.getRetryDelayMsFor(loadErrorInfo)
+    }
+}
+
+// expired DNS is not transient (brief ban), 429 is backpressure (short cooldown), 403 is a dead token (long ban)
+internal fun noteDeadHost(chain: String, code: Int?, url: String) {
+    when {
+        chain.contains("UnknownHostException") -> {
+            Torrents.DeadHosts.mark(url, 1)
+            AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(url)}")
+        }
+        code == 429 -> {
+            Torrents.DeadHosts.cooldown(url, 10)
+            AppLog.d("player rate limited host ${Torrents.DeadHosts.hostOf(url)}")
+        }
+        code == 403 -> {
+            Torrents.DeadHosts.mark(url, 24)
+            AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(url)}")
+        }
+    }
+}
+
 @OptIn(UnstableApi::class)
 internal fun buildMediaFactory(
     context: android.content.Context,
@@ -176,7 +213,7 @@ internal fun buildMediaFactory(
     headers: Map<String, String>,
     download: DownloadControl?,
 ): DefaultMediaSourceFactory {
-    val retry = androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(6)
+    val retry = FailFastLoadPolicy()
     if (stream.url.startsWith("file")) {
         // incomplete torrent file: hide the length so Exo plays progressively
         // instead of seeking cue tables that are not downloaded yet

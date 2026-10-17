@@ -284,11 +284,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     LaunchedEffect(speed) { exo.setPlaybackSpeed(speed) }
     LaunchedEffect(speedNote) { if (speedNote != null) { delay(1200); speedNote = null } }
     val subsScope = rememberCoroutineScope()
-    val subs = remember(exo, stream, download) {
+    val subs = remember(exo, download) {
         SubsController(
             context = context,
             exo = exo,
-            stream = stream,
+            streamProvider = { live },
             season = season,
             episode = episode,
             download = download,
@@ -451,12 +451,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 AppLog.d("player error ${error.errorCodeName} http=${cause?.responseCode} pos=${exo.currentPosition / 1000}s buf=${exo.bufferedPosition / 1000}s dur=${exo.duration / 1000}s")
                 AppLog.d("player cause $chain")
                 AppLog.d("player stack ${android.util.Log.getStackTraceString(error).take(3000)}")
-                if (cause?.responseCode == 429 || cause?.responseCode == 403 || chain.contains("UnknownHostException")) {
-                    // a dead DNS entry is not transient; ban briefly so fallback stops re-picking it
-                    val ttl = if (chain.contains("UnknownHostException")) 1L else 24L
-                    Torrents.DeadHosts.mark(live.url, ttl)
-                    AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(live.url)}")
-                }
+                noteDeadHost(chain, cause?.responseCode, live.url)
                 if (stats.startup == 0L) Providers.dubBase(live)?.let { b -> AppLog.d("dub fell back to base"); live = b; attachSubs(b.subs, null, b, exo.currentPosition); return }
                 if (chain.contains("FileNotFound") || chain.contains("ENOENT")) {
                     try {
@@ -572,10 +567,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     } else if (directErrs <= 3 && (errPos >= 60_000 || errPos < 10_000)) {
                         resumeJob?.cancel()
                         resumeJob = resumeScope.launch {
+                            // the resolve bundle is cached for 5 min: reuse it instead of hitting
+                            // every provider again, and take the new leg's own subs/flags
                             val fresh = try {
                                 withContext(Dispatchers.IO) {
-                                    Providers.directAll(media.id, media.kind, season, episode, media.title)
-                                }.first.firstOrNull { it.url !in Torrents.DeadReleases.urls }
+                                    Providers.nextStream(media, season, episode, live.url, fresh = directErrs > 1)
+                                }
                             } catch (_: Exception) {
                                 null
                             }
@@ -583,8 +580,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                                 AppLog.d("player relink none")
                                 return@launch
                             }
-                            live = live.copy(url = fresh.url, isHls = fresh.isHls, referer = fresh.referer, subs = Providers.subsFor(fresh, live.subs), headers = fresh.headers)
-                            AppLog.d("player relink ${fresh.label} hls=${fresh.isHls} at ${errPos / 1000}s")
+                            // keep the dub menu: a fallback leg rarely carries its own cuts
+                            live = fresh.copy(dubs = live.dubs)
+                            AppLog.d("player relink hls=${fresh.isHls} enSubs=${fresh.enSubs} subs=${fresh.subs.size} at ${errPos / 1000}s")
                             attach(errPos)
                         }
                     }
@@ -631,9 +629,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             }
         }
     }
-    LaunchedEffect(stream.url) { subs.runOsSubs() }
-    LaunchedEffect(stream.url) { subs.sync() }
-    LaunchedEffect(stream.url) { subs.watchSelection() }
+    LaunchedEffect(live.url) { subs.runOsSubs() }
+    LaunchedEffect(live.url) { subs.sync() }
+    LaunchedEffect(live.url) { subs.watchSelection() }
     LaunchedEffect(stream.url) {
         if (stream.auth == null && download == null) return@LaunchedEffect
         while (true) {

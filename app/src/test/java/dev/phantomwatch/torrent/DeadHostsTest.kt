@@ -18,4 +18,12 @@ class DeadHostsTest {
         Torrents.DeadHosts.forgive("https://err.example/a")
         assertFalse(Torrents.DeadHosts.blocked("https://err.example/a"))
     }
+
+    @Test
+    fun aRateLimitCooldownExpiresWithoutAProbe() {
+        Torrents.DeadHosts.cooldown("https://rate.example/a", 10)
+        assertTrue(Torrents.DeadHosts.blocked("https://rate.example/a"))
+        Torrents.DeadHosts.cooldown("https://rate.example/a", 0)
+        assertFalse(Torrents.DeadHosts.blocked("https://rate.example/a"))
+    }
 }

@@ -130,7 +130,8 @@ object Torrents {
     }
 
     object DeadHosts {
-        private val mem = mutableSetOf<String>()
+        // host -> ban expiry, so a short cooldown can expire inside the same process
+        private val mem = java.util.concurrent.ConcurrentHashMap<String, Long>()
         private val hang = mutableMapOf<String, Long>()
         private var prefs: android.content.SharedPreferences? = null
 
@@ -148,32 +149,47 @@ object Torrents {
             }
 
         fun mark(url: String, hours: Long = 24) {
+            ban(url, System.currentTimeMillis() + hours * 3_600_000)
+        }
+
+        // a 429 is a transient rate limit, not a dead host; keep it out of the 24h list
+        fun cooldown(url: String, minutes: Long = 10) {
+            ban(url, System.currentTimeMillis() + minutes * 60_000)
+        }
+
+        private fun ban(url: String, until: Long) {
             val h = hostOf(url)
             if (h.isEmpty()) return
-            mem.add(h)
+            mem[h] = until
             try {
-                prefs?.edit()?.putLong(h, System.currentTimeMillis() + hours * 3_600_000)?.apply()
+                prefs?.edit()?.putLong(h, until)?.apply()
             } catch (_: Exception) {
             }
         }
 
         fun blocked(url: String): Boolean {
             val h = hostOf(url)
-            if (h.isEmpty() || h in mem) return h in mem
+            if (h.isEmpty()) return false
+            val now = System.currentTimeMillis()
+            val cached = mem[h]
+            if (cached != null) {
+                if (cached > now) return true
+                mem.remove(h)
+            }
             val until = try {
                 prefs?.getLong(h, 0) ?: 0
             } catch (_: Exception) {
                 0
             }
-            if (until > System.currentTimeMillis()) {
-                mem.add(h)
+            if (until > now) {
+                mem[h] = until
                 return true
             }
             return false
         }
 
-        // a hang is not one probe away from being fine - the host served the manifest and still
-        // stalled - so only its own expiry clears it, never the re-admit probe
+        // a hang is not one probe away from fine: the host served the manifest and still stalled,
+        // so only its own expiry clears it, never the re-admit probe
         fun markHang(url: String, hours: Long = 2) {
             mark(url, hours)
             val h = hostOf(url)
@@ -281,8 +297,6 @@ object TorrentEngine {
     suspend fun download(e: TorrentRelease, dir: File): TorrentHandle {
         val s = ensure()
         if (!dir.exists()) dir.mkdirs()
-        // sequential_download bit, see torrent_flags.hpp: pieces arrive in
-        // order so the header is parseable within megabytes, not gigabytes
         s.download(Torrents.magnet(e), dir, torrent_flags_t.from_int(0x200))
         val hash = Sha1Hash(e.infoHash)
         val t0 = System.currentTimeMillis()
