@@ -90,7 +90,7 @@
     <string name="browse_nothing_found">Nothing found out there.</string>
     <string name="browse_try_another">Try another title</string>
     <string name="browse_recent_search">Recent search</string>
-    <string name="browse_search_prompt">Let\'s Grab a Movie</string>
+    <string name="browse_search_prompt">"Let's Grab a Movie"</string>
     <string name="browse_all_pages">That is everything — %1$d pages</string>
 
     <string name="comments_title">Comments</string>

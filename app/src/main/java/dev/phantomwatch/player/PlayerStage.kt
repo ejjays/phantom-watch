@@ -180,15 +180,12 @@ fun PlayerStage(
     val inOutro = !inIntro && outro != null && onNextEpisode != null && durationMs > 0 && positionMs in outro && !Pip.inPip
     val stageFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { if (keys != null) stageFocus.requestFocus() }
-    // the stage sits on the window edge in fullscreen and on phones in landscape; the portrait pane
-    // is already pushed below the status bar, so it must not pad again
     val cfg = LocalConfiguration.current
     val landscapePhone = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
         cfg.smallestScreenWidthDp < 600
     val portrait = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     val atEdge = fullscreen || landscapePhone
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
-    // only a stage that owns the window edge has to give the status bar its swipe strip
     val edgePx = with(LocalDensity.current) { (if (atEdge) topInset else 0.dp).toPx() }
     // one bottom inset, never two: the caller's own lift and atEdge must not stack
     val navPad = if (atEdge) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() else 0.dp
@@ -275,7 +272,6 @@ fun PlayerStage(
                         onFullscreen()
                         true
                     }
-                    // the pills are the only way to advance or skip, so the keys ride the same window
                     e.key == Key.N && inOutro -> {
                         onNextEpisode?.invoke()
                         true
@@ -313,8 +309,6 @@ fun PlayerStage(
                 )
             }
         }
-        // The swipe readout owns the screen while it is up, exactly like YouTube: the chrome fades
-        // so the pill never lands on a button.
         val chrome = controlsVisible && !locked && swipeHud == null
         AnimatedVisibility(
             visible = chrome,
@@ -391,9 +385,10 @@ fun PlayerStage(
                 tween(300, easing = FastOutSlowInEasing), initialScale = 0.85f,
             ),
             exit = fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.9f),
+            modifier = Modifier.offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
         ) {
             Box(
-                Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) },
+                Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -455,22 +450,17 @@ fun PlayerStage(
                 )
             }
         }
-        // Headers first in child order would sit under the scrim Box below, so it is drawn last and
-        // pulled above it with a zIndex instead. A swipe readout takes the top strip for itself, as
-        // on YouTube, so the bar fades out instead of sitting under the pill.
+        // first in child order would sit under the scrim Box, so it is drawn last and zIndexed up
         AnimatedVisibility(
             visible = chrome,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(150, easing = FastOutSlowInEasing)),
         ) {
-            // Fullscreen shows the status bar again, so the header has to follow it down — on a phone
-            // the bar is tall enough to tuck the title into its empty lower half instead.
             Column(
                 Modifier.fillMaxWidth()
                     .onGloballyPositioned { headerH = it.size.height.toFloat() }
                     .then(
                         when {
-                            // the pane hands back the height it gave up, so the bar follows it
                             topPad != null -> Modifier.padding(top = topPad)
                             landscapePhone -> Modifier
                                 .padding(top = (topInset - 12.dp).coerceAtLeast(0.dp))
@@ -505,7 +495,6 @@ fun PlayerStage(
             )
             }
         }
-        // The thin progress line only replaces the hidden controls in the non-fullscreen pane.
         if (!seekBar || (!controlsVisible && !fullscreen)) {
         PlayerSeekBar(
             positionMs = positionMs,
@@ -533,13 +522,10 @@ fun PlayerStage(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
-        // Top of the picture, under the status bar whatever the mode: the pane already sits below
-        // it, fullscreen/landscape own the window edge, and the theater sheet hands its inset back.
         val hud = swipeHud
         var lastHud by remember { mutableStateOf<SwipeHud?>(null) }
         LaunchedEffect(hud) { if (hud != null) lastHud = hud }
         val shownHud = hud ?: lastHud
-        // a portrait pane is the whole phone width, so the readout has to stay a compact fraction of it
         val hudW = if (portrait) minOf(maxWidth * 0.5f, 180.dp) else minOf(maxWidth * 0.62f, 220.dp)
         AnimatedVisibility(
             visible = hud != null,
@@ -571,8 +557,6 @@ fun PlayerStage(
         }
         LaunchedEffect(inOutro) { if (inOutro) AppLog.d("outro pill on ${positionMs / 1000}s") }
         if (inIntro || inOutro) {
-            // the pane's own bottom is under the info sheet, so it has to ride the video shift like
-            // the seek bar does or the pill is drawn behind the sheet in portrait
             PlayerPill(
                 text = stringResource(if (inIntro) R.string.player_skip_intro else R.string.player_next_episode),
                 modifier = Modifier.align(Alignment.BottomEnd)

@@ -126,7 +126,6 @@ private val RuleEdge = Color.White.copy(alpha = 0.16f)
 
 class BrowseState {
     val nav = NavStack(Route.fromPath(initialPath()))
-    val searchOpen: Boolean get() = nav.top is Route.Search
     val historyOpen: Boolean get() = nav.top is Route.History
     val railKey: String? get() = (nav.top as? Route.Rail)?.key
     var openTitle by mutableStateOf<Title?>(null)
@@ -343,17 +342,12 @@ fun HomeScreen(
     val gridEnd = stableCallback0 { loadMoreExplore() }
     val retryBrowse = stableCallback0 { loadBrowse() }
 
-    val home = browse.nav.top is Route.Home
+    val scrolled by remember {
+        derivedStateOf { browse.homeScroll.firstVisibleItemIndex > 0 || browse.homeScroll.firstVisibleItemScrollOffset > 8 }
+    }
     Box(Modifier.fillMaxSize().background(Bg)) {
         if (!wideDetail) {
             Column(Modifier.fillMaxSize()) {
-                if (browse.searchOpen) {
-                    SearchHeader(
-                        query = browse.query,
-                        onQuery = { browse.query = it },
-                        onBack = { browse.back() },
-                    )
-                }
                 AnimatedContent(
                     targetState = when (browse.nav.top) {
                         is Route.Search -> 1
@@ -367,16 +361,23 @@ fun HomeScreen(
                     label = "browse-mode",
                 ) { mode ->
                     when (mode) {
-                        1 -> SearchBody(
-                            query = browse.query,
-                            results = browse.results,
-                            searching = searching,
-                            recents = recents,
-                            cols = cols,
-                            gridW = gridW,
-                            onOpen = openItem,
-                            searchGhost = searchGhost,
-                        )
+                        1 -> Column(Modifier.fillMaxSize()) {
+                            SearchHeader(
+                                query = browse.query,
+                                onQuery = { browse.query = it },
+                                onBack = { browse.back() },
+                            )
+                            SearchBody(
+                                query = browse.query,
+                                results = browse.results,
+                                searching = searching,
+                                recents = recents,
+                                cols = cols,
+                                gridW = gridW,
+                                onOpen = openItem,
+                                searchGhost = searchGhost,
+                            )
+                        }
                         2 -> openRail?.let {
                             RailGrid(
                                 rail = it,
@@ -411,36 +412,33 @@ fun HomeScreen(
                                 scope.launch(ioDispatcher) { onRestoreRecent(list) }
                             },
                         )
-                        else -> BrowseBody(
-                            trending = browse.trending,
-                            rails = browse.rails,
-                            exploreItems = browse.exploreItems,
-                            exploreMore = exploreMore,
-                            exploreTotal = browse.exploreTotal,
-                            loading = browse.loading,
-                            failed = browse.failed,
-                            detailOpen = selected != null,
-                            listState = browse.homeScroll,
-                            width = contentW,
-                            onOpen = openItem,
-                            onSeeAll = seeAll,
-                            onRailEnd = railEnd,
-                            onGridEnd = gridEnd,
-                            onRetry = retryBrowse,
-                        )
+                        // the header belongs to the home screen, so it fades with it; drawn outside
+                        // the branch it was gone a frame before the pushed screen showed up
+                        else -> Box(Modifier.fillMaxSize()) {
+                            BrowseBody(
+                                trending = browse.trending,
+                                rails = browse.rails,
+                                exploreItems = browse.exploreItems,
+                                exploreMore = exploreMore,
+                                exploreTotal = browse.exploreTotal,
+                                loading = browse.loading,
+                                failed = browse.failed,
+                                detailOpen = selected != null,
+                                listState = browse.homeScroll,
+                                width = contentW,
+                                onOpen = openItem,
+                                onSeeAll = seeAll,
+                                onRailEnd = railEnd,
+                                onGridEnd = gridEnd,
+                                onRetry = retryBrowse,
+                            )
+                            BrowseHeader(
+                                onSearch = { browse.nav.push(Route.Search) },
+                                onHistory = { browse.nav.push(Route.History) },
+                                scrolled = scrolled,
+                            )
+                        }
                     }
-                }
-            }
-            if (home) {
-                val scrolled by remember {
-                    derivedStateOf { browse.homeScroll.firstVisibleItemIndex > 0 || browse.homeScroll.firstVisibleItemScrollOffset > 8 }
-                }
-                Box(Modifier.align(Alignment.TopStart).fillMaxWidth()) {
-                    BrowseHeader(
-                        onSearch = { browse.nav.push(Route.Search) },
-                        onHistory = { browse.nav.push(Route.History) },
-                        scrolled = scrolled,
-                    )
                 }
             }
         }

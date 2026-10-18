@@ -1,111 +1,38 @@
 # Phantom Watch
 
-Native Android streaming client. TMDB for discovery, eight providers for
-streams, ExoPlayer for playback, and a signed OTA bundle so provider fixes
-ship without an APK.
+Android app for watching movies and shows. Search a title and it checks every
+streaming source at once, keeps the best one, and starts playing. Subtitle and
+audio choices are remembered, and each episode resumes where you stopped.
 
-Home = TMDB trending grid. Tap a movie to play, tap a show to pick
-season/episode. The player merges every provider, prefers English subtitles
-and adaptive masters, and resumes where you left off.
+Free, with no ads. No account, no subscription, nothing to sign into. If a
+source stops working, the fix arrives on its own the next time you open the app,
+without downloading a new version.
 
-## Layout
+## Install
 
-| Path | What lives there |
-|---|---|
-| `app/src/main/java/dev/phantomwatch/` | app shell: activity, navigation, crash entry |
-| `app/src/main/java/dev/phantomwatch/core/` | HTTP, logging, remote config, telemetry, crash reports |
-| `app/src/main/java/dev/phantomwatch/data/` | models, TMDB, search, resume and detail caches |
-| `app/src/main/java/dev/phantomwatch/provider/` | JS bridge, resolve cache, fallback format order |
-| `app/src/main/java/dev/phantomwatch/player/` | player screen, media, stage/panel chrome, PiP, next-up |
-| `app/src/main/java/dev/phantomwatch/subs/` | subtitle parsing, MKV/OpenSubtitles/AI sources |
-| `app/src/main/java/dev/phantomwatch/social/` | comments API |
-| `app/src/main/java/dev/phantomwatch/torrent/` | seedbox download control (torrents disabled) |
-| `app/src/main/java/dev/phantomwatch/ui/` | browse/detail/history screens, icons, theme |
-| `app/src/main/assets/providers.js` | **the only** provider implementation, plus the pick order and skip rules |
-| `app/src/main/assets/providers.json` | hosts, keys, per-leg `enabled` flags (signed and OTA-updatable) |
-| `worker/` | Cloudflare Worker: telemetry ingest, provider alerts, daily digest |
-| `probe.js` | live provider health check; runs the same `providers.js` |
-| `sign_config.py` | signs a config bundle for the OTA endpoint |
-| `checks/quality.py` | repo invariants enforced in CI |
-| `checks/config_rules.py` | shared `providers.json`/`providers.js` validator for CI and signing |
-
-Details: [docs/architecture.md](docs/architecture.md),
-[docs/provider-contract.md](docs/provider-contract.md),
-[docs/release.md](docs/release.md),
-[docs/threat-model.md](docs/threat-model.md).
-
-## Build and test
+Not on Google Play. Build the APK and sideload it:
 
 ```sh
-./gradlew :app:assembleDebug --offline      # debug APK
-./gradlew :app:testDebugUnitTest --offline  # JVM unit tests
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Android 8.0 or newer. The debug and release builds install side by side.
+
+## Development
+
+```sh
+./gradlew :app:testDebugUnitTest --offline  # JVM tests
 python3 checks/quality.py                   # repo invariants
-node --test tests/*.test.mjs                # provider (JS) tests
-node worker/test.mjs                        # telemetry worker tests
-node probe.js                               # live provider check (~2 min)
+node --test tests/*.test.mjs                # provider tests
+node worker/test.mjs                        # worker tests
 ```
 
-The phone SDK is API 37 (hand-made platform, see AGENTS.md). CI builds against
-the last published platform with `-PcompileSdk=36 -PtargetSdk=36` and
-`-Pandroid.experimental.disableCompileSdkChecks=true`.
+- [architecture](docs/architecture.md)
+- [provider contract](docs/provider-contract.md)
+- [release](docs/release.md)
+- [threat model](docs/threat-model.md)
 
-## Keys
+## Disclaimer
 
-Everything secret lives in `local.properties` (never committed):
-
-```
-TMDB_API_KEY=...
-OS_API_KEY=...          # OpenSubtitles
-SUPABASE_URL=...
-SUPABASE_ANON_KEY=...
-GROQ_API_KEY=key1,key2 # rotates on rate limits
-SEEDBOX_URL=...        # optional seedbox
-SEEDBOX_USER=...
-SEEDBOX_PASS=...
-CFG_URL=...            # optional OTA config endpoint
-TELEMETRY_URL=...      # empty disables reporting
-TELEMETRY_KEY=...
-```
-
-Missing keys only disable the feature that needs them; the app still plays.
-
-## Providers
-
-Eight legs run in parallel inside a WebView (`providers.js`): `love`, `rock`,
-`vix`, `zee`, `paradise`, `vap`, `vidlink`, `hianime`. Each leg returns
-formats and subtitles; the pick order and the "cannot serve this title" rules
-live in the same file, so the app, the probe and the telemetry agree.
-
-`providers.json` and `providers.js` ship inside the APK as the trusted
-fallback and together form one signed bundle: ECDSA P-256 over the payload,
-a `version` at least as new as the cached or bundled one, cached in prefs.
-Older bundles are refused.
-
-```sh
-python3 sign_config.py --version N          # N above the deployed version
-# deploy build/pages-config/providers.json alone to CFG_URL
-```
-
-The app verifies with `app/src/main/assets/ota_pub.pem`. The private key
-lives in the `OTA_KEY` Actions secret; `gh workflow run sign-config.yml
--f version=N` produces a signed bundle without the original device.
-
-## Subtitles
-
-Bundled subs → VidLove → Supabase cache → OpenSubtitles → AI translation
-(Groq/Cerebras Qwen). The cache table lives in Supabase (see the SQL in the
-git history of this file); writes use an anonymous session. `MkvSubs` pulls
-subtitle tracks straight out of MKV files, `AiSubs` translates the dialogue
-when the release has no English track.
-
-## Telemetry
-
-One event per resolve (per-leg format counts and timings, TMDB ids only) and
-one per playback session. The Worker alerts on Telegram when a leg collapses
-and sends a daily digest.
-
-```sh
-curl -s "https://phantomwatch-telemetry.<account>.workers.dev/health?k=$TELEMETRY_KEY&days=7"
-```
-
-Setup, endpoints and alert rules: [worker/README.md](worker/README.md).
+For personal use only. Stream only content you have the rights to.

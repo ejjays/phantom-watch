@@ -7,11 +7,12 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -126,20 +127,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Up-next rail: one step darker than the page, so the two tablet panes read as separate. */
 private val RailColor = Color(0xFF0A0A0B)
 
-/** Episode strip geometry: the width is derived from these so the cut always lands mid-chip. */
+// the strip width is derived from these, so the cut always lands mid-chip
 private val EpisodeChip = 46.dp
 private val EpisodeGap = 8.dp
 private val EpisodePad = 20.dp
 private val EpisodePeek = 12.dp
 private const val EpisodesVisible = 10
 
-/**
- * AppRoot swaps in a fresh Screen.Player per episode, so the whole screen is remounted and no
- * `remember` inside it survives. This keeps the strip parked where the user left it.
- */
+// AppRoot swaps in a fresh Screen.Player per episode, so nothing remembered inside it survives
+// this keeps the strip parked where the user left it
 private object EpisodeStripScroll {
     var key: String? = null
     var index = 0
@@ -182,7 +180,6 @@ fun PlayerPanel(
     var stats by remember(media.kind, media.id) {
         mutableStateOf(Social.cachedStats(media.kind, tmdbId) ?: Social.Stats())
     }
-    var voted by remember(media.kind, media.id) { mutableStateOf(false) }
     val scopeUi = rememberCoroutineScope()
     LaunchedEffect(media.kind, media.id) {
         if (tmdbId > 0) Social.stats(media.kind, tmdbId)?.let { stats = it }
@@ -218,7 +215,6 @@ fun PlayerPanel(
     }
 
     val cast: (Int) -> Unit = { v ->
-        voted = true
         val prev = stats
         if (Social.enabled && tmdbId > 0) {
             stats = if (prev.mine == v) {
@@ -246,19 +242,15 @@ fun PlayerPanel(
         val railW = (maxWidth * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(maxWidth * 0.45f)
         val slot = video
         if (slot != null) {
-            // Tablets: video over the info on the left, a vertical up-next rail on the right.
-            // Fullscreen grows the video column and pushes the rail off the right edge.
             val fs by animateFloatAsState(
                 if (fullscreen) 1f else 0f, tween(320, easing = FastOutSlowInEasing), label = "fs",
             )
             val colW = maxWidth - railW * (1f - fs)
-            // Nothing tucks under the status bar until the video is actually fullscreen.
             val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
             val paneTop = topInset * (1f - fs)
             val paneH = maxHeight - paneTop
             Row(Modifier.fillMaxSize().clipToBounds()) {
                 Column(Modifier.width(colW).fillMaxHeight().padding(top = paneTop)) {
-                    // Grows past the video's own aspect so fullscreen letterboxes on the ambient glow.
                     Box(
                         Modifier.fillMaxWidth()
                             .height(lerp(colW / videoAspect.coerceIn(0.4f, 2.4f), paneH, fs))
@@ -266,7 +258,7 @@ fun PlayerPanel(
                     ) { slot(Modifier) }
                     if (fs < 1f) {
                         PlayerInfo(
-                            media = media, synopsis = synopsis, stats = stats, voted = voted,
+                            media = media, synopsis = synopsis, stats = stats,
                             isTv = isTv, episodes = episodes, loadingEpisodes = loadingEpisodes,
                             season = playingSeason.toString(), episode = episode,
                             onVote = cast, onComments = { showComments = true },
@@ -284,7 +276,6 @@ fun PlayerPanel(
                         .graphicsLayer { alpha = 1f - fs },
                 ) {
                     Box(Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.07f)))
-                    // Sheets dock in the rail: never a full-screen modal while the video is visible.
                     Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                         RailSheets(
                             media = media, d = d, synopsis = synopsis, similar = similar,
@@ -306,7 +297,7 @@ fun PlayerPanel(
                     .navigationBarsPadding(),
             ) {
                 PlayerInfo(
-                    media = media, synopsis = synopsis, stats = stats, voted = voted,
+                    media = media, synopsis = synopsis, stats = stats,
                     isTv = isTv, episodes = episodes, loadingEpisodes = loadingEpisodes,
                     season = playingSeason.toString(), episode = episode,
                     onVote = cast, onComments = { showComments = true },
@@ -411,49 +402,51 @@ internal fun compactCount(n: Int): String = when {
 
 @Composable
 private fun ThumbButton(
-    up: Boolean, stats: Social.Stats, size: Dp, countSize: Int, animate: Boolean,
+    up: Boolean, stats: Social.Stats, size: Dp,
     onVote: (Int) -> Unit,
 ) {
     val active = stats.mine == if (up) Social.LIKE else Social.DISLIKE
-    val count = if (up) stats.likes else stats.dislikes
-    val fillSpec = if (animate) tween(180) else snap<Float>()
-    val tintSpec = if (animate) tween(180) else snap<Color>()
-    val fill by animateFloatAsState(if (active) 1f else 0f, fillSpec, label = "thumb")
-    val tint by animateColorAsState(if (active) Color.White else Slate300, tintSpec, label = "tint")
-    val slot = 40.dp
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            if (count > 0) compactCount(count) else "", color = tint, fontSize = countSize.sp,
-            fontFamily = Rubik, fontWeight = FontWeight.SemiBold, lineHeight = (countSize + 2).sp,
-        )
-        Box(
-            Modifier.size(slot).clip(CircleShape)
-                .clickable { onVote(if (up) Social.LIKE else Social.DISLIKE) },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(if (up) R.drawable.ic_like else R.drawable.ic_dislike),
-                contentDescription = if (up) stringResource(R.string.player_like) else stringResource(R.string.player_dislike),
-                tint = tint,
-                modifier = Modifier.size(size).graphicsLayer {
-                    alpha = 1f - fill
-                    if (!up) scaleX = -1f
-                },
-            )
-            Icon(
-                painter = painterResource(
-                    if (up) R.drawable.ic_like_filled else R.drawable.ic_dislike_filled,
-                ),
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(size).graphicsLayer {
-                    alpha = fill
-                    val s = 0.72f + 0.28f * fill
-                    scaleX = if (up) s else -s
-                    scaleY = s
-                },
-            )
+    val fill by animateFloatAsState(if (active) 1f else 0f, tween(160), label = "thumb")
+    val tint by animateColorAsState(if (active) Color.White else Slate300, tween(160), label = "tint")
+    val pop = remember { Animatable(1f) }
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        if (!loaded) {
+            loaded = true
+            return@LaunchedEffect
         }
+        if (active) {
+            pop.snapTo(1.32f)
+            pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
+        }
+    }
+    Box(
+        Modifier.size(40.dp).clip(CircleShape)
+            .clickable { onVote(if (up) Social.LIKE else Social.DISLIKE) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(if (up) R.drawable.ic_like else R.drawable.ic_dislike),
+            contentDescription = if (up) stringResource(R.string.player_like) else stringResource(R.string.player_dislike),
+            tint = tint,
+            modifier = Modifier.size(size).graphicsLayer {
+                alpha = 1f - fill
+                if (!up) scaleX = -1f
+            },
+        )
+        Icon(
+            painter = painterResource(
+                if (up) R.drawable.ic_like_filled else R.drawable.ic_dislike_filled,
+            ),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(size).graphicsLayer {
+                alpha = fill
+                val s = (0.72f + 0.28f * fill) * pop.value
+                scaleX = if (up) s else -s
+                scaleY = s
+            },
+        )
     }
 }
 
@@ -470,14 +463,12 @@ private fun SectionTitle(text: String) {
     Text(text, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
 }
 
-/** Title, plot, votes, actions and the episode strip: shared by the sheet and the tablet column. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlayerInfo(
     media: Title,
     synopsis: String?,
     stats: Social.Stats,
-    voted: Boolean,
     isTv: Boolean,
     episodes: List<Episode>,
     loadingEpisodes: Boolean,
@@ -492,15 +483,13 @@ private fun PlayerInfo(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    // Hoisted above the episode branch: a fetch toggling that branch out and back in would
-    // rebuild the state and flash the chip cyan again mid-session.
+    // hoisted above the episode branch: a fetch toggling it would flash the chip cyan again
     var freshChip by remember { mutableStateOf(true) }
     LaunchedEffect(episode) {
         freshChip = true
         delay(3000)
         freshChip = false
     }
-    // Same reason: the strip keeps its scroll position when a fetch swaps the branch out.
     val stripKey = "${media.id}|$season"
     val restored = EpisodeStripScroll.key == stripKey
     val episodeList = rememberLazyListState(
@@ -515,7 +504,6 @@ private fun PlayerInfo(
     LaunchedEffect(episode, episodes.size) {
         val at = episodes.indexOfFirst { it.n.toString() == episode }
         if (at < 0) return@LaunchedEffect
-        // Park one chip early so the current episode has context to its left.
         val target = (at - 1).coerceAtLeast(0)
         if (episodeList.layoutInfo.totalItemsCount == 0) {
             snapshotFlow { episodeList.layoutInfo.totalItemsCount }.first { it > 0 }
@@ -523,7 +511,6 @@ private fun PlayerInfo(
         val info = episodeList.layoutInfo
         val chip = info.visibleItemsInfo.firstOrNull { it.index == at }
         val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
-        // Sitting on the last couple of chips counts as hidden: it reads as a dead end.
         val roomy = chip != null && chip.offset >= info.viewportStartOffset &&
             chip.offset + chip.size <= info.viewportEndOffset && at <= last - 2
         if (roomy) return@LaunchedEffect
@@ -558,8 +545,8 @@ private fun PlayerInfo(
                         Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                    ThumbButton(true, stats, 24.dp, 14, voted) { onVote(Social.LIKE) }
-                    ThumbButton(false, stats, 24.dp, 14, voted) { onVote(Social.DISLIKE) }
+                    ThumbButton(true, stats, 24.dp) { onVote(Social.LIKE) }
+                    ThumbButton(false, stats, 24.dp) { onVote(Social.DISLIKE) }
                         ActionIcon(onClick = { onComments() }) {
                             CommentIcon(contentDescription = stringResource(R.string.comments_title), tint = Slate300, size = 24.dp)
                         }
@@ -572,8 +559,6 @@ private fun PlayerInfo(
                 if (isTv) {
                     Spacer(Modifier.height(22.dp))
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        // Ends on a half chip so a long season reads as scrollable, and hugs the
-                        // content when the season is short enough to fit.
                         val stripW = minOf(
                             maxWidth,
                             EpisodePad * 2 + (EpisodeChip + EpisodeGap) * EpisodesVisible + EpisodePeek,
@@ -602,8 +587,6 @@ private fun PlayerInfo(
                                 }
                             }
                             when {
-                                // Only take the strip out of the tree when there is nothing to
-                                // show yet; unmounting it mid-fetch is what reset the scroll.
                                 loadingEpisodes && episodes.isEmpty() -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
                                     CircularProgressIndicator(color = Cyan, modifier = Modifier.size(22.dp))
                                 }
@@ -612,8 +595,6 @@ private fun PlayerInfo(
                                     modifier = Modifier.padding(horizontal = 20.dp).padding(vertical = 12.dp),
                                 )
                                 else -> {
-                                    // Cyan only while the pick is fresh; a permanent cyan chip sits
-                                    // in peripheral vision for the whole portrait watch session.
                                     Spacer(Modifier.height(12.dp))
                                     Box(Modifier.width(stripW).clip(RoundedCornerShape(12.dp))) {
                                         LazyRow(
@@ -658,7 +639,6 @@ private fun PlayerInfo(
     }
 }
 
-/** Tablet up-next rail: YouTube-shaped cards, thumbnail over the title. */
 @Composable
 private fun SimilarList(items: List<Title>, onOpen: (Title) -> Unit) {
     LazyColumn(
@@ -755,7 +735,6 @@ private fun PlotBody(
     }
 }
 
-/** Rail content stack: the up-next list with the docked sheets sliding over it. */
 @Composable
 private fun RailSheets(
     media: Title,
@@ -792,14 +771,12 @@ private fun RailSheets(
     if (showComments) CommentsSheet(media, scrim = false, onDismiss = closeComments)
 }
 
-/** The plot sheet, docked in the tablet rail instead of floating over the whole screen. */
 @Composable
 private fun RailPlot(media: Title, d: TitleDetail?, synopsis: String, onClose: () -> Unit) {
     val closePx = with(LocalDensity.current) { 96.dp.toPx() }
     val scope = rememberCoroutineScope()
     var dragY by remember { mutableFloatStateOf(0f) }
     val scroll = rememberScrollState()
-    // Past the threshold the exit slide takes over from where the finger left it.
     fun settle(v: Float) {
         if (dragY > closePx || v > 900f) {
             onClose()
@@ -808,7 +785,6 @@ private fun RailPlot(media: Title, d: TitleDetail?, synopsis: String, onClose: (
         }
     }
     val dragState = rememberDraggableState { dy -> dragY = (dragY + dy).coerceAtLeast(0f) }
-    // The body scrolls, so a downward drag there only moves the sheet once the text is at the top.
     val nested = remember(scroll) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -856,7 +832,6 @@ private fun RailPlot(media: Title, d: TitleDetail?, synopsis: String, onClose: (
     }
 }
 
-// One tap shares the current stream on the LAN and copies the URL; tapping again stops it.
 private fun shareLink(context: Context) {
     if (LanShare.state is LanShare.State.Running) {
         LanShare.stop()

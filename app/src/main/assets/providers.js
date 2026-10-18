@@ -106,8 +106,8 @@
     return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   }
 
-  async function get(url, referer, timeout) {
-    var r = await http({ url: url, referer: referer || '', timeout: timeout || 10 });
+  async function get(url, referer, timeout, headers) {
+    var r = await http({ url: url, referer: referer || '', timeout: timeout || 10, headers: headers });
     return r && r.code === 200 ? r.body : null;
   }
 
@@ -125,7 +125,7 @@
       : player + '/embed/tv/' + ctx.tmdbId + '/' + ctx.season + '/' + ctx.episode;
     var urls = sources.map(function (s) { return s ? base + '&sources=' + s : base; });
     var got = await Promise.all(urls.map(function (u) {
-      return get(u, embed).catch(function () { return null; });
+      return get(u, embed, 20, cfg.headers).catch(function () { return null; });
     }));
     var bodies = got.filter(Boolean);
     var formats = [];
@@ -165,6 +165,22 @@
           seen.add(f);
           subs.push({ label: l, url: f, src: 'love' });
         }
+      }
+    }
+    if (!subs.length) {
+      var capUrl = movie
+        ? api + '/subtitles/movie/' + ctx.tmdbId
+        : api + '/subtitles/tv/' + ctx.tmdbId + '/' + ctx.season + '/' + ctx.episode;
+      var capBody = await get(capUrl, embed, 20, cfg.headers).catch(function () { return null; });
+      if (capBody) {
+        try {
+          (JSON.parse(capBody) || []).forEach(function (c) {
+            var u = c && c.file || '';
+            if (u.indexOf('http') !== 0 || !/english/i.test(c.label || '') || seen.has(u)) return;
+            seen.add(u);
+            subs.push({ label: c.label, url: u, src: 'love' });
+          });
+        } catch (e) {}
       }
     }
     var enSubs = subs.some(function (s) { return /english/i.test(s.label); });
@@ -886,9 +902,51 @@
     return pinoyTv(ctx, cfg, title);
   }
 
+  function captionUrl(proxy) {
+    var m = /[?&]url=([^&]+)/.exec(proxy || '');
+    if (!m) return proxy || '';
+    try { return decodeURIComponent(m[1]); } catch (e) { return proxy; }
+  }
+
+  // netmirror clone: tmdb id in, signed mp4 cdn + srt captions out. the cdn
+  // 429s hard on bursts, so one request and one shot per rung
+  async function net79(ctx) {
+    var cfg = ctx.cfg || {};
+    var api = (cfg.api || 'https://net79.cc').replace(/\/+$/, '');
+    var query = '?type=' + ctx.kind + (ctx.kind === 'tv'
+      ? '&season=' + ctx.season + '&episode=' + ctx.episode : '');
+    var body = await get(api + '/api/embed-tmdb/' + ctx.tmdbId + query, api + '/', 20);
+    if (body === null) return empty();
+    var root;
+    try { root = JSON.parse(body); } catch (e) { return empty(); }
+    if (root.noSource) return skipped();
+    var subs = [];
+    (root.captions || []).forEach(function (c) {
+      var u = c && c.lang === 'en' ? captionUrl(c.url) : '';
+      if (u.indexOf('http') === 0) subs.push({ label: c.name || 'English', url: u, src: 'net79' });
+    });
+    var formats = [];
+    (root.streams || []).forEach(function (s) {
+      var u = (s && s.url) || '';
+      if (u.indexOf('http') !== 0) return;
+      var h = parseInt(s.resolution, 10) || 0;
+      var f = fmt(u, false, 'net79-' + (h > 0 ? h + 'p' : 'src'), h);
+      f.enSubs = subs.length > 0;
+      formats.push(f);
+    });
+    if (root.fallbackHls) {
+      var fa = fmt(api + root.fallbackHls, true, 'net79-auto', 0);
+      fa.enSubs = subs.length > 0;
+      formats.push(fa);
+    }
+    formats.sort(function (a, b) { return b.height - a.height; });
+    return { formats: formats, subs: subs };
+  }
+
   var legs = {
     love: love, rock: rock, vix: vix, zee: zee, light: light,
     paradise: paradise, vap: vap, vidlink: vidlink, hianime: hianime, pinoy: pinoy,
+    net79: net79,
   };
 
   try {

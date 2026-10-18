@@ -169,3 +169,69 @@ test('hianime rejects title mismatches from AniList', async () => {
     globalThis.pw.http = prevHttp;
   }
 });
+
+function withHttp(handler, run) {
+  const prev = globalThis.pw.http;
+  globalThis.pw.http = handler;
+  return Promise.resolve()
+    .then(run)
+    .finally(() => {
+      globalThis.pw.http = prev;
+    });
+}
+
+test('net79 skips titles the mirror does not carry', async () => {
+  doneCalls.length = 0;
+  await withHttp(
+    (id) => {
+      window.__pwBridge.httpDone(id, JSON.stringify({ code: 200, body: '{"ok":true,"noSource":true}' }));
+    },
+    async () => {
+      window.__pwRun('n1', 'net79', JSON.stringify({ kind: 'movie', tmdbId: '414906' }));
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  );
+  assert.equal(doneCalls.length, 1);
+  assert.equal(JSON.parse(doneCalls[0].out).skipped, true);
+});
+
+test('net79 maps streams to formats and keeps only English subs', async () => {
+  doneCalls.length = 0;
+  const srt = 'https://cacdn.example/subtitle/en.srt';
+  let asked = '';
+  await withHttp(
+    (id, json) => {
+      asked = JSON.parse(json).url;
+      window.__pwBridge.httpDone(
+        id,
+        JSON.stringify({
+          code: 200,
+          body: JSON.stringify({
+            ok: true,
+            fallbackHls: '/api/loffe/tt1',
+            streams: [
+              { url: 'https://cdn.example/720.mp4', resolution: 720 },
+              { url: 'https://cdn.example/2160.mp4', resolution: 2160 },
+              { url: 'https://cdn.example/480.mp4', resolution: 480 },
+            ],
+            captions: [
+              { lang: 'en', name: 'English', url: 'https://net79.cc/api/proxy/video?url=' + encodeURIComponent(srt) },
+              { lang: 'ar', name: 'Arabic', url: 'https://net79.cc/api/proxy/video?url=x' },
+            ],
+          }),
+        })
+      );
+    },
+    async () => {
+      window.__pwRun('n2', 'net79', JSON.stringify({ kind: 'tv', tmdbId: '66732', season: '2', episode: '3' }));
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  );
+  assert.match(asked, /type=tv&season=2&episode=3/);
+  const res = JSON.parse(doneCalls[0].out);
+  assert.deepEqual(res.formats.map((f) => f.height), [2160, 720, 480, 0]);
+  assert.deepEqual(res.subs.map((s) => s.url), [srt]);
+  assert.equal(res.formats[0].enSubs, true);
+  assert.equal(res.formats[0].isHls, false);
+  assert.equal(res.formats[3].isHls, true);
+});

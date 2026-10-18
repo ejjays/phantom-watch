@@ -18,10 +18,20 @@
   },
   "legs": {
     "love": {
-      "enabled": false,
-      "api": "https://api.vidlove.cc",
-      "player": "https://player.vidlove.cc",
-      "sources": ["", "vidapi", "moviebox", "dcloud", "tcloud", "moviebox2"]
+      "enabled": true,
+      "api": "https://api.vidqueen.st",
+      "player": "https://player.vidqueen.st",
+      "sources": ["", "s4", "s5", "s2", "s6", "s1"],
+      "headers": {
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-dest": "document",
+        "sec-ch-ua": "\"Chromium\";v=\"126\", \"Not.A/Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?1",
+        "sec-ch-ua-platform": "\"Android\"",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9"
+      }
     },
     "rock": {
       "enabled": true,
@@ -69,6 +79,10 @@
       "origin": "https://megaplay.buzz",
       "key": "i?LMTAx0Q6,:}50U",
       "iv": "hlsMediaAttached"
+    },
+    "net79": {
+      "enabled": false,
+      "api": "https://net79.cc"
     },
     "pinoy": {
       "enabled": true,
