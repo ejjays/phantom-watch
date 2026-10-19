@@ -59,7 +59,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.ui.SubtitleView
 import dev.phantomwatch.R
+import dev.phantomwatch.VidLove
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -87,6 +90,7 @@ fun PlayerStage(
     durationMs: Long,
     bufferedMs: Long,
     controlsVisible: Boolean,
+    localCues: List<VidLove.Cue> = emptyList(),
     flash: String?,
     seekMark: SeekMark?,
     seekInset: Dp = 0.dp,
@@ -292,6 +296,26 @@ fun PlayerStage(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
+        }
+        if (localCues.isNotEmpty()) {
+            val act = localCues.filter { positionMs >= it.start && positionMs < it.end }
+            AndroidView(
+                factory = { ctx ->
+                    SubtitleView(ctx).apply {
+                        setFractionalTextSize(0.05f)
+                        setApplyEmbeddedStyles(true)
+                    }
+                },
+                update = { v ->
+                    v.setCues(
+                        act.map { c ->
+                            androidx.media3.common.text.Cue.Builder().setText(c.text).build()
+                        },
+                    )
+                },
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(start = 28.dp, end = 28.dp, bottom = 44.dp),
+            )
         }
     }
 }

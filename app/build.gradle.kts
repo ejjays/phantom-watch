@@ -84,6 +84,7 @@ dependencies {
     implementation("com.frostwire:jlibtorrent:2.0.12.9")
     implementation("com.frostwire:jlibtorrent-android-arm64:2.0.12.9")
     implementation("com.frostwire:jlibtorrent-android-arm:2.0.12.9")
+    implementation(files("libs/sherpa-onnx-1.13.8.aar"))
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta09")

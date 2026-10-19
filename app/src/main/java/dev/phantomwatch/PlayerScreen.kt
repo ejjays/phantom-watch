@@ -90,7 +90,7 @@ private const val SV_TOKENS_URL =
     "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/tokens.txt"
 private const val SV_MODEL_BYTES = 239_233_841L
 private const val SV_TOKENS_BYTES = 315_894L
-private val modelHttp = okhttp3.OkHttpClient.Builder()
+internal val modelHttp = okhttp3.OkHttpClient.Builder()
     .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
     .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
     .build()
@@ -778,6 +778,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
     var osStatus by remember { mutableStateOf<String?>(null) }
     var osRunning by remember { mutableStateOf(false) }
     var aiCues by remember { mutableStateOf<List<VidLove.Cue>>(emptyList()) }
+    var localCues by remember { mutableStateOf<List<VidLove.Cue>>(emptyList()) }
     var lastNeed by remember { mutableStateOf(0) }
     val subPrefs = remember { context.getSharedPreferences("phantom_prefs", android.content.Context.MODE_PRIVATE) }
     var subsSource by remember { mutableStateOf(subPrefs.getString("subs_src", "providers") ?: "providers") }
@@ -874,15 +875,18 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         dlJob = null
         dlPct = null
         modelDir.listFiles()?.forEach { it.delete() }
+        LocalAsr.reset()
         modelReady = false
         AppLog.d("mdl del")
     }
-    suspend fun showAi() {
+    suspend fun showAi(enCount: Int = -1) {
         val all = aiCues.sortedBy { it.start }
         val f = withContext(Dispatchers.IO) { VidLove.cuesToFile(all, context.cacheDir) } ?: return
         aiSubUrl = Uri.fromFile(f).toString()
-        aiStatus = "AI ✓ ${all.size}"
-        AppLog.d("ai cues=${all.size}")
+        val enN = if (enCount < 0) all.size else enCount
+        val rawN = all.size - enN
+        aiStatus = "AI ✓ $enN" + if (rawN > 0) "+$rawN" else ""
+        AppLog.d("ai cues=$enN raw=$rawN")
         val merged = (stream.subs + Sub("AI English", Uri.fromFile(f).toString())).distinctBy { it.url }
         val pos = exo.currentPosition
         val wasPlaying = exo.isPlaying
@@ -1396,6 +1400,62 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
             delay(250)
         }
     }
+    fun runLocalAsr() {
+        if (aiRunning) return
+        aiRunning = true
+        nudgeScope.launch {
+            try {
+                aiStatus = "Local…"
+                AppLog.d("asr start")
+                val keys = withContext(Dispatchers.IO) { AiSubs.keys() }
+                AppLog.d("asr keys=${keys.size}")
+                var total = 0
+                LocalAsr.transcribe(
+                    context = context,
+                    source = stream.url,
+                    headers = mediaHeaders(stream),
+                    modelDir = modelDir,
+                    cacheDir = context.cacheDir,
+                    paused = { stalled },
+                    progress = { p -> if (p > 0f) aiStatus = "Local ${(p * 100).toInt()}%" },
+                    onLines = { cues, lang ->
+                        if (cues.isNotEmpty()) {
+                            val trLang = if (lang == "yue") "zh" else lang
+                            val tr = if (trLang == "en") {
+                                cues.map { it.text }
+                            } else {
+                                AiSubs.translateLines(cues.map { it.text }, keys, from = trLang)
+                            }
+                            val shown = if (tr != null && tr.size == cues.size && trLang != "en") {
+                                cues.mapIndexed { i, c -> c.copy(text = tr[i]) }
+                            } else {
+                                cues
+                            }
+                            aiCues = (aiCues + shown).sortedBy { it.start }
+                            localCues = aiCues
+                            total += shown.size
+                            aiStatus = "Local $total"
+                            AppLog.d(
+                                "asr +" + shown.size + " lang=" + lang + " total=" + total +
+                                    if (trLang != "en" && (tr == null || tr.size != cues.size)) " raw" else "",
+                            )
+                        }
+                    },
+                )
+                aiStatus = if (total > 0) "Local ✓ $total" else null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                aiStatus = null
+                AppLog.d("asr fail ${e.message?.take(140)}")
+            } finally {
+                aiRunning = false
+            }
+        }
+    }
+    LaunchedEffect(stream.url, subsSource, modelReady) {
+        if (subsSource == "local" && modelReady) runLocalAsr()
+    }
     val playerView = LocalView.current
     DisposableEffect(playing) {
         playerView.keepScreenOn = playing
@@ -1518,6 +1578,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, ctl: Dl
         durationMs = durationMs,
         bufferedMs = bufferedMs,
         controlsVisible = controls && !PipCtl.inPip,
+        localCues = localCues,
         flash = gestureNote ?: fillNote,
         seekMark = seekMark,
         seekInset = seekInset,
