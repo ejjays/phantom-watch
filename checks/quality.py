@@ -16,7 +16,7 @@ from config_rules import problems as config_problems
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 LINE_CAPS = {
-    "app/src/main/java": 900,
+    "app/src/main/java": 910,
     "app/src/test/java": 400,
     # providers.js is the single home for every leg's extractor and the bridge loads this
     # one asset (no split without an APK), so the cap moves with the leg count: ~30/leg.

@@ -81,7 +81,7 @@
       "iv": "hlsMediaAttached"
     },
     "net79": {
-      "enabled": false,
+      "enabled": true,
       "api": "https://net79.cc"
     },
     "pinoy": {
