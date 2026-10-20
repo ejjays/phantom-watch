@@ -20,7 +20,7 @@ LINE_CAPS = {
     "app/src/test/java": 400,
     # providers.js is the single home for every leg's extractor and the bridge loads this
     # one asset (no split without an APK), so the cap moves with the leg count: ~30/leg.
-    "app/src/main/assets/providers.js": 1000,
+    "app/src/main/assets/providers.js": 1100,
     "app/src/main/assets": 700,
     "worker": 700,
     "checks": 400,

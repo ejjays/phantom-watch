@@ -235,3 +235,44 @@ test('net79 maps streams to formats and keeps only English subs', async () => {
   assert.equal(res.formats[0].isHls, false);
   assert.equal(res.formats[3].isHls, true);
 });
+
+test('videasy skips when the WebView bridge is absent', async () => {
+  doneCalls.length = 0;
+  window.__pwRun('v1', 'videasy', JSON.stringify({ kind: 'movie', tmdbId: '155' }));
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(JSON.parse(doneCalls[0].out).skipped, true);
+});
+
+test('videasy maps captured sources to formats', async () => {
+  doneCalls.length = 0;
+  const prev = globalThis.pw.web;
+  globalThis.pw.web = (id, url) => {
+    assert.match(url, /\/movie\/155$/);
+    window.__pwBridge.webDone(
+      id,
+      JSON.stringify({
+        referer: 'https://www.vidy.st/',
+        body: JSON.stringify({
+          sources: [
+            { quality: '1080p', url: 'https://cdn.example/big.m3u8' },
+            { quality: '2160p', url: 'https://cdn.example/uhd.m3u8' },
+            { quality: '480p', url: 'https://cdn.example/low.mp4' },
+          ],
+          subtitles: [{ url: 'https://cdn.example/en.vtt', lang: 'English' }],
+        }),
+      })
+    );
+  };
+  try {
+    window.__pwRun('v2', 'videasy', JSON.stringify({ kind: 'movie', tmdbId: '155' }));
+    await new Promise((r) => setTimeout(r, 10));
+  } finally {
+    globalThis.pw.web = prev;
+  }
+  const res = JSON.parse(doneCalls[0].out);
+  assert.deepEqual(res.formats.map((f) => f.height), [2160, 1080, 480]);
+  assert.equal(res.formats[0].isHls, true);
+  assert.equal(res.formats[2].isHls, false);
+  assert.equal(res.formats[0].enSubs, true);
+  assert.equal(res.subs[0].label, 'English');
+});

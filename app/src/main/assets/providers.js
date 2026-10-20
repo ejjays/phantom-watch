@@ -77,6 +77,16 @@
     });
   }
 
+  // native WebView page run for CF-gated players; skipped in probe/node
+  function web(url) {
+    return new Promise(function (resolve) {
+      if (!pw || typeof pw.web !== 'function') { resolve(null); return; }
+      var id = 'w' + (++seq);
+      pending.set(id, { resolve: resolve, reject: function () { resolve(null); } });
+      try { pw.web(id, String(url)); } catch (e) { pending.delete(id); resolve(null); }
+    });
+  }
+
   function absUrl(rel, base) {
     try { return new URL(rel, base).toString(); } catch (e) { return rel; }
   }
@@ -902,6 +912,51 @@
     return pinoyTv(ctx, cfg, title);
   }
 
+  async function videasy(ctx) {
+    var cfg = ctx.cfg || {};
+    if (typeof pw.web !== 'function') return skipped();
+    var player = (cfg.player || 'https://www.vidy.st').replace(/\/+$/, '');
+    var page = ctx.kind === 'movie'
+      ? player + '/movie/' + ctx.tmdbId
+      : player + '/tv/' + ctx.tmdbId + '/' + ctx.season + '/' + ctx.episode;
+    var r = await web(page);
+    if (!r) return empty();
+    if (r.body) {
+      var root;
+      try { root = JSON.parse(r.body); } catch (e) { return empty(); }
+      var subs = [];
+      (root.subtitles || []).forEach(function (s) {
+        var u = s && (s.url || s.file) || '';
+        if (u.indexOf('http') === 0) {
+          subs.push({ label: s.label || s.lang || s.language || 'Unknown', url: u, src: 'videasy' });
+        }
+      });
+      var enSubs = subs.some(function (s) { return /english|^en\b/i.test(s.label); });
+      var h = 0;
+      var formats = [];
+      (root.sources || []).forEach(function (s) {
+        var u = typeof s === 'string' ? s : (s && s.url) || '';
+        if (u.indexOf('http') !== 0) return;
+        var q = typeof s === 'object' ? (s.quality || s.resolution || '') : '';
+        var m = /(\d{3,4})/.exec(String(q));
+        h = /4k|2160/i.test(String(q)) ? 2160 : (m ? parseInt(m[1], 10) : 0);
+        var isHls = /\.m3u8|hls/i.test(u + '|' + String((s && s.type) || ''));
+        var f = fmt(u, isHls, 'videasy-' + (h ? h + 'p' : 'auto'), h);
+        f.referer = page;
+        f.enSubs = enSubs;
+        formats.push(f);
+      });
+      formats.sort(function (a, b) { return b.height - a.height; });
+      return { formats: formats, subs: subs };
+    }
+    if (r.url) {
+      var f2 = fmt(r.url, /\.m3u8/i.test(r.url), 'videasy-auto', 0);
+      f2.referer = page;
+      return { formats: [f2], subs: [] };
+    }
+    return empty();
+  }
+
   function captionUrl(proxy) {
     var m = /[?&]url=([^&]+)/.exec(proxy || '');
     if (!m) return proxy || '';
@@ -946,13 +1001,13 @@
   var legs = {
     love: love, rock: rock, vix: vix, zee: zee, light: light,
     paradise: paradise, vap: vap, vidlink: vidlink, hianime: hianime, pinoy: pinoy,
-    net79: net79,
+    net79: net79, videasy: videasy,
   };
 
   try {
     pw.log('subtle=' + !!(window.crypto && window.crypto.subtle) + ' secure=' + window.isSecureContext);
   } catch (e) {}
-  window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail, voeDone: bridgeDone };
+  window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail, voeDone: bridgeDone, webDone: bridgeDone };
   window.__pwRank = pwRank;
   window.__pwSkip = pwSkip;
   window.__pwSort = function (id, formatsJson) {

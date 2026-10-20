@@ -217,6 +217,23 @@ object JsProviders {
         }
 
         @JavascriptInterface
+        fun web(id: String, url: String) {
+            val ctx = app
+            if (ctx == null) {
+                JsProviders.eval("window.__pwBridge.webDone(${JSONObject.quote(id)}, ${JSONObject.quote(JSONObject().put("error", "nocx").toString())})")
+                return
+            }
+            voePool.execute {
+                val res = try {
+                    WebExtract.resolve(ctx, url, 25_000)
+                } catch (e: Exception) {
+                    JSONObject().put("error", e.javaClass.simpleName)
+                }
+                JsProviders.eval("window.__pwBridge.webDone(${JSONObject.quote(id)}, ${JSONObject.quote(res.toString())})")
+            }
+        }
+
+        @JavascriptInterface
         fun done(id: String, result: String) {
             val json = try {
                 JSONObject(result)
