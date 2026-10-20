@@ -74,6 +74,7 @@ try { var b = document.querySelector('#play,.play-btn,[data-play]'); if (b) b.cl
 
         fun settle(res: JSONObject) {
             if (!out.compareAndSet(null, res)) return
+            AppLog.d("web $target -> ${res.toString().take(300).replace("\\", "")}")
             latch.countDown()
             main.post {
                 view.getAndSet(null)?.let {

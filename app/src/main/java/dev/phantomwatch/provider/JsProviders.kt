@@ -70,7 +70,7 @@ object JsProviders {
                 waiting.remove(id)
             }
         }
-        AppLog.d("js $leg ${if (out == null) "none" else "${System.currentTimeMillis() - t0}ms"}")
+        AppLog.d("js $leg ${if (out == null) "none" else "${System.currentTimeMillis() - t0}ms n=${out.optJSONArray("formats")?.length() ?: -1}"}")
         return out
     }
 
