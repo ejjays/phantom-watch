@@ -82,6 +82,7 @@ object Providers {
                                 "paradise" -> 28L
                                 "hianime" -> 27L
                                 "pinoy" -> 22L
+                                "videasy", "net79" -> 25L
                                 else -> 12L
                             }
                             val js = JsProviders.resolve(name, args, budget)
