@@ -30,6 +30,17 @@ object WebExtract {
     private const val HOOK = """(function(){
   if (window.__pwHook) return; window.__pwHook = 1; window.__pwCap = [];
   try {
+    var ofetch = window.fetch;
+    window.fetch = function() {
+      var args = arguments;
+      var u = args[0]; u = typeof u === 'string' ? u : (u && u.url) || '';
+      return ofetch.apply(this, args).then(function (r) {
+        try { if (/sources/.test(u) && r && r.clone) r.clone().text().then(function (t) { window.__pwCap.push(t); }).catch(function () {}); } catch (e) {}
+        return r;
+      });
+    };
+  } catch (e) {}
+  try {
     var oo = XMLHttpRequest.prototype.open;
     var os = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function(m, u) { this.__url = String(u || ''); return oo.apply(this, arguments); };
