@@ -159,12 +159,14 @@ try { var b = document.querySelector('#play,.play-btn,[data-play]'); if (b) b.cl
                         }
                         ?: run {
                             mediaHit.get()?.let {
-                                settle(
-                                    JSONObject().put("url", it)
-                                        .put("hls", it.contains(".m3u8"))
-                                        .put("referer", "$origin/"),
-                                )
-                                return@evaluateJavascript
+                                if (n >= 8) {
+                                    settle(
+                                        JSONObject().put("url", it)
+                                            .put("hls", it.contains(".m3u8"))
+                                            .put("referer", "$origin/"),
+                                    )
+                                    return@evaluateJavascript
+                                }
                             }
                             if (n == 10 && list.isNotEmpty()) {
                                 settle(JSONObject().put("debug", list.joinToString("|").take(500)).put("referer", "$origin/"))
