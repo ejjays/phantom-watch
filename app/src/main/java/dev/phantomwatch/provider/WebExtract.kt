@@ -45,6 +45,8 @@ object WebExtract {
     var os = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function(m, u) { this.__url = String(u || ''); return oo.apply(this, arguments); };
     XMLHttpRequest.prototype.send = function() {
+      var self = this;
+      this.addEventListener('load', function () { try { window.__pwCap.push('xhr-url: ' + self.__url); } catch (e) {} });
       if (this.__url && /sources/.test(this.__url)) this.addEventListener('load', function () { window.__pwCap.push(this.responseText); });
       return os.apply(this, arguments);
     };
@@ -82,6 +84,7 @@ try { var b = document.querySelector('#play,.play-btn,[data-play]'); if (b) b.cl
         val out = AtomicReference<JSONObject>()
         private val view = AtomicReference<WebView>()
         private val origin = origin(target)
+        private val mediaHit = AtomicReference<String?>()
 
         fun settle(res: JSONObject) {
             if (!out.compareAndSet(null, res)) return
@@ -129,13 +132,8 @@ try { var b = document.querySelector('#play,.play-btn,[data-play]'); if (b) b.cl
                     val u = req.url.toString()
                     val h = req.url.host ?: ""
                     if (ads.any { h == it || h.endsWith(".$it") }) return blank()
-                    if (media.matches(u)) {
-                        settle(
-                            JSONObject().put("url", u)
-                                .put("hls", u.contains(".m3u8"))
-                                .put("referer", "$origin/"),
-                        )
-                        return blank()
+                    if (media.matches(u) && mediaHit.compareAndSet(null, u)) {
+                        AppLog.d("web media hit $u")
                     }
                     return null
                 }
@@ -154,9 +152,26 @@ try { var b = document.querySelector('#play,.play-btn,[data-play]'); if (b) b.cl
             main.postDelayed({
                 w.evaluateJavascript("JSON.stringify(window.__pwCap || [])") { raw ->
                     if (out.get() != null) return@evaluateJavascript
-                    fromRaw(raw).firstOrNull { it.contains("\"sources\"") }
-                        ?.let { settle(JSONObject().put("body", it).put("referer", "$origin/")) }
-                        ?: pollCap(w, n + 1)
+                    val list = fromRaw(raw)
+                    list.firstOrNull { it.contains("\"sources\"") }
+                        ?.let {
+                            settle(JSONObject().put("body", it).put("referer", "$origin/"))
+                        }
+                        ?: run {
+                            mediaHit.get()?.let {
+                                settle(
+                                    JSONObject().put("url", it)
+                                        .put("hls", it.contains(".m3u8"))
+                                        .put("referer", "$origin/"),
+                                )
+                                return@evaluateJavascript
+                            }
+                            if (n == 10 && list.isNotEmpty()) {
+                                settle(JSONObject().put("debug", list.joinToString("|").take(500)).put("referer", "$origin/"))
+                            } else {
+                                pollCap(w, n + 1)
+                            }
+                        }
                 }
             }, 400)
         }
