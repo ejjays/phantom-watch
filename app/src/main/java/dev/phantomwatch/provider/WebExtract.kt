@@ -123,6 +123,7 @@ try { var b = document.querySelector('#play,.play-btn,[data-play]'); if (b) b.cl
             w.webViewClient = object : WebViewClient() {
                 override fun onPageStarted(v: WebView, url: String, icon: Bitmap?) {
                     AppLog.d("web start $url")
+                    v.evaluateJavascript(HOOK, null)
                 }
 
                 override fun shouldOverrideUrlLoading(v: WebView, req: WebResourceRequest): Boolean =
