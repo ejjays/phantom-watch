@@ -132,6 +132,7 @@ try { var b = document.querySelector('#play,.play-btn,[data-play]'); if (b) b.cl
                 override fun shouldInterceptRequest(v: WebView, req: WebResourceRequest): WebResourceResponse? {
                     val u = req.url.toString()
                     val h = req.url.host ?: ""
+                    if (u.contains("/sources") || u.contains("/seed")) AppLog.d("web api $u")
                     if (ads.any { h == it || h.endsWith(".$it") }) return blank()
                     if (media.matches(u) && mediaHit.compareAndSet(null, u)) {
                         AppLog.d("web media hit $u")
