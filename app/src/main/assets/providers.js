@@ -111,6 +111,11 @@
     return r && r.code === 200 ? r.body : null;
   }
 
+  function capVer(u) {
+    var m = /(?:%2F|\/)v(\d+)(?:%2F|\/)/i.exec(u);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
   async function love(ctx) {
     var cfg = ctx.cfg || {};
     var api = cfg.api || 'https://api.vidlove.cc';
@@ -183,6 +188,8 @@
         } catch (e) {}
       }
     }
+    // the cache keeps every revision; only the newest is re-timed for the current encode
+    subs.sort(function (a, b) { return capVer(b.url) - capVer(a.url); });
     var enSubs = subs.some(function (s) { return /english/i.test(s.label); });
     formats.sort(function (a, b) { return b.height - a.height; });
     formats.forEach(function (f) { f.referer = embed; f.enSubs = enSubs; });
