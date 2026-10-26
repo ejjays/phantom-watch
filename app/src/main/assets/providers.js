@@ -77,16 +77,6 @@
     });
   }
 
-  // native WebView page run for CF-gated players; skipped in probe/node
-  function web(url) {
-    return new Promise(function (resolve) {
-      if (!pw || typeof pw.web !== 'function') { resolve(null); return; }
-      var id = 'w' + (++seq);
-      pending.set(id, { resolve: resolve, reject: function () { resolve(null); } });
-      try { pw.web(id, String(url)); } catch (e) { pending.delete(id); resolve(null); }
-    });
-  }
-
   function absUrl(rel, base) {
     try { return new URL(rel, base).toString(); } catch (e) { return rel; }
   }
@@ -912,47 +902,125 @@
     return pinoyTv(ctx, cfg, title);
   }
 
+  var STREAM_L = [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993,
+    2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388,
+    2162078206, 2614888103, 3248222580];
+  var STREAM_U = [109, 118, 109, 49];
+  function streamMix(e) {
+    e = e >>> 0;
+    e ^= e >>> 16;
+    e = Math.imul(e, 2246822507) >>> 0;
+    e ^= e >>> 13;
+    e = Math.imul(e, 3266489909) >>> 0;
+    return (e ^ (e >>> 16)) >>> 0;
+  }
+  function streamRot(e, t) {
+    t &= 31;
+    if (t === 0) return e >>> 0;
+    return ((e << t) | (e >>> (32 - t))) >>> 0;
+  }
+  function streamFnv(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0;
+    return streamMix(h);
+  }
+  function streamState(seed, mediaId) {
+    var t = streamMix(streamFnv(seed) ^ streamMix((mediaId >>> 0) ^ 2654435769)) >>> 0;
+    var a = Array(61);
+    for (var i = 0; i < 8; i++) {
+      var t2 = t % 61;
+      t = streamRot((t + 2654435769) >>> 0, 7 + (7 & i));
+      a[t2] = (t ^ streamMix(t)) >>> 0;
+      t = streamMix((t + t2) >>> 0);
+    }
+    return { S: a, acc: streamMix(2779096485 ^ t) >>> 0 };
+  }
+  function streamStep(st, n) {
+    var d = st.acc % 61;
+    var i = st.S[d] >>> 0;
+    var s = (i ^ Math.imul(2654435769, n + 1)) >>> 0;
+    // d is always < S.length (61), so the chunk's r is always -1 and l is n|s
+    var l = (st.acc | s) >>> 0;
+    var lv = (streamRot((l + st.acc) >>> 0, 31 & d) ^ streamRot(st.acc, 31 & Math.imul(d, 7))) >>> 0;
+    var nv = streamMix((lv + 2654435769) >>> 0);
+    st.S[d] = nv >>> 0;
+    st.acc = nv >>> 0;
+    return nv >>> 0;
+  }
+  function b64e(str) {
+    var t = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    return Uint8Array.from(atob(t), function (ch) { return ch.charCodeAt(0); });
+  }
+  function streamDecrypt(body, seed, mediaId) {
+    var raw = b64e(body);
+    var st = streamState(seed, mediaId);
+    var ks = new Uint8Array(raw.length);
+    var n = 0;
+    for (var off = 0; off < raw.length;) {
+      var t = streamStep(st, n++);
+      for (var k = 0; k < 4 && off < raw.length; k++, off++) ks[off] = (t >>> (k * 8)) & 255;
+    }
+    for (var i = 0; i < raw.length; i++) raw[i] ^= ks[i];
+    for (var j = 0; j < STREAM_U.length; j++) if (raw[j] !== STREAM_U[j]) return null;
+    return new TextDecoder().decode(raw.subarray(STREAM_U.length));
+  }
+
   async function videasy(ctx) {
     var cfg = ctx.cfg || {};
-    if (typeof pw.web !== 'function') return skipped();
+    var api = (cfg.api || 'https://api.wecollege.net').replace(/\/+$/, '');
     var player = (cfg.player || 'https://www.vidy.st').replace(/\/+$/, '');
-    var page = ctx.kind === 'movie'
-      ? player + '/movie/' + ctx.tmdbId
-      : player + '/tv/' + ctx.tmdbId + '/' + ctx.season + '/' + ctx.episode;
-    var r = await web(page);
-    if (!r) return empty();
-    if (r.body) {
+    var cities = cfg.cities && cfg.cities.length ? cfg.cities : ['miami', 'boise'];
+    var title = ctx.title || '';
+    if (!title) return skipped();
+    var isTv = ctx.kind === 'tv';
+    var ref = player + '/';
+    var seedR = await http({ url: api + '/seed?mediaId=' + ctx.tmdbId, referer: ref, timeout: 8 });
+    var seed = '';
+    if (seedR && !seedR.error && seedR.code === 200) {
+      try { seed = JSON.parse(seedR.body).seed || ''; } catch (e) {}
+    }
+    if (!seed) return empty();
+    var qs = '?title=' + encodeURIComponent(title) +
+      '&mediaType=' + (isTv ? 'tv' : 'movie') +
+      '&year=' + (ctx.year || '') +
+      '&episodeId=' + (isTv ? (ctx.episode || 1) : 1) +
+      '&seasonId=' + (isTv ? (ctx.season || 1) : 1) +
+      '&tmdbId=' + ctx.tmdbId +
+      '&imdbId=' + encodeURIComponent(ctx.imdb || '') +
+      '&enc=2&seed=' + seed;
+    for (var i = 0; i < cities.length; i++) {
+      var r = await http({ url: api + '/' + cities[i] + '/sources' + qs, referer: ref, timeout: 12 });
+      if (!r || r.error || r.code !== 200) continue;
+      var pt = streamDecrypt(String(r.body || ''), seed, Number(ctx.tmdbId));
+      if (!pt) continue;
       var root;
-      try { root = JSON.parse(r.body); } catch (e) { return empty(); }
+      try { root = JSON.parse(pt); } catch (e) { continue; }
       var subs = [];
       (root.subtitles || []).forEach(function (s) {
-        var u = s && (s.url || s.file) || '';
-        if (u.indexOf('http') === 0) {
-          subs.push({ label: s.label || s.lang || s.language || 'Unknown', url: u, src: 'videasy' });
-        }
+        var u = s && s.url || '';
+        if (u.indexOf('http') !== 0) return;
+        var l = String(s.lang || '').toLowerCase();
+        if (l === 'eng') subs.push({ label: 'English', url: u, src: 'videasy' });
+        else if (l === 'eng (forced)') subs.push({ label: 'English (forced)', url: u, src: 'videasy' });
       });
-      var enSubs = subs.some(function (s) { return /english|^en\b/i.test(s.label); });
-      var h = 0;
+      var enSubs = subs.length > 0;
       var formats = [];
       (root.sources || []).forEach(function (s) {
         var u = typeof s === 'string' ? s : (s && s.url) || '';
         if (u.indexOf('http') !== 0) return;
-        var q = typeof s === 'object' ? (s.quality || s.resolution || '') : '';
-        var m = /(\d{3,4})/.exec(String(q));
-        h = /4k|2160/i.test(String(q)) ? 2160 : (m ? parseInt(m[1], 10) : 0);
-        var isHls = /\.m3u8|hls/i.test(u + '|' + String((s && s.type) || ''));
-        var f = fmt(u, isHls, 'videasy-' + (h ? h + 'p' : 'auto'), h);
-        f.referer = page;
+        var q = String((s && s.quality) || '');
+        var m = /(\d{3,4})p/i.exec(q);
+        var h = /4k|2160/i.test(q) ? 2160 : (m ? parseInt(m[1], 10) : 0);
+        var f = fmt(u, /\.m3u8|hls/i.test(u), 'videasy-' + (h ? h + 'p' : 'auto'), h);
+        f.referer = ref;
         f.enSubs = enSubs;
         formats.push(f);
       });
-      formats.sort(function (a, b) { return b.height - a.height; });
-      return { formats: formats, subs: subs };
-    }
-    if (r.url) {
-      var f2 = fmt(r.url, /\.m3u8/i.test(r.url), 'videasy-auto', 0);
-      f2.referer = page;
-      return { formats: [f2], subs: [] };
+      if (formats.length) {
+        formats.sort(function (a, b) { return b.height - a.height; });
+        return { formats: formats, subs: subs };
+      }
     }
     return empty();
   }
@@ -1007,7 +1075,7 @@
   try {
     pw.log('subtle=' + !!(window.crypto && window.crypto.subtle) + ' secure=' + window.isSecureContext);
   } catch (e) {}
-  window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail, voeDone: bridgeDone, webDone: bridgeDone };
+  window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail, voeDone: bridgeDone };
   window.__pwRank = pwRank;
   window.__pwSkip = pwSkip;
   window.__pwSort = function (id, formatsJson) {

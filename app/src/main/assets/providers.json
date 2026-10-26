@@ -86,7 +86,9 @@
     },
     "videasy": {
       "enabled": true,
-      "player": "https://www.vidy.st"
+      "api": "https://api.wecollege.net",
+      "player": "https://www.vidy.st",
+      "cities": ["miami", "boise"]
     },
     "pinoy": {
       "enabled": true,
