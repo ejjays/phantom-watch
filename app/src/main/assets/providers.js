@@ -975,11 +975,26 @@
     if (!title) return skipped();
     var isTv = ctx.kind === 'tv';
     var ref = player + '/';
-    var seedR = await http({ url: api + '/seed?mediaId=' + ctx.tmdbId, referer: ref, timeout: 8 });
+    var hdrs = {
+      'Origin': ref,
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'cross-site',
+      'sec-fetch-dest': 'empty',
+      'sec-ch-ua': '"Chromium";v="126", "Not.A/Brand";v="24"',
+      'sec-ch-ua-mobile': '?1',
+      'sec-ch-ua-platform': '"Android"',
+    };
+    var seedR = await http({ url: api + '/seed?mediaId=' + ctx.tmdbId, referer: ref, timeout: 8, headers: hdrs });
     var seed = '';
+    var seedErr = '';
     if (seedR && !seedR.error && seedR.code === 200) {
-      try { seed = JSON.parse(seedR.body).seed || ''; } catch (e) {}
+      try { seed = JSON.parse(seedR.body).seed || ''; } catch (e) { seedErr = 'json'; }
+    } else {
+      seedErr = String((seedR && seedR.code) || (seedR && seedR.error) || 'none');
     }
+    pw.log('videasy seed ' + (seed ? 'ok' : 'fail ' + seedErr));
     if (!seed) return empty();
     var qs = '?title=' + encodeURIComponent(title) +
       '&mediaType=' + (isTv ? 'tv' : 'movie') +
@@ -990,7 +1005,8 @@
       '&imdbId=' + encodeURIComponent(ctx.imdb || '') +
       '&enc=2&seed=' + seed;
     for (var i = 0; i < cities.length; i++) {
-      var r = await http({ url: api + '/' + cities[i] + '/sources' + qs, referer: ref, timeout: 12 });
+      var r = await http({ url: api + '/' + cities[i] + '/sources' + qs, referer: ref, timeout: 12, headers: hdrs });
+      pw.log('videasy ' + cities[i] + ' ' + String((r && r.code) || (r && r.error) || 'none'));
       if (!r || r.error || r.code !== 200) continue;
       var pt = streamDecrypt(String(r.body || ''), seed, Number(ctx.tmdbId));
       if (!pt) continue;
