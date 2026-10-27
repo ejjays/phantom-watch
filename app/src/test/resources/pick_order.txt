@@ -6,12 +6,16 @@ u-720|love-dcloud-720p|720|true|false
 u-1080-nonen|rock-hind-1080p|1080|false|false
 u-auto|love-moviebox-auto|-1080|true|true
 u-480|love-moviebox-480p|-480|true|true
+u-real-800|love-dcloud-800p|800|true|true
+u-fake-2160-auto|light-auto|2160|true|true
 order
 u-1080-en
+u-real-800
 u-2160
 u-1080
 u-720
 u-1080-nonen
+u-fake-2160-auto
 u-1080-auto
 u-480
 u-auto

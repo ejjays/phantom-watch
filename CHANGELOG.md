@@ -24,8 +24,10 @@
   audio too.
 - providers: a fixed rung now outranks an adaptive `auto` master. Measured on one title, the
   master settled at 640x268 while its own `vap-1080p` rung served 1920x804 on the same link, so
-  the master's advertised height is not what it plays. `__pwRank` and `FormatOrder` move the
-  `auto` flag below the height comparators; the shared `pick_order.txt` fixture pins the new order.
+  the master's advertised height is not what it plays. `__pwRank` and `FormatOrder` keep an
+  `auto` rung out of the 1080p+ bucket — its height is the ladder's ceiling, not the stream — and
+  below every real rung; the shared `pick_order.txt` fixture pins a 2160 `auto` losing to a real
+  800p with EN subs.
 - i18n: every string the app renders now lives in `res/values/strings.xml` (161
   strings plus one plural), so a translation is a resource file rather than a
   Kotlin edit, and air dates follow the device locale. The brand name is the

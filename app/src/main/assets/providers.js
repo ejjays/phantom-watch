@@ -11,14 +11,17 @@
 
   // canonical pick order: real height first, then 1080p+ with EN subs, then a
   // fixed rung over an adaptive master (the master's ABR settles low: 268p while
-  // its own 1080p rung served 804), EN subs, english audio, then height
+  // its own 1080p rung served 804), EN subs, english audio, then height.
+  // an auto rung's height is the ladder's ceiling, not what it serves, so it
+  // never claims the 1080p+ bucket
   function rankOf(f) {
     var h = typeof f.height === 'number' ? f.height : 0;
+    var auto = /-auto$/.test(f.label || '');
     return [
       h < 0 ? 0 : 1,
       f.dub ? 0 : 1,
-      (f.enSubs && h >= 1080) ? 1 : 0,
-      /-auto$/.test(f.label || '') ? 0 : 1,
+      (f.enSubs && h >= 1080 && !auto) ? 1 : 0,
+      auto ? 0 : 1,
       f.enSubs ? 1 : 0,
       f.english !== false ? 1 : 0,
       h
