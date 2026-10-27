@@ -188,7 +188,8 @@ private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
     }
 }
 
-// expired DNS is not transient (brief ban), 429 is backpressure (short cooldown), 403 is a dead token (long ban)
+// expired DNS is not transient (brief ban); 403 and 429 are the server refusing this request —
+// a dead token or a throttled edge, both of which clear in minutes, not a dead host
 internal fun noteDeadHost(chain: String, code: Int?, url: String) {
     when {
         chain.contains("UnknownHostException") -> {
@@ -200,8 +201,8 @@ internal fun noteDeadHost(chain: String, code: Int?, url: String) {
             AppLog.d("player rate limited host ${Torrents.DeadHosts.hostOf(url)}")
         }
         code == 403 -> {
-            Torrents.DeadHosts.mark(url, 24)
-            AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(url)}")
+            Torrents.DeadHosts.cooldown(url, 10)
+            AppLog.d("player refused host ${Torrents.DeadHosts.hostOf(url)}")
         }
     }
 }

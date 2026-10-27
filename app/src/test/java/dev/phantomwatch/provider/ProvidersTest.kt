@@ -186,9 +186,16 @@ class ProvidersTest {
     }
 
     @Test
-    fun providerWithoutOwnSubsDropsForeignOnes() {
-        val subs = listOf(Sub("English", "a", "vidlink"), Sub("English", "b", "love"))
+    fun providerWithoutOwnSubsBorrowsEnglish() {
+        val subs = listOf(Sub("English", "a", "vidlink"), Sub("Español", "b", "love"))
         val f = VideoFormat("u", false, "vap-auto", 1080)
+        assertEquals(listOf("a"), Providers.subsFor(f, subs).map { it.url })
+    }
+
+    @Test
+    fun aDubNeverBorrows() {
+        val subs = listOf(Sub("English", "a", "vidlink"))
+        val f = VideoFormat("u", false, "hianime-dub-1080p", 1080, dub = "English")
         assertTrue(Providers.subsFor(f, subs).isEmpty())
     }
 

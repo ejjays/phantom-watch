@@ -10,6 +10,14 @@
   rather than filtered out, and a hang ban is never cleared by the one-byte re-admit probe, so a
   wrong ban costs rank and not the title. Also one inset per edge, bottom controls clear the
   display cutout, and the rail shell is picked by window width so a portrait tablet gets it too.
+- player: a 403 is now a ten-minute cooldown, not a 24-hour host ban. Measured on a vidlink edge,
+  the same url answered 403 to the player's user-agent and 429 to the same request with a
+  referer — a throttled edge, not a dead host. A dead token and a throttle both clear in
+  minutes, so a day-long ban only kept a working provider sunk behind a worse one.
+- subs: a rung that ships no captions of its own now takes another leg's English file instead of
+  waiting for OpenSubtitles. A subtitle is timed to the film, not the encode, so the foreign
+  file is a far better guess than a hash-less OpenSubtitles search; dubs still never borrow,
+  because a dub's own cut is what the text has to match.
 - subs: **experimental, off** (`AiSubtitles.EXPERIMENTAL = false`). A dub whose cut ships no
   captions of its own was wired to transcribe the dub audio with Deepgram Nova-3, which is the
   only caption source that cannot drift against it. It stays off because the accurate pass

@@ -270,7 +270,10 @@ object Providers {
     // own-provider subs fit this cut; others drift, so they're only a fallback
     fun subsFor(f: VideoFormat, subs: List<Sub>): List<Sub> {
         if (f.label.startsWith("rock-")) return emptyList()
-        return subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
+        val own = subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
+        // a rung with no captions of its own takes another leg's English file before OpenSubtitles
+        if (own.isNotEmpty() || f.dub != null) return own
+        return subs.filter { it.label.contains("english", true) }
     }
 
     fun providerName(f: VideoFormat): String = when {
