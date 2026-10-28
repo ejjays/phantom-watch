@@ -1,5 +1,9 @@
 package dev.phantomwatch.player
 
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.view.PixelCopy
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -16,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +44,9 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.google.android.gms.media.effect.enhancement.EnhancementSession
 import dev.phantomwatch.ui.AmbientGlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 @Composable
 fun PlayerVideo(
@@ -53,6 +61,17 @@ fun PlayerVideo(
     modifier: Modifier = Modifier,
 ) {
     var videoSurface by remember { mutableStateOf<SurfaceView?>(null) }
+    // a 16:9 encode often pads a wider picture with real black rows; measure them once and crop
+    // so the picture fills the stage instead of sitting inside its own bars
+    var pad by remember { mutableStateOf(0f) }
+    LaunchedEffect(videoSurface) {
+        val sv = videoSurface ?: return@LaunchedEffect
+        repeat(10) {
+            delay(700)
+            pad = frameBars(sv) ?: return@repeat
+            return@LaunchedEffect
+        }
+    }
     // A trip to the background kills the view's surface; without a rebind the picture stays black
     // while audio and subtitles keep running.
     val ctx = LocalContext.current
@@ -65,9 +84,11 @@ fun PlayerVideo(
         onDispose { lc.removeObserver(obs) }
     }
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val vh = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / videoAspect)
-        val vw = vh * videoAspect
-        AmbientGlow(videoSurface, videoAspect, Modifier.fillMaxSize())
+        // a raw surface scales the buffer to its bounds, so only the PlayerView path may crop
+        val aspect = if (pad > 0f && enhSession == null) videoAspect / (1f - pad) else videoAspect
+        val vh = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / aspect)
+        val vw = vh * aspect
+        AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
                 factory = { ctx ->
@@ -101,7 +122,11 @@ fun PlayerVideo(
                     }
                 },
                 update = {
-                    it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    it.resizeMode = if (pad > 0f) {
+                        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    } else {
+                        AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
                     videoSurface = it.videoSurfaceView as? SurfaceView
                     it.subtitleView?.visibility = View.GONE
                     if (resumeTick != bound[0]) {
@@ -152,5 +177,59 @@ private fun SubtitleLayer(cues: String, style: Pair<Float, Float>?, topPx: Float
                     vertical = with(d) { (textPx * 0.33f).toDp() },
                 ),
         )
+    }
+}
+
+// rows that are black across the whole frame are padding, not picture. a 2.39 film in a 16:9
+// encode carries about 13% of it top and bottom, and the two sides have to match
+internal fun barFraction(px: IntArray, w: Int, h: Int): Float? {
+    var top = -1
+    var bottom = -1
+    for (y in 0 until h) {
+        var lit = false
+        for (x in 0 until w) {
+            val p = px[y * w + x]
+            if (((p shr 16 and 0xFF) + (p shr 8 and 0xFF) + (p and 0xFF)) / 3 > 12) {
+                lit = true
+                break
+            }
+        }
+        if (lit) {
+            if (top < 0) top = y
+            bottom = y
+        }
+    }
+    if (top < 0) return null
+    val bars = (top + (h - 1 - bottom)).toFloat() / h
+    val skew = kotlin.math.abs(top - (h - 1 - bottom)).toFloat() / h
+    return if (bars >= 0.04f && bars <= 0.4f && skew <= 0.02f) bars else 0f
+}
+
+private suspend fun frameBars(sv: SurfaceView): Float? {
+    if (!sv.holder.surface.isValid) return null
+    return try {
+        suspendCancellableCoroutine { c ->
+            val w = 48
+            val h = 48
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            PixelCopy.request(
+                sv,
+                bmp,
+                { r ->
+                    if (c.isActive) {
+                        if (r != PixelCopy.SUCCESS) {
+                            c.resume(null)
+                        } else {
+                            val px = IntArray(w * h)
+                            bmp.getPixels(px, 0, w, 0, 0, w, h)
+                            c.resume(barFraction(px, w, h))
+                        }
+                    }
+                },
+                Handler(Looper.getMainLooper()),
+            )
+        }
+    } catch (_: Exception) {
+        null
     }
 }

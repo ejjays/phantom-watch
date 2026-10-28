@@ -47,9 +47,9 @@ instead of trying to hide it in the app.
 - **Losing the release keystore** ends updates for installed release builds.
   It is stored on the phone (`~/.phantomwatch/release.jks`) and must be backed
   up offline, twice. The same applies to the OTA signing key.
-- **Cleartext traffic.** Some providers hand out `http://` streams, so
-  `usesCleartextTraffic` is on. A hostile network could tamper with a stream.
-  Nothing else travels in the clear.
+- **Cleartext traffic.** Only `127.0.0.1` is allowed in the clear, for the update
+  helper. An `http://` provider stream will not load until its host is added to
+  `res/xml/network_security_config.xml`.
 - **The WebView bridge.** The page is a local `https://phantom.local/` blob
   with network loads blocked; only the signed script runs in it. The bridge
   can issue HTTP requests, so it is only as trustworthy as the signed script.
@@ -60,7 +60,5 @@ instead of trying to hide it in the app.
 
 1. Move TMDB, OpenSubtitles, Groq and the telemetry key behind the Worker and
    hand the app short-lived tokens.
-2. Turn off cleartext and add a `network_security_config.xml` that only
-   allows the hosts that need it.
-3. Pin the certificate of the config endpoint, the Worker and Supabase.
-4. Rate-limit the telemetry endpoint and drop the shared key.
+2. Pin the certificate of the config endpoint, the Worker and Supabase.
+3. Rate-limit the telemetry endpoint and drop the shared key.
