@@ -43,6 +43,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.google.android.gms.media.effect.enhancement.EnhancementSession
+import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.ui.AmbientGlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -62,15 +63,19 @@ fun PlayerVideo(
 ) {
     var videoSurface by remember { mutableStateOf<SurfaceView?>(null) }
     // a 16:9 encode often pads a wider picture with real black rows; measure them once and crop
-    // so the picture fills the stage instead of sitting inside its own bars
+    // so the picture fills the stage instead of sitting inside its own bars. the view exists long
+    // before the first frame does: the resolve alone can take 15s
     var pad by remember { mutableStateOf(0f) }
     LaunchedEffect(videoSurface) {
         val sv = videoSurface ?: return@LaunchedEffect
-        repeat(10) {
-            delay(700)
-            pad = frameBars(sv) ?: return@repeat
+        repeat(60) {
+            delay(500)
+            val f = frameBars(sv) ?: return@repeat
+            pad = f
+            AppLog.d("video pad ${(f * 100).toInt()}%")
             return@LaunchedEffect
         }
+        AppLog.d("video pad none")
     }
     // A trip to the background kills the view's surface; without a rebind the picture stays black
     // while audio and subtitles keep running.
