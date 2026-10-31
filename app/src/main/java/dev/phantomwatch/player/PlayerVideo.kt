@@ -96,7 +96,8 @@ fun PlayerVideo(
         val aspect = if (pad > 0f && enhSession == null) videoAspect / (1f - pad) else videoAspect
         val vh = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / aspect)
         val vw = vh * aspect
-        AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
+        // cropped picture leaves a band exactly where the bars were; glowing it reads as a stray bar
+        if (pad <= 0f) AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
                 factory = { ctx ->
