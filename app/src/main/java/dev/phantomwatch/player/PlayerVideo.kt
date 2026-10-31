@@ -9,6 +9,8 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -65,13 +67,14 @@ fun PlayerVideo(
     // a 16:9 encode often pads a wider picture with real black rows; measure them once and crop
     // so the picture fills the stage instead of sitting inside its own bars. the view exists long
     // before the first frame does: the resolve alone can take 15s
-    var pad by remember { mutableStateOf(0f) }
+    var padTarget by remember { mutableStateOf(0f) }
+    val pad by animateFloatAsState(padTarget, tween(320), label = "pad")
     LaunchedEffect(videoSurface) {
         val sv = videoSurface ?: return@LaunchedEffect
         repeat(60) {
             delay(500)
             val f = frameBars(sv) ?: return@repeat
-            pad = f
+            padTarget = f
             AppLog.d("video pad ${(f * 100).toInt()}%")
             return@LaunchedEffect
         }
