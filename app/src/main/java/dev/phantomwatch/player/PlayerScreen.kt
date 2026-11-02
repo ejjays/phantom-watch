@@ -373,9 +373,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                         val f = g.getTrackFormat(0)
                         "${f.language}:${f.sampleMimeType?.substringAfterLast('/')} ${f.channelCount}ch${if (g.isSelected) "*" else ""}${if (!g.isSupported) " UNSUP" else ""}"
                     }
-                if (audios.isNotEmpty()) {
-                    AppLog.d("audio [${audios.joinToString()}]")
-                }
+                AppLog.d("audio [${audios.joinToString()}]")
                 val texts = tracks.groups
                     .filter { it.type == C.TRACK_TYPE_TEXT }
                     .mapNotNull { g ->
@@ -831,6 +829,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     }
     val portraitNow = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     LaunchedEffect(fullscreen, cfg.orientation, controls) { fullscreenBars(fullscreen && (portraitNow || !controls)) }
+    LaunchedEffect(fullscreen) { PlayerUi.fullscreen = fullscreen }
     var orientJob: Job? by remember { mutableStateOf(null) }
     val fsNow = rememberUpdatedState(fullscreen)
     val lockedNow = rememberUpdatedState(locked)
@@ -868,6 +867,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         onDispose {
             orientJob?.cancel()
             orientListener.disable()
+            PlayerUi.fullscreen = false
         }
     }
     BackHandler {

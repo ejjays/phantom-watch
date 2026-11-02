@@ -53,6 +53,7 @@ import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.player.Pip
+import dev.phantomwatch.player.PlayerUi
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
 import dev.phantomwatch.player.Screen
@@ -254,7 +255,7 @@ internal fun AppRoot() {
                 }
             }
         }
-        if ((BuildConfig.DEBUG || BuildConfig.LOGUI) && !Pip.inPip) LogFab()
+        if ((BuildConfig.DEBUG || BuildConfig.LOGUI) && !PlayerUi.hidesChrome) LogFab()
     }
     crash?.let { text ->
         AlertDialog(
