@@ -18,7 +18,8 @@
   },
   "legs": {
     "love": {
-      "enabled": true,
+      "enabled": false,
+      "note": "disabled due to desynced subtitles and stream stalls",
       "api": "https://api.vidqueen.st",
       "player": "https://player.vidqueen.st",
       "sources": ["", "s4", "s5", "s2", "s6", "s1"],

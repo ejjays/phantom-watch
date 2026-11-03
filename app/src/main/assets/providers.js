@@ -119,6 +119,7 @@
     return m ? parseInt(m[1], 10) : 0;
   }
 
+  // disabled due to desynced captions
   async function love(ctx) {
     var cfg = ctx.cfg || {};
     var api = cfg.api || 'https://api.vidlove.cc';

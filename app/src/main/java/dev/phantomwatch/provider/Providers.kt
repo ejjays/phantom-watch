@@ -25,7 +25,7 @@ import org.json.JSONObject
 
 data class VideoFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap(), val intro: LongRange? = null, val dub: String? = null, val subs: List<Sub> = emptyList(), val outro: LongRange? = null)
 
-// Every leg runs in providers.js; this object only talks to that engine.
+// every leg runs in providers.js; this object only talks to that engine
 object Providers {
     internal val UA get() = RemoteConfig.valueOr("ua", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36")
 
@@ -62,7 +62,6 @@ object Providers {
         put("tmdbBase", RemoteConfig.tmdbBase())
     }
 
-    // ranking ceiling for early stream exit
     internal fun isTopTier(f: VideoFormat): Boolean =
         f.height >= 1080 && (f.enSubs || f.enAudio || f.dub != null) && !f.label.endsWith("-auto")
 
@@ -82,7 +81,7 @@ object Providers {
             val hianimePending = names.contains("hianime") && completed.none { it.name == "hianime" }
             val timeoutMs = if (hasTopTier) {
                 if (hianimePending) {
-                    // allow anime dub scraper to land
+                    // hianime's dub scrape lands late; give it the longer budget
                     val remaining = 6_500L - (System.currentTimeMillis() - t0)
                     remaining.coerceAtLeast(0L)
                 } else {
@@ -100,7 +99,6 @@ object Providers {
             }
         }
         val completedNames = completed.map { it.name }.toSet()
-        // mark cancelled legs skipped for telemetry
         return completed + names.filter { it !in completedNames }.map {
             LegResult(it, emptyList(), emptyList(), true, 0)
         }
@@ -113,7 +111,7 @@ object Providers {
                 coroutineScope {
                     val t0 = System.currentTimeMillis()
                     val imdb = async { Tmdb.imdbOf(tmdbId, kind, RemoteConfig.tmdbKey()) }
-                    val order = listOf("hianime", "paradise", "love", "rock", "vix", "zee", "vap", "vidlink")
+                    val order = listOf("hianime", "paradise", "rock", "vix", "zee", "vap", "vidlink")
                     val names = order + RemoteConfig.providerNames().filter { it !in order }
                     val ch = Channel<LegResult>(Channel.UNLIMITED)
                     val jobs = names.map { name ->
@@ -127,7 +125,7 @@ object Providers {
                             val args = jsArgs(name, tmdbId, kind, season, episode, title, imdbArg)
                             val js = JsProviders.resolve(name, args, legBudget(name))
                             if (js == null) AppLog.d("leg $name no js result")
-                            // a dead bridge is not a provider outage; keep it out of the leg stats
+                            // a dead bridge is not a provider outage, so keep it out of the leg stats
                             val skipped = js == null || js.optBoolean("skipped")
                             ch.send(
                                 LegResult(
@@ -275,7 +273,6 @@ object Providers {
 
     // a dub keeps the captions its own cut declares: hianime hands both cuts the same vtt because
     // they share one timeline (Solo Leveling s1e1: 1420.0s each), so filtering shared files hid real subs
-    // the saved cut is re-matched against this resolve's list: same leg first, then any leg with that language
     fun savedDub(dubs: List<Dub>, saved: String?): Dub? {
         if (saved == null) return null
         val pick = dubs.firstOrNull { !it.base && it.label == saved }
@@ -289,7 +286,6 @@ object Providers {
         return s.withDub(d)
     }
 
-    // a dub session drops to the base cut when its own cdn is dead
     fun dubBase(s: Stream): Stream? {
         if (s.dub == null) return null
         val b = s.dubs.firstOrNull { it.base } ?: return null
@@ -311,11 +307,10 @@ object Providers {
         return listOf(back) + dubs
     }
 
-    // own-provider subs fit this cut; others drift, so they're only a fallback
+    // own-provider subs fit this cut; other legs' files drift, so they are only a fallback
     fun subsFor(f: VideoFormat, subs: List<Sub>): List<Sub> {
         if (f.label.startsWith("rock-")) return emptyList()
         val own = subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
-        // a rung with no captions of its own takes another leg's English file before OpenSubtitles
         if (own.isNotEmpty() || f.dub != null) return own
         return subs.filter { it.label.contains("english", true) }
     }
@@ -333,15 +328,13 @@ object Providers {
         else -> f.label
     }
 
-    // a wrong ban must cost rank, not access: a banned host sinks instead of disappearing, so a
-    // title that only has banned formats still plays
+    // a wrong ban must cost rank, not access: a banned host sinks so the title still plays
     internal fun rankLast(formats: List<VideoFormat>, blocked: (String) -> Boolean): List<VideoFormat> {
         val (ok, banned) = formats.partition { !blocked(it.url) }
         return ok + banned
     }
 
-    // the fallback the player takes when a stream hangs: the best format the last resolve still
-    // holds, so a dead edge costs one switch instead of a trip through the sources list
+    // the best format the last resolve still holds, so a dead edge costs one switch
     internal fun nextFormat(
         formats: List<VideoFormat>,
         failedUrl: String,
@@ -351,16 +344,14 @@ object Providers {
         val pool = formats.filter { it.url != failedUrl && it.url !in dead }
         val open = pool.filterNot { blocked(it.url) }.ifEmpty { pool }
         val first = open.firstOrNull() ?: return null
-        // the list is already ranked, so an English-sub leg is first. an "auto" rung advertises
-        // a height it may not serve; prefer a real rung only when it keeps those subtitles
+        // an "auto" rung advertises a height it may not serve; prefer a real rung when it keeps the subs
         if (!first.label.endsWith("-auto")) return first
         val real = open.filter { !it.label.endsWith("-auto") && it.enSubs == first.enSubs }
         return real.firstOrNull { it.height >= 720 } ?: real.firstOrNull() ?: first
     }
 
     suspend fun nextStream(media: Title, season: String, episode: String, failedUrl: String, fresh: Boolean = false): Stream? {
-        // the first fallback is served from the 5-min bundle; a later failure may mean its
-        // signed urls expired, so that one gets a fresh resolve
+        // a later failure may mean the signed urls expired, so that one gets a fresh resolve
         val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode, fresh) } ?: return null
         val f = nextFormat(b.formats, failedUrl, Torrents.DeadReleases.urls, Torrents.DeadHosts::blocked)
             ?: return null
