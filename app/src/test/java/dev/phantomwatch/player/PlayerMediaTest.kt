@@ -110,4 +110,24 @@ class PlayerMediaTest {
         assertFalse(hasEnglishSubs(listOf(Sub("Deutsch", "de"), Sub("Français", "fr"))))
         assertTrue(hasEnglishSubs(listOf(Sub("Deutsch", "de"), Sub("English", "en"))))
     }
+
+    @Test
+    fun loveSubsNotTrustedForOsSkip() {
+        // love subs: not reliable, so OS should still run
+        val loveSubs = listOf(Sub("English", "https://cdn/en.vtt", "love"))
+        assertFalse(hasReliableEnSubs(loveSubs))
+        // hianime subs: trusted, so OS can skip
+        val hianimeSubs = listOf(Sub("English", "https://cdn/en.vtt", "hianime"))
+        assertTrue(hasReliableEnSubs(hianimeSubs))
+        // mixed: reliable source wins
+        val mixed = listOf(Sub("English", "https://cdn/en.vtt", "love"), Sub("English", "https://cdn2/en.vtt", "paradise"))
+        assertTrue(hasReliableEnSubs(mixed))
+    }
+
+    @Test
+    fun loadControlConfiguresBufferDurations() {
+        val lc = loadControl(90_000)
+        assertEquals(10_000_000L, lc.getBackBufferDurationUs(androidx.media3.exoplayer.analytics.PlayerId.UNSET))
+        assertFalse(lc.retainBackBufferFromKeyframe(androidx.media3.exoplayer.analytics.PlayerId.UNSET))
+    }
 }

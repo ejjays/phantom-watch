@@ -87,7 +87,8 @@ internal class SubsController(
                     AppLog.d("os no api key")
                     return@launch
                 }
-                if (s.enSubs) {
+                // love subs drift on some encodes; only trust non-love sources
+                if (s.enSubs && hasReliableEnSubs(s.subs)) {
                     AppLog.d("os skipped, provider en subs")
                     return@launch
                 }
@@ -96,8 +97,8 @@ internal class SubsController(
                     AppLog.d("os skipped, ai subs on")
                     return@launch
                 }
-                // provider subs only fill the gap when one of them is English
-                if (hasEnglishSubs(s.subs)) {
+                // love subs only: let OS override with synced track
+                if (hasReliableEnSubs(s.subs)) {
                     AppLog.d("os skipped, stream subs")
                     return@launch
                 }

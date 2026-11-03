@@ -93,7 +93,6 @@ private fun ShimmerBox(modifier: Modifier = Modifier) {
     )
 }
 
-// Everything the tablet layout needs, so the screen itself can stay platform-free.
 class WideDetailArgs(
     val item: Title,
     val d: TitleDetail,
@@ -134,7 +133,6 @@ fun DetailScreen(
         Log.d("detail open ${item.kind}/${item.id} ${item.title}")
     }
     LaunchedEffect(item.id, item.kind) {
-        if (item.kind != "movie") return@LaunchedEffect
         delay(1200)
         prefetchStream(item)
     }
@@ -213,8 +211,6 @@ fun DetailScreen(
             )
             else -> BoxWithConstraints(Modifier.fillMaxSize()) {
                 val heroH = minOf(413.dp, maxHeight * 0.5f)
-                // The sheet has to reach the bottom of the window: a short synopsis would otherwise
-                // leave a band of bare background between the card and the floating watch bar.
                 val minCardH = (maxHeight - heroH + 120.dp).coerceAtLeast(0.dp)
                 Column(Modifier.widthIn(max = 720.dp).fillMaxSize().verticalScroll(rememberScrollState()).align(Alignment.TopCenter)) {
                     Box(
@@ -270,7 +266,6 @@ fun DetailScreen(
             if (episodesOpen) {
                 EpisodesScreen(
                     detail = detail,
-                    // back from a post-player return skips the detail view
                     onClose = { if (startEpisodes && onEpisodesExit != null) onEpisodesExit() else episodesOpen = false },
                     onEpisode = { s, e ->
                         episodesOpen = false
@@ -367,8 +362,8 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
     }
 }
 
-// Lenient on purpose: bad input falls back to the raw ISO string. Fixed en-US shape because
-// java.time's localized formatter has no multiplatform twin.
+// lenient on purpose: bad input falls back to the raw ISO. en-US shape because java.time's
+// localized formatter has no multiplatform twin
 private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 fun airLabel(iso: String): String {
@@ -624,7 +619,6 @@ fun EpisodesScreen(
     }
 }
 
-/** Title, meta, plot, episodes, director and cast: the sheet shared by the phone and tablet layouts. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailBody(

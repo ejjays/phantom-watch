@@ -5,11 +5,27 @@ import dev.phantomwatch.data.Sub
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProvidersTest {
+    @Test
+    fun identifiesTopTierFormat() {
+        val top = VideoFormat("https://a/x.m3u8", true, "vidlink-1080p", 1080, enSubs = true)
+        val auto = VideoFormat("https://a/x.m3u8", true, "vidlink-auto", 1080, enSubs = true)
+        val noSub = VideoFormat("https://a/x.m3u8", true, "vidlink-1080p", 1080, enSubs = false)
+        val p720 = VideoFormat("https://a/x.m3u8", true, "vidlink-720p", 720, enSubs = true)
+        val dub = VideoFormat("https://a/x.m3u8", true, "vidlink-1080p", 1080, enSubs = true, dub = "English")
+        val p4k = VideoFormat("https://a/x.m3u8", true, "vidlink-2160p", 2160, enSubs = true)
+        assertTrue(Providers.isTopTier(top))
+        assertTrue(Providers.isTopTier(p4k))
+        assertTrue(Providers.isTopTier(dub))
+        assertFalse(Providers.isTopTier(auto))
+        assertFalse(Providers.isTopTier(noSub))
+        assertFalse(Providers.isTopTier(p720))
+    }
     private fun legJson(vararg formats: String): JSONObject {
         val arr = JSONArray()
         formats.forEach { arr.put(JSONObject(it)) }

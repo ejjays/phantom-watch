@@ -34,7 +34,7 @@ internal object Playback {
 
     @OptIn(UnstableApi::class)
     private fun build(context: Context): ExoPlayer {
-        // shortcut: one shared player can't shrink LoadControl for file:// streams; restore the torrent readahead if torrents come back
+        // one shared player can't shrink LoadControl for file:// streams: restore the torrent readahead if torrents come back
         val selector = DefaultTrackSelector(context).apply {
             parameters = buildUponParameters()
                 .setPreferredAudioLanguage("en")
@@ -63,14 +63,14 @@ internal object Playback {
     }
 }
 
-// Media3 budgets a muxed stream at 125MB video + 12.5MB audio, so one player alone can
-// outgrow this phone's 384MB heap; the back buffer is retained on top of that budget.
+// prioritize time to prevent buffer stalls
 @OptIn(UnstableApi::class)
 internal fun loadControl(maxBufferMs: Int = 90_000): DefaultLoadControl =
     DefaultLoadControl.Builder()
-        .setBufferDurationsMsForStreaming(15_000, maxBufferMs, 1_000, 3_000)
-        .setTargetBufferBytes(48 * 1024 * 1024)
-        .setBackBuffer(15_000, true)
+        .setBufferDurationsMsForStreaming(30_000, maxBufferMs, 1_500, 5_000)
+        .setPrioritizeTimeOverSizeThresholds(true)
+        .setTargetBufferBytes(96 * 1024 * 1024)
+        .setBackBuffer(10_000, false)
         .build()
 
 class PlaybackService : MediaSessionService() {

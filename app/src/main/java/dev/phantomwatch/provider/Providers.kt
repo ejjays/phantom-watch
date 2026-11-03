@@ -14,7 +14,9 @@ import dev.phantomwatch.torrent.Torrents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
@@ -60,6 +62,50 @@ object Providers {
         put("tmdbBase", RemoteConfig.tmdbBase())
     }
 
+    // ranking ceiling for early stream exit
+    internal fun isTopTier(f: VideoFormat): Boolean =
+        f.height >= 1080 && (f.enSubs || f.enAudio || f.dub != null) && !f.label.endsWith("-auto")
+
+    private fun legBudget(name: String): Long = when (name) {
+        "paradise" -> 28L
+        "hianime" -> 27L
+        "pinoy" -> 22L
+        "videasy", "net79" -> 25L
+        else -> 12L
+    }
+
+    private suspend fun collectLegs(names: List<String>, ch: Channel<LegResult>, t0: Long): List<LegResult> {
+        val completed = mutableListOf<LegResult>()
+        var hasTopTier = false
+        var topTierAt = 0L
+        for (i in names.indices) {
+            val hianimePending = names.contains("hianime") && completed.none { it.name == "hianime" }
+            val timeoutMs = if (hasTopTier) {
+                if (hianimePending) {
+                    // allow anime dub scraper to land
+                    val remaining = 10_000L - (System.currentTimeMillis() - t0)
+                    remaining.coerceAtLeast(0L)
+                } else {
+                    val elapsed = System.currentTimeMillis() - topTierAt
+                    (800L - elapsed).coerceAtLeast(0L)
+                }
+            } else {
+                40_000L
+            }
+            val leg = withTimeoutOrNull(timeoutMs) { ch.receive() } ?: break
+            completed.add(leg)
+            if (!hasTopTier && leg.formats.any { isTopTier(it) }) {
+                hasTopTier = true
+                topTierAt = System.currentTimeMillis()
+            }
+        }
+        val completedNames = completed.map { it.name }.toSet()
+        // mark cancelled legs skipped for telemetry
+        return completed + names.filter { it !in completedNames }.map {
+            LegResult(it, emptyList(), emptyList(), true, 0)
+        }
+    }
+
     suspend fun directAll(tmdbId: String, kind: String, season: String, episode: String, title: String): Triple<List<VideoFormat>, List<Sub>, String?> =
         withContext(Dispatchers.IO) {
             AppLog.d("direct $kind/$tmdbId s=$season e=$episode \"$title\"")
@@ -67,37 +113,34 @@ object Providers {
                 coroutineScope {
                     val t0 = System.currentTimeMillis()
                     val imdb = async { Tmdb.imdbOf(tmdbId, kind, RemoteConfig.tmdbKey()) }
-                    val order = listOf("love", "rock", "vix", "zee", "paradise", "vap", "vidlink", "hianime")
+                    val order = listOf("hianime", "paradise", "love", "rock", "vix", "zee", "vap", "vidlink")
                     val names = order + RemoteConfig.providerNames().filter { it !in order }
-                    val results = names.map { name ->
-                        async {
+                    val ch = Channel<LegResult>(Channel.UNLIMITED)
+                    val jobs = names.map { name ->
+                        launch {
                             val tLeg = System.currentTimeMillis()
                             if (!RemoteConfig.isEnabled(name)) {
-                                return@async LegResult(name, emptyList(), emptyList(), true, 0)
+                                ch.send(LegResult(name, emptyList(), emptyList(), true, 0))
+                                return@launch
                             }
                             val imdbArg = if (name == "vap") imdb.await() else null
                             val args = jsArgs(name, tmdbId, kind, season, episode, title, imdbArg)
-                            // hianime walks five sequential calls; 12s was only safe with the old native fallback
-                            val budget = when (name) {
-                                "paradise" -> 28L
-                                "hianime" -> 27L
-                                "pinoy" -> 22L
-                                "videasy", "net79" -> 25L
-                                else -> 12L
-                            }
-                            val js = JsProviders.resolve(name, args, budget)
+                            val js = JsProviders.resolve(name, args, legBudget(name))
                             if (js == null) AppLog.d("leg $name no js result")
                             // a dead bridge is not a provider outage; keep it out of the leg stats
                             val skipped = js == null || js.optBoolean("skipped")
-                            LegResult(
-                                name,
-                                formatsOf(js),
-                                subsOf(js),
-                                skipped,
-                                System.currentTimeMillis() - tLeg,
+                            ch.send(
+                                LegResult(
+                                    name,
+                                    formatsOf(js),
+                                    subsOf(js),
+                                    skipped,
+                                    System.currentTimeMillis() - tLeg,
+                                ),
                             )
                         }
-                    }.awaitAll()
+                    }
+                    val results = collectLegs(names, ch, t0).also { jobs.forEach { j -> j.cancel() } }
                     AppLog.d(
                         "direct legs " + results.joinToString(" ") { "${it.name}=${it.formats.size}" } +
                             " @${System.currentTimeMillis() - t0}ms",

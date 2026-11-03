@@ -94,8 +94,11 @@ internal fun looksEnglish(name: String): Boolean {
     return l.substringBefore(":").startsWith("en") || "english" in l
 }
 
-// provider tracks only fill the gap when one of them is actually English
 internal fun hasEnglishSubs(subs: List<Sub>): Boolean = subs.any { looksEnglish(it.label) }
+
+// love subs drift on some encodes; only non-love subs are trusted for OS skip
+internal fun hasReliableEnSubs(subs: List<Sub>): Boolean =
+    subs.any { looksEnglish(it.label) && it.src != "love" }
 
 internal fun <B : TrackSelectionParameters.Builder> B.textTrack(disabled: Boolean): B =
     apply { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, disabled) }
@@ -176,9 +179,8 @@ internal fun mediaHeaders(stream: Stream): Map<String, String> {
         ref + (stream.auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
 }
 
-// 429 is a rate limit and 403 is usually an expired token or a geo block: retrying either for
-// 15s only holds the player on a spinner before the same response. Surface them at once and let
-// the player switch to another leg.
+// 429 is a rate limit and 403 an expired token or geo block: retrying either only holds the
+// player on a spinner before the same response, so surface it and let the player switch legs
 @UnstableApi
 private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
     override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
@@ -188,8 +190,7 @@ private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
     }
 }
 
-// expired DNS is not transient (brief ban); 403 and 429 are the server refusing this request —
-// a dead token or a throttled edge, both of which clear in minutes, not a dead host
+// expired DNS is not transient, so it gets a brief ban; 403 and 429 clear in minutes, not a dead host
 internal fun noteDeadHost(chain: String, code: Int?, url: String) {
     when {
         chain.contains("UnknownHostException") -> {
@@ -216,8 +217,6 @@ internal fun buildMediaFactory(
 ): DefaultMediaSourceFactory {
     val retry = FailFastLoadPolicy()
     if (stream.url.startsWith("file")) {
-        // incomplete torrent file: hide the length so Exo plays progressively
-        // instead of seeking cue tables that are not downloaded yet
         return DefaultMediaSourceFactory(
             DataSource.Factory {
                 val inner = FileDataSource()
