@@ -97,7 +97,6 @@ internal class SubsController(
                     AppLog.d("os skipped, ai subs on")
                     return@launch
                 }
-                // love subs only: let OS override with synced track
                 if (hasReliableEnSubs(s.subs)) {
                     AppLog.d("os skipped, stream subs")
                     return@launch
@@ -108,7 +107,7 @@ internal class SubsController(
                         looksEnglish("${f.language ?: "und"}:${f.label ?: ""}")
                     }
                 } == true
-                if (hasEnEmbed) {
+                if (hasEnEmbed && hasReliableEnSubs(s.subs)) {
                     AppLog.d("os skipped, embed subs")
                     return@launch
                 }

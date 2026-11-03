@@ -83,7 +83,7 @@ object Providers {
             val timeoutMs = if (hasTopTier) {
                 if (hianimePending) {
                     // allow anime dub scraper to land
-                    val remaining = 10_000L - (System.currentTimeMillis() - t0)
+                    val remaining = 6_500L - (System.currentTimeMillis() - t0)
                     remaining.coerceAtLeast(0L)
                 } else {
                     val elapsed = System.currentTimeMillis() - topTierAt
@@ -145,8 +145,9 @@ object Providers {
                         "direct legs " + results.joinToString(" ") { "${it.name}=${it.formats.size}" } +
                             " @${System.currentTimeMillis() - t0}ms",
                     )
-                    val all = results.flatMap { it.formats }
-                    val subs = results.flatMap { it.subs }
+                    val byName = results.associateBy { it.name }
+                    val all = names.flatMap { byName[it]?.formats.orEmpty() }
+                    val subs = names.flatMap { byName[it]?.subs.orEmpty() }
                     // bans outlive transient 403/429s; one 1-byte probe re-admits a host that recovered
                     val blocked = all.filter { Torrents.DeadHosts.blocked(it.url) }
                         .distinctBy { Torrents.DeadHosts.hostOf(it.url) }
