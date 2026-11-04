@@ -1,5 +1,5 @@
 {
-  "version": 29,
+  "version": 32,
   "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
   "services": {
     "tmdb": {
@@ -82,7 +82,8 @@
       "iv": "hlsMediaAttached"
     },
     "net79": {
-      "enabled": true,
+      "enabled": false,
+      "note": "cdn bcdnxw.hakunaymatata.com rate-limits on burst requests",
       "api": "https://net79.cc"
     },
     "videasy": {
