@@ -156,7 +156,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
             val bundle = withContext(Dispatchers.IO) {
                 Resolve.streams(media, season, episode, fresh = retryN > 0)
             }
-            val live = bundle.formats.filter { it.url !in Torrents.DeadReleases.urls }
+            // prefer non-banned; fall back to full set so user can still pick
+            val notDead = bundle.formats.filter { it.url !in Torrents.DeadReleases.urls }
+            val live = notDead.filter { !Torrents.DeadHosts.blocked(it.url) }.ifEmpty { notDead }
             AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
                 resolveErr = context.getString(if (JsProviders.engineDown) R.string.player_engine_down else R.string.player_no_streams)
