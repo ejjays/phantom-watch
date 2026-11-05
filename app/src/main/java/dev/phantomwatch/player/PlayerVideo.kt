@@ -64,24 +64,25 @@ fun PlayerVideo(
     modifier: Modifier = Modifier,
 ) {
     var videoSurface by remember { mutableStateOf<SurfaceView?>(null) }
-    // a 16:9 encode often pads a wider picture with real black rows; measure them once and crop
-    // so the picture fills the stage instead of sitting inside its own bars. the view exists long
-    // before the first frame does: the resolve alone can take 15s
+    // a 16:9 encode often pads a wider picture with real black rows: measure them and crop so the
+    // picture fills the stage. the view exists long before the first frame does
     var padTarget by remember { mutableStateOf(0f) }
     val pad by animateFloatAsState(padTarget, tween(320), label = "pad")
     LaunchedEffect(videoSurface) {
         val sv = videoSurface ?: return@LaunchedEffect
-        repeat(60) {
-            delay(500)
-            val f = frameBars(sv) ?: return@repeat
-            padTarget = f
-            AppLog.d("video pad ${(f * 100).toInt()}%")
+        // one frame lies: a fade or a dark shot reads as bars, so a few frames decide together
+        val seen = ArrayList<Float>(5)
+        repeat(100) {
+            delay(400)
+            seen += frameBars(sv) ?: return@repeat
+            padTarget = seen.sorted()[seen.size / 2]
+            if (seen.size < 5) return@repeat
+            AppLog.d("video pad ${(padTarget * 100).toInt()}%")
             return@LaunchedEffect
         }
         AppLog.d("video pad none")
     }
-    // A trip to the background kills the view's surface; without a rebind the picture stays black
-    // while audio and subtitles keep running.
+    // a trip to the background kills the view's surface: without a rebind the picture stays black
     val ctx = LocalContext.current
     var resumeTick by remember { mutableStateOf(0) }
     val bound = remember { intArrayOf(0) }
@@ -92,11 +93,9 @@ fun PlayerVideo(
         onDispose { lc.removeObserver(obs) }
     }
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        // a raw surface scales the buffer to its bounds, so only the PlayerView path may crop
         val aspect = if (pad > 0f && enhSession == null) videoAspect / (1f - pad) else videoAspect
         val vh = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / aspect)
         val vw = vh * aspect
-        // cropped picture leaves a band exactly where the bars were; glowing it reads as a stray bar
         if (pad <= 0f) AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
@@ -149,8 +148,6 @@ fun PlayerVideo(
                 modifier = Modifier.size(vw, vh),
             )
         }
-        // a real track always wins; AI only fills in when the provider ships none, unless the
-        // user forced it
         val ai = subCues.ifEmpty { AiSubtitles.text }
         SubtitleLayer(ai, subStyle, subTopPx)
     }
@@ -189,21 +186,18 @@ private fun SubtitleLayer(cues: String, style: Pair<Float, Float>?, topPx: Float
     }
 }
 
-// rows that are black across the whole frame are padding, not picture. a 2.39 film in a 16:9
-// encode carries about 13% of it top and bottom, and the two sides have to match
+// rows that are black across the whole frame are padding, not picture: a 2.39 film in a 16:9
+// encode carries about 13% top and bottom, and the two sides have to match
 internal fun barFraction(px: IntArray, w: Int, h: Int): Float? {
     var top = -1
     var bottom = -1
     for (y in 0 until h) {
-        var lit = false
+        var lit = 0
         for (x in 0 until w) {
             val p = px[y * w + x]
-            if (((p shr 16 and 0xFF) + (p shr 8 and 0xFF) + (p and 0xFF)) / 3 > 12) {
-                lit = true
-                break
-            }
+            if (((p shr 16 and 0xFF) + (p shr 8 and 0xFF) + (p and 0xFF)) / 3 > 12) lit++
         }
-        if (lit) {
+        if (lit * 3 >= w) {
             if (top < 0) top = y
             bottom = y
         }
@@ -211,7 +205,8 @@ internal fun barFraction(px: IntArray, w: Int, h: Int): Float? {
     if (top < 0) return null
     val bars = (top + (h - 1 - bottom)).toFloat() / h
     val skew = kotlin.math.abs(top - (h - 1 - bottom)).toFloat() / h
-    return if (bars >= 0.04f && bars <= 0.4f && skew <= 0.02f) bars else 0f
+    // 5%, not 2%: one row of the 48 is already 2.08%, so a single row of asymmetry used to veto
+    return if (bars >= 0.04f && bars <= 0.4f && skew <= 0.05f) bars else 0f
 }
 
 private suspend fun frameBars(sv: SurfaceView): Float? {
