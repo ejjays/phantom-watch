@@ -184,4 +184,10 @@
     <string name="history_empty_body">Start an episode and it shows up here</string>
     <string name="history_removed">Removed %1$s</string>
     <string name="history_undo">Undo</string>
+
+    <string name="tab_home">Home</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_library">Library</string>
+    <string name="tab_you">You</string>
+    <string name="you_empty">Settings and profile will live here.</string>
 </resources>

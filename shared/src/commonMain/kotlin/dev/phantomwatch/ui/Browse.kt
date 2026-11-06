@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -128,6 +129,7 @@ class BrowseState {
     val nav = NavStack(Route.fromPath(initialPath()))
     val historyOpen: Boolean get() = nav.top is Route.History
     val railKey: String? get() = (nav.top as? Route.Rail)?.key
+    val tab: Int get() = nav.top.tabIndex()
     var openTitle by mutableStateOf<Title?>(null)
     var backToEpisodes by mutableStateOf(false)
     var query by mutableStateOf("")
@@ -144,6 +146,10 @@ class BrowseState {
     var loaded by mutableStateOf(false)
     var loadedAt by mutableStateOf(0L)
     val homeScroll = LazyListState()
+
+    fun selectTab(index: Int) {
+        nav.select(tabRoute(index))
+    }
 
     fun back(): Boolean {
         val leaving = nav.top
@@ -176,7 +182,7 @@ fun HomeScreen(
 
     fun loadBrowse() {
         scope.launch {
-            // A refresh that fails must not replace a feed the user is already looking at.
+            // a failed refresh must not replace a feed the user is already looking at
             val hadContent = browse.rails.any { it.items.isNotEmpty() }
             browse.loading = true
             try {
@@ -211,7 +217,6 @@ fun HomeScreen(
             browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = true) else it }
             try {
                 val r = withContext(ioDispatcher) { Tmdb.rail(key, rail.path, rail.page + 1) }
-                // Keep page/totalPages on a failed page so the next scroll retries it.
                 if (r == null) {
                     browse.rails = browse.rails.map { if (it.key == railKey) it.copy(loadingMore = false) else it }
                     return@launch
@@ -237,7 +242,7 @@ fun HomeScreen(
         exploreMore = true
         scope.launch {
             try {
-                // Dedupe set and page walk stay off the main thread: both grow with every page.
+                // both grow with every page, so the dedupe set and page walk stay off the main thread
                 val (page, total, fresh) = withContext(ioDispatcher) {
                     val seen = (browse.rails.flatMap { it.items } + browse.exploreItems)
                         .mapTo(HashSet()) { "${it.kind}-${it.id}" }
@@ -267,8 +272,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
     LaunchedEffect(browse.nav.top) { syncRoute(browse.nav.top.path) }
-    // TMDB's popular list drifts daily, so a process that survives for days would otherwise
-    // keep serving the rows it fetched on day one.
+    // TMDB's popular list drifts daily, so a process that lives for days would keep day-one rows
     OnResumeEffect {
         val onHomeTop = browse.nav.top is Route.Home && browse.homeScroll.firstVisibleItemIndex == 0
         if (onHomeTop && (!browse.loaded || nowMs() - browse.loadedAt > 6 * 60 * 60 * 1000L)) loadBrowse()
@@ -304,26 +308,23 @@ fun HomeScreen(
         focusManager.clearFocus()
         val t = Aliases.resolve(item)
         browse.openTitle = t
-        // the flag is for the title you just played, not the next one you tap
         browse.backToEpisodes = false
         selected = t
         recents.removeAll { it.kind == t.kind && it.id == t.id }
         recents.add(0, t)
-        // removeLast() resolves to the Java 21 List member, which does not exist before API 35.
+        // removeLast() resolves to the Java 21 List member, which does not exist before API 35
         if (recents.size > 6) recents.removeAt(recents.lastIndex)
     }
 
     val inSearch = browse.query.trim().length >= 2
     val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
     var exitAsk by remember { mutableStateOf(false) }
-    // Registered first so the more specific handler below wins on Android (last callback wins).
+    // registered first so the more specific handler below wins on Android: last callback wins
     if (onExitApp != null) PlatformBackHandler(enabled = true) { exitAsk = true }
-    // Only registers while one of the in-screen views is up, so back at home falls through to the
-    // host (exit dialog on Android, the browser itself on web).
+    // only while an in-screen view is up, so back at home falls through to the host
     PlatformBackHandler(enabled = browse.nav.canPop) { browse.back() }
     val screenW = screenWidthDp()
     val expanded = isExpanded(screenW)
-    // Tablets open the detail fullscreen (two columns of its own); phones keep the sliding sheet.
     val wideDetail = expanded && selected != null
     val contentW = screenW
     val cols = exploreColumns(contentW)
@@ -353,6 +354,7 @@ fun HomeScreen(
                         is Route.Search -> 1
                         is Route.Rail -> 2
                         is Route.History -> 3
+                        is Route.You -> 4
                         else -> 0
                     },
                     transitionSpec = {
@@ -365,7 +367,6 @@ fun HomeScreen(
                             SearchHeader(
                                 query = browse.query,
                                 onQuery = { browse.query = it },
-                                onBack = { browse.back() },
                             )
                             SearchBody(
                                 query = browse.query,
@@ -391,7 +392,6 @@ fun HomeScreen(
                             recent = browse.recent,
                             cols = cols,
                             gridW = gridW,
-                            onBack = { browse.back() },
                             onPlay = { r ->
                                 onWatch(
                                     Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster),
@@ -412,8 +412,7 @@ fun HomeScreen(
                                 scope.launch(ioDispatcher) { onRestoreRecent(list) }
                             },
                         )
-                        // the header belongs to the home screen, so it fades with it; drawn outside
-                        // the branch it was gone a frame before the pushed screen showed up
+                        4 -> YouScreen()
                         else -> Box(Modifier.fillMaxSize()) {
                             BrowseBody(
                                 trending = browse.trending,
@@ -432,11 +431,7 @@ fun HomeScreen(
                                 onGridEnd = gridEnd,
                                 onRetry = retryBrowse,
                             )
-                            BrowseHeader(
-                                onSearch = { browse.nav.push(Route.Search) },
-                                onHistory = { browse.nav.push(Route.History) },
-                                scrolled = scrolled,
-                            )
+                            BrowseHeader(scrolled = scrolled)
                         }
                     }
                 }
@@ -467,7 +462,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: Boolean) {
+private fun BrowseHeader(scrolled: Boolean) {
     val solid by animateFloatAsState(if (scrolled) 1f else 0f, tween(320), label = "header-solid")
     Box(
         Modifier.fillMaxWidth()
@@ -498,44 +493,31 @@ private fun BrowseHeader(onSearch: () -> Unit, onHistory: () -> Unit, scrolled: 
             )
             Spacer(Modifier.width(8.dp))
             Text(stringResource(Res.string.browse_brand), color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Box(
-                Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onSearch),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(Res.drawable.ic_search), contentDescription = stringResource(Res.string.common_search), tint = Color.White, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onHistory),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(Res.drawable.ic_history), contentDescription = stringResource(Res.string.history_title), tint = Color.White, modifier = Modifier.size(22.dp))
-            }
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f * solid)))
     }
 }
 
 private val SearchTextStyle: TextStyle
-    @Composable get() = TextStyle(color = Color.White, fontSize = 12.sp, fontFamily = Rubik)
+    @Composable get() = TextStyle(
+        color = Color.White,
+        fontSize = if (isExpanded(screenWidthDp())) 15.sp else 13.sp,
+        fontFamily = Rubik,
+    )
 
 @Composable
-private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () -> Unit) {
+private fun SearchHeader(query: String, onQuery: (String) -> Unit) {
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(44.dp).clip(CircleShape).background(SurfaceColor).clickable(onClick = onBack),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(Res.drawable.ic_back), contentDescription = stringResource(Res.string.common_back), tint = Color.White, modifier = Modifier.size(18.dp))
-        }
-        Spacer(Modifier.width(8.dp))
         Row(
-            Modifier.weight(1f).height(48.dp).clip(CircleShape).background(SurfaceColor).padding(horizontal = 16.dp),
+            Modifier.widthIn(max = 480.dp).fillMaxWidth()
+                .height(if (isExpanded(screenWidthDp())) 52.dp else 48.dp)
+                .clip(CircleShape).background(SurfaceColor).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
@@ -554,7 +536,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit, onBack: () ->
     }
 }
 
-/** One remembered instance so a parent recomposition does not invalidate every poster card. */
+// one remembered instance, so a parent recomposition doesn't invalidate every poster card
 @Composable
 private fun <T> stableCallback(block: (T) -> Unit): (T) -> Unit {
     val latest = rememberUpdatedState(block)
@@ -589,13 +571,11 @@ private fun BrowseBody(
     val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
     val exploreRows = remember(exploreItems, cols) { exploreItems.chunked(cols) }
-    // Outside composition on purpose: a state read here would re-run this whole body (and every
-    // poster card in the content lambda) each time a page lands or the spinner item appears.
+    // outside composition: a state read here would re-run every poster card in the content lambda
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
-            // Emit the index, not a boolean: snapshotFlow drops repeats, so a boolean latched at
-            // the bottom and a page that came back short or failed could never be retried.
+            // the index, not a boolean: snapshotFlow drops repeats, so a latched boolean could never retry
             info.visibleItemsInfo.lastOrNull()?.index?.let { it to info.totalItemsCount } ?: (-1 to 0)
         }.collect { (last, total) -> if (last >= total - 2) onGridEnd() }
     }
@@ -623,8 +603,7 @@ private fun BrowseBody(
         contentPadding = PaddingValues(bottom = 128.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // One item per rail, not one item for the whole feed: an explore page arriving then only
-        // recomposes the grid rows, and rails that scroll off screen stop holding their images.
+        // one item per rail, so an explore page only recomposes the grid rows
         item(key = "hero", contentType = "hero") {
             TrendingHero(trending = trending, paused = detailOpen, onOpen = onOpen, width = width, listState = listState)
         }
@@ -760,7 +739,7 @@ private fun SearchBody(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(cols),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize().imePadding(),
@@ -784,7 +763,6 @@ private fun SearchBody(
         BoxWithConstraints(Modifier.fillMaxSize().navigationBarsPadding().imePadding(), contentAlignment = Alignment.Center) {
             val ghost = (maxHeight * 0.26f).coerceIn(84.dp, 132.dp)
             val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-            // the keyboard only starts the run; keying on it lets the ghost finish after a blur
             var run by remember { mutableStateOf(0) }
             LaunchedEffect(imeVisible) { if (imeVisible) run++ }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -811,7 +789,7 @@ private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Ti
         LazyVerticalGrid(
             columns = GridCells.Fixed(cols),
             state = state,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),

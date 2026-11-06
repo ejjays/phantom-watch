@@ -1,15 +1,25 @@
 package dev.phantomwatch
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.PaddingValues
@@ -48,6 +58,8 @@ import androidx.compose.ui.unit.dp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.data.Aliases
@@ -68,6 +80,7 @@ import dev.phantomwatch.torrent.TorrentEngine
 import dev.phantomwatch.torrent.Torrents
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailPane
+import dev.phantomwatch.ui.HomeLiquidTabs
 import dev.phantomwatch.ui.HomeScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -101,12 +114,14 @@ internal fun AppRoot() {
         }
     }
     Box(Modifier.fillMaxSize()) {
+        val tabBackdrop = rememberLayerBackdrop()
         LaunchedEffect(screen) {
             instant = false
             AppLog.d("nav -> ${screen.navLabel()}")
         }
         AnimatedContent(
             targetState = screen,
+            modifier = Modifier.layerBackdrop(tabBackdrop),
             transitionSpec = {
                 if (instant) {
                     EnterTransition.None togetherWith ExitTransition.None
@@ -254,6 +269,23 @@ internal fun AppRoot() {
                     )
                 }
             }
+        }
+        AnimatedVisibility(
+            visible = screen is Screen.Home && browse.openTitle == null,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(150)),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(150)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 20.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.displayCutout))
+                .padding(bottom = 8.dp)
+                .widthIn(max = 480.dp),
+        ) {
+            HomeLiquidTabs(
+                backdrop = tabBackdrop,
+                selectedTabIndex = { browse.tab },
+                onSelect = browse::selectTab,
+            )
         }
         if ((BuildConfig.DEBUG || BuildConfig.LOGUI) && !PlayerUi.hidesChrome) LogFab()
     }

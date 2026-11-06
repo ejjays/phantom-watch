@@ -58,7 +58,6 @@ fun HistoryScreen(
     recent: List<Recent>,
     cols: Int,
     gridW: Dp,
-    onBack: () -> Unit,
     onPlay: (Recent) -> Unit,
     onDelete: (Recent) -> Unit,
     onRestore: (Recent, Int) -> Unit,
@@ -70,7 +69,7 @@ fun HistoryScreen(
     val latest = rememberUpdatedState(recent)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ScreenHeader(stringResource(Res.string.history_title), onBack)
+            ScreenHeader(stringResource(Res.string.history_title), null)
             if (recent.isEmpty()) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(stringResource(Res.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
@@ -80,7 +79,7 @@ fun HistoryScreen(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(cols),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
@@ -88,16 +87,15 @@ fun HistoryScreen(
                     itemsIndexed(recent, key = { _, r -> "history-${r.kind}-${r.id}" }) { i, r ->
                         val removedMsg = stringResource(Res.string.history_removed, r.title)
                         ContinueCard(r, gridW, onPlay, Modifier.animateItem()) { gone ->
-                            // undo puts this one card back where it was; restoring a snapshot would
-                            // also resurrect anything deleted since this card was composed
+                            // this one card back where it was: a snapshot would resurrect anything
+                            // deleted since this card was composed
                             val at = latest.value.indexOfFirst {
                                 it.kind == gone.kind && it.id == gone.id &&
                                     it.season == gone.season && it.episode == gone.episode
                             }.takeIf { it >= 0 } ?: i
                             onDelete(gone)
                             scope.launch {
-                                // newest swipe owns the bar: a queued snackbar would keep the old
-                                // title on screen while a different card just vanished
+                                // newest swipe owns the bar, or the old title outlives the card
                                 host.currentSnackbarData?.dismiss()
                                 val done = host.showSnackbar(
                                     message = removedMsg,
@@ -113,7 +111,7 @@ fun HistoryScreen(
         }
         SnackbarHost(
             host,
-            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 12.dp),
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 80.dp),
         ) {
             Snackbar(snackbarData = it, containerColor = SurfaceColor, contentColor = Slate100, actionColor = Cyan)
         }
@@ -138,7 +136,6 @@ private fun ContinueCard(
             true
         },
     )
-    // the state is saveable, so an undone card comes back still swiped off-screen over its neighbour
     LaunchedEffect(Unit) { dismiss.reset() }
     SwipeToDismissBox(
         state = dismiss,
