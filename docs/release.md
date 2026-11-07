@@ -28,7 +28,7 @@ Then:
    `cp app/build/outputs/mapping/release/mapping.txt /storage/emulated/0/release/mapping-<versionCode>.txt`
 5. Tell the family to install it (Android asks to update the existing app).
 6. Watch the provider telemetry for the next hour:
-   `curl -s "$TELEMETRY_URL_WITHOUT_E?k=$TELEMETRY_KEY&days=1"` -> the `/health` endpoint.
+   `curl -s "$TELEMETRY_URL/health?k=$TELEMETRY_KEY&days=1"`
 
 ## Versioning
 
