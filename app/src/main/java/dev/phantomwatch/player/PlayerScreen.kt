@@ -756,7 +756,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         attachSubs(next.subs, null, next, pos)
     }
     fun accSeek(side: SeekSide) {
-        val dir = if (side == SeekSide.Left) -10000L else 10000L
+        val dir = if (side == SeekSide.Left) -15000L else 15000L
         val now = System.currentTimeMillis()
         accTotal = if (accSide == side && now - accAt < 1000) accTotal + 10 else 10
         accSide = side
