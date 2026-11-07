@@ -9,3 +9,4 @@ __pycache__/
 /vr-landing/
 server/pw/assets/
 /kotlin-js-store/
+node_modules/
