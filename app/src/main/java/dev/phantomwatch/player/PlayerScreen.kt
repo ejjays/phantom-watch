@@ -567,8 +567,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     } else if (directErrs <= 3 && (errPos >= 60_000 || errPos < 10_000)) {
                         resumeJob?.cancel()
                         resumeJob = resumeScope.launch {
-                            // the resolve bundle is cached for 5 min: reuse it instead of hitting
-                            // every provider again, and take the new leg's own subs/flags
+                            // the bundle is cached for 5 min: reuse it rather than hit every provider again
                             val fresh = try {
                                 withContext(Dispatchers.IO) {
                                     Providers.nextStream(media, season, episode, live.url, fresh = directErrs > 1)
@@ -580,7 +579,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                                 AppLog.d("player relink none")
                                 return@launch
                             }
-                            // keep the dub menu: a fallback leg rarely carries its own cuts
                             live = fresh.copy(dubs = live.dubs)
                             AppLog.d("player relink hls=${fresh.isHls} enSubs=${fresh.enSubs} subs=${fresh.subs.size} at ${errPos / 1000}s")
                             attach(errPos)
@@ -756,7 +754,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         attachSubs(next.subs, null, next, pos)
     }
     fun accSeek(side: SeekSide) {
-        val dir = if (side == SeekSide.Left) -15000L else 15000L
+        val dir = if (side == SeekSide.Left) -10000L else 10000L
         val now = System.currentTimeMillis()
         accTotal = if (accSide == side && now - accAt < 1000) accTotal + 10 else 10
         accSide = side
@@ -846,7 +844,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     else -> -1
                 }
                 if (zone == -1 || zone == lastZone) return
-                // enable() reports the current angle at once: acting on it flips fullscreen on open.
+                // enable() reports the current angle at once, so acting on it flips fullscreen on open
                 val first = lastZone == -1
                 lastZone = zone
                 if (first) return
@@ -857,7 +855,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                     if (zone == 0 && fsNow.value && !lockedNow.value) {
                         toggleFullscreen()
                     } else if (zone == 1 && !fsNow.value && smallScreen && rotationEnabled()) {
-                        // phones go fullscreen on rotate; tablets already have the side panel
                         toggleFullscreen()
                     }
                 }
@@ -1146,7 +1143,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         )
     }
     val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    // rail shell by width, so a portrait tablet and a free-form window get it too
     val tablet = cfg.screenWidthDp >= 840
     Box(Modifier.fillMaxSize()) {
     NextUpHost(exo, media, season, episode, onEpisode)
