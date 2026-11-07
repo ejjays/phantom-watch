@@ -23,16 +23,16 @@ Then:
    `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk`
 3. Move the APK out of the build folder:
    `mv app/build/outputs/apk/release/app-release.apk /storage/emulated/0/release/`
-4. Keep the R8 mapping next to it - release crash reports are obfuscated and
+4. Keep the R8 mapping next to it: release crash reports are obfuscated and
    cannot be read without it:
    `cp app/build/outputs/mapping/release/mapping.txt /storage/emulated/0/release/mapping-<versionCode>.txt`
 5. Tell the family to install it (Android asks to update the existing app).
 6. Watch the provider telemetry for the next hour:
-   `curl -s "$TELEMETRY_URL_WITHOUT_E?k=$TELEMETRY_KEY&days=1"` -> the `/health` endpoint.
+   `curl -s "$TELEMETRY_URL/health?k=$TELEMETRY_KEY&days=1"`
 
 ## Versioning
 
-`versionCode` is the number of commits in the repository. Use a full clone -
+`versionCode` is the number of commits in the repository. Use a full clone:
 a shallow clone or a source zip reports `1`, which is a downgrade from any
 installed build. Keep history linear: squashing or rebasing can lower the
 count. `versionName` stays `1.0`.
