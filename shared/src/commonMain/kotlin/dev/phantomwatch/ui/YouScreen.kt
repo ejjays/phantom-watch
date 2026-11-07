@@ -1,46 +1,516 @@
 package dev.phantomwatch.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.res.*
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
-// Placeholder until the settings surface exists; the tab is real so the bar is final.
+// template surface: every control keeps local state, nothing here is persisted or wired yet
 @Composable
 fun YouScreen() {
-    Column(
-        Modifier.fillMaxSize()
-            .statusBarsPadding()
-            .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 96.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            stringResource(Res.string.tab_you),
-            color = Color.White,
-            fontSize = 22.sp,
-            fontFamily = Rubik,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            stringResource(Res.string.you_empty),
-            color = Slate400,
-            fontSize = 13.sp,
-            fontFamily = Rubik,
+    val categories = settingsCategories()
+    val state = rememberSaveable(saver = SettingsStateSaver) { defaultSettings(categories) }
+    var open by rememberSaveable { mutableIntStateOf(-1) }
+    val onValue: (String, Int) -> Unit = { key, value -> state[key] = value }
+    Box(Modifier.fillMaxSize().background(PageBrush)) {
+        if (isExpanded(screenWidthDp())) {
+            TabletSettings(categories, state, onValue, open.coerceAtLeast(0)) { open = it }
+        } else {
+            AnimatedContent(
+                targetState = open,
+                transitionSpec = {
+                    val forward = targetState > initialState
+                    val enter = slideInHorizontally(tween(240)) { if (forward) it / 5 else -it / 5 }
+                    val exit = slideOutHorizontally(tween(240)) { if (forward) -it / 8 else it / 8 }
+                    (enter + fadeIn(tween(200))) togetherWith (exit + fadeOut(tween(150)))
+                },
+                label = "settings-page",
+            ) { index ->
+                if (index in categories.indices) {
+                    DetailSettings(categories[index], state, onValue) { open = -1 }
+                } else {
+                    RootSettings(categories) { open = it }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RootSettings(categories: List<SettingCategory>, onOpen: (Int) -> Unit) {
+    SettingsList {
+        item("title") { SettingsTitle(stringResource(Res.string.tab_you)) }
+        item("account") {
+            SettingsCard {
+                SettingsNavRow(
+                    title = stringResource(Res.string.you_profile_guest),
+                    note = stringResource(Res.string.you_profile_note),
+                    wide = false,
+                    onClick = {},
+                    icon = Res.drawable.ic_row_person,
+                )
+            }
+        }
+        RootGroups.forEach { ids ->
+            item(ids.first()) {
+                SettingsCard {
+                    var first = true
+                    ids.forEach { id ->
+                        val index = categories.indexOfFirst { it.id == id }
+                        if (index < 0) return@forEach
+                        if (!first) SettingsDivider(textInset(wide = false))
+                        first = false
+                        val category = categories[index]
+                        SettingsNavRow(
+                            title = category.title,
+                            note = category.blurb,
+                            wide = false,
+                            onClick = { onOpen(index) },
+                            icon = category.icon,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailSettings(
+    category: SettingCategory,
+    state: SnapshotStateMap<String, Int>,
+    onValue: (String, Int) -> Unit,
+    onBack: () -> Unit,
+) {
+    SettingsList {
+        item("header") { SettingsHeader(category.title, onBack) }
+        item("card") { SettingsRows(category.items, state, wide = false, onValue = onValue) }
+    }
+}
+
+@Composable
+private fun SettingsList(content: LazyListScope.() -> Unit) {
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = rememberLazyListState(),
+            modifier = Modifier.align(Alignment.TopCenter).widthIn(max = 680.dp).fillMaxWidth()
+                .statusBarsPadding().navigationBarsPadding(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            content = content,
         )
     }
 }
+
+@Composable
+private fun TabletSettings(
+    categories: List<SettingCategory>,
+    state: SnapshotStateMap<String, Int>,
+    onValue: (String, Int) -> Unit,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+) {
+    val index = selected.coerceIn(0, categories.lastIndex)
+    Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.width(300.dp).fillMaxHeight().background(SettingsRailBg).padding(top = 28.dp)) {
+            Text(
+                stringResource(Res.string.tab_you), color = Slate100, fontSize = 38.sp, lineHeight = 42.sp,
+                fontFamily = Rubik, fontWeight = FontWeight.Bold, letterSpacing = (-1.2).sp,
+                modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 20.dp),
+            )
+            HorizontalDivider(color = SettingsHairline)
+            Spacer(Modifier.height(10.dp))
+            categories.forEachIndexed { position, category ->
+                SidebarItem(category, position == index) { onSelect(position) }
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxHeight().drawBehind {
+            drawRect(
+                color = Color.White.copy(alpha = 0.06f),
+                topLeft = Offset.Zero,
+                size = Size(1.dp.toPx(), size.height),
+            )
+        }) {
+            LazyColumn(
+                state = rememberLazyListState(),
+                modifier = Modifier.align(Alignment.TopCenter).widthIn(max = 760.dp).fillMaxWidth(),
+                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                item("header") { SettingsHeader(categories[index].title, null) }
+                item("card") { SettingsRows(categories[index].items, state, wide = true, onValue = onValue) }
+                    }
+        }
+    }
+}
+
+@Composable
+private fun SettingsTitle(title: String) {
+    Text(
+        title, color = Slate100, fontSize = 38.sp, lineHeight = 42.sp, fontFamily = Rubik,
+        fontWeight = FontWeight.Bold, letterSpacing = (-1.2).sp,
+    )
+}
+
+@Composable
+private fun SettingsHeader(title: String, onBack: (() -> Unit)?) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (onBack != null) {
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(Res.drawable.ic_back), contentDescription = null, tint = Slate100,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+        Text(
+            title, color = Slate100, fontSize = 38.sp, lineHeight = 42.sp, fontFamily = Rubik,
+            fontWeight = FontWeight.Bold, letterSpacing = (-1.2).sp, maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun SidebarItem(category: SettingCategory, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)
+            .background(
+                if (selected) Color.White.copy(alpha = 0.06f) else Color.Transparent,
+                RoundedCornerShape(10.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(category.icon), contentDescription = null,
+            tint = if (selected) Slate100 else Slate400, modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            category.title, color = if (selected) Slate100 else Slate400, fontSize = 16.sp,
+            fontFamily = Rubik, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+        )
+    }
+}
+
+// phone root: cards grouped by category id
+private val RootGroups = listOf(
+    listOf("playback", "subtitles"),
+    listOf("library", "downloads"),
+    listOf("providers"),
+    listOf("about"),
+)
+
+@Composable
+private fun settingsCategories(): List<SettingCategory> = listOf(
+    playbackCategory(),
+    subtitlesCategory(),
+    libraryCategory(),
+    downloadsCategory(),
+    providersCategory(),
+    aboutCategory(),
+)
+
+@Composable
+private fun playbackCategory() = SettingCategory(
+    id = "playback",
+    icon = Res.drawable.ic_cat_playback,
+    title = stringResource(Res.string.you_section_playback),
+    blurb = stringResource(Res.string.you_section_playback_blurb),
+    items = listOf(
+        SettingItem.Value(
+            key = "quality",
+            title = stringResource(Res.string.you_playback_quality),
+            note = stringResource(Res.string.you_playback_quality_note),
+            value = stringResource(Res.string.you_playback_quality_value),
+        ),
+        SettingItem.Toggle(
+            key = "autoplay",
+            title = stringResource(Res.string.you_playback_autoplay),
+            note = stringResource(Res.string.you_playback_autoplay_note),
+            on = true,
+        ),
+        SettingItem.Toggle(
+            key = "skip",
+            title = stringResource(Res.string.you_playback_skip),
+            note = stringResource(Res.string.you_playback_skip_note),
+            on = true,
+        ),
+        SettingItem.Value(
+            key = "audio",
+            title = stringResource(Res.string.you_playback_audio),
+            note = stringResource(Res.string.you_playback_audio_note),
+            value = stringResource(Res.string.you_playback_audio_value),
+        ),
+        SettingItem.Toggle(
+            key = "datasaver",
+            title = stringResource(Res.string.you_playback_data_saver),
+            note = stringResource(Res.string.you_playback_data_saver_note),
+            on = false,
+        ),
+    ),
+)
+
+@Composable
+private fun subtitlesCategory() = SettingCategory(
+    id = "subtitles",
+    icon = Res.drawable.ic_cat_subtitles,
+    title = stringResource(Res.string.you_section_subtitles),
+    blurb = stringResource(Res.string.you_section_subtitles_blurb),
+    items = listOf(
+        SettingItem.Toggle(
+            key = "subs",
+            title = stringResource(Res.string.you_subs_on),
+            note = stringResource(Res.string.you_subs_on_note),
+            on = true,
+        ),
+        SettingItem.Value(
+            key = "subslang",
+            title = stringResource(Res.string.you_subs_language),
+            note = stringResource(Res.string.you_subs_language_note),
+            value = stringResource(Res.string.you_subs_language_value),
+        ),
+        SettingItem.Segments(
+            key = "subssize",
+            title = stringResource(Res.string.you_subs_size),
+            note = stringResource(Res.string.you_subs_size_note),
+            options = listOf(
+                stringResource(Res.string.you_subs_size_small),
+                stringResource(Res.string.you_subs_size_medium),
+                stringResource(Res.string.you_subs_size_large),
+            ),
+            selected = 1,
+        ),
+        SettingItem.Segments(
+            key = "subsbg",
+            title = stringResource(Res.string.you_subs_background),
+            note = stringResource(Res.string.you_subs_bg_note),
+            options = listOf(
+                stringResource(Res.string.you_subs_bg_off),
+                stringResource(Res.string.you_subs_bg_dim),
+                stringResource(Res.string.you_subs_bg_solid),
+            ),
+            selected = 1,
+        ),
+        SettingItem.Toggle(
+            key = "subsai",
+            title = stringResource(Res.string.you_subs_ai),
+            note = stringResource(Res.string.you_subs_ai_note),
+            on = false,
+        ),
+    ),
+)
+
+@Composable
+private fun libraryCategory() = SettingCategory(
+    id = "library",
+    icon = Res.drawable.ic_cat_library,
+    title = stringResource(Res.string.you_section_library),
+    blurb = stringResource(Res.string.you_section_library_blurb),
+    items = listOf(
+        SettingItem.Toggle(
+            key = "continue",
+            title = stringResource(Res.string.you_library_continue),
+            note = stringResource(Res.string.you_library_continue_note),
+            on = true,
+        ),
+        SettingItem.Toggle(
+            key = "savehistory",
+            title = stringResource(Res.string.you_library_history),
+            note = stringResource(Res.string.you_library_history_note),
+            on = true,
+        ),
+        SettingItem.Value(
+            key = "watchlist",
+            title = stringResource(Res.string.you_library_watchlist),
+            note = stringResource(Res.string.you_library_watchlist_note),
+            value = stringResource(Res.string.you_library_watchlist_value),
+        ),
+        SettingItem.Action(
+            key = "clearhistory",
+            title = stringResource(Res.string.you_library_clear),
+            note = stringResource(Res.string.you_library_clear_note),
+            destructive = true,
+        ),
+    ),
+)
+
+@Composable
+private fun downloadsCategory() = SettingCategory(
+    id = "downloads",
+    icon = Res.drawable.ic_cat_downloads,
+    title = stringResource(Res.string.you_section_downloads),
+    blurb = stringResource(Res.string.you_section_downloads_blurb),
+    items = listOf(
+        SettingItem.Value(
+            key = "dlquality",
+            title = stringResource(Res.string.you_downloads_quality),
+            note = stringResource(Res.string.you_downloads_quality_note),
+            value = stringResource(Res.string.you_downloads_quality_value),
+        ),
+        SettingItem.Toggle(
+            key = "dlwifi",
+            title = stringResource(Res.string.you_downloads_wifi),
+            note = stringResource(Res.string.you_downloads_wifi_note),
+            on = true,
+        ),
+        SettingItem.Meter(
+            key = "dlstorage",
+            title = stringResource(Res.string.you_downloads_storage),
+            value = stringResource(Res.string.you_downloads_storage_value),
+            fraction = 0.05f,
+        ),
+        SettingItem.Action(
+            key = "dlclear",
+            title = stringResource(Res.string.you_downloads_clear),
+            note = stringResource(Res.string.you_downloads_clear_note),
+            destructive = true,
+        ),
+    ),
+)
+
+@Composable
+private fun providersCategory() = SettingCategory(
+    id = "providers",
+    icon = Res.drawable.ic_cat_providers,
+    title = stringResource(Res.string.you_section_providers),
+    blurb = stringResource(Res.string.you_section_providers_blurb),
+    items = listOf(
+        SettingItem.Value(
+            key = "health",
+            title = stringResource(Res.string.you_providers_health),
+            note = stringResource(Res.string.you_providers_health_note),
+            value = stringResource(Res.string.you_providers_health_value),
+        ),
+        SettingItem.Toggle(
+            key = "autorefresh",
+            title = stringResource(Res.string.you_providers_refresh),
+            note = stringResource(Res.string.you_providers_refresh_note),
+            on = true,
+        ),
+        SettingItem.Toggle(
+            key = "share",
+            title = stringResource(Res.string.you_providers_share),
+            note = stringResource(Res.string.you_providers_share_note),
+            on = true,
+        ),
+    ),
+)
+
+@Composable
+private fun aboutCategory() = SettingCategory(
+    id = "about",
+    icon = Res.drawable.ic_cat_about,
+    title = stringResource(Res.string.you_section_about),
+    blurb = stringResource(Res.string.you_section_about_blurb),
+    items = listOf(
+        SettingItem.Value(
+            key = "version",
+            title = stringResource(Res.string.you_about_version),
+            value = stringResource(Res.string.you_about_version_value),
+        ),
+        SettingItem.Action(
+            key = "updates",
+            title = stringResource(Res.string.you_about_updates),
+            note = stringResource(Res.string.you_about_updates_note),
+        ),
+        SettingItem.Action(
+            key = "licences",
+            title = stringResource(Res.string.you_about_licences),
+            note = stringResource(Res.string.you_about_licences_note),
+        ),
+        SettingItem.Action(
+            key = "privacy",
+            title = stringResource(Res.string.you_about_privacy),
+            note = stringResource(Res.string.you_about_privacy_note),
+        ),
+        SettingItem.Action(
+            key = "feedback",
+            title = stringResource(Res.string.you_about_feedback),
+            note = stringResource(Res.string.you_about_feedback_note),
+        ),
+    ),
+)
+
+private val SettingsStateSaver: Saver<SnapshotStateMap<String, Int>, ArrayList<String>> = Saver(
+    save = { map -> ArrayList(map.map { "${it.key}=${it.value}" }) },
+    restore = { saved ->
+        mutableStateMapOf<String, Int>().apply {
+            saved.forEach { entry ->
+                val at = entry.indexOf('=')
+                if (at > 0) put(entry.substring(0, at), entry.substring(at + 1).toIntOrNull() ?: 0)
+            }
+        }
+    },
+)
+
+private fun defaultSettings(categories: List<SettingCategory>): SnapshotStateMap<String, Int> =
+    mutableStateMapOf<String, Int>().apply {
+        categories.forEach { category ->
+            category.items.forEach { item ->
+                when (item) {
+                    is SettingItem.Toggle -> put(item.key, if (item.on) 1 else 0)
+                    is SettingItem.Segments -> put(item.key, item.selected)
+                    else -> Unit
+                }
+            }
+        }
+    }
