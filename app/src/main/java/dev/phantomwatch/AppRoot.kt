@@ -43,7 +43,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,7 +91,6 @@ internal fun AppRoot() {
     var instant by remember { mutableStateOf(false) }
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var crash by remember { mutableStateOf(CrashReport.pending(context)) }
     LaunchedEffect(screen, Pip.playing) {
         (context as? MainActivity)?.armPip(screen is Screen.Player, Pip.playing)
