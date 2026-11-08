@@ -11,10 +11,6 @@
     </p>
     <p>
         Stop Paying. Start Watching
-        <br/>
-        <a href="https://w-phantom.pages.dev">
-            download
-        </a>
     </p>
     <br/>
 </div>
