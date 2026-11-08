@@ -14,8 +14,8 @@ data beyond TMDB ids.
 | Deepgram key | `local.properties` -> `BuildConfig` | yes |
 | Seedbox password | `local.properties` -> `BuildConfig` | yes |
 | Telemetry key | `local.properties` -> `BuildConfig` | yes |
-| OTA signing key | I hold it, outside the repo; Actions secret as backup | no |
-| Release keystore | I hold it, outside the repo | no |
+| OTA signing key | held off-repo, Actions secret as backup | no |
+| Release keystore | held off-repo | no |
 
 Everything in the first block is public to anyone who has the APK. That is
 accepted: there is no account, nothing to steal, and the keys only buy
@@ -26,8 +26,8 @@ instead of trying to hide it in the app.
 
 - **The OTA config** is signed with ECDSA P-256 and verified against a pinned
   public key. A tampered bundle is rejected and the last accepted one stays
-  in prefs. I hold the private key, with the Actions secret as the backup;
-  installed devices never receive it.
+  in prefs. The private key is kept off-repo, with the Actions secret as the
+  backup; installed devices never receive it.
 - **Telemetry** carries TMDB ids, per-leg counts and timings. No titles, no
   stream URLs, no account.
 - **The app's own data** (watch positions, cached config) is not backed up
