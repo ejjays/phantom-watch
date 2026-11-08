@@ -43,9 +43,8 @@ Documentation lives in the [docs tree](/docs/):
 
 ### Ethics
 
-Phantom Watch is a player, not a source. It hosts nothing, caches nothing and
-sells nothing. It finds streams that are already publicly accessible and plays
-them. What you watch and how you use the app is your responsibility.
+Phantom Watch takes zero liability for how it is used. The end user is
+responsible for what they watch.
 
 ### License
 
