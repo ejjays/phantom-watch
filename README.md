@@ -41,10 +41,12 @@ Documentation lives in the [docs tree](/docs/):
 - [release process](/docs/release.md)
 - [threat model](/docs/threat-model.md)
 
-### Liability
+### Ethics
 
-Phantom Watch takes zero liability for how it is used. You are responsible
-for what you watch.
+Phantom Watch is a player that makes watching publicly available content
+easier. It takes zero liability. You are responsible for what you watch and
+how you use the app. It hosts nothing; a stream passes from its source to
+your screen and nothing from it is kept.
 
 ### License
 
