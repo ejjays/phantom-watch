@@ -43,3 +43,7 @@ Documentation lives in the [docs tree](/docs/):
 ### Disclaimer
 
 for personal use only. watch only what you have the right to watch.
+
+### License
+
+The code in this repository is licensed under [AGPL-3.0](LICENSE).
