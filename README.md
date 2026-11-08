@@ -1,38 +1,40 @@
-# Phantom Watch
+<div align="center">
+    <br/>
+    <p>
+        <img src="assets/logo.svg" title="phantom watch" alt="phantom watch" width="100" />
+    </p>
+    <p>
+        tap a title, get the stream, move on.
+        <br/>
+        <a href="https://w-phantom.pages.dev">
+            w-phantom.pages.dev
+        </a>
+    </p>
+    <br/>
+</div>
 
-Android app for watching movies and shows. Search a title and it checks every
-streaming source at once, keeps the best one, and starts playing. Subtitle and
-audio choices are remembered, and each episode resumes where you stopped.
+Phantom Watch is a free movie and tv app for android that doesn't get in your
+way. No subscription, no ads, nothing to set up.
 
-Free, with no ads. No account, no subscription, nothing to sign into. If a
-source stops working, the fix arrives on its own the next time you open the app,
-without downloading a new version.
+### Get it
 
-## Install
+Download and install from [w-phantom.pages.dev](https://w-phantom.pages.dev).
+the site covers install steps, features and the usual questions, so this
+README sticks to the code.
 
-Not on Google Play. Build the APK and sideload it:
+### Building
 
 ```sh
 ./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Android 8.0 or newer. The debug and release builds install side by side.
+documentation lives in the [docs tree](/docs/):
 
-## Development
+- [architecture](/docs/architecture.md)
+- [provider contract](/docs/provider-contract.md)
+- [release process](/docs/release.md)
+- [threat model](/docs/threat-model.md)
 
-```sh
-./gradlew :app:testDebugUnitTest --offline  # JVM tests
-python3 checks/quality.py                   # repo invariants
-node --test tests/*.test.mjs                # provider tests
-node worker/test.mjs                        # worker tests
-```
+### Disclaimer
 
-- [architecture](docs/architecture.md)
-- [provider contract](docs/provider-contract.md)
-- [release](docs/release.md)
-- [threat model](docs/threat-model.md)
-
-## Disclaimer
-
-For personal use only. Stream only content you have the rights to.
+for personal use only. watch only what you have the right to watch.
