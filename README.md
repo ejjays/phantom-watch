@@ -4,7 +4,7 @@
         <img src="assets/logo.svg" title="phantom watch" alt="phantom watch" width="100" />
     </p>
     <p>
-        tap a title, get the stream, move on.
+        Stop Paying. Start Watching
         <br/>
         <a href="https://w-phantom.pages.dev">
             w-phantom.pages.dev
@@ -28,7 +28,7 @@ README sticks to the code.
 ./gradlew :app:assembleDebug
 ```
 
-documentation lives in the [docs tree](/docs/):
+Documentation lives in the [docs tree](/docs/):
 
 - [architecture](/docs/architecture.md)
 - [provider contract](/docs/provider-contract.md)
