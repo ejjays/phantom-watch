@@ -11,10 +11,6 @@
     </p>
     <p>
         Stop Paying. Start Watching
-        <br/>
-        <a href="https://w-phantom.pages.dev">
-            w-phantom.pages.dev
-        </a>
     </p>
     <br/>
 </div>
@@ -24,8 +20,8 @@ way. No subscription, no ads, nothing to set up.
 
 ### Get it
 
-Grab the APK from [GitHub releases](https://github.com/ejjays/phantom-watch/releases)
-or from [w-phantom.pages.dev](https://w-phantom.pages.dev).
+- [GitHub releases](https://github.com/ejjays/phantom-watch/releases)
+- [w-phantom.pages.dev](https://w-phantom.pages.dev)
 
 ### Building
 
