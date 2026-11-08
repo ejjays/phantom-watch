@@ -24,9 +24,8 @@ way. No subscription, no ads, nothing to set up.
 
 ### Get it
 
-Download and install from [w-phantom.pages.dev](https://w-phantom.pages.dev).
-the site covers install steps, features and the usual questions, so this
-README sticks to the code.
+Grab the APK from [GitHub releases](https://github.com/ejjays/phantom-watch/releases)
+or from [w-phantom.pages.dev](https://w-phantom.pages.dev).
 
 ### Building
 
