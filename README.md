@@ -41,10 +41,9 @@ Documentation lives in the [docs tree](/docs/):
 - [release process](/docs/release.md)
 - [threat model](/docs/threat-model.md)
 
-### Ethics
+### Liability
 
-Phantom Watch takes zero liability for how it is used. The end user is
-responsible for what they watch.
+Phantom Watch takes none. You are responsible for what you watch.
 
 ### License
 
