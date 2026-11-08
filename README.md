@@ -43,7 +43,8 @@ Documentation lives in the [docs tree](/docs/):
 
 ### Liability
 
-Phantom Watch takes none. You are responsible for what you watch.
+Phantom Watch takes zero liability for how it is used. You are responsible
+for what you watch.
 
 ### License
 
