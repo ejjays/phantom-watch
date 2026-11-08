@@ -16,6 +16,17 @@ sdk.dir=/path/to/android-sdk
 The JVM heap is capped at 2 GB in `gradle.properties` because the app is
 expected to build on modest hardware. Raise it if you have the RAM.
 
+## Where this is developed
+
+Primary development happens on Android hardware: a tablet and a phone, both
+running Termux. That is why the Gradle heap is capped at 2 GB, why CI builds
+against SDK 36, and why there is no emulator in the loop. UI and playback
+are checked by hand on the device.
+
+If you suggest tooling, prefer plain CLI tools that run on ARM64. Anything
+that needs x86, or assumes a desktop IDE, cannot run where this repo is
+maintained.
+
 ## Commands
 
 ```sh
