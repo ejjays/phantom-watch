@@ -33,11 +33,11 @@ Prerequisites and the full test/lint commands are in [docs/build.md](docs/build.
 
 Documentation lives in the [docs tree](/docs/):
 
-- [architecture](/docs/architecture.md)
-- [provider contract](/docs/provider-contract.md)
-- [build](/docs/build.md)
-- [release process](/docs/release.md)
-- [threat model](/docs/threat-model.md)
+- [Architecture](/docs/architecture.md)
+- [Provider contract](/docs/provider-contract.md)
+- [Build](/docs/build.md)
+- [Release process](/docs/release.md)
+- [Threat model](/docs/threat-model.md)
 
 ### Ethics
 
