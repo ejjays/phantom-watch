@@ -4,6 +4,11 @@
         <img src="assets/logo.svg" title="phantom watch" alt="phantom watch" width="100" />
     </p>
     <p>
+        <a href="https://github.com/ejjays/phantom-watch/actions/workflows/build.yml">
+            <img src="https://github.com/ejjays/phantom-watch/actions/workflows/build.yml/badge.svg" alt="build status" />
+        </a>
+    </p>
+    <p>
         Stop Paying. Start Watching
         <br/>
         <a href="https://w-phantom.pages.dev">
