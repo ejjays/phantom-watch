@@ -174,6 +174,7 @@ internal fun SettingsRows(
     state: SnapshotStateMap<String, Int>,
     wide: Boolean,
     onValue: (String, Int) -> Unit,
+    onAction: (String) -> Unit = {},
 ) {
     SettingsCard {
         items.forEachIndexed { index, item ->
@@ -191,7 +192,7 @@ internal fun SettingsRows(
                     SettingsChipRow(item, selected, wide) { onValue(item.key, it) }
                 }
                 is SettingItem.Meter -> SettingsMeterRow(item, wide)
-                is SettingItem.Action -> SettingsActionRow(item, wide)
+                is SettingItem.Action -> SettingsActionRow(item, wide) { onAction(item.key) }
             }
         }
     }
@@ -307,8 +308,11 @@ private fun SettingsMeterRow(item: SettingItem.Meter, wide: Boolean) {
 }
 
 @Composable
-private fun SettingsActionRow(item: SettingItem.Action, wide: Boolean) {
-    Row(Modifier.fillMaxWidth().rowPadding(wide), verticalAlignment = Alignment.CenterVertically) {
+private fun SettingsActionRow(item: SettingItem.Action, wide: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).rowPadding(wide),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         RowText(
             item.title, item.note, Modifier.weight(1f),
             color = if (item.destructive) WatchRed else Slate100,

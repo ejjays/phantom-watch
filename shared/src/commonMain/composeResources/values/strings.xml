@@ -191,7 +191,7 @@
     <string name="tab_you">You</string>
     <string name="you_subtitle">Settings and preferences</string>
     <string name="you_profile_guest">Guest</string>
-    <string name="you_profile_note">Not signed in</string>
+    <string name="you_profile_note">Not built yet: there are no accounts</string>
     <string name="you_sign_in">Sign in</string>
 
     <string name="you_section_playback">Playback</string>
@@ -200,8 +200,6 @@
     <string name="you_section_subtitles_blurb">Captions, size and background</string>
     <string name="you_section_library">Library</string>
     <string name="you_section_library_blurb">History, watchlist and progress</string>
-    <string name="you_section_downloads">Downloads</string>
-    <string name="you_section_downloads_blurb">Offline copies and storage</string>
     <string name="you_section_providers">Providers</string>
     <string name="you_section_providers_blurb">Where your streams come from</string>
     <string name="you_section_about">About</string>
@@ -228,6 +226,7 @@
     <string name="you_subs_bg_dim">Dim</string>
     <string name="you_subs_bg_solid">Solid</string>
     <string name="you_subs_ai">AI captions</string>
+    <string name="you_not_built_yet">Not built yet</string>
     <string name="you_subs_ai_note">Transcribe the audio when no captions exist</string>
 
     <string name="you_library_continue">Continue watching</string>
@@ -236,19 +235,12 @@
     <string name="you_library_watchlist_value">12 titles</string>
     <string name="you_library_clear">Clear watch history</string>
 
-    <string name="you_downloads_quality">Download quality</string>
-    <string name="you_downloads_quality_value">1080p</string>
-    <string name="you_downloads_wifi">Wi-Fi only</string>
-    <string name="you_downloads_wifi_note">Never download over mobile data</string>
-    <string name="you_downloads_storage">Storage used</string>
-    <string name="you_downloads_storage_value">3.2 GB of 64 GB</string>
-    <string name="you_downloads_clear">Clear downloads</string>
 
     <string name="you_providers_health">Source health</string>
     <string name="you_providers_health_value">8 online</string>
     <string name="you_providers_refresh">Auto-refresh sources</string>
     <string name="you_providers_share">Share anonymous usage</string>
-    <string name="you_providers_share_note">Helps us spot broken providers</string>
+    <string name="you_providers_share_note">Not built yet: no usage is sent</string>
 
     <string name="you_about_version">Version</string>
     <string name="you_about_version_value">1.0</string>
@@ -257,20 +249,18 @@
     <string name="you_about_privacy">Privacy policy</string>
     <string name="you_about_feedback">Send feedback</string>
 
-    <string name="you_playback_quality_note">Used when a source offers several</string>
+    <string name="you_playback_quality_note">Not built yet: the player always takes the best source</string>
     <string name="you_playback_autoplay_note">Start the next episode when one ends</string>
     <string name="you_playback_skip_note">Jump past openings and recaps</string>
-    <string name="you_playback_audio_note">Language used when a source has dubs</string>
+    <string name="you_playback_audio_note">Not built yet: audio follows the source</string>
     <string name="you_subs_on_note">Show captions by default</string>
     <string name="you_subs_language_note">Preferred caption language</string>
     <string name="you_subs_size_note">Caption size on screen</string>
     <string name="you_subs_bg_note">Backdrop behind the captions</string>
     <string name="you_library_continue_note">Show what you have not finished</string>
     <string name="you_library_history_note">Keep watched titles in History</string>
-    <string name="you_library_watchlist_note">Titles you saved for later</string>
+    <string name="you_library_watchlist_note">Not built yet</string>
     <string name="you_library_clear_note">Remove every watched entry</string>
-    <string name="you_downloads_quality_note">Resolution for offline copies</string>
-    <string name="you_downloads_clear_note">Free the space downloads use</string>
     <string name="you_providers_health_note">Live status of every source</string>
     <string name="you_providers_refresh_note">Pick up new sources without an update</string>
     <string name="you_about_updates_note">Check the release channel</string>

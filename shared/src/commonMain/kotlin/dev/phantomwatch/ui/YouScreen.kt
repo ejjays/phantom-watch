@@ -34,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -55,16 +56,34 @@ import dev.phantomwatch.res.*
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
-// template surface: every control keeps local state, nothing here is persisted or wired yet
+// values come from the android side; this module has no preference store of its own
+data class YouData(
+    val version: String,
+    val providers: String,
+    val settings: Map<String, Int>,
+    val onValue: (String, Int) -> Unit,
+    val onClearHistory: () -> Unit,
+    val onCheckUpdates: () -> Unit,
+    val onOpenLicences: () -> Unit,
+    val onOpenPrivacy: () -> Unit,
+    val onSendFeedback: () -> Unit,
+)
+
 @Composable
-fun YouScreen() {
-    val categories = settingsCategories()
+fun YouScreen(data: YouData) {
+    val categories = settingsCategories(data)
     val state = rememberSaveable(saver = SettingsStateSaver) { defaultSettings(categories) }
     var open by rememberSaveable { mutableIntStateOf(-1) }
-    val onValue: (String, Int) -> Unit = { key, value -> state[key] = value }
+    LaunchedEffect(data.settings) {
+        data.settings.forEach { (key, value) -> state[key] = value }
+    }
+    val onValue: (String, Int) -> Unit = { key, value ->
+        state[key] = value
+        data.onValue(key, value)
+    }
     Box(Modifier.fillMaxSize().background(PageBrush)) {
         if (isExpanded(screenWidthDp())) {
-            TabletSettings(categories, state, onValue, open.coerceAtLeast(0)) { open = it }
+            TabletSettings(categories, state, onValue, data, open.coerceAtLeast(0)) { open = it }
         } else {
             AnimatedContent(
                 targetState = open,
@@ -77,7 +96,7 @@ fun YouScreen() {
                 label = "settings-page",
             ) { index ->
                 if (index in categories.indices) {
-                    DetailSettings(categories[index], state, onValue) { open = -1 }
+                    DetailSettings(categories[index], state, onValue, data) { open = -1 }
                 } else {
                     RootSettings(categories) { open = it }
                 }
@@ -130,11 +149,22 @@ private fun DetailSettings(
     category: SettingCategory,
     state: SnapshotStateMap<String, Int>,
     onValue: (String, Int) -> Unit,
+    data: YouData,
     onBack: () -> Unit,
 ) {
     SettingsList {
         item("header") { SettingsHeader(category.title, onBack) }
-        item("card") { SettingsRows(category.items, state, wide = false, onValue = onValue) }
+        item("card") { SettingsRows(category.items, state, wide = false, onValue = onValue, onAction = actionOf(data)) }
+    }
+}
+
+private fun actionOf(data: YouData): (String) -> Unit = { key ->
+    when (key) {
+        "clearhistory" -> data.onClearHistory()
+        "updates" -> data.onCheckUpdates()
+        "licences" -> data.onOpenLicences()
+        "privacy" -> data.onOpenPrivacy()
+        "feedback" -> data.onSendFeedback()
     }
 }
 
@@ -157,6 +187,7 @@ private fun TabletSettings(
     categories: List<SettingCategory>,
     state: SnapshotStateMap<String, Int>,
     onValue: (String, Int) -> Unit,
+    data: YouData,
     selected: Int,
     onSelect: (Int) -> Unit,
 ) {
@@ -188,7 +219,7 @@ private fun TabletSettings(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 item("header") { SettingsHeader(categories[index].title, null) }
-                item("card") { SettingsRows(categories[index].items, state, wide = true, onValue = onValue) }
+                item("card") { SettingsRows(categories[index].items, state, wide = true, onValue = onValue, onAction = actionOf(data)) }
                     }
         }
     }
@@ -254,19 +285,18 @@ private fun SidebarItem(category: SettingCategory, selected: Boolean, onClick: (
 // phone root: cards grouped by category id
 private val RootGroups = listOf(
     listOf("playback", "subtitles"),
-    listOf("library", "downloads"),
+    listOf("library"),
     listOf("providers"),
     listOf("about"),
 )
 
 @Composable
-private fun settingsCategories(): List<SettingCategory> = listOf(
+private fun settingsCategories(data: YouData): List<SettingCategory> = listOf(
     playbackCategory(),
     subtitlesCategory(),
     libraryCategory(),
-    downloadsCategory(),
-    providersCategory(),
-    aboutCategory(),
+    providersCategory(data),
+    aboutCategory(data),
 )
 
 @Composable
@@ -280,7 +310,7 @@ private fun playbackCategory() = SettingCategory(
             key = "quality",
             title = stringResource(Res.string.you_playback_quality),
             note = stringResource(Res.string.you_playback_quality_note),
-            value = stringResource(Res.string.you_playback_quality_value),
+            value = stringResource(Res.string.you_not_built_yet),
         ),
         SettingItem.Toggle(
             key = "autoplay",
@@ -298,13 +328,13 @@ private fun playbackCategory() = SettingCategory(
             key = "audio",
             title = stringResource(Res.string.you_playback_audio),
             note = stringResource(Res.string.you_playback_audio_note),
-            value = stringResource(Res.string.you_playback_audio_value),
+            value = stringResource(Res.string.you_not_built_yet),
         ),
-        SettingItem.Toggle(
+        SettingItem.Value(
             key = "datasaver",
             title = stringResource(Res.string.you_playback_data_saver),
             note = stringResource(Res.string.you_playback_data_saver_note),
-            on = false,
+            value = stringResource(Res.string.you_not_built_yet),
         ),
     ),
 )
@@ -326,7 +356,7 @@ private fun subtitlesCategory() = SettingCategory(
             key = "subslang",
             title = stringResource(Res.string.you_subs_language),
             note = stringResource(Res.string.you_subs_language_note),
-            value = stringResource(Res.string.you_subs_language_value),
+            value = stringResource(Res.string.you_not_built_yet),
         ),
         SettingItem.Segments(
             key = "subssize",
@@ -350,11 +380,11 @@ private fun subtitlesCategory() = SettingCategory(
             ),
             selected = 1,
         ),
-        SettingItem.Toggle(
+        SettingItem.Value(
             key = "subsai",
             title = stringResource(Res.string.you_subs_ai),
             note = stringResource(Res.string.you_subs_ai_note),
-            on = false,
+            value = stringResource(Res.string.you_not_built_yet),
         ),
     ),
 )
@@ -382,7 +412,7 @@ private fun libraryCategory() = SettingCategory(
             key = "watchlist",
             title = stringResource(Res.string.you_library_watchlist),
             note = stringResource(Res.string.you_library_watchlist_note),
-            value = stringResource(Res.string.you_library_watchlist_value),
+            value = stringResource(Res.string.you_not_built_yet),
         ),
         SettingItem.Action(
             key = "clearhistory",
@@ -394,41 +424,7 @@ private fun libraryCategory() = SettingCategory(
 )
 
 @Composable
-private fun downloadsCategory() = SettingCategory(
-    id = "downloads",
-    icon = Res.drawable.ic_cat_downloads,
-    title = stringResource(Res.string.you_section_downloads),
-    blurb = stringResource(Res.string.you_section_downloads_blurb),
-    items = listOf(
-        SettingItem.Value(
-            key = "dlquality",
-            title = stringResource(Res.string.you_downloads_quality),
-            note = stringResource(Res.string.you_downloads_quality_note),
-            value = stringResource(Res.string.you_downloads_quality_value),
-        ),
-        SettingItem.Toggle(
-            key = "dlwifi",
-            title = stringResource(Res.string.you_downloads_wifi),
-            note = stringResource(Res.string.you_downloads_wifi_note),
-            on = true,
-        ),
-        SettingItem.Meter(
-            key = "dlstorage",
-            title = stringResource(Res.string.you_downloads_storage),
-            value = stringResource(Res.string.you_downloads_storage_value),
-            fraction = 0.05f,
-        ),
-        SettingItem.Action(
-            key = "dlclear",
-            title = stringResource(Res.string.you_downloads_clear),
-            note = stringResource(Res.string.you_downloads_clear_note),
-            destructive = true,
-        ),
-    ),
-)
-
-@Composable
-private fun providersCategory() = SettingCategory(
+private fun providersCategory(data: YouData) = SettingCategory(
     id = "providers",
     icon = Res.drawable.ic_cat_providers,
     title = stringResource(Res.string.you_section_providers),
@@ -438,7 +434,7 @@ private fun providersCategory() = SettingCategory(
             key = "health",
             title = stringResource(Res.string.you_providers_health),
             note = stringResource(Res.string.you_providers_health_note),
-            value = stringResource(Res.string.you_providers_health_value),
+            value = data.providers,
         ),
         SettingItem.Toggle(
             key = "autorefresh",
@@ -456,7 +452,7 @@ private fun providersCategory() = SettingCategory(
 )
 
 @Composable
-private fun aboutCategory() = SettingCategory(
+private fun aboutCategory(data: YouData) = SettingCategory(
     id = "about",
     icon = Res.drawable.ic_cat_about,
     title = stringResource(Res.string.you_section_about),
@@ -465,7 +461,7 @@ private fun aboutCategory() = SettingCategory(
         SettingItem.Value(
             key = "version",
             title = stringResource(Res.string.you_about_version),
-            value = stringResource(Res.string.you_about_version_value),
+            value = data.version,
         ),
         SettingItem.Action(
             key = "updates",

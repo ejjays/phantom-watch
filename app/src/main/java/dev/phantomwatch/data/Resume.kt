@@ -79,6 +79,11 @@ object Resume {
         prefs(ctx).getLong(key(kind, id, season, episode), 0L)
 
     @Synchronized
+    fun clear(ctx: Context) {
+        prefs(ctx).edit().clear().apply()
+    }
+
+    @Synchronized
     fun remove(ctx: Context, kind: String, id: String, season: String, episode: String) {
         val p = prefs(ctx)
         p.edit()

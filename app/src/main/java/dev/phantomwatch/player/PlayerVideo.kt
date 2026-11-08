@@ -60,6 +60,7 @@ fun PlayerVideo(
     subCues: String,
     subStyle: Pair<Float, Float>?,
     subTopPx: Float?,
+    subBgAlpha: Float = 0.80f,
     onEnhSurface: (Surface?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -149,12 +150,12 @@ fun PlayerVideo(
             )
         }
         val ai = subCues.ifEmpty { AiSubtitles.text }
-        SubtitleLayer(ai, subStyle, subTopPx)
+        SubtitleLayer(ai, subStyle, subTopPx, subBgAlpha)
     }
 }
 
 @Composable
-private fun SubtitleLayer(cues: String, style: Pair<Float, Float>?, topPx: Float?) {
+private fun SubtitleLayer(cues: String, style: Pair<Float, Float>?, topPx: Float?, bgAlpha: Float) {
     if (cues.isEmpty()) return
     val d = LocalDensity.current
     val top = topPx?.let { with(d) { it.toDp() } }
@@ -177,7 +178,7 @@ private fun SubtitleLayer(cues: String, style: Pair<Float, Float>?, topPx: Float
             modifier = Modifier
                 .graphicsLayer { translationY = if (top == null) shift else 0f }
                 .padding(horizontal = 8.dp)
-                .background(Color(0xFF080C10).copy(alpha = 0.80f), shape)
+                .background(if (bgAlpha > 0f) Color(0xFF080C10).copy(alpha = bgAlpha) else Color.Transparent, shape)
                 .padding(
                     horizontal = with(d) { (textPx * 0.59f).toDp() },
                     vertical = with(d) { (textPx * 0.33f).toDp() },

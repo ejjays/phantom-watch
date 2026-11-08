@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Stream
+import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.subs.AiSubs
 import dev.phantomwatch.subs.MkvSubs
@@ -39,7 +40,7 @@ internal class SubsController(
 ) {
     private val stream: Stream get() = streamProvider()
 
-    var subsOff by mutableStateOf(false)
+    var subsOff by mutableStateOf(!Settings.on(context, Settings.SUBS_ON, true))
         private set
     var aiSubUrl by mutableStateOf<String?>(null)
         private set
