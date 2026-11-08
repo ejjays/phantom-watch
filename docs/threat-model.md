@@ -14,8 +14,8 @@ data beyond TMDB ids.
 | Deepgram key | `local.properties` -> `BuildConfig` | yes |
 | Seedbox password | `local.properties` -> `BuildConfig` | yes |
 | Telemetry key | `local.properties` -> `BuildConfig` | yes |
-| OTA signing key | `~/.phantomwatch/ota-key.pem` / Actions secret | no |
-| Release keystore | `~/.phantomwatch/release.jks` + `release.env` (private, outside the repo) | no |
+| OTA signing key | maintainer-held, outside the repo / Actions secret | no |
+| Release keystore | maintainer-held, outside the repo | no |
 
 Everything in the first block is public to anyone who has the APK. That is
 accepted: there is no account, nothing to steal, and the keys only buy
@@ -45,8 +45,8 @@ instead of trying to hide it in the app.
   install an APK signed with the app's key and pinned certificate. The worst
   case is a spurious installer prompt.
 - **Losing the release keystore** ends updates for installed release builds.
-  It is stored on the phone (`~/.phantomwatch/release.jks`) and must be backed
-  up offline, twice. The same applies to the OTA signing key.
+  It is stored off-repo by the maintainer and must be backed up offline,
+  twice. The same applies to the OTA signing key.
 - **Cleartext traffic.** Only `127.0.0.1` is allowed in the clear, for the update
   helper. An `http://` provider stream will not load until its host is added to
   `res/xml/network_security_config.xml`.
