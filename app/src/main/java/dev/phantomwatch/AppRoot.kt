@@ -61,7 +61,10 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
+import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.data.Aliases
+import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.PlayerUi
@@ -77,6 +80,8 @@ import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailPane
 import dev.phantomwatch.ui.HomeLiquidTabs
+import dev.phantomwatch.ui.YouData
+import dev.phantomwatch.ui.YouScreen
 import dev.phantomwatch.ui.HomeScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -91,11 +96,13 @@ internal fun AppRoot() {
     var instant by remember { mutableStateOf(false) }
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    var youRev by remember { mutableStateOf(0) }
     var crash by remember { mutableStateOf(CrashReport.pending(context)) }
     LaunchedEffect(screen, Pip.playing) {
         (context as? MainActivity)?.armPip(screen is Screen.Player, Pip.playing)
     }
     LaunchedEffect(Unit) {
+        Telemetry.appContext = context.applicationContext
         SubsApi.init(context)
         DeadHosts.init(context)
         TrailerBridge.warm()
@@ -134,7 +141,9 @@ internal fun AppRoot() {
                         if (m.kind != "tv") browse.openTitle = null
                         screen = Screen.Player(m.title, null, m, seas, ep, Screen.Home)
                     },
-                    loadRecent = { Resume.recent(context) },
+                    loadRecent = {
+                        if (Settings.on(context, Settings.CONTINUE_WATCHING, true)) Resume.recent(context) else emptyList()
+                    },
                     onRemoveRecent = { Resume.remove(context, it.kind, it.id, it.season, it.episode) },
                     onRestoreRecent = { Resume.restore(context, it) },
                     onExitApp = { (context as? android.app.Activity)?.finish() },
@@ -151,6 +160,26 @@ internal fun AppRoot() {
                     },
                     detailPane = { item, onClose, onPlay, startEpisodes ->
                         DetailPane(item, onClose, onPlay, startEpisodes, onClose)
+                    },
+                    youScreen = {
+                        val settings = remember(youRev) { liveSettings(context) }
+                        YouScreen(
+                            YouData(
+                                version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                                providers = providerSummary(),
+                                settings = settings,
+                                onValue = { key, value -> applySetting(context, key, value); youRev++ },
+                                onClearHistory = {
+                                    Resume.clear(context)
+                                    browse.recent = emptyList()
+                                    toast(context, R.string.you_history_cleared)
+                                },
+                                onCheckUpdates = { toast(context, R.string.you_updates_dev_only) },
+                                onOpenLicences = { openUrl(context, RELEASE_URL + "#licence") },
+                                onOpenPrivacy = { openUrl(context, RELEASE_URL + "#privacy") },
+                                onSendFeedback = { openUrl(context, RELEASE_URL + "/issues") },
+                            ),
+                        )
                     },
                 )
                 is Screen.Player -> {
@@ -313,5 +342,43 @@ private fun LogFab() {
                 }
             },
         )
+    }
+}
+
+private const val RELEASE_URL = "https://github.com/ejjays/phantom-watch"
+
+private fun providerSummary(): String {
+    val names = RemoteConfig.providerNames()
+    if (names.isEmpty()) return "no remote config"
+    return "${names.size} configured"
+}
+
+private fun liveSettings(ctx: android.content.Context): Map<String, Int> = mapOf(
+    Settings.SUBS_ON to if (Settings.on(ctx, Settings.SUBS_ON, true)) 1 else 0,
+    Settings.SUBS_SIZE to Settings.choice(ctx, Settings.SUBS_SIZE, Settings.SIZE_MEDIUM),
+    Settings.SUBS_BG to Settings.choice(ctx, Settings.SUBS_BG, Settings.BG_DIM),
+    Settings.SUBS_AI to if (Settings.on(ctx, Settings.SUBS_AI, false)) 1 else 0,
+    Settings.SAVE_HISTORY to if (Settings.on(ctx, Settings.SAVE_HISTORY, true)) 1 else 0,
+    Settings.CONTINUE_WATCHING to if (Settings.on(ctx, Settings.CONTINUE_WATCHING, true)) 1 else 0,
+    Settings.AUTOPLAY to if (Settings.on(ctx, Settings.AUTOPLAY, true)) 1 else 0,
+    Settings.SKIP_INTRO to if (Settings.on(ctx, Settings.SKIP_INTRO, true)) 1 else 0,
+    Settings.SHARE_USAGE to if (Telemetry.enabled(ctx)) 1 else 0,
+)
+
+private fun applySetting(ctx: android.content.Context, key: String, value: Int) {
+    when (key) {
+        Settings.SUBS_SIZE, Settings.SUBS_BG -> Settings.setChoice(ctx, key, value)
+        Settings.SHARE_USAGE -> Telemetry.setEnabled(ctx, value != 0)
+        else -> Settings.setOn(ctx, key, value != 0)
+    }
+}
+
+private fun toast(ctx: android.content.Context, res: Int) {
+    android.widget.Toast.makeText(ctx, ctx.getString(res), android.widget.Toast.LENGTH_SHORT).show()
+}
+
+private fun openUrl(ctx: android.content.Context, url: String) {
+    runCatching {
+        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
     }
 }

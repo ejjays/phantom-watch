@@ -169,6 +169,7 @@ fun HomeScreen(
     onExitApp: (() -> Unit)? = null,
     searchGhost: @Composable (Dp, Int) -> Unit = { _, _ -> },
     detailPane: @Composable (Title?, () -> Unit, (Title, String, String) -> Unit, Boolean) -> Unit = { _, _, _, _ -> },
+    youScreen: @Composable () -> Unit = {},
 ) {
     val key = TmdbHost.key
     val scope = rememberCoroutineScope()
@@ -412,7 +413,7 @@ fun HomeScreen(
                                 scope.launch(ioDispatcher) { onRestoreRecent(list) }
                             },
                         )
-                        4 -> YouScreen()
+                        4 -> youScreen()
                         else -> Box(Modifier.fillMaxSize()) {
                             BrowseBody(
                                 trending = browse.trending,

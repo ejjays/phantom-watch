@@ -1,7 +1,7 @@
 # telemetry worker
 
 One Cloudflare Worker (D1 + hourly cron). The app posts one event per resolve
-and `probe.js` one per probe title; the cron messages Telegram when a provider
+and `scripts/probe.js` one per probe title; the cron messages Telegram when a provider
 leg collapses, and agents read the same store over HTTP.
 
 ## Setup (once)

@@ -27,6 +27,13 @@ val Rubik: FontFamily
         Font(Res.font.rubik_bold, FontWeight.Bold),
     )
 
+val Inter: FontFamily
+    @Composable get() = FontFamily(
+        Font(Res.font.inter_regular, FontWeight.Normal),
+        Font(Res.font.inter_medium, FontWeight.Medium),
+        Font(Res.font.inter_semibold, FontWeight.SemiBold),
+    )
+
 val Mono: FontFamily
     @Composable get() = FontFamily(
         Font(Res.font.ibmplexmono_regular, FontWeight.Normal),

@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/sh
 # Build the debug APK and install it through the app's own PackageInstaller session (no adb, no installer URI).
 set -eu
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 apk=app/build/outputs/apk/debug/app-debug.apk
 pkg=dev.phantomwatch.debug

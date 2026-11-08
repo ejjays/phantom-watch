@@ -52,7 +52,7 @@ All provider logic lives in `app/src/main/assets/providers.js`. After touching
 a provider leg, run it live against the current titles:
 
 ```sh
-node probe.js
+node scripts/probe.js
 ```
 
 That needs network access and takes a couple of minutes. It appends a line

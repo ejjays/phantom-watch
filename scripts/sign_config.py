@@ -6,7 +6,7 @@ import argparse, base64, json, os, pathlib, sys
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "checks"))
 from config_rules import problems  # noqa: E402
 CFG = ROOT / "app/src/main/assets/providers.json"

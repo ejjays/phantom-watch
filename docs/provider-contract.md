@@ -40,7 +40,7 @@ subs:    [{ label, url, src }]
 equal the leg name, otherwise the subtitle will not bind to the format.
 
 A leg that cannot serve the title answers `{ formats: [], subs: [], skipped: true }`.
-The app leaves skipped legs out of the telemetry; `probe.js` treats them as
+The app leaves skipped legs out of the telemetry; `scripts/probe.js` treats them as
 skips, not failures. This rule exists because live-action titles used to
 report paradise as down and set off outage alerts that were not real.
 
@@ -61,7 +61,7 @@ report paradise as down and set off outage alerts that were not real.
 5. English audio
 6. height, descending
 
-The app asks the bridge for this order; `probe.js` calls `__pwRank` directly.
+The app asks the bridge for this order; `scripts/probe.js` calls `__pwRank` directly.
 The Kotlin fallback in `FormatOrder.kt` must match, and both are pinned by
 `app/src/test/resources/pick_order.txt`.
 
@@ -78,8 +78,8 @@ The Kotlin fallback in `FormatOrder.kt` must match, and both are pinned by
 2. Add a `legs.<name>` entry to `providers.json` (host, keys, `enabled`).
 3. Label the formats `<name>-…` and set `src: <name>` on its subtitles.
 4. `python3 checks/quality.py` and `node --test tests/*.test.mjs`.
-5. `node probe.js`: the new leg shows up in the report.
-6. Sign and deploy the bundle (`sign_config.py --version N`).
+5. `node scripts/probe.js`: the new leg shows up in the report.
+6. Sign and deploy the bundle (`scripts/sign_config.py --version N`).
 
 Anything that needs new headers, a POST body or a different content type fits
 the bridge already. Anything native (DRM, a new protocol, a new permission)

@@ -277,4 +277,6 @@
     <string name="you_about_licences_note">Open source notices</string>
     <string name="you_about_privacy_note">What the app stores and sends</string>
     <string name="you_about_feedback_note">Tell us what broke</string>
+    <string name="you_history_cleared">Watch history cleared</string>
+    <string name="you_updates_dev_only">This build updates from your own install, not from a release channel</string>
 </resources>

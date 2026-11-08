@@ -1,6 +1,6 @@
 """Shared providers.json / providers.js rules.
 
-Used by checks/quality.py, sign_config.py and the config-check workflow so the
+Used by checks/quality.py, scripts/sign_config.py and the config-check workflow so the
 schema is enforced in exactly one place.
 """
 import json

@@ -4,16 +4,16 @@ on:
     paths:
       - app/src/main/assets/providers.js
       - app/src/main/assets/providers.json
-      - probe.js
-      - sign_config.py
+      - scripts/probe.js
+      - scripts/sign_config.py
       - checks/config_rules.py
       - .github/workflows/config-check.yml
   pull_request:
     paths:
       - app/src/main/assets/providers.js
       - app/src/main/assets/providers.json
-      - probe.js
-      - sign_config.py
+      - scripts/probe.js
+      - scripts/sign_config.py
       - checks/config_rules.py
       - .github/workflows/config-check.yml
   workflow_dispatch:
@@ -30,8 +30,8 @@ jobs:
       - name: JS syntax
         run: |
           node --check app/src/main/assets/providers.js
-          node --check probe.js
+          node --check scripts/probe.js
       - name: Config schema
         run: python3 checks/config_rules.py app/src/main/assets/providers.json app/src/main/assets/providers.js
       - name: Python syntax
-        run: python3 -m py_compile sign_config.py
+        run: python3 -m py_compile scripts/sign_config.py

@@ -37,13 +37,13 @@ The bridge is created once, on a background pool of four, with per-leg
 timeouts (`12s`, `28s` for paradise) and a 35 s budget for the whole resolve.
 
 **The pick order lives in JavaScript.** `__pwRank` is the canonical order; the
-app asks the bridge for it (`__pwSort`) and `probe.js` calls it directly. The
+app asks the bridge for it (`__pwSort`) and `scripts/probe.js` calls it directly. The
 Kotlin copy in `FormatOrder.kt` only runs if the sort round-trip fails. Both
 sides are pinned by `app/src/test/resources/pick_order.txt`.
 
 **Skip rules live in JavaScript too.** A leg that cannot serve the title
 returns `{ formats: [], subs: [], skipped: true }` instead of an empty result.
-The app leaves skipped legs out of the telemetry, and `probe.js` skips them
+The app leaves skipped legs out of the telemetry, and `scripts/probe.js` skips them
 too, so a live-action title no longer looks like a paradise outage.
 
 **State stays on the screen.** The activity handles `configChanges`, so a

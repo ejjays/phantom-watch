@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { AsyncLocalStorage } = require('node:async_hooks');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..');
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'app/src/main/assets/providers.json'), 'utf8'));
 const UA = cfg.ua || 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36';
 const BASE = path.join(ROOT, 'probe_last.json');

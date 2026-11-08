@@ -32,18 +32,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.phantomwatch.res.ic_chevron_right
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 
-internal val SettingsPageTop = Color(0xFF141414)
-internal val SettingsPageBottom = Color(0xFF0B0B0B)
+internal val SettingsPageTop = Color(0xFF111112)
+internal val SettingsPageBottom = Color(0xFF111112)
 internal val SettingsRailBg = Color(0xFF131313)
-internal val SettingsCardTop = Color(0xFF212121)
-internal val SettingsCardBottom = Color(0xFF191919)
+internal val SettingsCardTop = Color(0xFF1C1C1E)
+internal val SettingsCardBottom = Color(0xFF1C1C1E)
 internal val SettingsHairline = Color.White.copy(alpha = 0.07f)
 internal val SettingsBorderStrong = Color(0xFF3A4040)
 internal val SettingsOnAccent = Color(0xFF111111)
@@ -51,10 +53,10 @@ internal val SettingsOnAccent = Color(0xFF111111)
 internal val PageBrush = Brush.verticalGradient(listOf(SettingsPageTop, SettingsPageBottom))
 private val CardBrush = Brush.verticalGradient(listOf(SettingsCardTop, SettingsCardBottom))
 private val CardEdge = Brush.verticalGradient(
-    listOf(Color.White.copy(alpha = 0.11f), Color.White.copy(alpha = 0.035f)),
+    listOf(Color.White.copy(alpha = 0.07f), Color.White.copy(alpha = 0.02f)),
 )
 
-private val CardShape = RoundedCornerShape(28.dp)
+private val CardShape = RoundedCornerShape(14.dp)
 
 internal sealed interface SettingItem {
     val key: String
@@ -110,8 +112,7 @@ internal data class SettingCategory(
 @Composable
 internal fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(CardShape).background(CardBrush)
-            .border(0.5.dp, CardEdge, CardShape),
+        Modifier.fillMaxWidth().clip(CardShape).background(CardBrush),
         content = content,
     )
 }
@@ -146,25 +147,29 @@ internal fun SettingsNavRow(
         ) {
             if (icon != null) {
                 Icon(
-                    painterResource(icon), contentDescription = null, tint = Slate400,
-                    modifier = Modifier.size(iconSize(wide)),
+                    painterResource(icon), contentDescription = null, tint = Color(0xFFDDDDDF),
+                    modifier = Modifier.size(22.dp),
                 )
-                Spacer(Modifier.width(if (wide) 16.dp else 14.dp))
+                Spacer(Modifier.width(16.dp))
             }
             Column {
                 Text(
-                    title, color = Slate100, fontSize = 16.sp, lineHeight = 24.sp, fontFamily = Rubik,
-                    fontWeight = FontWeight.Medium,
+                    title, color = Slate100, fontSize = 17.sp, lineHeight = 24.sp,
+                    fontFamily = Inter, fontWeight = FontWeight.Normal,
                 )
                 val body = note
                 if (!body.isNullOrBlank()) {
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        body, color = Slate400, fontSize = 14.sp, lineHeight = 21.sp, fontFamily = Rubik,
+                        body, color = Slate300, fontSize = 13.sp, lineHeight = 18.sp, fontFamily = Inter,
                     )
                 }
             }
         }
+        Icon(
+            painterResource(dev.phantomwatch.res.Res.drawable.ic_chevron_right),
+            contentDescription = null, tint = Color(0xFF8E8E93), modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -174,6 +179,7 @@ internal fun SettingsRows(
     state: SnapshotStateMap<String, Int>,
     wide: Boolean,
     onValue: (String, Int) -> Unit,
+    onAction: (String) -> Unit = {},
 ) {
     SettingsCard {
         items.forEachIndexed { index, item ->
@@ -191,7 +197,7 @@ internal fun SettingsRows(
                     SettingsChipRow(item, selected, wide) { onValue(item.key, it) }
                 }
                 is SettingItem.Meter -> SettingsMeterRow(item, wide)
-                is SettingItem.Action -> SettingsActionRow(item, wide)
+                is SettingItem.Action -> SettingsActionRow(item, wide) { onAction(item.key) }
             }
         }
     }
@@ -204,20 +210,20 @@ private fun RowText(
     modifier: Modifier = Modifier,
     color: Color = Slate100,
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-            title, color = color, fontSize = 16.sp, lineHeight = 24.sp, fontFamily = Rubik,
+            title, color = color, fontSize = 15.sp, lineHeight = 21.sp, fontFamily = Inter,
             fontWeight = FontWeight.Medium,
         )
         if (!note.isNullOrBlank()) {
-            Text(note, color = Slate400, fontSize = 14.sp, lineHeight = 21.sp, fontFamily = Rubik)
+            Text(note, color = Slate300, fontSize = 13.sp, lineHeight = 18.sp, fontFamily = Inter)
         }
     }
 }
 
 private fun Modifier.rowPadding(wide: Boolean) = padding(
     horizontal = if (wide) 20.dp else 16.dp,
-    vertical = if (wide) 18.dp else 16.dp,
+    vertical = if (wide) 15.dp else 13.dp,
 )
 
 @Composable
@@ -284,7 +290,7 @@ private fun SettingsChip(label: String, selected: Boolean, onClick: () -> Unit) 
             .padding(horizontal = 14.dp, vertical = 9.dp),
     ) {
         Text(
-            label, color = if (selected) Slate100 else Slate400, fontSize = 14.sp, fontFamily = Rubik,
+            label, color = if (selected) Slate100 else Slate400, fontSize = 14.sp, fontFamily = Inter,
             fontWeight = FontWeight.SemiBold, maxLines = 1,
         )
     }
@@ -295,7 +301,7 @@ private fun SettingsMeterRow(item: SettingItem.Meter, wide: Boolean) {
     Column(Modifier.fillMaxWidth().rowPadding(wide), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowText(item.title, item.note, Modifier.weight(1f).padding(end = 12.dp))
-            Text(item.value, color = Slate400, fontSize = 15.sp, fontFamily = Rubik)
+            Text(item.value, color = Slate400, fontSize = 15.sp, fontFamily = Inter)
         }
         Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(SettingsBorderStrong)) {
             Box(
@@ -307,8 +313,11 @@ private fun SettingsMeterRow(item: SettingItem.Meter, wide: Boolean) {
 }
 
 @Composable
-private fun SettingsActionRow(item: SettingItem.Action, wide: Boolean) {
-    Row(Modifier.fillMaxWidth().rowPadding(wide), verticalAlignment = Alignment.CenterVertically) {
+private fun SettingsActionRow(item: SettingItem.Action, wide: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).rowPadding(wide),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         RowText(
             item.title, item.note, Modifier.weight(1f),
             color = if (item.destructive) WatchRed else Slate100,

@@ -95,13 +95,13 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.SubtitleView
 import dev.phantomwatch.Enhance
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.data.Dub
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Stream
+import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.R
@@ -257,7 +257,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                         .put("err", stats.err),
                 )
             }
-            if (mine && stats.startup > 0) Resume.save(context, media, season, episode, exo.currentPosition, exo.duration)
+            if (mine && stats.startup > 0 && Settings.on(context, Settings.SAVE_HISTORY, true)) {
+                Resume.save(context, media, season, episode, exo.currentPosition, exo.duration)
+            }
             if (mine) exo.pause() // leaving the screen silences it but keeps the media card
         }
     }
@@ -517,6 +519,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     LaunchedEffect(live.url) { subs.runOsSubs() }
     LaunchedEffect(live.url) { subs.sync() }
     LaunchedEffect(live.url) { subs.watchSelection() }
+    val subSize = remember { Settings.sizeFraction(Settings.choice(context, Settings.SUBS_SIZE, Settings.SIZE_MEDIUM)) }
+    val subBg = remember { Settings.bgAlpha(Settings.choice(context, Settings.SUBS_BG, Settings.BG_DIM)) }
     var langDone by remember { mutableStateOf(false) }
     LaunchedEffect(embedNames) {
         if (langDone || stream.subs.isNotEmpty() || embedNames.isEmpty()) return@LaunchedEffect
@@ -741,7 +745,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             stalled = exo.playbackState == Player.STATE_BUFFERING
             if (stats.startup > 0 && SystemClock.elapsedRealtime() - lastSaveAt > 10000) {
                 lastSaveAt = SystemClock.elapsedRealtime()
-                Resume.save(context, media, season, episode, positionMs, durationMs)
+                if (Settings.on(context, Settings.SAVE_HISTORY, true)) {
+                    Resume.save(context, media, season, episode, positionMs, durationMs)
+                }
             }
             delay(250)
         }
@@ -867,6 +873,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         rotateButton: Boolean = false, onRotate: () -> Unit = {},
         subStyle: Pair<Float, Float>? = null,
         subTopPx: Float? = null,
+        subBg: Float = 0.80f,
         onFullscreen: () -> Unit = { toggleFullscreen(); poke() },
         maxVideoH: androidx.compose.ui.unit.Dp? = null,
         topPad: androidx.compose.ui.unit.Dp? = null,
@@ -929,7 +936,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             }
         },
         onSeek = ::seekTo, onKeySeek = ::accSeek,
-        onSkipIntro = ::skipIntro,
+        onSkipIntro = {
+            if (Settings.on(context, Settings.SKIP_INTRO, true)) skipIntro()
+        },
         onInteract = ::poke,
         onZoneTap = ::handleZone,
         onToggleSubs = {
@@ -985,6 +994,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 subCues = subCues,
                 subStyle = subStyle,
                 subTopPx = subTopPx,
+                subBgAlpha = subBg,
                 onEnhSurface = { enhOut = it; if (it == null) enhBound = null },
                 modifier = mod,
             )
@@ -994,7 +1004,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val tablet = cfg.screenWidthDp >= 840
     Box(Modifier.fillMaxSize()) {
-    NextUpHost(exo, media, season, episode, onEpisode)
+    if (Settings.on(context, Settings.AUTOPLAY, true)) {
+        NextUpHost(exo, media, season, episode, onEpisode)
+    }
     if (Pip.inPip) {
         stage(0.dp, false)
     } else if (tablet || wide) {
@@ -1091,7 +1103,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 )
                 val letterbox = ((stageHpx - videoHpx) / 2f).coerceAtLeast(0f)
                 val subPx = maxOf(
-                    videoHpx * SubtitleView.DEFAULT_TEXT_SIZE_FRACTION,
+                    videoHpx * subSize,
                     with(density) { (if (theater) 15.dp else 13.dp).toPx() },
                 )
                 val subStyle = subPx to
@@ -1128,6 +1140,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                             rotateButton = theater, onRotate = { toggleFullscreen(); poke() },
                             subStyle = subStyle,
                             subTopPx = subTopPx,
+                            subBg = subBg,
                             onFullscreen = {
                                 if (theater) reopen() else { toggleFullscreen(); poke() }
                             },

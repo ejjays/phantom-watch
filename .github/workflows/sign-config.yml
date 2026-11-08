@@ -22,7 +22,7 @@ jobs:
         run: |
           umask 077
           printf '%s' "$OTA_KEY" > "$RUNNER_TEMP/ota-key.pem"
-          python3 sign_config.py --version "${{ inputs.version }}" --key "$RUNNER_TEMP/ota-key.pem"
+          python3 scripts/sign_config.py --version "${{ inputs.version }}" --key "$RUNNER_TEMP/ota-key.pem"
       - uses: actions/upload-artifact@v4
         with:
           name: signed-config-v${{ inputs.version }}

@@ -68,7 +68,7 @@ distributable and its pinned certificate is all zeros.
 Provider hosts, keys and the extractor code ship in a signed bundle:
 
 ```sh
-python3 sign_config.py --version N     # N must be above the deployed version
+python3 scripts/sign_config.py --version N     # N must be above the deployed version
 wrangler pages deploy build/pages-config --project-name phantomwatch-config --branch main --commit-dirty=true
 ```
 
