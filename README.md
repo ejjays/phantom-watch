@@ -34,10 +34,13 @@ README sticks to the code.
 ./gradlew :app:assembleDebug
 ```
 
+Prerequisites and the full test/lint commands are in [docs/build.md](docs/build.md).
+
 Documentation lives in the [docs tree](/docs/):
 
 - [architecture](/docs/architecture.md)
 - [provider contract](/docs/provider-contract.md)
+- [build](/docs/build.md)
 - [release process](/docs/release.md)
 - [threat model](/docs/threat-model.md)
 
