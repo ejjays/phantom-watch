@@ -1,7 +1,7 @@
 # Threat model
 
-Audience: family and a few friends, sideloaded APKs, no accounts, no payment,
-no personal data beyond TMDB ids.
+Audience: anyone who sideloads the APK. No accounts, no payment, no personal
+data beyond TMDB ids.
 
 ## What the app holds
 
@@ -11,10 +11,11 @@ no personal data beyond TMDB ids.
 | OpenSubtitles key | `local.properties` -> `BuildConfig` | yes |
 | Supabase anon key | `local.properties` -> `BuildConfig` | yes (it is an anon key) |
 | Groq keys | `local.properties` -> `BuildConfig` | yes |
+| Deepgram key | `local.properties` -> `BuildConfig` | yes |
 | Seedbox password | `local.properties` -> `BuildConfig` | yes |
 | Telemetry key | `local.properties` -> `BuildConfig` | yes |
-| OTA signing key | `~/.phantomwatch/ota-key.pem` / Actions secret | no |
-| Release keystore | `~/.phantomwatch/release.jks` + `release.env` (private, outside the repo) | no |
+| OTA signing key | held off-repo, Actions secret as backup | no |
+| Release keystore | held off-repo | no |
 
 Everything in the first block is public to anyone who has the APK. That is
 accepted: there is no account, nothing to steal, and the keys only buy
@@ -25,8 +26,8 @@ instead of trying to hide it in the app.
 
 - **The OTA config** is signed with ECDSA P-256 and verified against a pinned
   public key. A tampered bundle is rejected and the last accepted one stays
-  in prefs. The private key lives on the original phone and in the Actions
-  secret as the backup; the family devices never receive it.
+  in prefs. The private key is kept off-repo, with the Actions secret as the
+  backup; installed devices never receive it.
 - **Telemetry** carries TMDB ids, per-leg counts and timings. No titles, no
   stream URLs, no account.
 - **The app's own data** (watch positions, cached config) is not backed up
@@ -44,8 +45,8 @@ instead of trying to hide it in the app.
   install an APK signed with the app's key and pinned certificate. The worst
   case is a spurious installer prompt.
 - **Losing the release keystore** ends updates for installed release builds.
-  It is stored on the phone (`~/.phantomwatch/release.jks`) and must be backed
-  up offline, twice. The same applies to the OTA signing key.
+  I keep it off-repo and back it up offline, twice. The same applies to the
+  OTA signing key.
 - **Cleartext traffic.** Only `127.0.0.1` is allowed in the clear, for the update
   helper. An `http://` provider stream will not load until its host is added to
   `res/xml/network_security_config.xml`.
