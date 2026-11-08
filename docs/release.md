@@ -2,7 +2,7 @@
 
 ## What a release is
 
-One APK for the family group. Debug and release install side by side
+One signed APK. Debug and release install side by side
 (`dev.phantomwatch.debug` and `dev.phantomwatch`), each with its own data.
 
 ## Checklist
@@ -21,13 +21,13 @@ Then:
 1. Check the size and the version in `app/build/outputs/apk/release/output-metadata.json`.
 2. Verify the signature matches the build that is already installed:
    `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk`
-3. Move the APK out of the build folder:
-   `mv app/build/outputs/apk/release/app-release.apk /storage/emulated/0/release/`
-4. Keep the R8 mapping next to it: release crash reports are obfuscated and
+3. Keep the R8 mapping next to the APK: release crash reports are obfuscated and
    cannot be read without it:
-   `cp app/build/outputs/mapping/release/mapping.txt /storage/emulated/0/release/mapping-<versionCode>.txt`
-5. Tell the family to install it (Android asks to update the existing app).
-6. Watch the provider telemetry for the next hour:
+   `cp app/build/outputs/mapping/release/mapping.txt mapping-<versionCode>.txt`
+4. Publish the APK (GitHub release, direct download, however the update is
+   shipped) and tell installed users to update (Android asks over the
+   existing install).
+5. Watch the provider telemetry for the next hour:
    `curl -s "$TELEMETRY_URL/health?k=$TELEMETRY_KEY&days=1"`
 
 ## Versioning
@@ -81,8 +81,8 @@ still sign: `gh workflow run sign-config.yml -f version=N`.
 
 ## Rollback
 
-Keep the last good APK in `/storage/emulated/0/release/`. To roll back, hand
-the family the older file and install it (a lower `versionCode` installs with
+Keep the last good APK somewhere safe. To roll back, hand users the older
+file and install it (a lower `versionCode` installs with
 `adb install -r -d`, but by hand Android refuses a downgrade; uninstall first
 if needed).
 
