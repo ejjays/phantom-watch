@@ -7,6 +7,7 @@
         <a href="https://github.com/ejjays/phantom-watch/actions/workflows/build.yml">
             <img src="https://github.com/ejjays/phantom-watch/actions/workflows/build.yml/badge.svg" alt="build status" />
         </a>
+        <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue?style=flat" alt="License: AGPL-3.0" /></a>
     </p>
     <p>
         Stop Paying. Start Watching
@@ -40,9 +41,11 @@ Documentation lives in the [docs tree](/docs/):
 - [release process](/docs/release.md)
 - [threat model](/docs/threat-model.md)
 
-### Disclaimer
+### Ethics
 
-for personal use only. watch only what you have the right to watch.
+Phantom Watch is a player, not a source. It hosts nothing, caches nothing and
+sells nothing. It finds streams that are already publicly accessible and plays
+them. What you watch and how you use the app is your responsibility.
 
 ### License
 
