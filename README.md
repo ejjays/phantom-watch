@@ -20,8 +20,8 @@ way. No subscription, no ads, nothing to set up.
 
 ### Get it
 
-- [GitHub releases](https://github.com/ejjays/phantom-watch/releases)
-- [w-phantom.pages.dev](https://w-phantom.pages.dev)
+Grab the APK from [GitHub releases](https://github.com/ejjays/phantom-watch/releases)
+or from [w-phantom.pages.dev](https://w-phantom.pages.dev).
 
 ### Building
 
