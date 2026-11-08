@@ -1,0 +1,3 @@
+# Generated files: keep them out of GitHub's language stats
+spike/web/kotlin/** linguist-generated=true
+spike/web/icons.js linguist-generated=true
