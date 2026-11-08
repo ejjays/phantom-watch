@@ -32,8 +32,7 @@ import dev.phantomwatch.data.Sub
 import dev.phantomwatch.lan.LanShare
 import dev.phantomwatch.subs.SubtitleCue
 import dev.phantomwatch.subs.Subtitles
-import dev.phantomwatch.torrent.DownloadControl
-import dev.phantomwatch.torrent.Torrents
+import dev.phantomwatch.provider.DeadHosts
 
 internal fun trackName(f: Format): String {
     val lab = f.label ?: ""
@@ -194,16 +193,16 @@ private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
 internal fun noteDeadHost(chain: String, code: Int?, url: String) {
     when {
         chain.contains("UnknownHostException") -> {
-            Torrents.DeadHosts.mark(url, 1)
-            AppLog.d("player dead host ${Torrents.DeadHosts.hostOf(url)}")
+            DeadHosts.mark(url, 1)
+            AppLog.d("player dead host ${DeadHosts.hostOf(url)}")
         }
         code == 429 -> {
-            Torrents.DeadHosts.cooldown(url, 10)
-            AppLog.d("player rate limited host ${Torrents.DeadHosts.hostOf(url)}")
+            DeadHosts.cooldown(url, 10)
+            AppLog.d("player rate limited host ${DeadHosts.hostOf(url)}")
         }
         code == 403 -> {
-            Torrents.DeadHosts.cooldown(url, 10)
-            AppLog.d("player refused host ${Torrents.DeadHosts.hostOf(url)}")
+            DeadHosts.cooldown(url, 10)
+            AppLog.d("player refused host ${DeadHosts.hostOf(url)}")
         }
     }
 }
@@ -213,7 +212,6 @@ internal fun buildMediaFactory(
     context: android.content.Context,
     stream: Stream,
     headers: Map<String, String>,
-    download: DownloadControl?,
 ): DefaultMediaSourceFactory {
     val retry = FailFastLoadPolicy()
     if (stream.url.startsWith("file")) {
@@ -256,11 +254,10 @@ internal fun sourceFor(
     stream: Stream,
     subs: List<Sub>,
     firstUri: Uri?,
-    download: DownloadControl?,
     meta: MediaMetadata?,
 ): MediaSource {
     LanShare.onStream(stream, subs)
-    return buildMediaFactory(context, stream, mediaHeaders(stream), download)
+    return buildMediaFactory(context, stream, mediaHeaders(stream))
         .createMediaSource(itemFor(stream.url, stream.isHls, configsFor(subs, firstUri), meta))
 }
 
@@ -278,7 +275,7 @@ internal fun buildPreviewPlayer(context: android.content.Context, stream: Stream
         .build()
     return ExoPlayer.Builder(context)
         .setTrackSelector(selector)
-        .setMediaSourceFactory(buildMediaFactory(context, stream, headers, null))
+        .setMediaSourceFactory(buildMediaFactory(context, stream, headers))
         .setLoadControl(loadControl)
         .build()
         .apply {

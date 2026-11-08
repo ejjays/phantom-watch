@@ -96,7 +96,6 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
-import com.frostwire.jlibtorrent.TorrentHandle
 import dev.phantomwatch.Enhance
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Telemetry
@@ -111,11 +110,8 @@ import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.provider.Providers
 import dev.phantomwatch.provider.Resolve
 import dev.phantomwatch.subs.MkvSubs
-import dev.phantomwatch.torrent.DownloadControl
-import dev.phantomwatch.torrent.Seedbox
-import dev.phantomwatch.torrent.TORRENTS_ENABLED
-import dev.phantomwatch.torrent.TorrentEngine
-import dev.phantomwatch.torrent.Torrents
+import dev.phantomwatch.provider.DeadHosts
+import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.data.DetailCache
 import dev.phantomwatch.data.DubPref
 import kotlin.math.roundToInt
@@ -131,7 +127,7 @@ private const val DOWNLOAD_BUTTON_ENABLED = false
 
 @OptIn(UnstableApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun PlayerScreen(title: String, media: Title, initial: Stream?, download: DownloadControl?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit, onEpisode: (String, String) -> Unit = { _, _ -> }, onOpenTitle: (Title) -> Unit = {}) {
+internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit, onEpisode: (String, String) -> Unit = { _, _ -> }, onOpenTitle: (Title) -> Unit = {}) {
     val context = LocalContext.current
     val resumeScope = rememberCoroutineScope()
     val meta = remember(title, media, season, episode) {
@@ -157,8 +153,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 Resolve.streams(media, season, episode, fresh = retryN > 0)
             }
             // prefer non-banned; fall back to full set so user can still pick
-            val notDead = bundle.formats.filter { it.url !in Torrents.DeadReleases.urls }
-            val live = notDead.filter { !Torrents.DeadHosts.blocked(it.url) }.ifEmpty { notDead }
+            val notDead = bundle.formats.filter { it.url !in DeadReleases.urls }
+            val live = notDead.filter { !DeadHosts.blocked(it.url) }.ifEmpty { notDead }
             AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
                 resolveErr = context.getString(if (JsProviders.engineDown) R.string.player_engine_down else R.string.player_no_streams)
@@ -180,9 +176,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var directErrs by remember { mutableStateOf(0) }
     var netErr by remember { mutableStateOf(false) }
     var resumeJob: Job? by remember { mutableStateOf(null) }
-    var lastErrPos by remember { mutableStateOf(-1L) }
-    var lastErrDl by remember { mutableStateOf(0L) }
-    var sameSpotStreak by remember { mutableStateOf(0) }
     var forcedNames by remember { mutableStateOf<List<String>?>(null) }
     var latestTracks by remember { mutableStateOf<androidx.media3.common.Tracks?>(null) }
     var nowLabel by remember { mutableStateOf<String?>(null) }
@@ -190,8 +183,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     var embedNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var embedIdx by remember { mutableStateOf(-1) }
     var embedGroup by remember { mutableStateOf<androidx.media3.common.TrackGroup?>(null) }
-    var frontierMs by remember { mutableStateOf(0L) }
-    var fillNote by remember { mutableStateOf<String?>(null) }
     var speed by remember { mutableStateOf(1f) }
     var speedNote by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(title) { AppLog.d("screen $title") }
@@ -278,7 +269,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         autoplay: Boolean = true,
     ) {
         runCatching {
-            exo.setMediaSource(sourceFor(context, src, subs, firstUri, download, meta), pos)
+            exo.setMediaSource(sourceFor(context, src, subs, firstUri, meta), pos)
             exo.prepare()
             if (autoplay) exo.play()
         }.onFailure { AppLog.d("attach fail ${it.message}") }
@@ -286,14 +277,13 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     LaunchedEffect(speed) { exo.setPlaybackSpeed(speed) }
     LaunchedEffect(speedNote) { if (speedNote != null) { delay(1200); speedNote = null } }
     val subsScope = rememberCoroutineScope()
-    val subs = remember(exo, download) {
+    val subs = remember(exo) {
         SubsController(
             context = context,
             exo = exo,
             streamProvider = { live },
             season = season,
             episode = episode,
-            download = download,
             scope = subsScope,
             tracks = { latestTracks },
             attach = { s, u, p, a -> attachSubs(s, u, live, p, a) },
@@ -433,12 +423,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                 }
                 if (reason != Player.DISCONTINUITY_REASON_SEEK) return
                 resumeJob?.cancel()
-                val f = frontierMs
-                val dur = exo.duration.takeIf { it > 0 } ?: 0L
-                if (f > 0 && dur > 0 && f < dur - 5000 && newPosition.positionMs > f + 5000) {
-                    exo.seekTo(f)
-                    AppLog.d("seek clamped ${newPosition.positionMs / 1000}s to frontier ${f / 1000}s")
-                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -459,130 +443,33 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
                         AppLog.d("file check exists=${f?.exists()} len=${f?.length()}")
                     } catch (_: Exception) {
                     }
-                    val c0 = download
-                    if (c0 != null) {
-                        c0.stop()
-                        AppLog.d("retries stopped, file gone")
-                        try {
-                            android.widget.Toast.makeText(context, "file gone, reopen the title", android.widget.Toast.LENGTH_LONG).show()
-                        } catch (_: Exception) {
-                        }
-                    }
                 }
-                val c = download
-                if (c != null && c.active) {
-                    val errPos = exo.currentPosition
-                    val errDl = try {
-                        c.handle.status().totalDone()
-                    } catch (_: Exception) {
-                        0L
-                    }
-                    if (lastErrPos >= 0 && errPos - lastErrPos in -5000..5000 && errDl - lastErrDl in -2000000..2000000) {
-                        sameSpotStreak += 1
-                    } else {
-                        sameSpotStreak = 0
-                    }
-                    lastErrPos = errPos
-                    lastErrDl = errDl
-                }
-                if (c != null && c.active && c.tries < 12 && sameSpotStreak < 3) {
-                    c.tries += 1
-                    AppLog.d("player resume ${c.tries} awaiting dense window")
+                directErrs += 1
+                netErr = true
+                val errPos = exo.currentPosition
+                AppLog.d("player direct err $directErrs")
+                if (directErrs >= 3 && !gaveUpSent && errPos < 60_000) {
+                    gaveUpSent = true
+                    AppLog.d("player direct dead, next source")
+                    onGiveUp(live.url)
+                } else if (directErrs <= 3 && (errPos >= 60_000 || errPos < 10_000)) {
                     resumeJob?.cancel()
                     resumeJob = resumeScope.launch {
-                        val before = try {
-                            c.handle.status().totalDone()
+                        // the bundle is cached for 5 min: reuse it rather than hit every provider again
+                        val fresh = try {
+                            withContext(Dispatchers.IO) {
+                                Providers.nextStream(media, season, episode, live.url, fresh = directErrs > 1)
+                            }
                         } catch (_: Exception) {
-                            0L
+                            null
                         }
-                        val pos = exo.currentPosition
-                        val dur = exo.duration.takeIf { it > 0 } ?: 0L
-                        val t0 = System.currentTimeMillis()
-                        while (System.currentTimeMillis() - t0 < 180000) {
-                            if (!c.active) return@launch
-                            if (dur > 0 && c.fileSize > 0 && c.fileIndex >= 0) {
-                                try {
-                                    val ti = c.handle.torrentFile()
-                                    var start = 0L
-                                    for (i in 0 until c.fileIndex) start += ti.files().fileSize(i)
-                                    val plen = ti.pieceLength().toLong()
-                                    val fromAt = start + (pos.toDouble() / dur * c.fileSize).toLong()
-                                    val toAt = start + minOf(c.fileSize, ((pos + 30000).toDouble() / dur * c.fileSize).toLong())
-                                    val bits = c.handle.status(TorrentHandle.QUERY_PIECES).pieces()
-                                    var q = (fromAt / plen).toInt()
-                                    val last = (toAt / plen).toInt()
-                                    var missing = false
-                                    while (q <= last && q < bits.size()) {
-                                        if (!bits.getBit(q)) {
-                                            missing = true
-                                            try {
-                                                c.handle.setPieceDeadline(q, 7000)
-                                            } catch (_: Exception) {
-                                            }
-                                        }
-                                        q++
-                                    }
-                                    if (!missing) break
-                                } catch (_: Exception) {
-                                }
-                            } else {
-                                val now = try {
-                                    c.handle.status().totalDone()
-                                } catch (_: Exception) {
-                                    before
-                                }
-                                if (now > before + 5000000) break
-                            }
-                            delay(2000)
+                        if (fresh == null) {
+                            AppLog.d("player relink none")
+                            return@launch
                         }
-                        if (!c.active) return@launch
-                        try {
-                            val dl = try {
-                                c.handle.status().totalDone() / 1048576
-                            } catch (_: Exception) {
-                                -1
-                            }
-                            AppLog.d("player resume at ${pos / 1000}s dl=${dl}MB")
-                            val all = stream.subs + subs.aiSubUrl?.let { listOf(Sub("AI English", it)) }.orEmpty()
-                            attachSubs(all, null, stream, pos)
-                        } catch (_: Exception) {
-                        }
-                    }
-                } else if (c != null && c.active) {
-                    AppLog.d("player gave up after ${c.tries} retries")
-                    if (!gaveUpSent && (exo.currentPosition < 10_000 || sameSpotStreak >= 3)) {
-                        gaveUpSent = true
-                        AppLog.d("player unplayable, back to releases")
-                        onGiveUp(stream.url)
-                    }
-                } else if (c == null && !TORRENTS_ENABLED) {
-                    directErrs += 1
-                    netErr = true
-                    val errPos = exo.currentPosition
-                    AppLog.d("player direct err $directErrs")
-                    if (directErrs >= 3 && !gaveUpSent && errPos < 60_000) {
-                        gaveUpSent = true
-                        AppLog.d("player direct dead, next source")
-                        onGiveUp(live.url)
-                    } else if (directErrs <= 3 && (errPos >= 60_000 || errPos < 10_000)) {
-                        resumeJob?.cancel()
-                        resumeJob = resumeScope.launch {
-                            // the bundle is cached for 5 min: reuse it rather than hit every provider again
-                            val fresh = try {
-                                withContext(Dispatchers.IO) {
-                                    Providers.nextStream(media, season, episode, live.url, fresh = directErrs > 1)
-                                }
-                            } catch (_: Exception) {
-                                null
-                            }
-                            if (fresh == null) {
-                                AppLog.d("player relink none")
-                                return@launch
-                            }
-                            live = fresh.copy(dubs = live.dubs)
-                            AppLog.d("player relink hls=${fresh.isHls} enSubs=${fresh.enSubs} subs=${fresh.subs.size} at ${errPos / 1000}s")
-                            attach(errPos)
-                        }
+                        live = fresh.copy(dubs = live.dubs)
+                        AppLog.d("player relink hls=${fresh.isHls} enSubs=${fresh.enSubs} subs=${fresh.subs.size} at ${errPos / 1000}s")
+                        attach(errPos)
                     }
                 }
             }
@@ -630,44 +517,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
     LaunchedEffect(live.url) { subs.runOsSubs() }
     LaunchedEffect(live.url) { subs.sync() }
     LaunchedEffect(live.url) { subs.watchSelection() }
-    LaunchedEffect(stream.url) {
-        if (stream.auth == null && download == null) return@LaunchedEffect
-        while (true) {
-            try {
-                val dur = exo.duration.takeIf { it > 0 } ?: 0L
-                if (dur > 0) {
-                    val frac = withContext(Dispatchers.IO) {
-                        if (stream.auth != null) {
-                            val hash = stream.url.substringAfter("/files/").substringBefore("/")
-                            val cfg = Seedbox.cfg()
-                            if (cfg == null || hash.length < 10) return@withContext -1.0
-                            val states = Seedbox.pieceStates(cfg, hash)
-                            if (states.isEmpty()) return@withContext -1.0
-                            states.takeWhile { it == 2 }.size.toDouble() / states.size
-                        } else if (download != null && download.fileSize > 0 && download.fileIndex >= 0) {
-                            try {
-                                TorrentEngine.densePrefix(download.handle, download.fileIndex, download.fileSize).toDouble() / download.fileSize
-                            } catch (_: Exception) {
-                                -1.0
-                            }
-                        } else {
-                            -1.0
-                        }
-                    }
-                    if (frac >= 0) {
-                        frontierMs = (frac * dur).toLong()
-                        fillNote = if (frac < 0.995) {
-                            if (stream.auth != null) "Cloud filling • full seek when done" else "Still downloading • full seek when done"
-                        } else {
-                            null
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-            }
-            delay(5000)
-        }
-    }
     var langDone by remember { mutableStateOf(false) }
     LaunchedEffect(embedNames) {
         if (langDone || stream.subs.isNotEmpty() || embedNames.isEmpty()) return@LaunchedEffect
@@ -1037,7 +886,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, downloa
         speed = speed, onPickSpeed = { speed = it; speedNote = "Speed ${speedLabel(it)}"; AppLog.d("speed ${it}x") },
         bufferedMs = bufferedMs, paneH = maxVideoH,
         controlsVisible = controls && !Pip.inPip,
-        flash = speedNote ?: fillNote,
+        flash = speedNote,
         swipeHud = swipeHud,
         seekMark = seekMark,
         seekInset = seekInset,

@@ -10,7 +10,7 @@ import dev.phantomwatch.data.withDub
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
-import dev.phantomwatch.torrent.Torrents
+import dev.phantomwatch.provider.DeadHosts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -147,20 +147,20 @@ object Providers {
                     val all = names.flatMap { byName[it]?.formats.orEmpty() }
                     val subs = names.flatMap { byName[it]?.subs.orEmpty() }
                     // bans outlive transient 403/429s; one 1-byte probe re-admits a host that recovered
-                    val blocked = all.filter { Torrents.DeadHosts.blocked(it.url) }
-                        .distinctBy { Torrents.DeadHosts.hostOf(it.url) }
+                    val blocked = all.filter { DeadHosts.blocked(it.url) }
+                        .distinctBy { DeadHosts.hostOf(it.url) }
                     if (blocked.isNotEmpty()) {
                         AppLog.d("direct dead hosts ${blocked.size}")
                         withTimeoutOrNull(6000) {
                             coroutineScope {
-                                blocked.map { f -> async { if (alive(f)) Torrents.DeadHosts.forgive(f.url) } }
+                                blocked.map { f -> async { if (alive(f)) DeadHosts.forgive(f.url) } }
                                     .awaitAll()
                             }
                         }
                     }
-                    val live = all.filter { it.url !in Torrents.DeadReleases.urls }.distinctBy { it.url }
+                    val live = all.filter { it.url !in DeadReleases.urls }.distinctBy { it.url }
                     val ordered = rankLast(JsProviders.sortOrder(live) ?: FormatOrder.sort(live)) {
-                        Torrents.DeadHosts.blocked(it)
+                        DeadHosts.blocked(it)
                     }
                     Triple(ordered, subs.distinctBy { it.url }, imdb.await())
                         .also { report(tmdbId, kind, season, episode, System.currentTimeMillis() - t0, live.size, ordered.firstOrNull(), results) }
@@ -277,7 +277,7 @@ object Providers {
         if (saved == null) return null
         val pick = dubs.firstOrNull { !it.base && it.label == saved }
             ?: dubs.firstOrNull { !it.base && it.label.substringBefore(" · ") == saved.substringBefore(" · ") }
-        return pick?.takeUnless { Torrents.DeadHosts.blocked(it.url) }
+        return pick?.takeUnless { DeadHosts.blocked(it.url) }
     }
 
     fun restore(s: Stream, saved: String?): Stream {
@@ -353,7 +353,7 @@ object Providers {
     suspend fun nextStream(media: Title, season: String, episode: String, failedUrl: String, fresh: Boolean = false): Stream? {
         // a later failure may mean the signed urls expired, so that one gets a fresh resolve
         val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode, fresh) } ?: return null
-        val f = nextFormat(b.formats, failedUrl, Torrents.DeadReleases.urls, Torrents.DeadHosts::blocked)
+        val f = nextFormat(b.formats, failedUrl, DeadReleases.urls, DeadHosts::blocked)
             ?: return null
         AppLog.d("fallback ${providerName(f)} ${f.label} h=${f.height}")
         return Stream(

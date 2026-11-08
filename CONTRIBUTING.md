@@ -23,7 +23,7 @@ before your first change.
 
 - every `.kt` file's `package` line must match its directory under `src/*/java`
 - one feature, one package (`core`, `data`, `provider`, `player`, `subs`,
-  `social`, `torrent`, `ui`)
+  `social`, `ui`)
 - file name matches the main type it holds; no grab-bag files
 - no file over 900 lines
 - no committed build output, no committed secrets

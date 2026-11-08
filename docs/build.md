@@ -55,5 +55,5 @@ a provider leg, run it live against the current titles:
 node probe.js
 ```
 
-That needs network access and takes a couple of minutes; it appends to
-`probe_history.jsonl`.
+That needs network access and takes a couple of minutes. It appends a line
+to a local `probe_history.jsonl` (gitignored).

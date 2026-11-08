@@ -23,8 +23,7 @@ TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
 | providers | `assets/providers.js`, `assets/providers.json` | the only provider implementation |
 | subs | `subs/Subtitles.kt`, `OsSubs.kt`, `SubsApi.kt`, `AiSubs.kt`, `MkvSubs.kt` | subtitle sources |
 | data | `data/Models.kt`, `Tmdb.kt`, `Search.kt`, `Resume.kt`, `DetailCache.kt` | catalog and watch state |
-| infra | `core/RemoteConfig.kt`, `core/Telemetry.kt`, `core/CrashReport.kt`, `core/Http.kt` | config, telemetry, transport |
-| torrent | `torrent/Torrent.kt`, `Seedbox.kt`, `DownloadControl.kt` | seedbox and download control (disabled) |
+| infra | `core/RemoteConfig.kt`, `core/Telemetry.kt`, `core/CrashReport.kt`, `core/Http.kt`, `provider/DeadHosts.kt` | config, telemetry, transport, host health |
 
 Dependencies point down only. Screens do not talk to providers, the resolver
 does not touch Compose, and `providers.js` knows nothing about the app.
@@ -64,7 +63,7 @@ APK. See [release.md](release.md).
 ## Testing seams
 
 Pure logic is unit tested in the package of the code it covers
-(`app/src/test/java/dev/phantomwatch/{core,data,player,provider,subs,torrent,ui}`):
+(`app/src/test/java/dev/phantomwatch/{core,data,player,provider,subs,ui}`):
 the resolver cache, subtitle parsing and ranking, the oshash vector, the MKV
 cue conversion, the config acceptance rules, the pick order and the
 OpenSubtitles response parsing.

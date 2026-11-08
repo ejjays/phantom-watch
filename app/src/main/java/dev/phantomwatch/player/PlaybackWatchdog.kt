@@ -7,7 +7,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.media3.exoplayer.ExoPlayer
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Stream
-import dev.phantomwatch.torrent.Torrents
+import dev.phantomwatch.provider.DeadHosts
+import dev.phantomwatch.provider.DeadReleases
 import kotlinx.coroutines.delay
 
 private const val RESUME_MIN_MS = 60_000L
@@ -38,10 +39,10 @@ internal fun PlaybackWatchdog(
         }
         delay(STUCK_MS)
         if (!stalledNow) return@LaunchedEffect
-        val host = Torrents.DeadHosts.hostOf(live.url)
+        val host = DeadHosts.hostOf(live.url)
         AppLog.d("watchdog: $host stuck at ${exo.currentPosition / 1000}s, next source")
-        Torrents.DeadHosts.markHang(live.url, HANG_BAN_H)
-        Torrents.DeadReleases.urls.add(live.url)
+        DeadHosts.markHang(live.url, HANG_BAN_H)
+        DeadReleases.urls.add(live.url)
         stuckNow()
     }
 }

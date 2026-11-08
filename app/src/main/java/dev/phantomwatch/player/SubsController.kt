@@ -19,7 +19,6 @@ import dev.phantomwatch.subs.OsSubs
 import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.subs.SubtitleCue
 import dev.phantomwatch.subs.Subtitles
-import dev.phantomwatch.torrent.DownloadControl
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +33,6 @@ internal class SubsController(
     private val streamProvider: () -> Stream,
     private val season: String,
     private val episode: String,
-    private val download: DownloadControl?,
     private val scope: CoroutineScope,
     private val tracks: () -> Tracks?,
     private val attach: (List<Sub>, Uri?, Long, Boolean) -> Unit,
@@ -248,45 +246,6 @@ internal class SubsController(
                 return
             }
             runQwenSubs()
-            val c = download
-            if (c != null && !s.inSync) {
-                var waited = 0
-                var lastAiDl = 0L
-                while (waited < 600000) {
-                    delay(15000)
-                    if (!c.active) return
-                    val done = try {
-                        c.handle.status().totalDone()
-                    } catch (_: Exception) {
-                        -1L
-                    }
-                    val total = try {
-                        c.handle.status().totalWanted()
-                    } catch (_: Exception) {
-                        -1L
-                    }
-                    if (total > 0 && done >= total) {
-                        var tries = 0
-                        while (tries < 6 && aiCues.size < lastNeed) {
-                            AppLog.d("ai retry on complete file")
-                            runQwenSubs()
-                            var w = 0
-                            while (aiRunning && w < 12) {
-                                delay(15000)
-                                w++
-                            }
-                            tries++
-                        }
-                        return
-                    }
-                    if (done > lastAiDl + 15000000) {
-                        lastAiDl = done
-                        AppLog.d("ai retry at ${done / 1048576}MB")
-                        runQwenSubs()
-                    }
-                    waited += 15000
-                }
-            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

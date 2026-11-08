@@ -70,14 +70,11 @@ import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
 import dev.phantomwatch.player.Screen
 import dev.phantomwatch.player.SourcesScreen
-import dev.phantomwatch.player.TorrentFetchScreen
 import dev.phantomwatch.player.TrailerBridge
 import dev.phantomwatch.player.navLabel
 import dev.phantomwatch.subs.SubsApi
-import dev.phantomwatch.torrent.Seedbox
-import dev.phantomwatch.torrent.TORRENTS_ENABLED
-import dev.phantomwatch.torrent.TorrentEngine
-import dev.phantomwatch.torrent.Torrents
+import dev.phantomwatch.provider.DeadHosts
+import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailPane
 import dev.phantomwatch.ui.HomeLiquidTabs
@@ -102,16 +99,8 @@ internal fun AppRoot() {
     }
     LaunchedEffect(Unit) {
         SubsApi.init(context)
-        Torrents.DeadHosts.init(context)
+        DeadHosts.init(context)
         TrailerBridge.warm()
-        if (TORRENTS_ENABLED) {
-            withContext(Dispatchers.IO) {
-                try {
-                    TorrentEngine.ensure()
-                } catch (_: Exception) {
-                }
-            }
-        }
     }
     Box(Modifier.fillMaxSize()) {
         val tabBackdrop = rememberLayerBackdrop()
@@ -145,7 +134,7 @@ internal fun AppRoot() {
                         autoRelease = true
                         browse.backToEpisodes = m.kind == "tv"
                         if (m.kind != "tv") browse.openTitle = null
-                        screen = Screen.Player(m.title, null, null, null, m, seas, ep, Screen.Home)
+                        screen = Screen.Player(m.title, null, m, seas, ep, Screen.Home)
                     },
                     loadRecent = { Resume.recent(context) },
                     onRemoveRecent = { Resume.remove(context, it.kind, it.id, it.season, it.episode) },
@@ -172,34 +161,17 @@ internal fun AppRoot() {
                         title = s.title,
                         media = s.media,
                         initial = s.stream,
-                        download = s.download,
                         season = s.season,
                         episode = s.episode,
                         onBack = {
-                            s.download?.stop()
-                            val e = s.entry
-                            if (e != null && s.stream?.auth != null) {
-                                scope.launch(Dispatchers.IO) {
-                                    Seedbox.cfg()?.let { Seedbox.delete(it, e.infoHash) }
-                                }
-                            }
                             forward = false
                             screen = s.back
                         },
                         onGiveUp = { deadUrl ->
-                            if (s.entry != null) {
-                                Torrents.DeadReleases.hashes.add(s.entry.infoHash)
-                                s.download?.stop()
-                                forward = false
-                                autoRelease = false
-                                screen = Screen.Sources(s.media, s.season, s.episode)
-                            } else {
-                                deadUrl?.let { Torrents.DeadReleases.urls.add(it) }
-                                s.download?.stop()
-                                forward = false
-                                autoRelease = false
-                                screen = Screen.Sources(s.media, s.season, s.episode)
-                            }
+                            deadUrl?.let { DeadReleases.urls.add(it) }
+                            forward = false
+                            autoRelease = false
+                            screen = Screen.Sources(s.media, s.season, s.episode)
                         },
                         onPickList = {
                             forward = false
@@ -211,11 +183,10 @@ internal fun AppRoot() {
                             instant = true
                             autoRelease = true
                             browse.backToEpisodes = s.media.kind == "tv"
-                            screen = Screen.Player(s.media.title, null, null, null, s.media, seas, ep, s.back)
+                            screen = Screen.Player(s.media.title, null, s.media, seas, ep, s.back)
                         },
                         onOpenTitle = { t ->
                             forward = false
-                            s.download?.stop()
                             browse.openTitle = t
                             browse.backToEpisodes = false
                             screen = Screen.Home
@@ -227,15 +198,11 @@ internal fun AppRoot() {
                     season = s.season,
                     episode = s.episode,
                     autoplay = autoRelease,
-                    onPickTorrent = { e ->
-                        forward = true
-                        screen = Screen.TorrentFetch(s.title, s.season, s.episode, e)
-                    },
-                    onStreamReady = { stream, e ->
+                    onStreamReady = { stream ->
                         forward = true
                         instant = true
                         screen = Screen.Player(
-                            s.title.title, stream, null, e, s.title, s.season, s.episode,
+                            s.title.title, stream, s.title, s.season, s.episode,
                             Screen.Sources(s.title, s.season, s.episode),
                         )
                     },
@@ -244,30 +211,6 @@ internal fun AppRoot() {
                         screen = Screen.Home
                     },
                 )
-                is Screen.TorrentFetch -> {
-                    val dir = remember(s.entry.infoHash) {
-                        java.io.File(context.cacheDir, "torrents/${s.entry.infoHash}")
-                    }
-                    TorrentFetchScreen(
-                        title = s.title,
-                        season = s.season,
-                        episode = s.episode,
-                        entry = s.entry,
-                        dir = dir,
-                        onPlay = { stream, download ->
-                            forward = true
-                            screen = Screen.Player(
-                                s.title.title, stream, download, s.entry, s.title, s.season, s.episode,
-                                Screen.TorrentFetch(s.title, s.season, s.episode, s.entry),
-                            )
-                        },
-                        onBack = {
-                            forward = false
-                            autoRelease = false
-                            screen = Screen.Sources(s.title, s.season, s.episode)
-                        },
-                    )
-                }
             }
         }
         AnimatedVisibility(

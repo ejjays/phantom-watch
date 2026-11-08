@@ -12,7 +12,6 @@ data beyond TMDB ids.
 | Supabase anon key | `local.properties` -> `BuildConfig` | yes (it is an anon key) |
 | Groq keys | `local.properties` -> `BuildConfig` | yes |
 | Deepgram key | `local.properties` -> `BuildConfig` | yes |
-| Seedbox password | `local.properties` -> `BuildConfig` | yes |
 | Telemetry key | `local.properties` -> `BuildConfig` | yes |
 | OTA signing key | held off-repo, Actions secret as backup | no |
 | Release keystore | held off-repo | no |
