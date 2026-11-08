@@ -92,6 +92,13 @@ def check_no_todos(files):
                 fail(f"{f}:{i}: leftover marker")
 
 
+def check_no_build_output(files):
+    pat = re.compile(r"(^|/)(node_modules|__pycache__|\.gradle|build|dist)/")
+    for f in files:
+        if pat.search(f):
+            fail(f"{f}: build output tracked")
+
+
 def check_no_dynamic_deps():
     p = ROOT / "app/build.gradle.kts"
     if not p.exists():
@@ -205,6 +212,7 @@ def main():
     files = tracked_files()
     check_line_caps(files)
     check_no_todos(files)
+    check_no_build_output(files)
     check_no_dynamic_deps()
     check_release_signing()
     check_providers_config()

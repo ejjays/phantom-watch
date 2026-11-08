@@ -72,7 +72,7 @@ python3 sign_config.py --version N     # N must be above the deployed version
 wrangler pages deploy build/pages-config --project-name phantomwatch-config --branch main --commit-dirty=true
 ```
 
-Deploy `build/pages-config/providers.json` alone - never the repository root.
+Deploy `build/pages-config/providers.json` alone, never the repository root.
 The app verifies the signature against `app/src/main/assets/ota_pub.pem`,
 refuses an older version and keeps the last accepted bundle in prefs.
 
@@ -83,7 +83,7 @@ still sign: `gh workflow run sign-config.yml -f version=N`.
 
 Keep the last good APK in `/storage/emulated/0/release/`. To roll back, hand
 the family the older file and install it (a lower `versionCode` installs with
-`adb install -r -d`, but by hand Android refuses a downgrade - uninstall first
+`adb install -r -d`, but by hand Android refuses a downgrade; uninstall first
 if needed).
 
 For the config, roll back by signing and deploying the previous

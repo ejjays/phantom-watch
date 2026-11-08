@@ -61,7 +61,7 @@ skips, not failures.
 6. height, descending
 
 The app asks the bridge for this order; `probe.js` calls `__pwRank` directly.
-The Kotlin fallback in `FormatOrder.kt` must match - both are pinned by
+The Kotlin fallback in `FormatOrder.kt` must match, and both are pinned by
 `app/src/test/resources/pick_order.txt`.
 
 ### Skip rules
@@ -77,7 +77,7 @@ The Kotlin fallback in `FormatOrder.kt` must match - both are pinned by
 2. Add a `legs.<name>` entry to `providers.json` (host, keys, `enabled`).
 3. Label the formats `<name>-…` and set `src: <name>` on its subtitles.
 4. `python3 checks/quality.py` and `node --test tests/*.test.mjs`.
-5. `node probe.js` - the new leg shows up in the report.
+5. `node probe.js`: the new leg shows up in the report.
 6. Sign and deploy the bundle (`sign_config.py --version N`).
 
 Anything that needs new headers, a POST body or a different content type fits

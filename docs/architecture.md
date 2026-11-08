@@ -26,36 +26,34 @@ TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
 | infra | `core/RemoteConfig.kt`, `core/Telemetry.kt`, `core/CrashReport.kt`, `core/Http.kt` | config, telemetry, transport |
 | torrent | `torrent/Torrent.kt`, `Seedbox.kt`, `DownloadControl.kt` | seedbox and download control (disabled) |
 
-Dependencies point down only: screens never talk to providers directly, the
-resolver never touches Compose, `providers.js` never knows about the app.
+Dependencies point down only. Screens do not talk to providers, the resolver
+does not touch Compose, and `providers.js` knows nothing about the app.
 
 ## Decisions
 
 **One provider implementation.** Every leg lives in `assets/providers.js` and
-runs in a WebView behind the `pw` bridge. The Kotlin copies that used to exist
-were deleted: they were a second set of scrapers that had to be fixed twice.
+runs in a WebView behind the `pw` bridge. The Kotlin copies were deleted; they
+were a second set of scrapers that had to be fixed twice.
 The bridge is created once, on a background pool of four, with per-leg
 timeouts (`12s`, `28s` for paradise) and a 35 s budget for the whole resolve.
 
 **The pick order lives in JavaScript.** `__pwRank` is the canonical order; the
 app asks the bridge for it (`__pwSort`) and `probe.js` calls it directly. The
 Kotlin copy in `FormatOrder.kt` only runs if the sort round-trip fails. Both
-sides are pinned by the same fixture (`app/src/test/resources/pick_order.txt`),
-so they cannot drift silently.
+sides are pinned by `app/src/test/resources/pick_order.txt`.
 
 **Skip rules live in JavaScript too.** A leg that cannot serve the title
 returns `{ formats: [], subs: [], skipped: true }` instead of an empty result.
-The app leaves skipped legs out of the telemetry, so a live-action title no
-longer looks like a paradise outage. `probe.js` skips the same legs, so the
-health check and the app report the same thing.
+The app leaves skipped legs out of the telemetry, and `probe.js` skips them
+too, so a live-action title no longer looks like a paradise outage.
 
 **State stays on the screen.** The activity handles `configChanges`, so a
 rotation does not recreate it and Compose state survives. Screen-local state
 lives in the composable; only what must outlive the screen (resume position,
 crash report, cached config) goes to storage. Subtitle state and the
 OS/AI pipelines live in `player/SubsController.kt`; `player/PlayerScreen.kt`
-is still the biggest file in the repo - it is the player state machine - and
-is capped at its current size by `checks/quality.py` until it is split further.
+is still the biggest file in the repo because it is the player state machine;
+`checks/quality.py` caps it at its current size until it is split.
 
 **Signing uses a private keystore.** Release builds read `PW_RELEASE_*` and
 pin the release certificate in `UPDATE_CERT_SHA256`; the update helper only

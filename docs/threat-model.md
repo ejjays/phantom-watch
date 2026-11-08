@@ -1,8 +1,7 @@
 # Threat model
 
 Audience: family and a few friends, sideloaded APKs, no accounts, no payment,
-no personal data beyond TMDB ids. This document says what is actually
-protected and what is not, so nobody has to guess.
+no personal data beyond TMDB ids.
 
 ## What the app holds
 
