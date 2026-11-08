@@ -41,7 +41,8 @@ equal the leg name, otherwise the subtitle will not bind to the format.
 
 A leg that cannot serve the title answers `{ formats: [], subs: [], skipped: true }`.
 The app leaves skipped legs out of the telemetry; `probe.js` treats them as
-skips, not failures.
+skips, not failures. This rule exists because live-action titles used to
+report paradise as down and set off outage alerts that were not real.
 
 ## Helpers the rest of the stack uses
 
