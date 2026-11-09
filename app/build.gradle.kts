@@ -166,8 +166,8 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta09")
     implementation("com.airbnb.android:lottie-compose:6.7.1")
-    implementation("io.github.kyant0:backdrop:1.0.6")
-    implementation("io.github.kyant0:shapes:1.2.0")
+    implementation("io.github.kyant0:backdrop:2.0.1")
+    implementation("io.github.kyant0:shapes:1.2.1")
     testImplementation("junit:junit:4.13.2")
     // real org.json on the unit-test classpath; android.jar only ships stubs
     testImplementation("org.json:json:20260814")

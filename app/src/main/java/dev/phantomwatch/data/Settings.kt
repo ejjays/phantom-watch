@@ -5,15 +5,15 @@ import android.content.Context
 object Settings {
     private const val PREFS = "phantom_settings"
 
-    const val SUBS_ON = "subs_on"
-    const val SUBS_SIZE = "subs_size"
-    const val SUBS_BG = "subs_bg"
-    const val SUBS_AI = "subs_ai"
-    const val SAVE_HISTORY = "save_history"
-    const val CONTINUE_WATCHING = "continue_watching"
-    const val AUTOPLAY = "autoplay"
-    const val SKIP_INTRO = "skip_intro"
-    const val SHARE_USAGE = "share_usage"
+    const val SUBS_ON = SettingsKeys.SUBS_ON
+    const val SUBS_SIZE = SettingsKeys.SUBS_SIZE
+    const val SUBS_BG = SettingsKeys.SUBS_BG
+    const val SAVE_HISTORY = SettingsKeys.SAVE_HISTORY
+    const val CONTINUE_WATCHING = SettingsKeys.CONTINUE_WATCHING
+    const val AUTOPLAY = SettingsKeys.AUTOPLAY
+    const val SKIP_INTRO = SettingsKeys.SKIP_INTRO
+    const val SHARE_USAGE = SettingsKeys.SHARE_USAGE
+    const val AUTO_REFRESH = SettingsKeys.AUTO_REFRESH
 
     const val SIZE_SMALL = 0
     const val SIZE_MEDIUM = 1

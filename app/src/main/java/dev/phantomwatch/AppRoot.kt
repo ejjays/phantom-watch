@@ -80,8 +80,9 @@ import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailPane
 import dev.phantomwatch.ui.HomeLiquidTabs
-import dev.phantomwatch.ui.YouData
-import dev.phantomwatch.ui.YouScreen
+import dev.phantomwatch.ui.settings.SettingsAction
+import dev.phantomwatch.ui.settings.SettingsData
+import dev.phantomwatch.ui.settings.SettingsScreen
 import dev.phantomwatch.ui.HomeScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -163,21 +164,25 @@ internal fun AppRoot() {
                     },
                     youScreen = {
                         val settings = remember(youRev) { liveSettings(context) }
-                        YouScreen(
-                            YouData(
+                        SettingsScreen(
+                            SettingsData(
                                 version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                                providers = providerSummary(),
+                                providerCount = providerCount(),
                                 settings = settings,
                                 onValue = { key, value -> applySetting(context, key, value); youRev++ },
-                                onClearHistory = {
-                                    Resume.clear(context)
-                                    browse.recent = emptyList()
-                                    toast(context, R.string.you_history_cleared)
+                                onAction = { action ->
+                                    when (action) {
+                                        SettingsAction.ClearHistory -> {
+                                            Resume.clear(context)
+                                            browse.recent = emptyList()
+                                            toast(context, R.string.you_history_cleared)
+                                        }
+                                        SettingsAction.Updates -> openUrl(context, RELEASE_URL + "/releases")
+                                        SettingsAction.Licences -> openUrl(context, RELEASE_URL + "#licence")
+                                        SettingsAction.Privacy -> openUrl(context, RELEASE_URL + "#privacy")
+                                        SettingsAction.Feedback -> openUrl(context, RELEASE_URL + "/issues")
+                                    }
                                 },
-                                onCheckUpdates = { toast(context, R.string.you_updates_dev_only) },
-                                onOpenLicences = { openUrl(context, RELEASE_URL + "#licence") },
-                                onOpenPrivacy = { openUrl(context, RELEASE_URL + "#privacy") },
-                                onSendFeedback = { openUrl(context, RELEASE_URL + "/issues") },
                             ),
                         )
                     },
@@ -347,21 +352,17 @@ private fun LogFab() {
 
 private const val RELEASE_URL = "https://github.com/ejjays/phantom-watch"
 
-private fun providerSummary(): String {
-    val names = RemoteConfig.providerNames()
-    if (names.isEmpty()) return "no remote config"
-    return "${names.size} configured"
-}
+private fun providerCount(): Int = RemoteConfig.providerNames().size
 
 private fun liveSettings(ctx: android.content.Context): Map<String, Int> = mapOf(
     Settings.SUBS_ON to if (Settings.on(ctx, Settings.SUBS_ON, true)) 1 else 0,
     Settings.SUBS_SIZE to Settings.choice(ctx, Settings.SUBS_SIZE, Settings.SIZE_MEDIUM),
     Settings.SUBS_BG to Settings.choice(ctx, Settings.SUBS_BG, Settings.BG_DIM),
-    Settings.SUBS_AI to if (Settings.on(ctx, Settings.SUBS_AI, false)) 1 else 0,
     Settings.SAVE_HISTORY to if (Settings.on(ctx, Settings.SAVE_HISTORY, true)) 1 else 0,
     Settings.CONTINUE_WATCHING to if (Settings.on(ctx, Settings.CONTINUE_WATCHING, true)) 1 else 0,
     Settings.AUTOPLAY to if (Settings.on(ctx, Settings.AUTOPLAY, true)) 1 else 0,
     Settings.SKIP_INTRO to if (Settings.on(ctx, Settings.SKIP_INTRO, true)) 1 else 0,
+    Settings.AUTO_REFRESH to if (Settings.on(ctx, Settings.AUTO_REFRESH, true)) 1 else 0,
     Settings.SHARE_USAGE to if (Telemetry.enabled(ctx)) 1 else 0,
 )
 

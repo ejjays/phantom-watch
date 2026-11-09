@@ -12,13 +12,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
-import dev.phantomwatch.R
+import dev.phantomwatch.res.Res
+import dev.phantomwatch.res.ic_search
+import dev.phantomwatch.res.ic_tab_home
+import dev.phantomwatch.res.ic_tab_library
+import dev.phantomwatch.res.ic_tab_you
+import dev.phantomwatch.res.tab_home
+import dev.phantomwatch.res.tab_library
+import dev.phantomwatch.res.tab_search
+import dev.phantomwatch.res.tab_you
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 
 private val TabAccent = Color(0xFF00BCD4)
 private val TabDim = Color(0xFFB4BCC5)
@@ -52,33 +62,33 @@ fun HomeLiquidTabs(
         containerColor = TabContainer,
     ) {
         LiquidBottomTab(onClick = { tab = 0; onSelect(0) }) {
-            TabIcon(R.drawable.ic_tab_home)
-            TabLabel(R.string.tab_home)
+            TabIcon(Res.drawable.ic_tab_home)
+            TabLabel(Res.string.tab_home)
         }
         LiquidBottomTab(onClick = { tab = 1; onSelect(1) }) {
-            TabIcon(R.drawable.ic_search)
-            TabLabel(R.string.tab_search)
+            TabIcon(Res.drawable.ic_search)
+            TabLabel(Res.string.tab_search)
         }
         LiquidBottomTab(onClick = { tab = 2; onSelect(2) }) {
-            TabIcon(R.drawable.ic_tab_library)
-            TabLabel(R.string.tab_library)
+            TabIcon(Res.drawable.ic_tab_library)
+            TabLabel(Res.string.tab_library)
         }
         LiquidBottomTab(onClick = { tab = 3; onSelect(3) }) {
-            TabIcon(R.drawable.ic_tab_you)
-            TabLabel(R.string.tab_you)
+            TabIcon(Res.drawable.ic_tab_you)
+            TabLabel(Res.string.tab_you)
         }
     }
 }
 
 @Composable
-private fun TabIcon(id: Int) {
-    Icon(painterResource(id), null, tint = TabDim, modifier = Modifier.size(22.dp))
+private fun TabIcon(icon: DrawableResource) {
+    Icon(painterResource(icon), null, tint = TabDim, modifier = Modifier.size(22.dp))
 }
 
 @Composable
-private fun TabLabel(id: Int) {
+private fun TabLabel(label: StringResource) {
     Text(
-        stringResource(id),
+        stringResource(label),
         color = TabDim,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,

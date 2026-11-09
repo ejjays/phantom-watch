@@ -1,6 +1,5 @@
 package dev.phantomwatch.ui
 
-import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.VectorConverter
@@ -77,6 +76,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.isRuntimeShaderSupported
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
@@ -128,13 +128,12 @@ private suspend inline fun AwaitPointerEventScope.drag(
     var pointer = pointerId
     while (true) {
         val change = awaitDragOrUp(pointer) ?: return null
-        if (change.isConsumed) {
-            return null
-        }
         if (change.changedToUpIgnoreConsumed()) {
             return change
         }
         onDrag(change)
+        // Compose web only preventDefaults touchmove for consumed moves; an unconsumed drag becomes a page pan
+        change.consume()
         pointer = change.id
     }
 }
@@ -488,8 +487,8 @@ fun LiquidBottomTabs(
         }
 
         val tabsBackdrop = rememberLayerBackdrop()
-        val noLens = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
-        // lens() needs RuntimeShader (API 33); below that a slight scale keeps the bubble readable
+        val noLens = !isRuntimeShaderSupported()
+        // without RuntimeShader the lens() calls are no-ops, so a slight scale keeps the bubble readable
         val glassBackdrop = rememberBackdrop(backdrop) { drawBackdrop ->
             if (noLens) scale(1.05f, 1.05f) { drawBackdrop() } else drawBackdrop()
         }
@@ -498,158 +497,163 @@ fun LiquidBottomTabs(
             if (noLens) scale(1.06f, 1.06f) { drawBackdrop() } else drawBackdrop()
         }
 
-        Row(
-            Modifier
-                .graphicsLayer {
-                    translationX = panelOffset
-                }
-                .then(
-                    if (showGlass) {
-                        Modifier.drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { Capsule() },
-                            effects = {
-                                vibrancy()
-                                blur(8f.dp.toPx())
-                                lens(24f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            layerBlock = {
-                                val progress = dampedDragAnimation.pressProgress
-                                val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
-                                scaleX = scale
-                                scaleY = scale
-                            },
-                            onDrawSurface = { drawRect(containerColor) }
-                        )
-                    } else {
-                        Modifier
-                            .clip(Capsule())
-                            .background(containerColor)
-                    }
-                )
-                .then(interactiveHighlight.modifier)
-                .height(64f.dp)
-                .fillMaxWidth()
-                .padding(4f.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CompositionLocalProvider(
-                LocalLiquidBottomTabScale provides {
-                    lerp(1f, 1.1f, dampedDragAnimation.pressProgress)
-                }
-            ) {
-                content()
-            }
-        }
-
-        if (showGlass) {
-            CompositionLocalProvider(
-                LocalLiquidBottomTabScale provides {
-                    lerp(1f, 1.1f, dampedDragAnimation.pressProgress)
-                }
-            ) {
-                Row(
-                    Modifier
-                        .clearAndSetSemantics {}
-                        .alpha(0f)
-                        .layerBackdrop(tabsBackdrop)
-                        .graphicsLayer {
-                            translationX = panelOffset
-                        }
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { Capsule() },
-                            effects = {
-                                val progress = dampedDragAnimation.pressProgress
-                                vibrancy()
-                                blur(8f.dp.toPx())
-                                lens(
-                                    24f.dp.toPx() * progress,
-                                    24f.dp.toPx() * progress
-                                )
-                            },
-                            highlight = {
-                                val progress = dampedDragAnimation.pressProgress
-                                Highlight.Default.copy(alpha = progress)
-                            },
-                            onDrawSurface = { drawRect(containerColor) }
-                        )
-                        .then(interactiveHighlight.modifier)
-                        .height(56f.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = 4f.dp)
-                        .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
-                    verticalAlignment = Alignment.CenterVertically,
-                    content = content
-                )
-            }
-        }
-
         Box(
             Modifier
-                .padding(horizontal = 4f.dp)
-                .graphicsLayer {
-                    translationX =
-                        if (isLtr) dampedDragAnimation.value * tabWidth + panelOffset
-                        else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
-                }
                 .then(interactiveHighlight.gestureModifier)
-                .then(dampedDragAnimation.modifier)
-                .then(
-                    if (showGlass) {
-                        Modifier.drawBackdrop(
-                            backdrop = selectedBackdrop,
-                            shape = { Capsule() },
-                            effects = {
-                                val progress = dampedDragAnimation.pressProgress
-                                lens(
-                                    10f.dp.toPx() * progress,
-                                    14f.dp.toPx() * progress,
-                                    chromaticAberration = true
-                                )
-                            },
-                            highlight = {
-                                val progress = dampedDragAnimation.pressProgress
-                                // lens() is dead below API 33, so the rim has to carry the glass look at rest
-                                Highlight.Default.copy(
-                                    alpha = if (noLens) progress.coerceAtLeast(0.35f) else progress
-                                )
-                            },
-                            shadow = {
-                                val progress = dampedDragAnimation.pressProgress
-                                Shadow(alpha = progress)
-                            },
-                            innerShadow = {
-                                val progress = dampedDragAnimation.pressProgress
-                                InnerShadow(
-                                    radius = 8f.dp * (if (noLens) 1f else progress),
-                                    alpha = if (noLens) progress.coerceAtLeast(0.25f) else progress
-                                )
-                            },
-                            layerBlock = {
-                                scaleX = dampedDragAnimation.scaleX
-                                scaleY = dampedDragAnimation.scaleY
-                                val velocity = dampedDragAnimation.velocity / 10f
-                                scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                                scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
-                            },
-                            onDrawSurface = {
-                                val progress = dampedDragAnimation.pressProgress
-                                drawRect(
-                                    Color.White.copy(0.1f),
-                                    alpha = 1f - progress
-                                )
-                                drawRect(Color.Black.copy(alpha = 0.03f * progress))
-                            }
-                        )
-                    } else {
-                        Modifier
-                            .clip(Capsule())
-                            .background(Color.White.copy(alpha = 0.12f))
+                .then(dampedDragAnimation.modifier),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Row(
+                Modifier
+                    .graphicsLayer {
+                        translationX = panelOffset
                     }
-                )
-                .height(56f.dp)
-                .fillMaxWidth(1f / tabsCount)
-        )
+                    .then(
+                        if (showGlass) {
+                            Modifier.drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { Capsule() },
+                                effects = {
+                                    vibrancy()
+                                    blur(8f.dp.toPx())
+                                    lens(24f.dp.toPx(), 24f.dp.toPx())
+                                },
+                                layerBlock = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
+                                    scaleX = scale
+                                    scaleY = scale
+                                },
+                                onDrawSurface = { drawRect(containerColor) }
+                            )
+                        } else {
+                            Modifier
+                                .clip(Capsule())
+                                .background(containerColor)
+                        }
+                    )
+                    .then(interactiveHighlight.modifier)
+                    .height(64f.dp)
+                    .fillMaxWidth()
+                    .padding(4f.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CompositionLocalProvider(
+                    LocalLiquidBottomTabScale provides {
+                        lerp(1f, 1.1f, dampedDragAnimation.pressProgress)
+                    }
+                ) {
+                    content()
+                }
+            }
+
+            if (showGlass) {
+                CompositionLocalProvider(
+                    LocalLiquidBottomTabScale provides {
+                        lerp(1f, 1.1f, dampedDragAnimation.pressProgress)
+                    }
+                ) {
+                    Row(
+                        Modifier
+                            .clearAndSetSemantics {}
+                            .alpha(0f)
+                            .layerBackdrop(tabsBackdrop)
+                            .graphicsLayer {
+                                translationX = panelOffset
+                            }
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { Capsule() },
+                                effects = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    vibrancy()
+                                    blur(8f.dp.toPx())
+                                    lens(
+                                        24f.dp.toPx() * progress,
+                                        24f.dp.toPx() * progress
+                                    )
+                                },
+                                highlight = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    Highlight.Default.copy(alpha = progress)
+                                },
+                                onDrawSurface = { drawRect(containerColor) }
+                            )
+                            .then(interactiveHighlight.modifier)
+                            .height(56f.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 4f.dp)
+                            .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
+                        verticalAlignment = Alignment.CenterVertically,
+                        content = content
+                    )
+                }
+            }
+
+            Box(
+                Modifier
+                    .padding(horizontal = 4f.dp)
+                    .graphicsLayer {
+                        translationX =
+                            if (isLtr) dampedDragAnimation.value * tabWidth + panelOffset
+                            else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
+                    }
+                    .then(
+                        if (showGlass) {
+                            Modifier.drawBackdrop(
+                                backdrop = selectedBackdrop,
+                                shape = { Capsule() },
+                                effects = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    lens(
+                                        10f.dp.toPx() * progress,
+                                        14f.dp.toPx() * progress,
+                                        chromaticAberration = true
+                                    )
+                                },
+                                highlight = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    // lens() is dead without RuntimeShader, so the rim has to carry the glass look at rest
+                                    Highlight.Default.copy(
+                                        alpha = if (noLens) progress.coerceAtLeast(0.35f) else progress
+                                    )
+                                },
+                                shadow = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    Shadow(alpha = progress)
+                                },
+                                innerShadow = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    InnerShadow(
+                                        radius = 8f.dp * (if (noLens) 1f else progress),
+                                        alpha = if (noLens) progress.coerceAtLeast(0.25f) else progress
+                                    )
+                                },
+                                layerBlock = {
+                                    scaleX = dampedDragAnimation.scaleX
+                                    scaleY = dampedDragAnimation.scaleY
+                                    val velocity = dampedDragAnimation.velocity / 10f
+                                    scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                                    scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                                },
+                                onDrawSurface = {
+                                    val progress = dampedDragAnimation.pressProgress
+                                    drawRect(
+                                        Color.White.copy(0.1f),
+                                        alpha = 1f - progress
+                                    )
+                                    drawRect(Color.Black.copy(alpha = 0.03f * progress))
+                                }
+                            )
+                        } else {
+                            Modifier
+                                .clip(Capsule())
+                                .background(Color.White.copy(alpha = 0.12f))
+                        }
+                    )
+                    .height(56f.dp)
+                    .fillMaxWidth(1f / tabsCount)
+            )
+        }
     }
 }

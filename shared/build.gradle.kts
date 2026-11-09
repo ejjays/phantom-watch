@@ -26,6 +26,8 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+            implementation("io.github.kyant0:backdrop:2.0.1")
+            implementation("io.github.kyant0:shapes:1.2.1")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
         }
         wasmJsMain.dependencies {

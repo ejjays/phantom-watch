@@ -12,6 +12,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Modifier
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.data.Settings
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.TrailerBridge
@@ -56,7 +57,9 @@ class MainActivity : ComponentActivity() {
         JsProviders.init(applicationContext)
         TrailerBridge.init(applicationContext)
         Social.init(applicationContext)
-        Thread { RemoteConfig.refresh(applicationContext) }.start()
+        if (Settings.on(this, Settings.AUTO_REFRESH, true)) {
+            Thread { RemoteConfig.refresh(applicationContext) }.start()
+        }
         androidx.core.content.ContextCompat.registerReceiver(
             this, pipRecv,
             android.content.IntentFilter().apply {
