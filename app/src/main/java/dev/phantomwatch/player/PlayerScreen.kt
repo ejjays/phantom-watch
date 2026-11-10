@@ -685,7 +685,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     LaunchedEffect(fullscreen) { PlayerUi.fullscreen = fullscreen }
     var orientJob: Job? by remember { mutableStateOf(null) }
     val fsNow = rememberUpdatedState(fullscreen)
-    val lockedNow = rememberUpdatedState(locked)
     val orientListener = remember {
         object : android.view.OrientationEventListener(context) {
             var lastZone = -1
@@ -702,14 +701,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 lastZone = zone
                 if (first) return
                 orientJob?.cancel()
+                if (zone != 1) return
                 orientJob = resumeScope.launch {
                     delay(800)
                     if (Pip.inPip) return@launch
-                    if (zone == 0 && fsNow.value && !lockedNow.value) {
-                        toggleFullscreen()
-                    } else if (zone == 1 && !fsNow.value && smallScreen && rotationEnabled()) {
-                        toggleFullscreen()
-                    }
+                    if (!fsNow.value && smallScreen && rotationEnabled()) toggleFullscreen()
                 }
             }
         }
