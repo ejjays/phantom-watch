@@ -81,6 +81,7 @@ internal fun PlayerResolving(
     resolveErr: String?,
     media: Title,
     overview: String?,
+    fullscreen: Boolean = false,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onPickList: () -> Unit,
@@ -91,16 +92,18 @@ internal fun PlayerResolving(
     val cfg = LocalConfiguration.current
     // same shell the player uses once the stream lands, so resolving never flips the layout
     val tablet = cfg.screenWidthDp >= 840
+    val wide = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val stageH = (minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat() * 9 / 16).dp
-    val stage: @Composable (Modifier) -> Unit = { mod ->
+    val stage: @Composable (Modifier, Boolean, Boolean) -> Unit = { mod, fsUi, bar ->
         Box(mod) {
             PlayerStage(
                 title = if (season.isNotEmpty() && episode.isNotEmpty()) stringResource(R.string.title_season_episode, title, season, episode) else title,
-                fullscreen = false, isPlaying = false, stalled = true,
+                fullscreen = fsUi, seekBar = bar, isPlaying = false, stalled = true,
                 positionMs = 0, durationMs = 0, bufferedMs = 0, controlsVisible = true,
                 flash = resolveErr, seekMark = null, seekInset = 0.dp, locked = false,
+                lockButton = false,
                 subsOn = false, canSubs = false, canSettings = false,
-                onBack = onBack, onFullscreen = {}, onTogglePlay = {}, onToggleLock = {},
+                onBack = onBack, onFullscreen = if (fsUi) onBack else ({}), onTogglePlay = {}, onToggleLock = {},
                 onSeek = {}, onInteract = {}, onZoneTap = {}, onToggleSubs = {},
                 onSwipe = { _, _ -> }, onSwipeEnd = {},
                 video = { v -> Box(v.fillMaxSize().background(Color.Black)) },
@@ -111,11 +114,13 @@ internal fun PlayerResolving(
         if (tablet) {
             PlayerPanel(
                 media = media, season = season, episode = episode, overview = overview,
-                onEpisode = onEpisode, onOpenTitle = onOpenTitle, video = stage,
+                onEpisode = onEpisode, onOpenTitle = onOpenTitle, video = { stage(it, false, false) },
             )
+        } else if (wide) {
+            stage(Modifier.fillMaxSize(), fullscreen, true)
         } else {
             Column(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) { stage(Modifier.fillMaxSize()) }
+                Box(Modifier.fillMaxWidth().statusBarsPadding().height(stageH)) { stage(Modifier.fillMaxSize(), false, false) }
                 PlayerPanel(
                     media = media, season = season, episode = episode,
                     overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,

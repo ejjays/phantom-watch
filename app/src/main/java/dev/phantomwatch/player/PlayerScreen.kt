@@ -142,6 +142,7 @@ private const val DOWNLOAD_BUTTON_ENABLED = false
 internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit, onEpisode: (String, String) -> Unit = { _, _ -> }, onOpenTitle: (Title) -> Unit = {}, startFullscreen: Boolean = false) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
+    val token = remember { PlayerUi.token }
     val resumeScope = rememberCoroutineScope()
     LaunchedEffect(startFullscreen) {
         PlayerUi.fullscreen = startFullscreen
@@ -225,6 +226,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             resolveErr = resolveErr,
             media = media,
             overview = overview,
+            fullscreen = startFullscreen,
             onBack = onBack,
             onRetry = { resolveErr = null; retryN++ },
             onPickList = onPickList,
@@ -576,10 +578,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         onDispose { lc.removeObserver(obs) }
     }
     var controls by remember { mutableStateOf(true) }
+    var touched by remember { mutableStateOf(false) }
     var fullscreen by remember { mutableStateOf(startFullscreen) }
     var muted by remember { mutableStateOf(false) }
     var locked by remember { mutableStateOf(false) }
     var episodesOpen by remember { mutableStateOf(false) }
+    var episodeSwitch by remember { mutableStateOf(false) }
     var episodesDetail by remember(media.id) { mutableStateOf(DetailCache.detail(media.kind, media.id)) }
     LaunchedEffect(episodesOpen) {
         if (!episodesOpen || episodesDetail != null) return@LaunchedEffect
@@ -650,6 +654,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         if (controls) controls = false else poke()
     }
     fun handleZone(side: ZoneTap) {
+        touched = true
         if (locked) {
             poke()
             return
@@ -708,8 +713,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
     }
     val portraitNow = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-    LaunchedEffect(fullscreen, cfg.orientation, controls, episodesOpen) {
-        fullscreenBars(fullscreen && (portraitNow || !controls || episodesOpen))
+    // bars ride the controls, but not before the first tap: the auto-show at load must not pop them
+    LaunchedEffect(fullscreen, cfg.orientation, controls, episodesOpen, episodeSwitch, touched) {
+        fullscreenBars(fullscreen && (portraitNow || !controls || episodesOpen || episodeSwitch || !touched))
     }
     LaunchedEffect(fullscreen) { PlayerUi.fullscreen = fullscreen }
     var orientJob: Job? by remember { mutableStateOf(null) }
@@ -744,16 +750,20 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         onDispose {
             orientJob?.cancel()
             orientListener.disable()
-            PlayerUi.fullscreen = false
+            if (PlayerUi.token == token) PlayerUi.fullscreen = false
         }
     }
     BackHandler {
-        if (fullscreen) toggleFullscreen() else onBack()
+        if (episodesOpen) episodesOpen = false
+        else if (fullscreen) toggleFullscreen()
+        else onBack()
     }
     DisposableEffect(stream.url) {
         onDispose {
-            activity?.requestedOrientation = baseOrientation
-            fullscreenBars(false)
+            if (PlayerUi.token == token) {
+                activity?.requestedOrientation = baseOrientation
+                fullscreenBars(false)
+            }
         }
     }
     LaunchedEffect(stream.url) {
@@ -950,7 +960,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             exo.volume = if (muted) 0f else 1f
             poke()
         },
-        onEpisodes = { episodesOpen = true; poke() },
+        onEpisodes = { episodesOpen = !episodesOpen; poke() },
         canEpisodes = media.kind != "movie",
         onFullscreen = onFullscreen,
         onTogglePlay = ::togglePlay,
@@ -1068,8 +1078,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                                 episode = episode,
                                 onClose = { episodesOpen = false },
                                 onEpisode = { s, e ->
-                                    episodesOpen = false
-                                    onEpisode(s, e)
+                                    if (!episodeSwitch) {
+                                        episodeSwitch = true
+                                        episodesOpen = false
+                                        resumeScope.launch {
+                                            delay(220)
+                                            onEpisode(s, e)
+                                        }
+                                    }
                                 },
                             )
                         }
