@@ -9,7 +9,10 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
+import dev.phantomwatch.provider.Providers
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 private const val RESUME_MIN_MS = 60_000L
 private const val RESUME_MS = 15_000L
@@ -41,7 +44,11 @@ internal fun PlaybackWatchdog(
         if (!stalledNow) return@LaunchedEffect
         val host = DeadHosts.hostOf(live.url)
         AppLog.d("watchdog: $host stuck at ${exo.currentPosition / 1000}s, next source")
-        DeadHosts.markHang(live.url, HANG_BAN_H)
+        // a wedged decoder stalls exactly like a dead CDN, so only blame the host if it stops answering;
+        // the url stays out of the session list either way, which is per-release and cannot poison a title
+        if (!withContext(Dispatchers.IO) { Providers.alive(live.url, live.headers, live.referer) }) {
+            DeadHosts.markHang(live.url, HANG_BAN_H)
+        }
         DeadReleases.urls.add(live.url)
         stuckNow()
     }

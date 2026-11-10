@@ -153,7 +153,7 @@ object Providers {
                         AppLog.d("direct dead hosts ${blocked.size}")
                         withTimeoutOrNull(6000) {
                             coroutineScope {
-                                blocked.map { f -> async { if (alive(f)) DeadHosts.forgive(f.url) } }
+                                blocked.map { f -> async { if (alive(f.url, f.headers, f.referer)) DeadHosts.forgive(f.url) } }
                                     .awaitAll()
                             }
                         }
@@ -168,13 +168,13 @@ object Providers {
             } ?: Triple(emptyList(), emptyList(), null)
         }
 
-    private fun alive(f: VideoFormat): Boolean {
+    internal fun alive(url: String, headers: Map<String, String>, referer: String): Boolean {
         return try {
-            val b = Request.Builder().url(f.url).header("User-Agent", UA)
-            if (f.headers.isNotEmpty()) {
-                f.headers.forEach { (k, v) -> b.header(k, v) }
-            } else if (f.referer.isNotEmpty()) {
-                b.header("Referer", f.referer)
+            val b = Request.Builder().url(url).header("User-Agent", UA)
+            if (headers.isNotEmpty()) {
+                headers.forEach { (k, v) -> b.header(k, v) }
+            } else if (referer.isNotEmpty()) {
+                b.header("Referer", referer)
             }
             val call = Http.client.newCall(b.header("Range", "bytes=0-0").build())
             call.timeout().deadline(6, java.util.concurrent.TimeUnit.SECONDS)
