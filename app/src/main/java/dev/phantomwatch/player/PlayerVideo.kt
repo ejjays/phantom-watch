@@ -123,8 +123,9 @@ fun PlayerVideo(
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
-                        this.player = exo
+                        // before the player: setPlayer auto-shows the controller and hide() animates
                         useController = false
+                        this.player = exo
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT,
