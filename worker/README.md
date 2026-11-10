@@ -32,6 +32,12 @@ An empty `TELEMETRY_URL` disables reporting.
   - `ev:"play"`: `startMs, stalls, stallMs, pos, err` — one row per playback session, sent when the player closes.
 - `GET /health?k=...&days=7` → `{days, resolves, zero, hd, en, plays, stalled, stallMs, legs:{name:{ok,total,h,en}}, noSource}` — `hd` resolves picked at 1080+, `en` with EN subs, `stalled` plays with at least one stall
 - `GET /events?k=...&days=7&limit=100` → raw rows, newest first
+- `GET /top10?k=...&c=PH&kind=movie|tv&t=<tmdb key>` → `{c,kind,slug,at,results:[{id,title,poster_path,backdrop_path,vote_average,release_date,overview}]}`
+  - scrapes `netflix.com/tudum/top10/<country>`, then resolves each title through TMDB search, so the app makes one call instead of ten.
+  - cached 6h per country+kind (`caches.default`, not D1). An empty result is not cached.
+  - the TMDB key rides in `t` because it already ships inside the APK; no new secret.
+  - country code → netflix slug comes from the `urlSegment` map on the index page, matched through `Intl.DisplayNames`.
+  - shows lose their `: Season N` suffix before the search; a miss retries the full title.
 - `GET /test?k=...` → one Telegram message, to confirm the bot works
 
 Events carry TMDB ids only: no titles, no stream URLs, no account.

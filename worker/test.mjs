@@ -91,4 +91,15 @@ await worker.scheduled({ scheduledTime: digestHour.getTime() }, digestEnv);
 assert.equal(sent.length, 1);
 assert.match(sent[0], /24h/);
 
+const { parseRows } = await import('./chart.mjs');
+assert.deepEqual(parseRows('<span class="rank">01</span><img src="x"><button>Animals</button>'), ['Animals']);
+assert.deepEqual(parseRows('<span class="rank">02</span><img src="x"><button>Trinidad &amp; Tobago</button>'), ['Trinidad & Tobago']);
+assert.deepEqual(parseRows('<span class="rank">01</span><button>no image</button>'), ['no image']);
+assert.deepEqual(parseRows('<span class="rank">01</span><td>no button</td>'), [], 'a rank without a title is not a row');
+
+env.DB = db([]);
+assert.equal((await worker.fetch(new Request('https://x/top10?k=wrong&c=PH&t=t'), env)).status, 403);
+assert.equal((await worker.fetch(new Request('https://x/top10?k=k&c=P&t=t'), env)).status, 400);
+assert.equal((await worker.fetch(new Request('https://x/top10?k=k&c=PH'), env)).status, 400);
+
 console.log('ok');

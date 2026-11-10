@@ -1,3 +1,5 @@
+import { handleChart } from './chart.mjs';
+
 const HOUR = 3600000;
 const JSON_H = { 'content-type': 'application/json' };
 // anime-only legs are empty by design on live-action titles, so they need more evidence
@@ -43,6 +45,8 @@ export default {
     }
 
     if (url.searchParams.get('k') !== env.KEY) return new Response(null, { status: 403 });
+
+    if (url.pathname === '/top10') return handleChart(url);
 
     if (url.pathname === '/test') {
       const r = await tg(env, 'phantomwatch · test alert');
