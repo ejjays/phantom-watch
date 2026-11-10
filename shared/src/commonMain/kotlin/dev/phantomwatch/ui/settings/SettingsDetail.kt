@@ -3,16 +3,15 @@ package dev.phantomwatch.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -47,47 +46,25 @@ internal fun SettingsDetail(
     onValue: (String, Int) -> Unit,
     onAction: (SettingsAction) -> Unit,
 ) {
-    var choice by remember { mutableStateOf<SettingItem.Choice?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.align(Alignment.TopCenter).widthIn(max = SettingsContentMax).fillMaxWidth(),
             contentPadding = PaddingValues(start = gutter, end = gutter, top = 16.dp, bottom = SettingsNavClearance),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item("header") {
-                Column {
+                Row(Modifier.heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (showBack) {
-                        Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                            BackButton(onBack)
-                            Text(
-                                stringResource(category.title),
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = SettingsText,
-                                modifier = Modifier.padding(start = 4.dp),
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            stringResource(category.blurb),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = SettingsText2,
-                            modifier = Modifier.padding(start = 52.dp, end = 8.dp),
-                        )
-                    } else {
-                        Text(
-                            stringResource(category.title),
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = SettingsText,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            stringResource(category.blurb),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = SettingsText2,
-                        )
+                        BackButton(onBack)
+                        Spacer(Modifier.width(8.dp))
                     }
+                    Text(
+                        stringResource(category.title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = SettingsText,
+                    )
                 }
             }
             item("items") {
@@ -98,19 +75,11 @@ internal fun SettingsDetail(
                     onAction = { action ->
                         if (action == SettingsAction.ClearHistory) confirmClear = true else onAction(action)
                     },
-                    onChoice = { choice = it },
                 )
             }
         }
     }
 
-    choice?.let { item ->
-        val selected = (state[item.key] ?: item.default).coerceIn(0, item.options.lastIndex)
-        SettingsChoiceDialog(item = item, selected = selected, onDismiss = { choice = null }) { index ->
-            onValue(item.key, index)
-            choice = null
-        }
-    }
     if (confirmClear) {
         SettingsConfirmDialog(
             onDismiss = { confirmClear = false },

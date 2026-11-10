@@ -36,7 +36,7 @@ class SettingsLayoutTest {
 
     @Test
     fun largeWindowGetsAWiderRail() {
-        assertEquals(300.dp, settingsRailWidth(SettingsPane.Expanded))
-        assertEquals(320.dp, settingsRailWidth(SettingsPane.Large))
+        assertEquals(260.dp, settingsRailWidth(SettingsPane.Expanded))
+        assertEquals(280.dp, settingsRailWidth(SettingsPane.Large))
     }
 }

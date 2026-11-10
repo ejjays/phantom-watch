@@ -31,7 +31,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.phantomwatch.res.*
-import dev.phantomwatch.ui.Mono
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -48,32 +47,17 @@ internal fun SettingsRail(
     Column(
         Modifier.width(width)
             .fillMaxHeight()
-            .background(SettingsSurface)
+            .background(SettingsCanvas)
             .verticalScroll(rememberScrollState())
             .padding(vertical = 24.dp)
             .selectableGroup(),
     ) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-            Text(
-                stringResource(Res.string.you_title),
-                style = MaterialTheme.typography.headlineSmall,
-                color = SettingsText,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                version,
-                style = MaterialTheme.typography.labelSmall,
-                color = SettingsText3,
-                fontFamily = Mono,
-            )
-        }
-        Spacer(Modifier.height(16.dp))
-        RailItem(
-            icon = Res.drawable.ic_cat_overview,
-            label = Res.string.you_overview,
-            selected = selected == OverviewIndex,
-            onClick = { onSelect(OverviewIndex) },
+        SettingsProfile(
+            name = stringResource(Res.string.you_profile_guest),
+            subtitle = version,
+            compact = true,
         )
+        Spacer(Modifier.height(24.dp))
         categories.forEachIndexed { index, category ->
             RailItem(
                 icon = category.icon,
@@ -96,22 +80,22 @@ private fun RailItem(
         Modifier.fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) SettingsRaised else Color.Transparent)
+            .background(if (selected) SettingsSurface else Color.Transparent)
             .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .heightIn(min = 48.dp)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.width(3.dp).height(18.dp).clip(CircleShape)
+            Modifier.width(2.dp).height(18.dp).clip(CircleShape)
                 .background(if (selected) SettingsAccent else Color.Transparent),
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(10.dp))
         Icon(
             painter = painterResource(icon),
             contentDescription = null,
             tint = if (selected) SettingsText else SettingsText2,
-            modifier = Modifier.size(19.dp),
+            modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(12.dp))
         Text(

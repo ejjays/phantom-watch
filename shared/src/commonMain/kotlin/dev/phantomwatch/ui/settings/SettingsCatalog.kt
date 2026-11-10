@@ -82,7 +82,6 @@ fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> 
             SettingItem.Choice(
                 SettingsKeys.SUBS_SIZE,
                 Res.string.you_subs_size,
-                Res.string.you_subs_size_note,
                 options = listOf(
                     Res.string.you_subs_size_small,
                     Res.string.you_subs_size_medium,

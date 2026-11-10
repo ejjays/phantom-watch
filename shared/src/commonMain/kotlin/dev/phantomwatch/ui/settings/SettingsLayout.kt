@@ -17,11 +17,11 @@ fun settingsPane(width: Dp): SettingsPane = when {
 fun isTwoPane(pane: SettingsPane): Boolean =
     pane == SettingsPane.Expanded || pane == SettingsPane.Large
 
-fun settingsRailWidth(pane: SettingsPane): Dp = if (pane == SettingsPane.Large) 320.dp else 300.dp
+fun settingsRailWidth(pane: SettingsPane): Dp = if (pane == SettingsPane.Large) 280.dp else 260.dp
 
 fun settingsGutter(pane: SettingsPane): Dp = if (pane == SettingsPane.Compact) 20.dp else 32.dp
 
-val SettingsContentMax = 720.dp
+val SettingsContentMax = 640.dp
 
 // the floating tab bar is 64dp tall and lifts 8dp, on top of the nav bar the screen already pads
 val SettingsNavClearance = 96.dp

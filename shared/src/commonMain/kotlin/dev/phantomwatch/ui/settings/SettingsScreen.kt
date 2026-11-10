@@ -21,19 +21,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.phantomwatch.res.*
 import dev.phantomwatch.ui.PlatformBackHandler
 import dev.phantomwatch.ui.screenWidthDp
-import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringResource
 
 data class SettingsData(
     val version: String,
@@ -50,17 +47,15 @@ fun SettingsScreen(data: SettingsData) {
         val categories = remember(data.version, data.providerCount) {
             settingsCatalog(data.providerCount, data.version)
         }
-        val providersLabel = if (data.providerCount == 0) {
-            stringResource(Res.string.you_providers_none)
-        } else {
-            pluralStringResource(Res.plurals.you_provider_count, data.providerCount, data.providerCount)
-        }
         val state = rememberSaveable(saver = SettingsStateSaver) {
             defaultSettings(categories).apply { putAll(data.settings) }
         }
-        var open by rememberSaveable { mutableIntStateOf(OverviewIndex) }
+        var open by rememberSaveable { mutableIntStateOf(if (isTwoPane(pane)) 0 else OverviewIndex) }
         LaunchedEffect(data.settings) {
             data.settings.forEach { (key, value) -> state[key] = value }
+        }
+        LaunchedEffect(pane) {
+            if (isTwoPane(pane) && open == OverviewIndex) open = 0
         }
         val onValue: (String, Int) -> Unit = { key, value ->
             state[key] = value
@@ -70,7 +65,6 @@ fun SettingsScreen(data: SettingsData) {
         Box(Modifier.fillMaxSize().background(SettingsCanvas)) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 if (isTwoPane(pane)) {
-                    PlatformBackHandler(enabled = open != OverviewIndex) { open = OverviewIndex }
                     Row(Modifier.fillMaxSize()) {
                         SettingsRail(
                             categories = categories,
@@ -81,27 +75,15 @@ fun SettingsScreen(data: SettingsData) {
                         )
                         Box(Modifier.width(1.dp).fillMaxHeight().background(SettingsHairline))
                         Box(Modifier.weight(1f).fillMaxHeight()) {
-                            if (open in categories.indices) {
-                                SettingsDetail(
-                                    category = categories[open],
-                                    state = state,
-                                    gutter = settingsGutter(pane),
-                                    showBack = false,
-                                    onBack = {},
-                                    onValue = onValue,
-                                    onAction = data.onAction,
-                                )
-                            } else {
-                                SettingsRoot(
-                                    categories = categories,
-                                    state = state,
-                                    providersLabel = providersLabel,
-                                    version = data.version,
-                                    gutter = settingsGutter(pane),
-                                    onValue = onValue,
-                                    onOpen = { open = it },
-                                )
-                            }
+                            SettingsDetail(
+                                category = categories.getOrNull(open) ?: categories.first(),
+                                state = state,
+                                gutter = settingsGutter(pane),
+                                showBack = false,
+                                onBack = {},
+                                onValue = onValue,
+                                onAction = data.onAction,
+                            )
                         }
                     }
                 } else {
@@ -120,9 +102,10 @@ fun SettingsScreen(data: SettingsData) {
                         label = "settings",
                     ) { index ->
                         holder.SaveableStateProvider(index) {
-                            if (index in categories.indices) {
+                            val category = categories.getOrNull(index)
+                            if (category != null) {
                                 SettingsDetail(
-                                    category = categories[index],
+                                    category = category,
                                     state = state,
                                     gutter = settingsGutter(pane),
                                     showBack = true,
@@ -133,11 +116,7 @@ fun SettingsScreen(data: SettingsData) {
                             } else {
                                 SettingsRoot(
                                     categories = categories,
-                                    state = state,
-                                    providersLabel = providersLabel,
-                                    version = data.version,
                                     gutter = settingsGutter(pane),
-                                    onValue = onValue,
                                     onOpen = { open = it },
                                 )
                             }
