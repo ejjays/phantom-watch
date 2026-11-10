@@ -195,6 +195,7 @@ internal fun AppRoot() {
                         initial = s.stream,
                         season = s.season,
                         episode = s.episode,
+                        startFullscreen = s.fullscreen,
                         onBack = {
                             forward = false
                             screen = s.back
@@ -215,7 +216,7 @@ internal fun AppRoot() {
                             instant = true
                             autoRelease = true
                             browse.backToEpisodes = s.media.kind == "tv"
-                            screen = Screen.Player(s.media.title, null, s.media, seas, ep, s.back)
+                            screen = Screen.Player(s.media.title, null, s.media, seas, ep, s.back, fullscreen = PlayerUi.fullscreen)
                         },
                         onOpenTitle = { t ->
                             forward = false

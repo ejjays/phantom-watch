@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -28,15 +29,23 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.SmallFloatingActionButton
@@ -54,6 +63,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -97,6 +107,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import dev.phantomwatch.Enhance
 import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.data.Dub
 import dev.phantomwatch.data.Resume
@@ -104,6 +115,7 @@ import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Title
+import dev.phantomwatch.data.Tmdb
 import dev.phantomwatch.R
 import dev.phantomwatch.data.withDub
 import dev.phantomwatch.provider.JsProviders
@@ -127,9 +139,16 @@ private const val DOWNLOAD_BUTTON_ENABLED = false
 
 @OptIn(UnstableApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit, onEpisode: (String, String) -> Unit = { _, _ -> }, onOpenTitle: (Title) -> Unit = {}) {
+internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season: String, episode: String, onBack: () -> Unit, onGiveUp: (String?) -> Unit, onPickList: () -> Unit, onEpisode: (String, String) -> Unit = { _, _ -> }, onOpenTitle: (Title) -> Unit = {}, startFullscreen: Boolean = false) {
     val context = LocalContext.current
+    val activity = context as? android.app.Activity
     val resumeScope = rememberCoroutineScope()
+    LaunchedEffect(startFullscreen) {
+        PlayerUi.fullscreen = startFullscreen
+        if (startFullscreen && context.resources.configuration.smallestScreenWidthDp < 600) {
+            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
     val meta = remember(title, media, season, episode) {
         MediaMetadata.Builder()
             .setTitle(title)
@@ -557,9 +576,17 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         onDispose { lc.removeObserver(obs) }
     }
     var controls by remember { mutableStateOf(true) }
-    var fullscreen by remember { mutableStateOf(false) }
+    var fullscreen by remember { mutableStateOf(startFullscreen) }
     var muted by remember { mutableStateOf(false) }
     var locked by remember { mutableStateOf(false) }
+    var episodesOpen by remember { mutableStateOf(false) }
+    var episodesDetail by remember(media.id) { mutableStateOf(DetailCache.detail(media.kind, media.id)) }
+    LaunchedEffect(episodesOpen) {
+        if (!episodesOpen || episodesDetail != null) return@LaunchedEffect
+        episodesDetail = withContext(Dispatchers.IO) {
+            runCatching { Tmdb.detail(RemoteConfig.tmdbKey(), media.kind, media.id) }.getOrNull()
+        }?.also { DetailCache.put(it) }
+    }
     var positionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
     LaunchedEffect(live.url, durationMs > 0) { live = SkipTimes.fill(live, media.id, season, episode, durationMs) }
@@ -658,9 +685,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         }
     }
-    val activity = context as? android.app.Activity
     val baseOrientation = remember {
-        activity?.requestedOrientation ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        if (startFullscreen) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        else activity?.requestedOrientation ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
     val cfg = LocalConfiguration.current
     // hidden bars must still reserve space, or an immersive first composition freezes the inset at 0
@@ -681,7 +708,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
     }
     val portraitNow = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-    LaunchedEffect(fullscreen, cfg.orientation, controls) { fullscreenBars(fullscreen && (portraitNow || !controls)) }
+    LaunchedEffect(fullscreen, cfg.orientation, controls, episodesOpen) {
+        fullscreenBars(fullscreen && (portraitNow || !controls || episodesOpen))
+    }
     LaunchedEffect(fullscreen) { PlayerUi.fullscreen = fullscreen }
     var orientJob: Job? by remember { mutableStateOf(null) }
     val fsNow = rememberUpdatedState(fullscreen)
@@ -901,6 +930,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         onSheetDragEnd = onSheetDragEnd,
         titleBelow = titleBelow,
         lockButton = lockButton,
+        sidebarOpen = episodesOpen,
         rotateButton = rotateButton, onRotate = onRotate,
         locked = locked,
         subsOn = !subs.subsOff,
@@ -920,6 +950,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             exo.volume = if (muted) 0f else 1f
             poke()
         },
+        onEpisodes = { episodesOpen = true; poke() },
+        canEpisodes = media.kind != "movie",
         onFullscreen = onFullscreen,
         onTogglePlay = ::togglePlay,
         onToggleLock = {
@@ -991,6 +1023,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 subStyle = subStyle,
                 subTopPx = subTopPx,
                 subBgAlpha = subBg,
+                glow = !episodesOpen,
                 onEnhSurface = { enhOut = it; if (it == null) enhBound = null },
                 modifier = mod,
             )
@@ -1006,10 +1039,44 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     if (Pip.inPip) {
         stage(0.dp, false)
     } else if (tablet || wide) {
-        PlayerWide(
-            media, season, episode, overview, videoAspect, fullscreen, tablet,
-            onEpisode, onOpenTitle,
-        ) { inset, style -> stage(inset, fullscreen, seekBar = true, subStyle = style) }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val sideW = minOf(320.dp, maxWidth * 0.36f)
+            val openW by animateDpAsState(
+                if (episodesOpen && !tablet) sideW else 0.dp,
+                tween(220),
+                label = "episodes",
+            )
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    PlayerWide(
+                        media, season, episode, overview, videoAspect, fullscreen, tablet,
+                        onEpisode, onOpenTitle,
+                    ) { inset, style -> stage(inset, fullscreen, seekBar = true, subStyle = style) }
+                }
+                Box(Modifier.width(openW).fillMaxHeight().clipToBounds().background(Color.Black)) {
+                    if (openW > 0.dp) {
+                        Box(
+                            Modifier.fillMaxSize().windowInsetsPadding(
+                                WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                                    .only(WindowInsetsSides.Top + WindowInsetsSides.Bottom + WindowInsetsSides.Right),
+                            ),
+                        ) {
+                            EpisodesSidebar(
+                                media = media,
+                                detail = episodesDetail,
+                                season = season,
+                                episode = episode,
+                                onClose = { episodesOpen = false },
+                                onEpisode = { s, e ->
+                                    episodesOpen = false
+                                    onEpisode(s, e)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
     } else {
         val portraitW = minOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()
         val portraitH = maxOf(cfg.screenWidthDp, cfg.screenHeightDp).toFloat()

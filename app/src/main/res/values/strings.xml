@@ -42,6 +42,9 @@
     <string name="player_unmute">Unmute</string>
     <string name="player_enter_fullscreen">Enter fullscreen</string>
     <string name="player_exit_fullscreen">Exit fullscreen</string>
+    <string name="player_episodes">Episodes</string>
+    <string name="player_episode_no">EP %1$d</string>
+    <string name="player_season">Season %1$d</string>
     <string name="player_pause">Pause</string>
     <string name="player_locked">Locked</string>
     <string name="player_unlocked">Unlocked</string>
