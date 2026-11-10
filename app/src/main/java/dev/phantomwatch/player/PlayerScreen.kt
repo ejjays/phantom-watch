@@ -1072,7 +1072,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                             ),
                         ) {
                             EpisodesSidebar(
-                                media = media,
                                 detail = episodesDetail,
                                 season = season,
                                 episode = episode,
