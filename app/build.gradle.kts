@@ -50,6 +50,7 @@ fun gitCommitCount(): Int = try {
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp")
     id("io.gitlab.arturbosch.detekt")
 }
 
@@ -149,6 +150,11 @@ androidComponents {
     }
 }
 
+ksp {
+    // API 36 reads the v1 metadata, API 37 the v2 one
+    arg("appfunctions:generateV1Xml", "true")
+}
+
 dependencies {
     implementation(project(":shared"))
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
@@ -168,6 +174,8 @@ dependencies {
     implementation("com.airbnb.android:lottie-compose:6.7.1")
     implementation("io.github.kyant0:backdrop:2.0.1")
     implementation("io.github.kyant0:shapes:1.2.1")
+    implementation("androidx.appfunctions:appfunctions:1.0.0-rc01")
+    ksp("androidx.appfunctions:appfunctions-compiler:1.0.0-rc01")
     testImplementation("junit:junit:4.13.2")
     // real org.json on the unit-test classpath; android.jar only ships stubs
     testImplementation("org.json:json:20260814")

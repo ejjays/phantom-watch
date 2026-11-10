@@ -10,14 +10,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Modifier
+import dev.phantomwatch.agent.PlayRequest
 import dev.phantomwatch.core.AppLog
-import dev.phantomwatch.core.RemoteConfig
-import dev.phantomwatch.data.Settings
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
-import dev.phantomwatch.player.TrailerBridge
-import dev.phantomwatch.provider.JsProviders
-import dev.phantomwatch.social.Social
 
 class MainActivity : ComponentActivity() {
     // Android 13+ blocks every notification until the user grants this, which would silently
@@ -36,6 +32,7 @@ class MainActivity : ComponentActivity() {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
         Pip.inPip = false
+        PlayRequest.take(intent)
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
             android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -48,17 +45,6 @@ class MainActivity : ComponentActivity() {
                 "a11y svcs=" + android.provider.Settings.Secure.getString(contentResolver, "enabled_accessibility_services") +
                     " active=" + am.isEnabled,
             )
-        }
-        RemoteConfig.load(this)
-        dev.phantomwatch.core.Log.sink = AppLog::d
-        dev.phantomwatch.data.TmdbHost.key = RemoteConfig.tmdbKey()
-        dev.phantomwatch.data.TmdbHost.base = RemoteConfig.tmdbBase()
-        dev.phantomwatch.data.TmdbHost.image = RemoteConfig.tmdbImage()
-        JsProviders.init(applicationContext)
-        TrailerBridge.init(applicationContext)
-        Social.init(applicationContext)
-        if (Settings.on(this, Settings.AUTO_REFRESH, true)) {
-            Thread { RemoteConfig.refresh(applicationContext) }.start()
         }
         androidx.core.content.ContextCompat.registerReceiver(
             this, pipRecv,
@@ -81,6 +67,12 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {
         }
         super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        PlayRequest.take(intent)
     }
 
     override fun onPictureInPictureModeChanged(

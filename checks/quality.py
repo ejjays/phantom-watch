@@ -40,6 +40,8 @@ ALLOWED_PERMISSIONS = {
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.REQUEST_INSTALL_PACKAGES",
+    # required on the AppFunctionService, the system is the only binder
+    "android.permission.BIND_APP_FUNCTION_SERVICE",
 }
 
 failures = []
@@ -168,6 +170,16 @@ def check_manifest_components(files):
         want = "dev.phantomwatch" + ("." + name.rsplit(".", 1)[0] if "." in name else "")
         hits = [f for f, body in sources.items() if re.search(rf"\bclass\s+{simple}\b", body)]
         if not hits:
+            # AppFunctionService subclasses are emitted by the appfunctions KSP processor,
+            # so the entry point is the only source-side declaration to match on
+            generated = {
+                re.search(r"^package\s+([\w.]+)", body, re.M).group(1)
+                for body in sources.values()
+                if "@AppFunctionServiceEntryPoint" in body
+                and re.search(rf'serviceName\s*=\s*"{simple}"', body)
+            }
+            if want in generated:
+                continue
             fail(f"AndroidManifest.xml: {tag} .{name} points at a class that does not exist")
             continue
         packages = {re.search(r"^package\s+([\w.]+)", sources[f], re.M).group(1) for f in hits}

@@ -59,12 +59,14 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import dev.phantomwatch.agent.PlayRequest
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Settings
+import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.PlayerUi
@@ -91,7 +93,12 @@ import kotlinx.coroutines.withContext
 
 @Composable
 internal fun AppRoot() {
-    var screen by remember { mutableStateOf<Screen>(Playback.lastScreen ?: Screen.Home) }
+    // a player that is not actually playing restores into a dead screen that re-resolves forever
+    var screen by remember {
+        mutableStateOf<Screen>(
+            Playback.lastScreen?.takeIf { Playback.player?.isPlaying == true } ?: Screen.Home,
+        )
+    }
     val browse = remember { BrowseState() }
     var forward by remember { mutableStateOf(true) }
     var instant by remember { mutableStateOf(false) }
@@ -107,6 +114,18 @@ internal fun AppRoot() {
         SubsApi.init(context)
         DeadHosts.init(context)
         TrailerBridge.warm()
+    }
+    val ask = PlayRequest.pending
+    LaunchedEffect(ask) {
+        if (ask == null) return@LaunchedEffect
+        PlayRequest.consume()
+        val t = Title(ask.id, ask.kind, ask.title, null)
+        forward = true
+        instant = true
+        autoRelease = true
+        browse.backToEpisodes = ask.kind == "tv"
+        if (ask.kind != "tv") browse.openTitle = null
+        screen = Screen.Player(t.title, null, t, ask.season, ask.episode, Screen.Home)
     }
     Box(Modifier.fillMaxSize()) {
         val tabBackdrop = rememberLayerBackdrop()

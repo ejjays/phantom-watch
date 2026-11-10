@@ -47,6 +47,17 @@
             android:name=".UpdateResultReceiver"
             android:exported="false" />
         <service
+            android:name=".agent.AgentService"
+            android:exported="true"
+            android:permission="android.permission.BIND_APP_FUNCTION_SERVICE">
+            <property
+                android:name="android.app.appfunctions"
+                android:value="phantom_agent_functions-v1.xml" />
+            <intent-filter>
+                <action android:name="android.app.appfunctions.AppFunctionService" />
+            </intent-filter>
+        </service>
+        <service
             android:name=".player.PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
