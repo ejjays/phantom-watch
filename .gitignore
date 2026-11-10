@@ -12,3 +12,4 @@ server/pw/assets/
 node_modules/
 probe_history.jsonl
 .tmp/
+spike/web/kotlin/*.gz
