@@ -148,6 +148,7 @@ fun PlayerStage(
     onSheetDragEnd: (Float) -> Unit = {},
     titleBelow: Boolean = false,
     lockButton: Boolean = true,
+    sidebarOpen: Boolean = false,
     rotateButton: Boolean = false,
     locked: Boolean,
     subsOn: Boolean,
@@ -159,6 +160,8 @@ fun PlayerStage(
     preview: (@Composable (Modifier) -> Unit)? = null,
     onBack: () -> Unit,
     onToggleMute: () -> Unit = {},
+    onEpisodes: () -> Unit = {},
+    canEpisodes: Boolean = false,
     onFullscreen: () -> Unit,
     onTogglePlay: () -> Unit,
     onToggleLock: () -> Unit,
@@ -189,6 +192,7 @@ fun PlayerStage(
     val edgePx = with(LocalDensity.current) { (if (atEdge) topInset else 0.dp).toPx() }
     // one bottom inset, never two: the caller's own lift and atEdge must not stack
     val navPad = if (atEdge) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() else 0.dp
+    val bottomPad = if (sidebarOpen) 0.dp else navPad
     val edgeSides = (if (atEdge) WindowInsets.navigationBars else WindowInsets(0))
         .union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal)
     BoxWithConstraints(
@@ -323,7 +327,7 @@ fun PlayerStage(
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
-                    .padding(horizontal = 16.dp).padding(bottom = 8.dp + maxOf(seekInset, navPad))
+                    .padding(horizontal = 16.dp).padding(bottom = 8.dp + maxOf(seekInset, bottomPad))
                     .windowInsetsPadding(edgeSides),
             ) {
                 if (seekBar) {
@@ -349,6 +353,21 @@ fun PlayerStage(
                         color = Slate200, fontSize = 11.sp, fontFamily = Mono,
                         modifier = Modifier.weight(1f),
                     )
+                    if (fullscreen && landscapePhone && canEpisodes) {
+                        Box(
+                            Modifier.size(48.dp).focusRing().clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { onEpisodes() },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_episodes),
+                                contentDescription = stringResource(R.string.player_episodes),
+                                tint = Color.White, modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
                     Box(
                         Modifier.size(48.dp).focusRing().clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -405,7 +424,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = fullscreen && lockButton && controlsVisible && swipeHud == null,
+            visible = fullscreen && lockButton && !sidebarOpen && controlsVisible && swipeHud == null,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
             modifier = Modifier.align(Alignment.CenterStart)
@@ -509,7 +528,7 @@ fun PlayerStage(
             preview = preview,
             modifier = Modifier.align(Alignment.BottomStart)
                 .offset { IntOffset(0, -shiftPx().roundToInt()) }
-                .padding(bottom = maxOf(seekInset, navPad))
+                .padding(bottom = maxOf(seekInset, bottomPad))
                 .windowInsetsPadding(edgeSides),
         )
         }
@@ -561,7 +580,7 @@ fun PlayerStage(
                 text = stringResource(if (inIntro) R.string.player_skip_intro else R.string.player_next_episode),
                 modifier = Modifier.align(Alignment.BottomEnd)
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
-                    .padding(end = 16.dp, bottom = maxOf(seekInset, navPad) + if (controlsVisible) 64.dp else 16.dp),
+                    .padding(end = 16.dp, bottom = maxOf(seekInset, bottomPad) + if (controlsVisible) 64.dp else 16.dp),
             ) { if (inIntro) onSkipIntro() else onNextEpisode?.invoke() }
         }
         if (stalled && showSpinner) {

@@ -12,6 +12,7 @@ sealed interface Screen {
         val season: String,
         val episode: String,
         val back: Screen,
+        val fullscreen: Boolean = false,
     ) : Screen
 
     data class Sources(val title: Title, val season: String, val episode: String) : Screen

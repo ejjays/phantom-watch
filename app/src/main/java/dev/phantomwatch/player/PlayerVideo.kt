@@ -61,6 +61,7 @@ fun PlayerVideo(
     subStyle: Pair<Float, Float>?,
     subTopPx: Float?,
     subBgAlpha: Float = 0.80f,
+    glow: Boolean = true,
     onEnhSurface: (Surface?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -97,7 +98,7 @@ fun PlayerVideo(
         val aspect = if (pad > 0f && enhSession == null) videoAspect / (1f - pad) else videoAspect
         val vh = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / aspect)
         val vw = vh * aspect
-        if (pad <= 0f) AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
+        if (glow && pad <= 0f) AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
                 factory = { ctx ->
@@ -122,8 +123,9 @@ fun PlayerVideo(
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
-                        this.player = exo
+                        // before the player: setPlayer auto-shows the controller and hide() animates
                         useController = false
+                        this.player = exo
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT,
