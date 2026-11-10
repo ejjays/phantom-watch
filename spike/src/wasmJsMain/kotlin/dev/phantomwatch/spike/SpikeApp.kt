@@ -1,5 +1,11 @@
 package dev.phantomwatch.spike
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -156,8 +162,12 @@ fun SpikeApp() {
                         },
                     )
                 }
-                Box(
-                    Modifier.align(Alignment.BottomCenter)
+                AnimatedVisibility(
+                    visible = browse.openTitle == null,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(150)),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(150)),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
                         .padding(horizontal = 20.dp)
                         .padding(bottom = 24.dp)
                         .widthIn(max = 480.dp),

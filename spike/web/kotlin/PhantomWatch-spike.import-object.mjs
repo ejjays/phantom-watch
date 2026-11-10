@@ -275,6 +275,7 @@ const js_code = {
     'org.w3c.dom.innerWidth_$external_prop_getter' : (_this) => _this.innerWidth,
     'org.w3c.dom.innerHeight_$external_prop_getter' : (_this) => _this.innerHeight,
     'org.w3c.dom.devicePixelRatio_$external_prop_getter' : (_this) => _this.devicePixelRatio,
+    'org.w3c.dom.open_$external_fun' : (_this, p0, p1, p2, isDefault0, isDefault1, isDefault2) => _this.open(isDefault0 ? undefined : p0, isDefault1 ? undefined : p1, isDefault2 ? undefined : p2, ),
     'org.w3c.dom.requestAnimationFrame_$external_fun' : (_this, p0) => _this.requestAnimationFrame(p0),
     'org.w3c.dom.postMessage_$external_fun' : (_this, p0, p1, p2, isDefault0) => _this.postMessage(p0, p1, isDefault0 ? undefined : p2, ),
     'org.w3c.dom.matchMedia_$external_fun' : (_this, p0) => _this.matchMedia(p0),
@@ -620,6 +621,9 @@ const js_code = {
           new Uint8Array(wasmExports.memory.buffer).set(data, ptr);
     },
     'org.jetbrains.compose.resources.supportsCacheApi' : () => Boolean(window.caches),
+    'androidx.compose.material3.internal.weakMap_js_code' : () => (new WeakMap()),
+    'androidx.compose.material3.internal.set_$external_fun' : (_this, p0, p1) => _this.set(p0, p1),
+    'androidx.compose.material3.internal.get_$external_fun' : (_this, p0) => _this.get(p0),
     'kotlinx.io.node.sep_$external_prop_getter' : (_this) => _this.sep,
     'kotlinx.io.getPlatformName' : 
         () => (typeof navigator !== "undefined" && navigator.platform) || "unknown"
@@ -694,9 +698,6 @@ const js_code = {
     'io.ktor.client.utils.getObjectField' : (obj, name) => obj[name],
     'io.ktor.client.utils.setObjectField' : (obj, name, value) => obj[name]=value,
     'io.ktor.client.utils.toJsArrayImpl' : (x) => new Uint8Array(x),
-    'androidx.compose.material3.internal.weakMap_js_code' : () => (new WeakMap()),
-    'androidx.compose.material3.internal.set_$external_fun' : (_this, p0, p1) => _this.set(p0, p1),
-    'androidx.compose.material3.internal.get_$external_fun' : (_this, p0) => _this.get(p0),
     'coil3.decode.blob' : (code) => new Blob([code], { type: 'application/javascript' }),
     'coil3.decode.WebWorkerRequest' : (id, buffer, width, height) => ({ id: id, data: buffer, w: width, h: height }),
     'coil3.decode.id_$external_prop_getter' : (_this) => _this.id,
@@ -706,9 +707,13 @@ const js_code = {
     'coil3.fetch.fetch' : (url) => fetch(url),
     'coil3.util.WeakRef_$external_fun' : (p0) => new WeakRef(p0),
     'coil3.util.deref_$external_fun' : (_this, ) => _this.deref(),
+    'dev.phantomwatch.core.pwLog_$external_fun' : (p0, p1) => pwLog(p0, p1),
     'dev.phantomwatch.ui.pwTitle_$external_fun' : (p0, p1) => pwTitle(p0, p1),
+    'dev.phantomwatch.ui.pwFullscreen_$external_fun' : (p0) => pwFullscreen(p0),
+    'dev.phantomwatch.ui.pwBounds_$external_fun' : (p0, p1, p2, p3) => pwBounds(p0, p1, p2, p3),
     'dev.phantomwatch.ui.pwDetach_$external_fun' : (p0) => pwDetach(p0),
-    'dev.phantomwatch.ui.pwAttach_$external_fun' : (p0, p1) => pwAttach(p0, p1)
+    'dev.phantomwatch.ui.pwAttach_$external_fun' : (p0, p1) => pwAttach(p0, p1),
+    'dev.phantomwatch.spike.pwFsState_$external_fun' : () => pwFsState()
 }
 
 const StringConstantsProxy = new Proxy({}, {
