@@ -410,7 +410,9 @@
     auto.referer = referer;
     auto.enSubs = e.subs;
     auto.enAudio = e.audio;
-    return { formats: [auto].concat(rungs), subs: [] };
+    // a bare rung is video-only here: vixsrc keeps sound in a separate rendition group
+    var splitAudio = /#EXT-X-MEDIA:[^\r\n]*TYPE=AUDIO/.test(manifest);
+    return { formats: splitAudio ? [auto] : [auto].concat(rungs), subs: [] };
   }
 
   async function vap(ctx) {
