@@ -7,15 +7,20 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -37,10 +42,12 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -148,59 +155,86 @@ fun ClipsScreen(
 
 @Composable
 private fun ClipPage(clip: Clip, stage: ClipStage, paused: Boolean, tabClear: Dp, onOpen: (Title) -> Unit) {
-    val art = clip.title.backdrop ?: clip.title.poster
-    Box(Modifier.fillMaxSize()) {
-        if (stage != ClipStage.Idle) {
-            CompositionLocalProvider(
-                LocalTrailerChrome provides TrailerChrome(
-                    bottomInset = tabClear,
-                    muteBottom = tabClear + 132.dp,
-                    muteEnd = 42.dp,
-                    prewarm = stage == ClipStage.Prewarm,
-                    paused = paused,
-                ),
-            ) {
-                TrailerHero(videoId = clip.key, poster = art, modifier = Modifier.fillMaxSize())
-            }
-        } else if (art != null) {
-            AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val dir = LocalLayoutDirection.current
+        // landscape puts the nav bar and a cutout on the side, not the bottom
+        val side = with(density) {
+            maxOf(WindowInsets.navigationBars.getRight(this, dir), WindowInsets.displayCutout.getRight(this, dir)).toDp()
         }
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.42f),
-                    0.22f to Color.Transparent,
-                    0.5f to Color.Transparent,
-                    1f to Color.Black.copy(alpha = 0.94f),
-                ),
-            ),
-        )
-        Column(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                .padding(start = 16.dp, end = 108.dp, bottom = tabClear + 48.dp),
-        ) {
-            Column(Modifier.clickable { onOpen(clip.title) }) {
-                Text(
-                    clip.title.title, color = Color.White, fontSize = 23.sp, lineHeight = 27.sp,
-                    fontFamily = Lilita, fontWeight = FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                )
-                ClipTags(clip.title, Modifier.padding(top = 7.dp))
-            }
-            clip.title.overview?.takeIf { it.isNotBlank() }?.let { ov ->
-                ClipOverview(ov)
-            }
-        }
-        val poster = clip.title.poster
-        if (poster != null) {
-            AsyncImage(
-                model = poster, contentDescription = clip.title.title, contentScale = ContentScale.Crop,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 15.dp, bottom = tabClear + 34.dp)
-                    .size(88.dp).clip(CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
-                    .clickable { onOpen(clip.title) },
-            )
+        // a short window has to keep room for the title, so the expanded text cannot take ten lines
+        val cap = minOf(with(density) { 20.sp.toDp() * 10 }, (maxHeight - tabClear - 48.dp) * 0.55f)
+        val frame = ClipFrame(tabClear, side, cap)
+        // a tablet shows the same reel a phone would: one 9:16 column on black, nothing beside it
+        val reel = minOf(640.dp, maxHeight * 0.85f)
+        Box(Modifier.align(Alignment.Center).width(reel).fillMaxHeight().clipToBounds()) {
+            ClipVideo(clip, stage, paused, frame)
+            ClipOverlay(clip, frame, onOpen)
         }
     }
+}
+
+private data class ClipFrame(val tabClear: Dp, val side: Dp, val cap: Dp)
+
+@Composable
+private fun ClipVideo(clip: Clip, stage: ClipStage, paused: Boolean, frame: ClipFrame) {
+    val art = clip.title.backdrop ?: clip.title.poster
+    if (stage != ClipStage.Idle) {
+        CompositionLocalProvider(
+            LocalTrailerChrome provides TrailerChrome(
+                bottomInset = frame.tabClear,
+                muteBottom = frame.tabClear + 132.dp,
+                muteEnd = 42.dp + frame.side,
+                prewarm = stage == ClipStage.Prewarm,
+                paused = paused,
+            ),
+        ) {
+            TrailerHero(videoId = clip.key, poster = art, modifier = Modifier.fillMaxSize())
+        }
+    } else if (art != null) {
+        AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    }
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                0f to Color.Black.copy(alpha = 0.42f),
+                0.22f to Color.Transparent,
+                0.5f to Color.Transparent,
+                1f to Color.Black.copy(alpha = 0.94f),
+            ),
+        ),
+    )
+}
+
+@Composable
+private fun BoxScope.ClipOverlay(clip: Clip, frame: ClipFrame, onOpen: (Title) -> Unit) {
+    Column(
+        Modifier.align(Alignment.BottomStart)
+            .padding(start = 16.dp, end = 108.dp + frame.side, bottom = frame.tabClear + 48.dp)
+            .fillMaxWidth(),
+    ) {
+        Column(Modifier.clickable { onOpen(clip.title) }) {
+            Text(
+                clip.title.title, color = Color.White, fontSize = 23.sp, lineHeight = 27.sp,
+                fontFamily = Lilita, fontWeight = FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            ClipTags(clip.title, Modifier.padding(top = 7.dp))
+        }
+        clip.title.overview?.takeIf { it.isNotBlank() }?.let { ClipOverview(it, frame.cap) }
+    }
+    ClipPoster(clip.title, frame.side, frame.tabClear, onOpen)
+}
+
+@Composable
+private fun BoxScope.ClipPoster(t: Title, side: Dp, tabClear: Dp, onOpen: (Title) -> Unit) {
+    val poster = t.poster ?: return
+    AsyncImage(
+        model = poster, contentDescription = t.title, contentScale = ContentScale.Crop,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 15.dp + side, bottom = tabClear + 34.dp)
+            .size(88.dp).clip(CircleShape)
+            .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+            .clickable { onOpen(t) },
+    )
 }
 
 @Composable
@@ -224,12 +258,10 @@ private fun ClipTags(t: Title, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ClipOverview(overview: String) {
+private fun ClipOverview(overview: String, cap: Dp) {
     var open by remember(overview) { mutableStateOf(false) }
     val scroll = rememberScrollState()
     val touch = remember { MutableInteractionSource() }
-    // a fixed dp cap cuts the last line whenever the device font scale is not 1
-    val tenLines = with(LocalDensity.current) { 20.sp.toDp() * 10 }
     // only a text that actually overflows needs its drag kept away from the pager
     val scrolls = open && scroll.maxValue > 0
     // collapsed always shows the top, so the first line is never a leftover scrolled position
@@ -239,7 +271,7 @@ private fun ClipOverview(overview: String) {
         maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(top = 10.dp)
             .animateContentSize()
-            .heightIn(max = tenLines)
+            .heightIn(max = cap)
             .then(if (scrolls) Modifier.nestedScroll(KeepPageScroll) else Modifier)
             .then(if (open) Modifier.verticalScroll(scroll) else Modifier)
             .clickable(interactionSource = touch, indication = null) { open = !open },
