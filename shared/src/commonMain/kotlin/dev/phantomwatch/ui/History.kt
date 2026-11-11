@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -126,10 +130,6 @@ private fun ContinueCard(
     modifier: Modifier = Modifier,
     onDelete: (Recent) -> Unit,
 ) {
-    val frac = if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else 0f
-    val radius = width * 0.24f
-    // the corner arc reaches ~0.29 of the radius in from each edge, so a badge at a flat 10dp gets clipped
-    val badgeInset = (radius * 0.34f).coerceAtLeast(8.dp)
     val dismiss = rememberSwipeToDismissBoxState(
         confirmValueChange = {
             if (it != SwipeToDismissBoxValue.Settled) onDelete(r)
@@ -142,28 +142,45 @@ private fun ContinueCard(
         modifier = modifier,
         backgroundContent = {},
     ) {
-        Column(Modifier.width(width).pressClick { onPlay(r) }) {
-            Box(Modifier.size(width, width * 1.5f).clip(RoundedCornerShape(radius)).background(SurfaceColor)) {
-                r.poster?.let { poster ->
-                    AsyncImage(model = poster, contentDescription = r.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                }
-                if (r.season.isNotEmpty()) {
-                    Text(
-                        stringResource(Res.string.season_episode, r.season, r.episode), color = Color.White, fontSize = 10.sp, fontFamily = Mono,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.align(Alignment.TopStart).padding(badgeInset)
-                            .clip(RoundedCornerShape(6.dp)).background(Color(0xCC1E1E1E))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
+        ContinuePoster(r, width, onPlay)
+    }
+}
+
+// the home rail reuses this without the dismiss box: a horizontal drag there belongs to the row
+@Composable
+internal fun ContinuePoster(
+    r: Recent,
+    width: Dp,
+    onPlay: (Recent) -> Unit,
+    caption: Boolean = true,
+) {
+    val frac = if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else 0f
+    val radius = width * 0.24f
+    // the corner arc reaches ~0.29 of the radius in from each edge, so a badge at a flat 10dp gets clipped
+    val badgeInset = (radius * 0.34f).coerceAtLeast(8.dp)
+    Column(Modifier.width(width).pressClick { onPlay(r) }) {
+        Box(Modifier.size(width, width * 1.5f).clip(RoundedCornerShape(radius)).background(SurfaceColor)) {
+            r.poster?.let { poster ->
+                AsyncImage(model = poster, contentDescription = r.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
-            Box(
-                Modifier.align(Alignment.CenterHorizontally).fillMaxWidth(0.6f).padding(top = 6.dp)
-                    .height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.25f)),
-            ) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Cyan))
+            if (r.season.isNotEmpty()) {
+                Text(
+                    stringResource(Res.string.season_episode, r.season, r.episode), color = Color.White, fontSize = 10.sp, fontFamily = Mono,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.align(Alignment.TopStart).padding(badgeInset)
+                        .clip(RoundedCornerShape(6.dp)).background(Color(0xCC1E1E1E))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
             }
-            var centered by remember { mutableStateOf(false) }
+        }
+        Box(
+            Modifier.align(Alignment.CenterHorizontally).fillMaxWidth(0.6f).padding(top = 6.dp)
+                .height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.25f)),
+        ) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Cyan))
+        }
+        var centered by remember { mutableStateOf(false) }
+        if (caption) {
             Text(
                 r.title.uppercase(), color = Slate100, fontSize = if (width >= 150.dp) 16.sp else 12.sp,
                 fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -171,6 +188,33 @@ private fun ContinueCard(
                 onTextLayout = { centered = !it.isLineEllipsized(0) },
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             )
+        }
+    }
+}
+
+@Composable
+internal fun ContinueRow(recent: List<Recent>, width: Dp, onPlay: (Recent) -> Unit) {
+    val rowState = remember { LazyListState() }
+    val cell = featuredCell(width)
+    Column {
+        Spacer(Modifier.height(16.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(Res.string.rail_continue), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
+                fontFamily = Rubik, fontWeight = FontWeight.Bold,
+            )
+        }
+        LazyRow(
+            state = rowState,
+            contentPadding = PaddingValues(start = 16.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(recent.take(10), key = { "${it.kind}-${it.id}-${it.season}-${it.episode}" }) { r ->
+                ContinuePoster(r, cell, onPlay, caption = false)
+            }
         }
     }
 }
