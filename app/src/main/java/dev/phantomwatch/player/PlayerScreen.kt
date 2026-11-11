@@ -259,6 +259,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     var subCues by remember { mutableStateOf("") }
     var fillMode by remember { mutableIntStateOf(0) }
     var hasSafe by remember { mutableStateOf(false) }
+    var nearFill by remember { mutableStateOf(false) }
     LaunchedEffect(stream.url) { Enhance.probe(context) { enhReady = it } }
     DisposableEffect(exo) {
         Pip.active = true
@@ -715,6 +716,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val smallScreen = cfg.smallestScreenWidthDp < 600
     val zoomable = smallScreen && cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     LaunchedEffect(media.id, season, episode, zoomable) { fillMode = 0 }
+    // a picture that already nearly fills the stage opens filled, so a 4% bar needs no pinch
+    LaunchedEffect(media.id, season, episode, zoomable, nearFill) { if (zoomable && nearFill) fillMode = 2 }
     fun rotationEnabled() = try {
         android.provider.Settings.System.getInt(
             context.contentResolver, android.provider.Settings.System.ACCELEROMETER_ROTATION, 0,
@@ -1049,6 +1052,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 mode = if (zoomable) fillMode else 0,
                 cutL = cutL, cutR = cutR,
                 onSafe = { hasSafe = it },
+                onNear = { nearFill = it },
                 subCues = subCues,
                 subStyle = subStyle,
                 subTopPx = subTopPx,

@@ -68,6 +68,7 @@ fun PlayerVideo(
     cutL: Dp = 0.dp,
     cutR: Dp = 0.dp,
     onSafe: (Boolean) -> Unit = {},
+    onNear: (Boolean) -> Unit = {},
     onEnhSurface: (Surface?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -110,6 +111,9 @@ fun PlayerVideo(
         // side bars mean the picture can be filled without covering the notch strip first
         val safe = maxWidth / aspect >= maxHeight
         LaunchedEffect(safe) { onSafe(safe) }
+        // a bar of a few percent is not worth a pinch: cropping it costs almost nothing
+        val near = !safe && maxWidth / aspect >= maxHeight * 0.9f
+        LaunchedEffect(near) { onNear(near) }
         val safeW = (maxWidth - cutL - cutR).coerceAtLeast(maxWidth * 0.5f)
         val vh = when (mode) {
             1 -> maxOf(maxHeight, safeW / aspect)
