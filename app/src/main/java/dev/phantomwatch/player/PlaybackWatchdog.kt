@@ -17,6 +17,8 @@ import kotlinx.coroutines.withContext
 private const val RESUME_MIN_MS = 60_000L
 private const val RESUME_MS = 15_000L
 private const val STUCK_MS = 30_000L
+// a start that never renders shows in seconds; only a mid-play hang can be a slow edge
+private const val START_STUCK_MS = 12_000L
 // a hang is usually one bad edge, not a dead provider: keep the ban short so the host can recover
 private const val HANG_BAN_H = 2L
 
@@ -40,7 +42,7 @@ internal fun PlaybackWatchdog(
             AppLog.d("watchdog: resume ${exo.currentPosition / 1000}s never played, back to 0")
             exo.seekTo(0)
         }
-        delay(STUCK_MS)
+        delay(if (started) STUCK_MS else START_STUCK_MS)
         if (!stalledNow) return@LaunchedEffect
         val host = DeadHosts.hostOf(live.url)
         AppLog.d("watchdog: $host stuck at ${exo.currentPosition / 1000}s, next source")
