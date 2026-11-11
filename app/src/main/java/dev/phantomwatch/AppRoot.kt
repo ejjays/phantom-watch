@@ -64,6 +64,7 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
+import dev.phantomwatch.core.ioDispatcher
 import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Title
@@ -75,6 +76,7 @@ import dev.phantomwatch.player.PlayerScreen
 import dev.phantomwatch.player.Screen
 import dev.phantomwatch.player.SourcesScreen
 import dev.phantomwatch.player.TrailerBridge
+import dev.phantomwatch.player.TrailerCache
 import dev.phantomwatch.player.navLabel
 import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.provider.DeadHosts
@@ -121,7 +123,11 @@ internal fun AppRoot() {
     // the clips tab opens on this title, and resolving is what makes the first swipe feel slow
     LaunchedEffect(browse.trending) {
         val first = browse.trending.firstOrNull() ?: return@LaunchedEffect
-        clipKeyOf(first)?.let { TrailerBridge.resolve(it) }
+        val key = clipKeyOf(first) ?: return@LaunchedEffect
+        val s = TrailerBridge.resolve(key) ?: return@LaunchedEffect
+        val url = s.hls ?: s.video ?: return@LaunchedEffect
+        // the resolve is cheap to repeat and the cache is what the player waits on
+        withContext(ioDispatcher) { TrailerCache.prefetch(context, url) }
     }
     val ask = PlayRequest.pending
     LaunchedEffect(ask) {
