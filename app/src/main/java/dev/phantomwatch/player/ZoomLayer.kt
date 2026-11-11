@@ -9,7 +9,7 @@ import dev.phantomwatch.core.AppLog
 
 // one pinch fills the stage, a pinch the other way fits it again; one finger still reaches the
 // tap zones, and a two-finger drag is consumed so it cannot turn into a brightness swipe
-internal fun Modifier.pinchZoom(zoom: () -> Float, fill: () -> Float, onZoom: (Float) -> Unit): Modifier =
+internal fun Modifier.pinchZoom(mode: () -> Int, safe: () -> Boolean, onMode: (Int) -> Unit): Modifier =
     pointerInput(Unit) {
         awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false)
@@ -30,10 +30,15 @@ internal fun Modifier.pinchZoom(zoom: () -> Float, fill: () -> Float, onZoom: (F
                 if (acc > 1.06f || acc < 0.94f) {
                     done = true
                     e.changes.forEach { it.consume() }
-                    val target = if (acc > 1f) fill().coerceAtLeast(1f) else 1f
-                    if (target != zoom()) {
-                        AppLog.d("pinch ${if (target > 1f) "fill" else "fit"} ${"%.2f".format(target)}")
-                        onZoom(target)
+                    val m = mode()
+                    val next = if (acc > 1f) {
+                        if (m == 0 && safe()) 1 else 2
+                    } else {
+                        if (m == 2 && safe()) 1 else 0
+                    }
+                    if (next != m) {
+                        AppLog.d("pinch ${when (next) { 0 -> "fit"; 1 -> "safe"; else -> "full" }}")
+                        onMode(next)
                     }
                 }
             }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,8 +64,10 @@ fun PlayerVideo(
     subTopPx: Float?,
     subBgAlpha: Float = 0.80f,
     glow: Boolean = true,
-    zoom: Float = 1f,
-    onFill: (Float) -> Unit = {},
+    mode: Int = 0,
+    cutL: Dp = 0.dp,
+    cutR: Dp = 0.dp,
+    onSafe: (Boolean) -> Unit = {},
     onEnhSurface: (Surface?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -104,11 +107,22 @@ fun PlayerVideo(
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val aspect = if (pad > 0f && enhSession == null) videoAspect / (1f - pad) else videoAspect
         val fitH = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / aspect)
-        val vh = fitH * zoom
+        // side bars mean the picture can be filled without covering the notch strip first
+        val safe = maxWidth / aspect >= maxHeight
+        LaunchedEffect(safe) { onSafe(safe) }
+        val safeW = (maxWidth - cutL - cutR).coerceAtLeast(maxWidth * 0.5f)
+        val vh = when (mode) {
+            1 -> maxOf(maxHeight, safeW / aspect)
+            2 -> maxOf(maxHeight, maxWidth / aspect)
+            else -> fitH
+        }
         val vw = vh * aspect
-        val fill = if (maxVideoH == null) fillFactor(maxWidth.value, maxHeight.value, aspect) else 1f
-        LaunchedEffect(fill) { onFill(fill) }
-        if (glow && pad <= 0f) AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
+        val shift = when (mode) {
+            1 -> cutL + (if (vw <= safeW) (safeW - vw) / 2 else 0.dp) - (maxWidth - vw) / 2
+            else -> 0.dp
+        }
+        // the glow's side bands would paint the strip the safe fill leaves for the notch
+        if (glow && pad <= 0f && mode != 1) AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
                 factory = { ctx ->
@@ -127,7 +141,7 @@ fun PlayerVideo(
                     }
                 },
                 update = { videoSurface = it },
-                modifier = Modifier.requiredSize(vw, vh),
+                modifier = Modifier.requiredSize(vw, vh).offset(x = shift),
             )
         } else {
             AndroidView(
@@ -163,7 +177,7 @@ fun PlayerVideo(
                     }
                 },
                 onRelease = { it.player = null },
-                modifier = Modifier.requiredSize(vw, vh),
+                modifier = Modifier.requiredSize(vw, vh).offset(x = shift),
             )
         }
         val ai = subCues.ifEmpty { AiSubtitles.text }
@@ -225,13 +239,6 @@ internal fun barFraction(px: IntArray, w: Int, h: Int): Float? {
     val skew = kotlin.math.abs(top - (h - 1 - bottom)).toFloat() / h
     // 5%, not 2%: one row of the 48 is already 2.08%, so a single row of asymmetry used to veto
     return if (bars >= 0.04f && bars <= 0.4f && skew <= 0.05f) bars else 0f
-}
-
-// how far the contained picture has to grow to cover the stage; 1 means it already does
-internal fun fillFactor(stageW: Float, stageH: Float, aspect: Float): Float {
-    if (stageW <= 0f || stageH <= 0f || aspect <= 0f) return 1f
-    val h = minOf(stageH, stageW / aspect)
-    return maxOf(stageW / (h * aspect), stageH / h).coerceIn(1f, 2f)
 }
 
 private suspend fun frameBars(sv: SurfaceView): Float? {

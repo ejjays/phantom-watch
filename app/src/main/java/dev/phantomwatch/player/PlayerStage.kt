@@ -131,7 +131,7 @@ fun PlayerStage(
     quality: Int = 0,
     qualityNow: String? = null,
     onPickQuality: (Int) -> Unit = {},
-    zoom: Float = 1f, fillZoom: Float = 1f, onZoom: (Float) -> Unit = {},
+    mode: Int = 0, safe: Boolean = false, onMode: (Int) -> Unit = {},
     speed: Float = 1f,
     onPickSpeed: (Float) -> Unit = {},
     bufferedMs: Long,
@@ -196,8 +196,8 @@ fun PlayerStage(
     val bottomPad = if (sidebarOpen) 0.dp else navPad
     val edgeSides = (if (atEdge) WindowInsets.navigationBars else WindowInsets(0))
         .union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal)
-    val liveZoom = rememberUpdatedState(zoom)
-    val liveFill = rememberUpdatedState(fillZoom)
+    val liveMode = rememberUpdatedState(mode)
+    val liveSafe = rememberUpdatedState(safe)
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.Black)
             .pointerInput(locked) {
@@ -252,7 +252,7 @@ fun PlayerStage(
                     },
                 )
             }
-            .then(if (landscapePhone && !locked) Modifier.pinchZoom({ liveZoom.value }, { liveFill.value }, onZoom) else Modifier)
+            .then(if (landscapePhone && !locked) Modifier.pinchZoom({ liveMode.value }, { liveSafe.value }, onMode) else Modifier)
             .focusRequester(stageFocus)
             .focusTarget()
             .onPreviewKeyEvent { e ->
