@@ -13,13 +13,15 @@
   // fixed rung over an adaptive master (the master's ABR settles low: 268p while
   // its own 1080p rung served 804), EN subs, english audio, then height.
   // an auto rung's height is the ladder's ceiling, not what it serves, so it
-  // never claims the 1080p+ bucket
+  // never claims the 1080p+ bucket; a 0 height means the leg never reported one,
+  // so it cannot outrank a known height (a 0-height rung once won and sat dead)
   function rankOf(f) {
     var h = typeof f.height === 'number' ? f.height : 0;
     var auto = /-auto$/.test(f.label || '');
     return [
       h < 0 ? 0 : 1,
       f.dub ? 0 : 1,
+      h > 0 ? 1 : 0,
       (f.enSubs && h >= 1080 && !auto) ? 1 : 0,
       auto ? 0 : 1,
       f.enSubs ? 1 : 0,

@@ -8,6 +8,7 @@ u-auto|love-moviebox-auto|-1080|true|true
 u-480|love-moviebox-480p|-480|true|true
 u-real-800|love-dcloud-800p|800|true|true
 u-fake-2160-auto|light-auto|2160|true|true
+u-unknown|rock-Atlas|0|false|false
 order
 u-1080-en
 u-real-800
@@ -17,5 +18,6 @@ u-720
 u-1080-nonen
 u-fake-2160-auto
 u-1080-auto
+u-unknown
 u-480
 u-auto
