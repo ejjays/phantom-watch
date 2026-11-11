@@ -377,7 +377,12 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     }
     DisposableEffect(exo) {
         val listener = object : Player.Listener {
-            override fun onVideoSizeChanged(v: androidx.media3.common.VideoSize) { if (v.height > 0) nowLabel = qualityLabel(v.width, v.height) }
+            override fun onVideoSizeChanged(v: androidx.media3.common.VideoSize) {
+                if (v.height > 0) {
+                    nowLabel = qualityLabel(v.width, v.height)
+                    AppLog.d("video size ${v.width}x${v.height}")
+                }
+            }
 
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 latestTracks = tracks
