@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -114,6 +115,18 @@ private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (T
             val art = item.backdrop ?: item.poster
             if (art != null) {
                 AsyncImage(model = art, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                // the still carries no lettering, unlike the portrait poster, so the name has to be drawn
+                Box(
+                    Modifier.matchParentSize()
+                        .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.9f))),
+                )
+                Text(
+                    item.title, color = Color.White,
+                    fontSize = (height * 0.078f).value.coerceIn(11f, 16f).sp,
+                    fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp, vertical = 10.dp),
+                )
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(maxOf(13.dp, width * 0.13f)))
@@ -141,9 +154,10 @@ private fun TopTenTall(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (T
     val hairline = with(density) { Stroke(3.dp.toPx()) }
     val shape = RoundedCornerShape(radius.value.dp)
     Box(Modifier.width(width + lead).height(height).pressClick { onOpen(item) }) {
-        val slot = Modifier.align(Alignment.BottomStart).offset(y = glyph * 0.2f)
-        Text("$rank", style = face.copy(color = SurfaceColor), maxLines = 1, modifier = slot)
-        Text("$rank", style = face.copy(color = Color.White.copy(alpha = 0.62f), drawStyle = hairline), maxLines = 1, modifier = slot)
+        Text(
+            "$rank", style = face.copy(color = Color.White.copy(alpha = 0.82f), drawStyle = hairline), maxLines = 1,
+            modifier = Modifier.align(Alignment.BottomStart).offset(y = glyph * 0.2f),
+        )
         Box(
             Modifier.align(Alignment.BottomEnd).size(width, height)
                 .clip(shape).background(Color.White.copy(alpha = 0.05f)),
