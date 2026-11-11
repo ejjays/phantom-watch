@@ -6,7 +6,6 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,8 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -35,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +58,6 @@ import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val HERO_MS = 9000
@@ -85,7 +79,6 @@ fun TrendingHero(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PhoneHeroCarousel(
     items: List<Title>,
@@ -99,14 +92,13 @@ private fun PhoneHeroCarousel(
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= heroPx.toInt() }
     }
     val idle = paused || hidden
-    val pagerState = rememberPagerState { items.size }
-    val scope = rememberCoroutineScope()
+    var index by remember(items) { mutableIntStateOf(0) }
     var details by remember(items) { mutableStateOf<Map<String, TitleDetail>>(emptyMap()) }
+    val progress = remember { Animatable(0f) }
     val key = remember { TmdbHost.key }
 
-    val curPage = pagerState.currentPage
-    LaunchedEffect(curPage, items, key) {
-        for (i in listOf(curPage, (curPage + 1) % items.size)) {
+    LaunchedEffect(index, items, key) {
+        for (i in listOf(index, (index + 1) % items.size)) {
             val item = items[i]
             val id = "${item.kind}-${item.id}"
             if (details[id] != null) continue
@@ -114,109 +106,106 @@ private fun PhoneHeroCarousel(
         }
     }
 
-    LaunchedEffect(pagerState, idle, items) {
+    LaunchedEffect(index, idle, items) {
+        progress.snapTo(0f)
         if (idle || items.size < 2) return@LaunchedEffect
-        while (true) {
-            delay(HERO_MS.toLong())
-            if (!pagerState.isScrollInProgress) {
-                val next = (pagerState.currentPage + 1) % items.size
-                pagerState.animateScrollToPage(next, animationSpec = tween(700))
-            }
-        }
+        progress.animateTo(1f, tween(HERO_MS, easing = LinearEasing))
+        index = (index + 1) % items.size
     }
 
     Box(Modifier.fillMaxWidth().height(heroH).clipToBounds()) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-        ) { page ->
+        Crossfade(index, animationSpec = tween(1200), label = "hero-art") { page ->
+            val art = items[page].backdrop ?: items[page].poster
+            if (art != null) {
+                AsyncImage(
+                    model = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.TopCenter,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(SurfaceColor))
+            }
+        }
+        Box(
+            Modifier.fillMaxWidth().height(160.dp).background(
+                Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.75f), Color.Transparent)),
+            ),
+        )
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.horizontalGradient(0f to Bg.copy(alpha = 0.50f), 0.22f to Color.Transparent, 0.78f to Color.Transparent, 1f to Bg.copy(alpha = 0.50f)),
+            ),
+        )
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Transparent,
+                    0.38f to Color.Transparent,
+                    0.68f to Bg.copy(alpha = 0.78f),
+                    0.88f to Bg.copy(alpha = 0.96f),
+                    1f to Bg,
+                ),
+            ),
+        )
+
+        Crossfade(index, animationSpec = tween(450), label = "hero-text") { page ->
             val item = items[page]
             val detail = details["${item.kind}-${item.id}"]
-            val art = item.backdrop ?: item.poster
-
-            Box(Modifier.fillMaxSize()) {
-                if (art != null) {
-                    AsyncImage(
-                        model = art,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        alignment = Alignment.TopCenter,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Box(Modifier.fillMaxSize().background(SurfaceColor))
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                HeroKind(item)
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    item.title,
+                    color = Color.White,
+                    fontFamily = Rubik,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 26.sp,
+                    lineHeight = 30.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(7.dp))
+                HeroMeta(item, detail)
+                val desc = item.overview ?: detail?.overview
+                if (!desc.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(desc, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-
-                Box(
-                    Modifier.fillMaxWidth().height(160.dp).background(
-                        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.75f), Color.Transparent)),
-                    ),
-                )
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.horizontalGradient(0f to Bg.copy(alpha = 0.50f), 0.22f to Color.Transparent, 0.78f to Color.Transparent, 1f to Bg.copy(alpha = 0.50f)),
-                    ),
-                )
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            0.38f to Color.Transparent,
-                            0.68f to Bg.copy(alpha = 0.78f),
-                            0.88f to Bg.copy(alpha = 0.96f),
-                            1f to Bg,
-                        ),
-                    ),
-                )
-
-                Column(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    HeroKind(item)
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        item.title,
-                        color = Color.White,
-                        fontFamily = Rubik,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 26.sp,
-                        lineHeight = 30.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(7.dp))
-                    HeroMeta(item, detail)
-                    val desc = item.overview ?: detail?.overview
-                    if (!desc.isNullOrBlank()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(desc, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        HeroActions(item, onOpen)
+                    HeroActions(item, onOpen)
 
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(end = 4.dp),
-                        ) {
-                            repeat(items.size) { i ->
-                                val on = i == pagerState.currentPage
-                                Box(
-                                    Modifier
-                                        .height(4.dp)
-                                        .width(if (on) 18.dp else 5.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(if (on) Cyan else Color.White.copy(alpha = 0.35f))
-                                        .clickable { scope.launch { pagerState.animateScrollToPage(i) } },
-                                )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 4.dp),
+                    ) {
+                        repeat(items.size) { i ->
+                            val on = i == index
+                            Box(
+                                Modifier
+                                    .height(4.dp)
+                                    .width(if (on) 18.dp else 5.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Color.White.copy(alpha = 0.35f))
+                                    .clickable { index = i },
+                            ) {
+                                if (on) {
+                                    Box(
+                                        Modifier.fillMaxSize()
+                                            .graphicsLayer { scaleX = progress.value; transformOrigin = TransformOrigin(0f, 0.5f) }
+                                            .background(Cyan),
+                                    )
+                                }
                             }
                         }
                     }
