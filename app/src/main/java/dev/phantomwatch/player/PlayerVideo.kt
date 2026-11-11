@@ -72,6 +72,8 @@ fun PlayerVideo(
     val pad by animateFloatAsState(padTarget, tween(320), label = "pad")
     LaunchedEffect(videoSurface) {
         val sv = videoSurface ?: return@LaunchedEffect
+        // a second pass runs with the zoom on, reads the cropped view as bar-free and undoes itself
+        if (padTarget > 0f) return@LaunchedEffect
         // one frame lies: a fade or a dark shot reads as bars, so a few frames decide together
         val seen = ArrayList<Float>(5)
         repeat(100) {
