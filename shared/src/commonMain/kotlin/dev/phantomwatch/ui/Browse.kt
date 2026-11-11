@@ -225,7 +225,7 @@ fun HomeScreen(
                         val chart = def.chart?.let { Chart.top(key, country.code, it) }
                         if (!chart.isNullOrEmpty()) {
                             return@map RailState(
-                                def.key, Res.string.rail_netflix, def.path, chart, 1, 1,
+                                def.key, Res.string.rail_chart, def.path, chart, 1, 1,
                                 arg = country.name, ranked = true, landscape = def.landscape,
                             )
                         }
