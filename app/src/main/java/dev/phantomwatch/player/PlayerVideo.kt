@@ -1,6 +1,7 @@
 package dev.phantomwatch.player
 
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.PixelCopy
@@ -141,6 +142,11 @@ fun PlayerVideo(
                         AspectRatioFrameLayout.RESIZE_MODE_FIT
                     }
                     videoSurface = it.videoSurfaceView as? SurfaceView
+                    (it.videoSurfaceView as? SurfaceView)?.let { sv ->
+                        if (Build.VERSION.SDK_INT >= 35 && sv.display?.hdrCapabilities?.supportedHdrTypes?.isEmpty() == true) {
+                            sv.setDesiredHdrHeadroom(1f)
+                        }
+                    }
                     it.subtitleView?.visibility = View.GONE
                     if (resumeTick != bound[0]) {
                         bound[0] = resumeTick
