@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -120,12 +121,15 @@ private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (T
                     Modifier.matchParentSize()
                         .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.9f))),
                 )
+                val name = (height * 0.118f).value.coerceIn(13f, 21f).sp
                 Text(
                     item.title, color = Color.White,
-                    fontSize = (height * 0.078f).value.coerceIn(11f, 16f).sp,
-                    fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+                    style = TextStyle(
+                        fontSize = name, lineHeight = name * 1.04f, fontFamily = Lilita,
+                        fontWeight = FontWeight.Normal, lineBreak = LineBreak.Heading,
+                    ),
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, end = 20.dp, bottom = 10.dp),
                 )
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

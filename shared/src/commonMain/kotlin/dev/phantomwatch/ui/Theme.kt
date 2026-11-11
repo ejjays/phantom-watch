@@ -41,3 +41,7 @@ val Mono: FontFamily
         Font(Res.font.ibmplexmono_semibold, FontWeight.SemiBold),
         Font(Res.font.ibmplexmono_bold, FontWeight.Bold),
     )
+
+// single weight display face, used only on the chart cards
+val Lilita: FontFamily
+    @Composable get() = FontFamily(Font(Res.font.lilita_one_regular, FontWeight.Normal))
