@@ -729,7 +729,7 @@ private fun RailSection(
     val railH = if (landscape) railW * 9f / 16f else railW * 4f / 3f
     val snap = rememberSnapFlingBehavior(rowState)
     // the numeral lives in the left gutter, so the padding is uneven to centre the poster itself
-    val lead = railH * 0.185f
+    val lead = railH * 0.26f
     val gutter = ((width - railW) / 2).coerceAtLeast(16.dp)
     val side = if (landscape) (gutter - lead).coerceAtLeast(8.dp) else 16.dp
     val tail = if (landscape) gutter else 16.dp

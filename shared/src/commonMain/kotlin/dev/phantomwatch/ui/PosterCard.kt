@@ -23,9 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -92,31 +90,34 @@ fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) ->
 
 // outline numeral in the gutter, bottom-aligned, with the poster sliding over its right side
 @Composable
-private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) -> Unit) {
+private fun RankNumeral(rank: Int, size: Dp, color: Color, stroke: Dp, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
-    val twoDigit = rank > 9
-    val glyph = height * if (twoDigit) 0.44f else 0.61f
-    val face = with(density) {
-        TextStyle(
-            fontSize = glyph.toSp(),
+    val em = with(density) { size.toSp() }
+    Text(
+        "$rank",
+        style = TextStyle(
+            fontSize = em,
             fontFamily = Rubik,
             fontWeight = FontWeight.Bold,
-            lineHeight = glyph.toSp(),
-        )
-    }
-    val hairline = with(density) { Stroke(2.2.dp.toPx()) }
-    val lead = height * if (twoDigit) 0.28f else 0.185f
+            lineHeight = em,
+            color = color,
+            drawStyle = Stroke(with(density) { stroke.toPx() }),
+        ),
+        maxLines = 1,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) -> Unit) {
+    val twoDigit = rank > 9
+    val glyph = height * if (twoDigit) 0.44f else 0.61f
+    // the numeral is not condensed here, so the gutter has to hold its full width
+    val lead = height * if (twoDigit) 0.385f else 0.26f
     Box(Modifier.width(width + lead).height(height).pressClick { onOpen(item) }) {
-        Text(
-            "$rank",
-            style = face.copy(color = Color.White, drawStyle = hairline),
-            maxLines = 1,
-            modifier = Modifier.align(Alignment.BottomStart)
-                .offset(y = height * 0.092f)
-                .graphicsLayer {
-                    scaleX = 0.52f
-                    transformOrigin = TransformOrigin(0f, 1f)
-                },
+        RankNumeral(
+            rank, glyph, Color.White, 3.dp,
+            Modifier.align(Alignment.BottomStart).offset(y = height * 0.092f),
         )
         Box(
             Modifier.align(Alignment.BottomEnd).size(width, height)
@@ -152,24 +153,14 @@ private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (T
 @Composable
 private fun TopTenTall(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) -> Unit) {
     val radius = width * 0.24f
-    val density = LocalDensity.current
     val wide = rank > 9
     val glyph = height * if (wide) 0.40f else 0.60f
     val lead = width * if (wide) 0.46f else 0.34f
-    val face = with(density) {
-        TextStyle(
-            fontSize = glyph.toSp(),
-            fontFamily = Rubik,
-            fontWeight = FontWeight.Bold,
-            lineHeight = glyph.toSp(),
-        )
-    }
-    val hairline = with(density) { Stroke(3.dp.toPx()) }
     val shape = RoundedCornerShape(radius.value.dp)
     Box(Modifier.width(width + lead).height(height).pressClick { onOpen(item) }) {
-        Text(
-            "$rank", style = face.copy(color = Color.White.copy(alpha = 0.82f), drawStyle = hairline), maxLines = 1,
-            modifier = Modifier.align(Alignment.BottomStart).offset(y = glyph * 0.2f),
+        RankNumeral(
+            rank, glyph, Color.White.copy(alpha = 0.82f), 3.dp,
+            Modifier.align(Alignment.BottomStart).offset(y = glyph * 0.2f),
         )
         Box(
             Modifier.align(Alignment.BottomEnd).size(width, height)
