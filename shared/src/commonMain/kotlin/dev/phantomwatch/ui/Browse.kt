@@ -134,7 +134,8 @@ private fun railDefs(country: Country): List<RailDef> = listOfNotNull(
     RailDef("popular", Res.string.rail_popular, "movie/popular", ranked = true),
     RailDef("tv-popular", Res.string.rail_tv_popular, "tv/popular"),
     RailDef("tv-top", Res.string.rail_tv_top, "tv/top_rated"),
-    RailDef("airing", Res.string.rail_airing, "tv/airing_today"),
+    RailDef("anime", Res.string.rail_anime, "discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc"),
+    RailDef("soon", Res.string.rail_soon, "movie/upcoming"),
 )
 
 private fun localRail(country: Country): RailDef? {
@@ -167,6 +168,7 @@ class BrowseState {
     var results by mutableStateOf<List<Title>>(emptyList())
     var resultsFor by mutableStateOf("")
     var trending by mutableStateOf<List<Title>>(emptyList())
+    var clipFocus by mutableStateOf<Title?>(null)
     var rails by mutableStateOf<List<RailState>>(emptyList())
     var recent by mutableStateOf<List<Recent>>(emptyList())
     var exploreItems by mutableStateOf<List<Title>>(emptyList())
@@ -470,6 +472,10 @@ fun HomeScreen(
                                 listState = browse.homeScroll,
                                 width = contentW,
                                 onOpen = openItem,
+                                onTrailer = { t ->
+                                    browse.clipFocus = t
+                                    browse.nav.select(Route.Clips)
+                                },
                                 onPlayRecent = { r ->
                                     onWatch(Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster), r.season, r.episode)
                                 },
@@ -617,6 +623,7 @@ private fun BrowseBody(
     listState: LazyListState,
     width: Dp,
     onOpen: (Title) -> Unit,
+    onTrailer: (Title) -> Unit,
     onPlayRecent: (Recent) -> Unit,
     onSeeAll: (String) -> Unit,
     onRailEnd: (String) -> Unit,
@@ -670,7 +677,8 @@ private fun BrowseBody(
         rails.forEach { rail ->
             if (rail.items.isNotEmpty()) {
                 item(key = "rail-${rail.key}", contentType = "rail") {
-                    RailSection(rail, width, onOpen, onSeeAll, onRailEnd)
+                    // a trailer is the only thing a film that is not out yet can open
+                    RailSection(rail, width, if (rail.key == "soon") onTrailer else onOpen, onSeeAll, onRailEnd)
                 }
             }
         }
