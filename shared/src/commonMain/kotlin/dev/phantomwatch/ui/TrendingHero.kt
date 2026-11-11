@@ -162,8 +162,8 @@ private fun PhoneHeroCarousel(
                 Text(
                     item.title,
                     color = Color.White,
-                    fontFamily = Rubik,
-                    fontWeight = FontWeight.Bold,
+                    fontFamily = Lilita,
+                    fontWeight = FontWeight.Normal,
                     fontSize = 26.sp,
                     lineHeight = 30.sp,
                     maxLines = 2,
@@ -354,7 +354,7 @@ private fun TabletBillboard(
                     HeroKind(item, s)
                     Spacer(Modifier.height(6.dp * s))
                     Text(
-                        item.title, color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                        item.title, color = Color.White, fontFamily = Lilita, fontWeight = FontWeight.Normal,
                         fontSize = 26.sp * s, lineHeight = 30.sp * s,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )
