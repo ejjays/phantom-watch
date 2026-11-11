@@ -80,7 +80,9 @@ fun PlayerVideo(
         repeat(100) {
             delay(400)
             seen += frameBars(sv) ?: return@repeat
-            padTarget = seen.sorted()[seen.size / 2]
+            // padding is always black, picture rows only sometimes read as black, so the smallest
+            // sample is the honest one; a 0 is a vetoed frame, not a measurement
+            padTarget = seen.filter { it > 0f }.minOrNull() ?: 0f
             if (seen.size < 5) return@repeat
             AppLog.d("video pad ${(padTarget * 100).toInt()}%")
             return@LaunchedEffect
