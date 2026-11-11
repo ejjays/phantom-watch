@@ -56,6 +56,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -255,6 +256,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     var enhOut by remember { mutableStateOf<Surface?>(null) }
     var enhBound by remember { mutableStateOf<Surface?>(null) }
     var subCues by remember { mutableStateOf("") }
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var fillZoom by remember { mutableFloatStateOf(1f) }
     LaunchedEffect(stream.url) { Enhance.probe(context) { enhReady = it } }
     DisposableEffect(exo) {
         Pip.active = true
@@ -706,6 +709,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     var keepTheater by remember { mutableStateOf(false) }
     var sheetLocked by remember { mutableStateOf(false) }
     val smallScreen = cfg.smallestScreenWidthDp < 600
+    val zoomable = smallScreen && cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    LaunchedEffect(media.id, season, episode, zoomable) { zoom = 1f }
     fun rotationEnabled() = try {
         android.provider.Settings.System.getInt(
             context.contentResolver, android.provider.Settings.System.ACCELEROMETER_ROTATION, 0,
@@ -930,6 +935,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         onNextEpisode = next?.let { up -> { onEpisode(up.season, up.episode) } },
         currentDub = live.dub, onPickDub = ::playDub,
         qualities = q.rungs, quality = q.current, qualityNow = nowLabel, onPickQuality = { pickQuality(exo, q.group, it) },
+        zoom = if (zoomable) zoom else 1f,
+        fillZoom = if (zoomable) fillZoom else 1f,
+        onZoom = { zoom = it },
         speed = speed, onPickSpeed = { speed = it; speedNote = "Speed ${speedLabel(it)}"; AppLog.d("speed ${it}x") },
         bufferedMs = bufferedMs, paneH = maxVideoH,
         controlsVisible = controls && !Pip.inPip,
@@ -1034,6 +1042,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         video = { mod ->
             PlayerVideo(
                 exo = exo, enhSession = enhSession, videoAspect = videoAspect, maxVideoH = maxVideoH,
+                zoom = if (zoomable) zoom else 1f,
+                onFill = { fillZoom = it },
                 subCues = subCues,
                 subStyle = subStyle,
                 subTopPx = subTopPx,
