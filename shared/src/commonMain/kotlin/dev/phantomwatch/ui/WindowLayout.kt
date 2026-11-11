@@ -14,9 +14,14 @@ fun gridColumns(width: Dp): Int =
 fun gridCell(width: Dp, columns: Int): Dp =
     ((width - 32.dp - 12.dp * (columns - 1)) / columns).coerceAtLeast(1.dp)
 
-// phone gets 150dp cards (~2.5 visible); tablet scales wider
+// phone gets 128dp cards (2 full plus half of the next); tablet scales wider
 fun featuredCell(width: Dp): Dp =
-    if (isExpanded(width)) (gridCell(width, 6) * 1.12f).coerceIn(162.dp, 280.dp) else 150.dp
+    if (isExpanded(width)) (gridCell(width, 6) * 1.12f).coerceIn(162.dp, 280.dp) else 128.dp
+
+// the chart rail runs landscape and snaps one poster at a time; 74% of the width leaves the
+// neighbour's numeral and a sliver of its poster in the gutters
+fun landscapeCell(width: Dp): Dp =
+    if (isExpanded(width)) (width * 0.42f).coerceIn(320.dp, 560.dp) else width * 0.74f
 
 // one step denser than the featured rails
 fun exploreColumns(width: Dp): Int =

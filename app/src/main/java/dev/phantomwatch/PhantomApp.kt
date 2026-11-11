@@ -5,6 +5,7 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.core.Log
 import dev.phantomwatch.core.RemoteConfig
+import dev.phantomwatch.data.Chart
 import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.player.TrailerBridge
@@ -21,6 +22,8 @@ class PhantomApp : Application() {
         TmdbHost.key = RemoteConfig.tmdbKey()
         TmdbHost.base = RemoteConfig.tmdbBase()
         TmdbHost.image = RemoteConfig.tmdbImage()
+        Chart.url = BuildConfig.TELEMETRY_URL.removeSuffix("/e")
+        Chart.key = BuildConfig.TELEMETRY_KEY
         JsProviders.init(this)
         TrailerBridge.init(this)
         Social.init(this)

@@ -63,7 +63,8 @@ object Tmdb {
     suspend fun rail(apiKey: String, path: String, page: Int = 1): RailPage? {
         return try {
             val data = httpJson(
-                "${TmdbHost.base}/$path?api_key=$apiKey&page=$page",
+                // a discover path carries its own query, so the key cannot assume a leading ?
+                "${TmdbHost.base}/$path${if ('?' in path) "&" else "?"}api_key=$apiKey&page=$page",
                 "https://www.themoviedb.org/",
             ) ?: return null
             val results = data.optJSONArray("results") ?: return null

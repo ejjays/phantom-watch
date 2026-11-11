@@ -93,6 +93,7 @@ import dev.phantomwatch.core.ioDispatcher
 import dev.phantomwatch.core.nowMs
 import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.data.Aliases
+import dev.phantomwatch.data.Chart
 import dev.phantomwatch.data.Recent
 import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
@@ -101,6 +102,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 
 data class RailState(
     val key: String,
@@ -110,18 +113,46 @@ data class RailState(
     val page: Int = 1,
     val totalPages: Int = 1,
     val loadingMore: Boolean = false,
+    val arg: String? = null,
+    val ranked: Boolean = false,
+    val landscape: Boolean = false,
 )
 
-private data class RailDef(val key: String, val title: StringResource, val path: String)
+private data class RailDef(
+    val key: String,
+    val title: StringResource,
+    val path: String,
+    val arg: String? = null,
+    val ranked: Boolean = false,
+    val chart: String? = null,
+    val landscape: Boolean = false,
+)
 
-private val RailDefs = listOf(
-    RailDef("popular", Res.string.rail_popular, "movie/popular"),
+private fun railDefs(country: Country): List<RailDef> = listOfNotNull(
+    RailDef("popular", Res.string.rail_popular, "movie/popular", ranked = true),
     RailDef("top", Res.string.rail_top, "movie/top_rated"),
-    RailDef("now", Res.string.rail_now, "movie/now_playing"),
+    localRail(country),
     RailDef("tv-popular", Res.string.rail_tv_popular, "tv/popular"),
     RailDef("tv-top", Res.string.rail_tv_top, "tv/top_rated"),
     RailDef("airing", Res.string.rail_airing, "tv/airing_today"),
 )
+
+private fun localRail(country: Country): RailDef? {
+    if (country.code.length != 2) return null
+    return RailDef(
+        "local",
+        Res.string.rail_local,
+        "discover/movie?with_origin_country=${country.code}&sort_by=popularity.desc",
+        arg = country.name,
+        ranked = true,
+        chart = "movie",
+        landscape = true,
+    )
+}
+
+@Composable
+private fun railTitle(title: StringResource, arg: String?): String =
+    if (arg != null) stringResource(title, arg) else stringResource(title)
 
 private val RuleEdge = Color.White.copy(alpha = 0.16f)
 
@@ -172,6 +203,7 @@ fun HomeScreen(
     youScreen: @Composable () -> Unit = {},
 ) {
     val key = TmdbHost.key
+    val country = deviceCountry()
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -189,10 +221,17 @@ fun HomeScreen(
             try {
                 val foundTrending = withContext(ioDispatcher) { Tmdb.trending(key) }
                 val foundRails = withContext(ioDispatcher) {
-                    RailDefs.map { def ->
+                    railDefs(country).map { def ->
+                        val chart = def.chart?.let { Chart.top(key, country.code, it) }
+                        if (!chart.isNullOrEmpty()) {
+                            return@map RailState(
+                                def.key, Res.string.rail_netflix, def.path, chart, 1, 1,
+                                arg = country.name, ranked = true, landscape = def.landscape,
+                            )
+                        }
                         val r = Tmdb.rail(key, def.path, 1)
-                            ?: return@map RailState(def.key, def.title, def.path, emptyList(), 1, 1)
-                        RailState(def.key, def.title, def.path, r.items, 1, r.totalPages)
+                            ?: return@map RailState(def.key, def.title, def.path, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
+                        RailState(def.key, def.title, def.path, r.items, 1, r.totalPages, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
                     }
                 }
                 browse.trending = foundTrending.take(12)
@@ -418,6 +457,7 @@ fun HomeScreen(
                             BrowseBody(
                                 trending = browse.trending,
                                 rails = browse.rails,
+                                recent = browse.recent,
                                 exploreItems = browse.exploreItems,
                                 exploreMore = exploreMore,
                                 exploreTotal = browse.exploreTotal,
@@ -427,6 +467,9 @@ fun HomeScreen(
                                 listState = browse.homeScroll,
                                 width = contentW,
                                 onOpen = openItem,
+                                onPlayRecent = { r ->
+                                    onWatch(Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster), r.season, r.episode)
+                                },
                                 onSeeAll = seeAll,
                                 onRailEnd = railEnd,
                                 onGridEnd = gridEnd,
@@ -555,6 +598,7 @@ private fun stableCallback0(block: () -> Unit): () -> Unit {
 private fun BrowseBody(
     trending: List<Title>,
     rails: List<RailState>,
+    recent: List<Recent>,
     exploreItems: List<Title>,
     exploreMore: Boolean,
     exploreTotal: Int,
@@ -564,6 +608,7 @@ private fun BrowseBody(
     listState: LazyListState,
     width: Dp,
     onOpen: (Title) -> Unit,
+    onPlayRecent: (Recent) -> Unit,
     onSeeAll: (String) -> Unit,
     onRailEnd: (String) -> Unit,
     onGridEnd: () -> Unit,
@@ -607,6 +652,11 @@ private fun BrowseBody(
         // one item per rail, so an explore page only recomposes the grid rows
         item(key = "hero", contentType = "hero") {
             TrendingHero(trending = trending, paused = detailOpen, onOpen = onOpen, width = width, listState = listState)
+        }
+        if (recent.isNotEmpty()) {
+            item(key = "continue", contentType = "continue") {
+                ContinueRow(recent, width, onPlayRecent)
+            }
         }
         rails.forEach { rail ->
             if (rail.items.isNotEmpty()) {
@@ -664,8 +714,16 @@ private fun RailSection(
     onEnd: (String) -> Unit,
 ) {
     val rowState = remember(rail.key) { LazyListState() }
-    val railW = featuredCell(width)
-    val ranked = rail.key == "popular"
+    val ranked = rail.ranked
+    val landscape = rail.landscape
+    val railW = if (landscape) landscapeCell(width) else featuredCell(width)
+    val railH = if (landscape) railW * 9f / 16f else railW * 4f / 3f
+    val snap = rememberSnapFlingBehavior(rowState)
+    // the numeral lives in the left gutter, so the padding is uneven to centre the poster itself
+    val lead = railH * 0.185f
+    val gutter = ((width - railW) / 2).coerceAtLeast(16.dp)
+    val side = if (landscape) (gutter - lead).coerceAtLeast(8.dp) else 16.dp
+    val tail = if (landscape) gutter else 16.dp
     LaunchedEffect(rowState, ranked) {
         if (ranked) return@LaunchedEffect
         snapshotFlow {
@@ -681,7 +739,7 @@ private fun RailSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                stringResource(rail.title), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
+                railTitle(rail.title, rail.arg), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
                 fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
             )
             if (!ranked) {
@@ -694,19 +752,31 @@ private fun RailSection(
                 }
             }
         }
-        LazyRow(
-            state = rowState,
-            contentPadding = PaddingValues(start = 16.dp, end = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        val cells: LazyListScope.() -> Unit = {
             val shown = if (ranked) rail.items.take(10) else rail.items
             itemsIndexed(shown, key = { _, it -> "${it.kind}-${it.id}" }, contentType = { _, _ -> "poster" }) { i, item ->
                 if (ranked) {
-                    TopTenCard(i + 1, item, railW, railW * 4f / 3f, onOpen)
+                    TopTenCard(i + 1, item, railW, railH, onOpen)
                 } else {
-                    PosterCard(item = item, width = railW, height = railW * 4f / 3f, onOpen = onOpen, caption = false)
+                    PosterCard(item = item, width = railW, height = railH, onOpen = onOpen, caption = false)
                 }
             }
+        }
+        if (landscape) {
+            LazyRow(
+                state = rowState,
+                contentPadding = PaddingValues(start = side, end = tail),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                flingBehavior = snap,
+                content = cells,
+            )
+        } else {
+            LazyRow(
+                state = rowState,
+                contentPadding = PaddingValues(start = 16.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                content = cells,
+            )
         }
     }
 }
@@ -786,7 +856,7 @@ private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Ti
             .collect { idx -> if (idx != null && idx >= rail.items.size - 3) onEnd() }
     }
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader(stringResource(rail.title), onBack)
+        ScreenHeader(railTitle(rail.title, rail.arg), onBack)
         LazyVerticalGrid(
             columns = GridCells.Fixed(cols),
             state = state,
