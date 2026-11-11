@@ -17,13 +17,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
 import dev.phantomwatch.res.Res
-import dev.phantomwatch.res.ic_search
+import dev.phantomwatch.res.ic_clips
 import dev.phantomwatch.res.ic_tab_home
 import dev.phantomwatch.res.ic_tab_library
 import dev.phantomwatch.res.ic_tab_you
 import dev.phantomwatch.res.tab_home
 import dev.phantomwatch.res.tab_library
-import dev.phantomwatch.res.tab_search
+import dev.phantomwatch.res.tab_clips
 import dev.phantomwatch.res.tab_you
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
@@ -66,8 +66,8 @@ fun HomeLiquidTabs(
             TabLabel(Res.string.tab_home)
         }
         LiquidBottomTab(onClick = { tab = 1; onSelect(1) }) {
-            TabIcon(Res.drawable.ic_search)
-            TabLabel(Res.string.tab_search)
+            TabIcon(Res.drawable.ic_clips)
+            TabLabel(Res.string.tab_clips)
         }
         LiquidBottomTab(onClick = { tab = 2; onSelect(2) }) {
             TabIcon(Res.drawable.ic_tab_library)

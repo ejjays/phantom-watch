@@ -201,6 +201,7 @@ fun HomeScreen(
     searchGhost: @Composable (Dp, Int) -> Unit = { _, _ -> },
     detailPane: @Composable (Title?, () -> Unit, (Title, String, String) -> Unit, Boolean) -> Unit = { _, _, _, _ -> },
     youScreen: @Composable () -> Unit = {},
+    clipsScreen: @Composable (onOpen: (Title) -> Unit) -> Unit = {},
 ) {
     val key = TmdbHost.key
     val country = deviceCountry()
@@ -391,6 +392,7 @@ fun HomeScreen(
             Column(Modifier.fillMaxSize()) {
                 AnimatedContent(
                     targetState = when (browse.nav.top) {
+                        is Route.Clips -> 5
                         is Route.Search -> 1
                         is Route.Rail -> 2
                         is Route.History -> 3
@@ -453,6 +455,7 @@ fun HomeScreen(
                             },
                         )
                         4 -> youScreen()
+                        5 -> clipsScreen(openItem)
                         else -> Box(Modifier.fillMaxSize()) {
                             BrowseBody(
                                 trending = browse.trending,
@@ -475,7 +478,7 @@ fun HomeScreen(
                                 onGridEnd = gridEnd,
                                 onRetry = retryBrowse,
                             )
-                            BrowseHeader(scrolled = scrolled)
+                            BrowseHeader(scrolled = scrolled, onSearch = { browse.nav.push(Route.Search) })
                         }
                     }
                 }
@@ -506,7 +509,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun BrowseHeader(scrolled: Boolean) {
+private fun BrowseHeader(scrolled: Boolean, onSearch: () -> Unit) {
     val solid by animateFloatAsState(if (scrolled) 1f else 0f, tween(320), label = "header-solid")
     Box(
         Modifier.fillMaxWidth()
@@ -537,6 +540,12 @@ private fun BrowseHeader(scrolled: Boolean) {
             )
             Spacer(Modifier.width(8.dp))
             Text(stringResource(Res.string.browse_brand), color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Box(
+                Modifier.size(34.dp).clip(CircleShape).clickable(onClick = onSearch),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(Res.drawable.ic_search), contentDescription = stringResource(Res.string.tab_search), tint = Slate200, modifier = Modifier.size(21.dp))
+            }
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f * solid)))
     }

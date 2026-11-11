@@ -16,6 +16,10 @@ sealed interface Route {
         override val path = "/search"
     }
 
+    data object Clips : Route {
+        override val path = "/clips"
+    }
+
     data class Rail(val key: String) : Route {
         override val path get() = "/rail/$key"
     }
@@ -41,14 +45,14 @@ sealed interface Route {
 }
 
 internal fun tabRoute(index: Int): Route = when (index) {
-    1 -> Route.Search
+    1 -> Route.Clips
     2 -> Route.History
     3 -> Route.You
     else -> Route.Home
 }
 
 internal fun Route.tabIndex(): Int = when (this) {
-    Route.Search -> 1
+    Route.Clips -> 1
     Route.History -> 2
     Route.You -> 3
     else -> 0

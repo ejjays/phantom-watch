@@ -33,6 +33,7 @@ object TrailerBridge {
     private val booted = CompletableDeferred<Unit>()
     private val waiting = ConcurrentHashMap<String, CompletableDeferred<JSONObject?>>()
     private val cache = ConcurrentHashMap<String, Pair<Long, Result>>()
+    private val inflight = ConcurrentHashMap<String, CompletableDeferred<Result?>>()
 
     private var app: Context? = null
     private var script = ""
@@ -57,6 +58,17 @@ object TrailerBridge {
 
     suspend fun resolve(videoId: String): Result? {
         cache[videoId]?.let { (at, r) -> if (System.currentTimeMillis() - at < 30 * 60_000) return r }
+        // the feed prefetches the clip the player is about to ask for, so share the one request
+        val mine = CompletableDeferred<Result?>()
+        inflight.putIfAbsent(videoId, mine)?.let { return it.await() }
+        try {
+            return fetch(videoId).also { mine.complete(it) }
+        } finally {
+            inflight.remove(videoId, mine)
+        }
+    }
+
+    private suspend fun fetch(videoId: String): Result? {
         val t0 = System.currentTimeMillis()
         val out = withTimeoutOrNull(45_000) {
             main.post { ensure() }

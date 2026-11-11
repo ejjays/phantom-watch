@@ -65,9 +65,9 @@ internal object Playback {
 
 // prioritize time to prevent buffer stalls
 @OptIn(UnstableApi::class)
-internal fun loadControl(maxBufferMs: Int = 90_000): DefaultLoadControl =
+internal fun loadControl(maxBufferMs: Int = 90_000, startMs: Int = 1_500, minBufferMs: Int = 30_000): DefaultLoadControl =
     DefaultLoadControl.Builder()
-        .setBufferDurationsMsForStreaming(30_000, maxBufferMs, 1_500, 5_000)
+        .setBufferDurationsMsForStreaming(minBufferMs, maxBufferMs, startMs, 5_000)
         .setPrioritizeTimeOverSizeThresholds(true)
         .setTargetBufferBytes(96 * 1024 * 1024)
         .setBackBuffer(10_000, false)

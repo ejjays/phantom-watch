@@ -7,7 +7,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,14 +44,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
@@ -61,6 +60,7 @@ import coil3.compose.AsyncImage
 import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.player.TrailerAudio
+import dev.phantomwatch.player.TrailerCache
 import dev.phantomwatch.player.TrailerBridge
 import dev.phantomwatch.player.loadControl
 import dev.phantomwatch.player.playerClock
@@ -76,6 +76,7 @@ internal fun TrailerHero(
     onSurface: (TextureView?) -> Unit = {},
     audio: TrailerAudio? = null,
 ) {
+    val chrome = LocalTrailerChrome.current
     val ctx = LocalContext.current
     var stream by remember(videoId) { mutableStateOf<TrailerBridge.Result?>(null) }
     var muted by remember { mutableStateOf(false) }
@@ -83,12 +84,15 @@ internal fun TrailerHero(
     var started by remember(videoId) { mutableStateOf(false) }
     var buffering by remember(videoId) { mutableStateOf(true) }
     var pos by remember(videoId) { mutableStateOf(0L) }
-    var dur by remember(videoId) { mutableStateOf(0L) }
     // read inside the draw scope only, so a frame tick repaints the bar without recomposing
     val frac = remember(videoId) { mutableFloatStateOf(0f) }
+    // a prewarmed clip only needs enough lead to start on a swipe; the rest would be stolen
+    // from the clip that is actually playing
     val exo = remember(videoId) {
         val b = if (audio != null) ExoPlayer.Builder(ctx, audio.renderers(ctx)) else ExoPlayer.Builder(ctx)
-        b.setLoadControl(loadControl(30_000)).build()
+        val cap = if (chrome.prewarm) 12_000 else 30_000
+        b.setLoadControl(loadControl(cap, startMs = 800, minBufferMs = cap))
+            .build().also { AppLog.d("trailer make $videoId ${System.identityHashCode(it)}") }
     }
     val fade by animateFloatAsState(if (started) 1f else 0f, label = "trailerFade")
 
@@ -98,23 +102,7 @@ internal fun TrailerHero(
     }
 
     DisposableEffect(videoId) {
-        onDispose {
-            exo.release()
-            onSurface(null)
-        }
-    }
-    LaunchedEffect(videoId) {
-        TrailerBridge.warm()
-        stream = TrailerBridge.resolve(videoId)
-    }
-    LaunchedEffect(stream) {
-        val s = stream ?: return@LaunchedEffect
-        AppLog.d("trailer src ${if (s.hls != null) "hls" else "adaptive"} audio=${audio != null}")
-        exo.setMediaSource(source(ctx, s))
-        exo.volume = if (muted) 0f else 1f
-        exo.repeatMode = Player.REPEAT_MODE_ONE
-        exo.playWhenReady = true
-        exo.addListener(object : Player.Listener {
+        val l = object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 started = true
             }
@@ -127,13 +115,32 @@ internal fun TrailerHero(
             override fun onPlaybackStateChanged(state: Int) {
                 AppLog.d("trailer state $state")
             }
-        })
+        }
+        exo.addListener(l)
+        onDispose {
+            exo.removeListener(l)
+            AppLog.d("trailer release $videoId")
+            exo.release()
+            onSurface(null)
+        }
+    }
+    LaunchedEffect(videoId) {
+        TrailerBridge.warm()
+        stream = TrailerBridge.resolve(videoId)
+    }
+    // keyed on the url: the same stream arriving twice must not reload the source mid-play
+    LaunchedEffect(stream?.hls ?: stream?.video) {
+        val s = stream ?: return@LaunchedEffect
+        AppLog.d("trailer src ${if (s.hls != null) "hls" else "adaptive"} audio=${audio != null}")
+        exo.setMediaSource(source(ctx, s))
+        exo.volume = if (muted || chrome.prewarm) 0f else 1f
+        exo.repeatMode = Player.REPEAT_MODE_ONE
+        exo.playWhenReady = !chrome.prewarm
         exo.prepare()
     }
     LaunchedEffect(stream) {
         while (isActive) {
             pos = exo.currentPosition.coerceAtLeast(0)
-            dur = exo.duration.coerceAtLeast(0)
             buffering = exo.playbackState == Player.STATE_BUFFERING || exo.playbackState == Player.STATE_IDLE
             delay(250)
         }
@@ -146,7 +153,13 @@ internal fun TrailerHero(
         }
     }
     LaunchedEffect(muted) {
-        exo.volume = if (muted) 0f else 1f
+        exo.volume = if (muted || chrome.prewarm) 0f else 1f
+    }
+    // the buffered clip takes over the moment the swipe lands on it
+    LaunchedEffect(chrome.prewarm, chrome.paused, stream) {
+        if (stream == null) return@LaunchedEffect
+        exo.volume = if (muted || chrome.prewarm) 0f else 1f
+        exo.playWhenReady = !chrome.prewarm && !chrome.paused
     }
 
     Box(modifier) {
@@ -170,7 +183,7 @@ internal fun TrailerHero(
         Box(Modifier.fillMaxSize().pointerInput(stream) {
             detectTapGestures { if (stream != null) toggle() }
         })
-        if (stream != null && buffering) {
+        if (stream != null && buffering && poster == null) {
             CircularProgressIndicator(
                 color = Cyan,
                 strokeWidth = 3.dp,
@@ -193,42 +206,47 @@ internal fun TrailerHero(
         if (stream != null) {
             IconButton(
                 onClick = { muted = !muted },
-                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
-                    .size(32.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
+                modifier = (if (chrome.muteBottom != null) {
+                    Modifier.align(Alignment.BottomEnd).padding(end = chrome.muteEnd, bottom = chrome.muteBottom)
+                } else {
+                    Modifier.align(Alignment.TopEnd).padding(top = 12.dp + chrome.topInset, end = 12.dp)
+                })
+                    .size(34.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.42f)),
             ) {
                 Icon(
                     painter = painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on),
                     contentDescription = if (muted) stringResource(R.string.player_unmute) else stringResource(R.string.player_mute),
                     tint = Color.White,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(22.dp),
                 )
             }
         }
-        if (stream != null && started) {
-            Column(
+        if (chrome.progress && stream != null) {
+            Row(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                     .background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.62f)))
-                    .padding(start = 14.dp, end = 14.dp, top = 26.dp, bottom = 12.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 12.dp + chrome.bottomInset),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "${playerClock(pos)} / ${playerClock(dur)}",
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                )
-                Spacer(Modifier.height(6.dp))
                 Box(
-                    Modifier.fillMaxWidth().height(3.dp).clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.22f))
+                    Modifier.weight(1f).height(3.dp).clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.26f))
                         .drawBehind {
-                            if (frac.floatValue > 0f) {
-                                drawRoundRect(
-                                    color = Color.White,
-                                    size = Size(size.width * frac.floatValue, size.height),
-                                    cornerRadius = CornerRadius(size.height / 2f),
-                                )
-                            }
+                            val done = size.width * frac.floatValue
+                            if (done <= 0f) return@drawBehind
+                            drawRoundRect(
+                                color = Color.White,
+                                size = Size(done, size.height),
+                                cornerRadius = CornerRadius(size.height / 2f),
+                            )
+                            drawCircle(Color.White, size.height * 1.7f, Offset(done, size.height / 2f))
                         },
+                )
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    playerClock(pos),
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 11.sp,
                 )
             }
         }
@@ -238,9 +256,9 @@ internal fun TrailerHero(
 private fun source(ctx: Context, s: TrailerBridge.Result): MediaSource {
     val hls = s.hls
     if (hls != null) {
-        return HlsMediaSource.Factory(DefaultDataSource.Factory(ctx)).createMediaSource(MediaItem.fromUri(hls))
+        return HlsMediaSource.Factory(TrailerCache.dataSource(ctx)).createMediaSource(MediaItem.fromUri(hls))
     }
-    val factory = ProgressiveMediaSource.Factory(DefaultDataSource.Factory(ctx))
+    val factory = ProgressiveMediaSource.Factory(TrailerCache.dataSource(ctx))
     return MergingMediaSource(
         factory.createMediaSource(MediaItem.fromUri(s.video!!)),
         factory.createMediaSource(MediaItem.fromUri(s.audio!!)),

@@ -80,6 +80,9 @@ import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.ui.BrowseState
+import dev.phantomwatch.ui.ClipsScreen
+import dev.phantomwatch.ui.clipKeyOf
+import dev.phantomwatch.ui.Route
 import dev.phantomwatch.ui.DetailPane
 import dev.phantomwatch.ui.HomeLiquidTabs
 import dev.phantomwatch.ui.settings.SettingsAction
@@ -114,6 +117,11 @@ internal fun AppRoot() {
         SubsApi.init(context)
         DeadHosts.init(context)
         TrailerBridge.warm()
+    }
+    // the clips tab opens on this title, and resolving is what makes the first swipe feel slow
+    LaunchedEffect(browse.trending) {
+        val first = browse.trending.firstOrNull() ?: return@LaunchedEffect
+        clipKeyOf(first)?.let { TrailerBridge.resolve(it) }
     }
     val ask = PlayRequest.pending
     LaunchedEffect(ask) {
@@ -180,6 +188,9 @@ internal fun AppRoot() {
                     },
                     detailPane = { item, onClose, onPlay, startEpisodes ->
                         DetailPane(item, onClose, onPlay, startEpisodes, onClose)
+                    },
+                    clipsScreen = { open ->
+                        ClipsScreen(titles = browse.trending, onOpen = open, paused = browse.openTitle != null)
                     },
                     youScreen = {
                         val settings = remember(youRev) { liveSettings(context) }

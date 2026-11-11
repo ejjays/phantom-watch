@@ -1,6 +1,7 @@
 package dev.phantomwatch.data
 
 import dev.phantomwatch.core.Log
+import dev.phantomwatch.json.JSONArray
 import dev.phantomwatch.json.JSONObject
 import dev.phantomwatch.core.httpJson
 import dev.phantomwatch.core.ioDispatcher
@@ -158,21 +159,7 @@ object Tmdb {
                     if (arr.length() > 0) runtime = arr.optInt(0)
                 }
             }
-            var trailer: String? = null
-            var best = -1
-            e.optJSONObject("videos")?.optJSONArray("results")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val v = arr.optJSONObject(i) ?: continue
-                    if (v.optString("site") != "YouTube" || v.optString("type") != "Trailer") continue
-                    val key = v.optString("key")
-                    if (key.isEmpty()) continue
-                    val score = (if (v.optBoolean("official")) 2 else 0) + (if (v.optString("iso_639_1") == "en") 1 else 0)
-                    if (score >= best) {
-                        best = score
-                        trailer = key
-                    }
-                }
-            }
+            val trailer = pickVideo(e.optJSONObject("videos")?.optJSONArray("results"))
             TitleDetail(
                 id, kind, name, e.optString("overview"),
                 img(e.optString("poster_path"), "w342"),
@@ -361,5 +348,39 @@ object Tmdb {
         } catch (_: Exception) {
             emptyList()
         }
+    }
+
+    // the clip feed wants a key per title without paying for a full detail call
+    suspend fun clipKey(apiKey: String, kind: String, id: String): String? = try {
+        val path = if (kind == "movie") "movie" else "tv"
+        val e = httpJson("${TmdbHost.base}/$path/$id/videos?api_key=$apiKey", "https://www.themoviedb.org/")
+        pickVideo(e?.optJSONArray("results"))
+    } catch (_: Exception) {
+        null
+    }
+
+    // a full trailer beats a teaser beats a bare scene; official and english win the ties
+    private fun pickVideo(arr: JSONArray?): String? {
+        if (arr == null) return null
+        var best = -1
+        var key: String? = null
+        for (i in 0 until arr.length()) {
+            val v = arr.optJSONObject(i) ?: continue
+            if (v.optString("site") != "YouTube") continue
+            val rank = when (v.optString("type")) {
+                "Trailer" -> 3
+                "Teaser" -> 2
+                "Clip" -> 1
+                else -> continue
+            }
+            val k = v.optString("key")
+            if (k.isEmpty()) continue
+            val score = rank * 4 + (if (v.optBoolean("official")) 2 else 0) + (if (v.optString("iso_639_1") == "en") 1 else 0)
+            if (score > best) {
+                best = score
+                key = k
+            }
+        }
+        return key
     }
 }
