@@ -26,6 +26,17 @@ object Tmdb {
     internal fun img(path: String?, size: String): String? =
         path?.takeIf { it.startsWith("/") }?.let { "${TmdbHost.image}$size$it" }
 
+    // talk, news and reality fill TMDB's tv lists; this app is movies and scripted series
+    private val unscripted = setOf(10763, 10764, 10767)
+
+    private fun isUnscripted(e: JSONObject): Boolean {
+        val type = e.optString("media_type").ifEmpty { if (e.has("title")) "movie" else "tv" }
+        if (type != "tv") return false
+        val g = e.optJSONArray("genre_ids") ?: return false
+        for (i in 0 until g.length()) if (g.optInt(i, -1) in unscripted) return true
+        return false
+    }
+
     internal fun titleOf(e: JSONObject): Title? {
         val type = e.optString("media_type").ifEmpty {
             if (e.has("title")) "movie" else "tv"
@@ -54,7 +65,9 @@ object Tmdb {
         val results = data.optJSONArray("results") ?: return emptyList()
         val out = mutableListOf<Title>()
         for (i in 0 until results.length()) {
-            titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
+            val e = results.optJSONObject(i) ?: continue
+            if (isUnscripted(e)) continue
+            titleOf(e)?.let { out.add(it) }
         }
         Log.d("trending ${out.size}")
         return out.distinctBy { it.kind to it.id }
@@ -71,7 +84,9 @@ object Tmdb {
             val results = data.optJSONArray("results") ?: return null
             val out = mutableListOf<Title>()
             for (i in 0 until results.length()) {
-                titleOf(results.optJSONObject(i) ?: continue)?.let { out.add(it) }
+                val e = results.optJSONObject(i) ?: continue
+                if (isUnscripted(e)) continue
+                titleOf(e)?.let { out.add(it) }
             }
             RailPage(out.distinctBy { it.kind to it.id }, data.optInt("total_pages", 1).coerceAtLeast(1))
         } catch (_: Exception) {
