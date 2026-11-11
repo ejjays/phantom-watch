@@ -136,19 +136,16 @@ private fun railDefs(country: Country): List<RailDef> = listOfNotNull(
     RailDef("tv-popular", Res.string.rail_tv_popular, "tv/popular"),
     RailDef("tv-top", Res.string.rail_tv_top, "tv/top_rated"),
     RailDef("anime", Res.string.rail_anime, "discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc"),
-    comingSoon(country),
+    comingSoon(),
 )
 
 // tmdb's upcoming list keeps films that already opened (it tracks the us physical window too),
-// so this asks by release date instead: nothing dated before today can appear
-private fun comingSoon(country: Country): RailDef {
-    val region = if (country.code.length == 2) "&region=${country.code}" else ""
-    return RailDef(
-        "soon",
-        Res.string.rail_soon,
-        "discover/movie?release_date.gte=${todayIso()}&with_release_type=2%7C3&sort_by=popularity.desc$region",
-    )
-}
+// so this asks by primary release date, the same date the card shows, and nothing older can appear
+private fun comingSoon(): RailDef = RailDef(
+    "soon",
+    Res.string.rail_soon,
+    "discover/movie?primary_release_date.gte=${todayIso()}&with_release_type=2%7C3&sort_by=popularity.desc",
+)
 
 private fun localRail(country: Country): RailDef? {
     if (country.code.length != 2) return null
