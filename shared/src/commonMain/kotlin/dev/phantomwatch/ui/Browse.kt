@@ -539,7 +539,7 @@ private fun BrowseHeader(scrolled: Boolean, onSearch: () -> Unit) {
                 modifier = Modifier.size(if (isExpanded(screenW)) 24.dp else 22.dp),
             )
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(Res.string.browse_brand), color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(stringResource(Res.string.browse_brand), color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal, modifier = Modifier.weight(1f))
             Box(
                 Modifier.size(34.dp).clip(CircleShape).clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center,
