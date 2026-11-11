@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import dev.phantomwatch.core.Log
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.res.*
 import org.jetbrains.compose.resources.painterResource
@@ -55,8 +56,16 @@ fun PosterCard(
     Column(Modifier.width(width).pressClick { onOpen(item) }) {
         Box(Modifier.clip(RoundedCornerShape(radius.value.dp)).background(Color.White.copy(alpha = 0.05f))) {
             val poster = item.poster
-            if (poster != null) {
-                AsyncImage(model = poster, contentDescription = item.title, modifier = Modifier.size(width, height), contentScale = ContentScale.Crop)
+            var failed by remember(item.id) { mutableStateOf(false) }
+            if (poster != null && !failed) {
+                AsyncImage(
+                    model = poster, contentDescription = item.title, modifier = Modifier.size(width, height),
+                    contentScale = ContentScale.Crop,
+                    onError = { st ->
+                        failed = true
+                        Log.d("poster err ${item.id} ${st.result.throwable.message}")
+                    },
+                )
             } else {
                 Box(Modifier.size(width, height), contentAlignment = Alignment.Center) {
                     Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate500, modifier = Modifier.size(playSize))
