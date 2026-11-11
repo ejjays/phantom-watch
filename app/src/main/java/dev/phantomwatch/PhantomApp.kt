@@ -16,6 +16,7 @@ class PhantomApp : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashReport.install(this)
+        AppLog.init(this)
         // app-wide, not per-activity: an AppFunction call wakes the service with no activity at all
         RemoteConfig.load(this)
         Log.sink = AppLog::d
