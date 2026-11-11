@@ -129,9 +129,9 @@ private data class RailDef(
 )
 
 private fun railDefs(country: Country): List<RailDef> = listOfNotNull(
-    RailDef("popular", Res.string.rail_popular, "movie/popular", ranked = true),
-    RailDef("top", Res.string.rail_top, "movie/top_rated"),
     localRail(country),
+    RailDef("top", Res.string.rail_top, "movie/top_rated"),
+    RailDef("popular", Res.string.rail_popular, "movie/popular", ranked = true),
     RailDef("tv-popular", Res.string.rail_tv_popular, "tv/popular"),
     RailDef("tv-top", Res.string.rail_tv_top, "tv/top_rated"),
     RailDef("airing", Res.string.rail_airing, "tv/airing_today"),
