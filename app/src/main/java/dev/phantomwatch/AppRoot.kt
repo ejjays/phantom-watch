@@ -93,6 +93,7 @@ import dev.phantomwatch.ui.settings.SettingsScreen
 import dev.phantomwatch.ui.HomeScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -361,12 +362,19 @@ private fun LogFab() {
     }
     if (open) {
         val clip = LocalClipboardManager.current
+        var lines by remember { mutableStateOf(AppLog.snapshot()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                lines = AppLog.snapshot()
+                delay(400)
+            }
+        }
         AlertDialog(
             onDismissRequest = { open = false },
-            title = { Text(stringResource(R.string.approot_logs_title, AppLog.lines.size)) },
+            title = { Text(stringResource(R.string.approot_logs_title, lines.size)) },
             text = {
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    items(AppLog.lines) { line ->
+                    items(lines) { line ->
                         Text(
                             line,
                             style = MaterialTheme.typography.bodySmall,
@@ -379,7 +387,7 @@ private fun LogFab() {
                 Row {
                     TextButton(onClick = { AppLog.clear() }) { Text(stringResource(R.string.approot_logs_clear)) }
                     TextButton(onClick = {
-                        clip.setText(AnnotatedString(AppLog.lines.joinToString("\n")))
+                        clip.setText(AnnotatedString(AppLog.snapshot().joinToString("\n")))
                     }) { Text(stringResource(R.string.approot_logs_copy)) }
                     TextButton(onClick = { open = false }) { Text(stringResource(R.string.common_close)) }
                 }

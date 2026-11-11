@@ -32,7 +32,7 @@ object CrashReport {
             append(Log.getStackTraceString(e).ifEmpty { e.stackTraceToString() })
             appendLine()
             appendLine("--- last log ---")
-            AppLog.lines.takeLast(150).forEach { appendLine(it) }
+            AppLog.snapshot().takeLast(150).forEach { appendLine(it) }
         }.take(60000)
         ctx.filesDir.resolve(FILE).writeText(text)
         mirror(ctx, text)
