@@ -141,7 +141,9 @@ string|player_subs_on|VHVybiBzdWJ0aXRsZXMgb24=
 string|player_unlocked|VW5sb2NrZWQ=
 string|player_unmute|VW5tdXRl
 string|rail_airing|QWlyaW5nIFRvZGF5
-string|rail_now|Tm93IFBsYXlpbmc=
+string|rail_chart|VG9wIDEwIGluICUxJHM=
+string|rail_continue|Q29udGludWUgV2F0Y2hpbmc=
+string|rail_local|VG9wIDEwIE1vdmllcyBmcm9tICUxJHM=
 string|rail_popular|VG9wIDEwIE1vdmllcyBUb2RheQ==
 string|rail_top|VG9wIFJhdGVk
 string|rail_tv_popular|UG9wdWxhciBTZXJpZXM=
@@ -161,6 +163,7 @@ string|stat_rating|UmF0aW5n
 string|stat_released|UmVsZWFzZWQ=
 string|stat_runtime|UnVudGltZQ==
 string|stat_votes|Vm90ZXM=
+string|tab_clips|Q2xpcHM=
 string|tab_home|SG9tZQ==
 string|tab_library|TGlicmFyeQ==
 string|tab_search|U2VhcmNo
