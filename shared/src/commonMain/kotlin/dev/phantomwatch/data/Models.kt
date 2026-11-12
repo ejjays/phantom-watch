@@ -94,6 +94,12 @@ data class RailPage(
     val totalPages: Int,
 )
 
+data class Account(
+    val name: String,
+    val email: String,
+    val picture: String?,
+)
+
 data class Recent(
     val kind: String,
     val id: String,

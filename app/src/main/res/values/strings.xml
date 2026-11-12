@@ -188,5 +188,6 @@
     <string name="history_removed">Removed %1$s</string>
     <string name="history_undo">Undo</string>
     <string name="you_history_cleared">Watch history cleared</string>
+    <string name="you_sign_in_failed">Sign-in failed. Try again.</string>
     <string name="clips_empty">No clips to show right now.</string>
 </resources>

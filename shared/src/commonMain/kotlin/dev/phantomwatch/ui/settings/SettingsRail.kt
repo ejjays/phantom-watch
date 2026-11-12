@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.phantomwatch.data.Account
 import dev.phantomwatch.res.*
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
@@ -42,6 +43,7 @@ internal fun SettingsRail(
     selected: Int,
     version: String,
     width: Dp,
+    account: Account?,
     onSelect: (Int) -> Unit,
 ) {
     Column(
@@ -53,9 +55,11 @@ internal fun SettingsRail(
             .selectableGroup(),
     ) {
         SettingsProfile(
-            name = stringResource(Res.string.you_profile_guest),
-            subtitle = version,
+            name = account?.let { it.name.ifBlank { it.email.substringBefore('@') } }
+                ?: stringResource(Res.string.you_profile_guest),
+            subtitle = account?.email ?: version,
             compact = true,
+            picture = account?.picture,
         )
         Spacer(Modifier.height(24.dp))
         categories.forEachIndexed { index, category ->

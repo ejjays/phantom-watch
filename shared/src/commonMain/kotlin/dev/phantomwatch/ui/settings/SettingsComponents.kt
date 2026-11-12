@@ -36,11 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import dev.phantomwatch.res.*
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -51,6 +53,7 @@ internal fun SettingsProfile(
     name: String,
     subtitle: String? = null,
     compact: Boolean = false,
+    picture: String? = null,
 ) {
     val avatar = if (compact) 44.dp else 96.dp
     val glyph = if (compact) 20.dp else 40.dp
@@ -62,12 +65,21 @@ internal fun SettingsProfile(
                 .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(Res.drawable.ic_row_person),
-                contentDescription = null,
-                tint = SettingsText2,
-                modifier = Modifier.size(glyph),
-            )
+            if (picture != null) {
+                AsyncImage(
+                    model = picture,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
+                )
+            } else {
+                Icon(
+                    painter = painterResource(Res.drawable.ic_row_person),
+                    contentDescription = null,
+                    tint = SettingsText2,
+                    modifier = Modifier.size(glyph),
+                )
+            }
         }
         Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
         Text(

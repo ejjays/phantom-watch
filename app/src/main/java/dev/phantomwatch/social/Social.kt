@@ -6,6 +6,7 @@ import dev.phantomwatch.BuildConfig
 import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Http
+import dev.phantomwatch.data.Account
 import java.time.OffsetDateTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,36 @@ internal object Social {
     }
 
     fun me(): String? = prefs?.getString("uid", null)
+
+    fun account(): Account? {
+        val p = prefs ?: return null
+        val email = p.getString("email", null)?.takeIf { it.isNotEmpty() } ?: return null
+        return Account(
+            name = p.getString("name", null).orEmpty(),
+            email = email,
+            picture = p.getString("picture", null)?.takeIf { it.isNotEmpty() },
+        )
+    }
+
+    suspend fun signInWithGoogle(idToken: String): Boolean {
+        val p = prefs ?: return false
+        val r = call(
+            "/auth/v1/token?grant_type=id_token", "POST", null,
+            JSONObject().put("provider", "google").put("id_token", idToken).toString(),
+        )
+        if (r.code !in 200..299) {
+            AppLog.d("community google ${r.code} ${r.body.take(160)}")
+            return false
+        }
+        return runCatching { saveSession(p, JSONObject(r.body)) != null }.getOrDefault(false)
+    }
+
+    fun signOut() {
+        prefs?.edit()
+            ?.remove("at")?.remove("rt")?.remove("uid")?.remove("exp")
+            ?.remove("name")?.remove("email")?.remove("picture")?.apply()
+        statsCache.clear()
+    }
 
     internal fun validCommentBody(body: String): Boolean = body.isNotBlank() && body.trim().length <= 500
 
@@ -198,15 +229,25 @@ internal object Social {
 
     private fun saveSession(p: SharedPreferences, o: JSONObject): Pair<String, String>? {
         val at = o.optString("access_token").takeIf { it.isNotEmpty() } ?: return null
-        val uid = o.optJSONObject("user")?.optString("id")?.takeIf { it.isNotEmpty() } ?: return null
+        val user = o.optJSONObject("user") ?: return null
+        val uid = user.optString("id").takeIf { it.isNotEmpty() } ?: return null
         val exp = o.optLong("expires_at", 0).takeIf { it > 0 }
             ?: (System.currentTimeMillis() / 1000 + o.optLong("expires_in", 3600))
-        p.edit()
+        val edit = p.edit()
             .putString("at", at)
             .putString("rt", o.optString("refresh_token"))
             .putString("uid", uid)
             .putLong("exp", exp * 1000)
-            .apply()
+        val meta = user.optJSONObject("user_metadata")
+        val name = meta?.optString("full_name").orEmpty().ifBlank { meta?.optString("name").orEmpty() }
+        val email = user.optString("email").orEmpty()
+        // anonymous sessions have neither, so they never wipe the google profile
+        if (name.isNotEmpty() || email.isNotEmpty()) {
+            edit.putString("name", name)
+                .putString("email", email)
+                .putString("picture", meta?.optString("avatar_url").orEmpty())
+        }
+        edit.apply()
         return at to uid
     }
 

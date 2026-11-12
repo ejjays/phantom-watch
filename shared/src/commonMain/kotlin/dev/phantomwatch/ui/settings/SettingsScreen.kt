@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.phantomwatch.data.Account
 import dev.phantomwatch.ui.PlatformBackHandler
 import dev.phantomwatch.ui.screenWidthDp
 
@@ -36,8 +37,14 @@ data class SettingsData(
     val version: String,
     val providerCount: Int,
     val settings: Map<String, Int>,
+    val account: Account? = null,
+    val accountBusy: Boolean = false,
+    val accountError: String? = null,
+    val googleReady: Boolean = false,
     val onValue: (String, Int) -> Unit,
     val onAction: (SettingsAction) -> Unit,
+    val onSignIn: () -> Unit = {},
+    val onSignOut: () -> Unit = {},
 )
 
 @Composable
@@ -71,6 +78,7 @@ fun SettingsScreen(data: SettingsData) {
                             selected = open,
                             version = data.version,
                             width = settingsRailWidth(pane),
+                            account = data.account,
                             onSelect = { open = it },
                         )
                         Box(Modifier.width(1.dp).fillMaxHeight().background(SettingsHairline))
@@ -118,6 +126,7 @@ fun SettingsScreen(data: SettingsData) {
                                     categories = categories,
                                     gutter = settingsGutter(pane),
                                     onOpen = { open = it },
+                                    data = data,
                                 )
                             }
                         }

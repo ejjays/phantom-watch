@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +79,8 @@ import dev.phantomwatch.player.SourcesScreen
 import dev.phantomwatch.player.TrailerBridge
 import dev.phantomwatch.player.TrailerCache
 import dev.phantomwatch.player.navLabel
+import dev.phantomwatch.social.GoogleAuth
+import dev.phantomwatch.social.Social
 import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
@@ -111,6 +114,32 @@ internal fun AppRoot() {
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
     var youRev by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+    var accountBusy by remember { mutableStateOf(false) }
+    var accountError by remember { mutableStateOf<String?>(null) }
+    val signIn = {
+        if (!accountBusy) {
+            accountBusy = true
+            accountError = null
+            scope.launch {
+                try {
+                    when (val r = GoogleAuth.signIn(context, BuildConfig.GOOGLE_WEB_CLIENT_ID)) {
+                        is GoogleAuth.Result.Token -> {
+                            val ok = withContext(Dispatchers.IO) { Social.signInWithGoogle(r.idToken) }
+                            if (ok) youRev++ else accountError = context.getString(R.string.you_sign_in_failed)
+                        }
+                        GoogleAuth.Result.Cancelled -> Unit
+                        is GoogleAuth.Result.Failed -> {
+                            AppLog.d("google sign-in failed: ${r.reason}")
+                            accountError = context.getString(R.string.you_sign_in_failed)
+                        }
+                    }
+                } finally {
+                    accountBusy = false
+                }
+            }
+        }
+    }
     var crash by remember { mutableStateOf(CrashReport.pending(context)) }
     LaunchedEffect(screen, Pip.playing) {
         (context as? MainActivity)?.armPip(screen is Screen.Player, Pip.playing)
@@ -206,6 +235,10 @@ internal fun AppRoot() {
                                 version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                                 providerCount = providerCount(),
                                 settings = settings,
+                                account = remember(youRev) { Social.account() },
+                                accountBusy = accountBusy,
+                                accountError = accountError,
+                                googleReady = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank(),
                                 onValue = { key, value -> applySetting(context, key, value); youRev++ },
                                 onAction = { action ->
                                     when (action) {
@@ -219,6 +252,12 @@ internal fun AppRoot() {
                                         SettingsAction.Privacy -> openUrl(context, RELEASE_URL + "#privacy")
                                         SettingsAction.Feedback -> openUrl(context, RELEASE_URL + "/issues")
                                     }
+                                },
+                                onSignIn = signIn,
+                                onSignOut = {
+                                    Social.signOut()
+                                    accountError = null
+                                    youRev++
                                 },
                             ),
                         )
