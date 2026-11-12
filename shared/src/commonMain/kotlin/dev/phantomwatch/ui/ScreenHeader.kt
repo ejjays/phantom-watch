@@ -24,7 +24,7 @@ import dev.phantomwatch.res.*
 
 // pushed views show a back arrow; on History back is the tab bar
 @Composable
-fun ScreenHeader(title: String, onBack: (() -> Unit)?) {
+fun ScreenHeader(title: String, onBack: (() -> Unit)?, lilita: Boolean = false) {
     val screenW = screenWidthDp()
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(start = 8.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
@@ -37,8 +37,14 @@ fun ScreenHeader(title: String, onBack: (() -> Unit)?) {
             Spacer(Modifier.width(4.dp))
         }
         Text(
-            title, color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp, fontFamily = Rubik,
-            fontWeight = if (isExpanded(screenW)) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            title, color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp,
+            fontFamily = if (lilita) Lilita else Rubik,
+            fontWeight = when {
+                lilita -> FontWeight.Normal
+                isExpanded(screenW) -> FontWeight.Bold
+                else -> FontWeight.SemiBold
+            },
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
     }

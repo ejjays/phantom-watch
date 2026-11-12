@@ -73,7 +73,7 @@ fun HistoryScreen(
     val latest = rememberUpdatedState(recent)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ScreenHeader(stringResource(Res.string.history_title), null)
+            ScreenHeader(stringResource(Res.string.history_title), null, lilita = true)
             if (recent.isEmpty()) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(stringResource(Res.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
@@ -83,7 +83,7 @@ fun HistoryScreen(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(cols),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 128.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
