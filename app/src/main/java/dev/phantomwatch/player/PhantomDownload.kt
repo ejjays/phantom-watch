@@ -109,6 +109,16 @@ internal object PhantomDownload {
         false
     }
 
+    fun open(context: Context) {
+        val launch = context.packageManager.getLaunchIntentForPackage(PHANTOM)
+        if (launch == null) {
+            openInstall(context)
+        } else {
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(launch)
+        }
+    }
+
     fun openInstall(context: Context) {
         try {
             context.startActivity(

@@ -1,8 +1,8 @@
 package dev.phantomwatch.ui.settings
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,33 +49,37 @@ internal fun SettingsDetail(
     var confirmClear by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            Modifier.align(Alignment.TopCenter).widthIn(max = SettingsContentMax).fillMaxWidth(),
-            contentPadding = PaddingValues(start = gutter, end = gutter, top = 16.dp, bottom = SettingsNavClearance),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item("header") {
-                Row(Modifier.heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (showBack) {
-                        BackButton(onBack)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text(
-                        stringResource(category.title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = SettingsText,
+        Column(Modifier.align(Alignment.TopCenter).widthIn(max = SettingsContentMax).fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                    .padding(start = if (showBack) 8.dp else gutter, end = gutter),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (showBack) {
+                    BackButton(onBack)
+                    Spacer(Modifier.width(2.dp))
+                }
+                Text(
+                    stringResource(category.title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = SettingsText,
+                )
+            }
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(top = 20.dp, bottom = SettingsNavClearance),
+            ) {
+                item("items") {
+                    SettingsGroup(
+                        items = category.items,
+                        state = state,
+                        gutter = gutter,
+                        onValue = onValue,
+                        onAction = { action ->
+                            if (action == SettingsAction.ClearHistory) confirmClear = true else onAction(action)
+                        },
                     )
                 }
-            }
-            item("items") {
-                SettingsGroup(
-                    items = category.items,
-                    state = state,
-                    onValue = onValue,
-                    onAction = { action ->
-                        if (action == SettingsAction.ClearHistory) confirmClear = true else onAction(action)
-                    },
-                )
             }
         }
     }

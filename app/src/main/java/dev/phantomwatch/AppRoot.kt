@@ -52,7 +52,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
+import dev.phantomwatch.ui.WorkSans
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.airbnb.lottie.compose.LottieAnimation
@@ -70,6 +70,7 @@ import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Resume
+import dev.phantomwatch.player.PhantomDownload
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.PlayerUi
 import dev.phantomwatch.player.Playback
@@ -251,6 +252,7 @@ internal fun AppRoot() {
                                         SettingsAction.Licences -> openUrl(context, RELEASE_URL + "#licence")
                                         SettingsAction.Privacy -> openUrl(context, RELEASE_URL + "#privacy")
                                         SettingsAction.Feedback -> openUrl(context, RELEASE_URL + "/issues")
+                                        SettingsAction.GetPhantom -> PhantomDownload.open(context)
                                     }
                                 },
                                 onSignIn = signIn,
@@ -350,7 +352,7 @@ internal fun AppRoot() {
                 Text(
                     text.take(700),
                     style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = WorkSans,
                 )
             },
             confirmButton = {
@@ -417,7 +419,7 @@ private fun LogFab() {
                         Text(
                             line,
                             style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = WorkSans,
                         )
                     }
                 }

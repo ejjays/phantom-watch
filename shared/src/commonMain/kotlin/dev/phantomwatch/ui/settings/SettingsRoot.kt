@@ -14,29 +14,29 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.phantomwatch.res.*
+import dev.phantomwatch.ui.Lilita
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
+
+private val GeneralIds = setOf("playback", "subtitles", "library")
 
 @Composable
 internal fun SettingsRoot(
@@ -45,52 +45,73 @@ internal fun SettingsRoot(
     onOpen: (Int) -> Unit,
     data: SettingsData,
 ) {
+    val general = categories.filter { it.id in GeneralIds }
+    val app = categories.filterNot { it.id in GeneralIds }
+
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            Modifier.align(Alignment.TopCenter).widthIn(max = SettingsContentMax).fillMaxWidth(),
-            contentPadding = PaddingValues(start = gutter, end = gutter, top = 24.dp, bottom = SettingsNavClearance),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            item("profile") {
-                val account = data.account
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    SettingsProfile(
-                        name = account?.let { it.name.ifBlank { it.email.substringBefore('@') } }
-                            ?: stringResource(Res.string.you_profile_guest),
-                        subtitle = account?.email ?: stringResource(Res.string.you_profile_note),
-                        picture = account?.picture,
-                    )
-                    if (data.googleReady) {
-                        Spacer(Modifier.height(16.dp))
-                        if (account == null) {
+        Column(Modifier.align(Alignment.TopCenter).widthIn(max = SettingsContentMax).fillMaxWidth()) {
+            Text(
+                stringResource(Res.string.you_title_settings),
+                color = SettingsText,
+                fontSize = 28.sp,
+                fontFamily = Lilita,
+                fontWeight = FontWeight.Normal,
+                modifier = Modifier.padding(start = 8.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+            )
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(top = 12.dp, bottom = SettingsNavClearance),
+            ) {
+                item("account") {
+                    val account = data.account
+                    Column(Modifier.padding(horizontal = gutter)) {
+                        SettingsAccountHeader(
+                            name = account?.let { it.name.ifBlank { it.email.substringBefore('@') } }
+                                ?: stringResource(Res.string.you_profile_guest),
+                            subtitle = account?.email ?: stringResource(Res.string.you_profile_note),
+                            picture = account?.picture,
+                        )
+                        if (data.googleReady && account == null) {
+                            Spacer(Modifier.height(16.dp))
                             SignInButton(data.accountBusy, data.onSignIn)
-                        } else {
-                            TextButton(onClick = data.onSignOut) {
-                                Text(
-                                    stringResource(Res.string.you_sign_out),
-                                    color = SettingsText2,
-                                    style = MaterialTheme.typography.labelLarge,
-                                )
-                            }
                         }
                         data.accountError?.let {
                             Spacer(Modifier.height(8.dp))
-                            Text(it, color = Color(0xFFF87171), style = MaterialTheme.typography.bodySmall)
+                            Text(it, color = SettingsError, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
-            }
-            item("categories") {
-                Column(Modifier.clip(RoundedCornerShape(16.dp)).background(SettingsSurface)) {
-                    categories.forEachIndexed { index, category ->
-                        if (index > 0) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 52.dp),
-                                thickness = 1.dp,
-                                color = SettingsHairline,
-                            )
+                item("banner") {
+                    Spacer(Modifier.height(28.dp))
+                    Box(Modifier.padding(horizontal = gutter)) {
+                        SettingsDownloadCard(
+                            title = stringResource(Res.string.you_offline_title),
+                            subtitle = stringResource(Res.string.you_offline_note),
+                            onClick = { data.onAction(SettingsAction.GetPhantom) },
+                        )
+                    }
+                }
+                item("general") {
+                    SettingsSectionLabel(
+                        stringResource(Res.string.you_section_general),
+                        Modifier.padding(start = gutter, end = gutter, top = 20.dp, bottom = 8.dp),
+                    )
+                    CategoryList(general, categories, gutter, onOpen)
+                }
+                item("app") {
+                    SettingsSectionLabel(
+                        stringResource(Res.string.you_section_app),
+                        Modifier.padding(start = gutter, end = gutter, top = 24.dp, bottom = 8.dp),
+                    )
+                    CategoryList(app, categories, gutter, onOpen)
+                }
+                if (data.googleReady && data.account != null) {
+                    item("signout") {
+                        Column(Modifier.padding(start = gutter, end = gutter, top = 24.dp)) {
+                            SettingsDangerRow(Res.drawable.ic_row_logout, stringResource(Res.string.you_sign_out)) {
+                                data.onSignOut()
+                            }
                         }
-                        CategoryRow(category) { onOpen(index) }
                     }
                 }
             }
@@ -99,25 +120,33 @@ internal fun SettingsRoot(
 }
 
 @Composable
-private fun CategoryRow(category: SettingCategory, onClick: () -> Unit) {
+private fun CategoryList(rows: List<SettingCategory>, all: List<SettingCategory>, gutter: Dp, onOpen: (Int) -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        rows.forEach { category ->
+            CategoryRow(category, gutter) { onOpen(all.indexOf(category)) }
+        }
+    }
+}
+
+@Composable
+private fun CategoryRow(category: SettingCategory, gutter: Dp, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
-            .heightIn(min = 64.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .heightIn(min = 52.dp)
+            .padding(horizontal = gutter, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             painter = painterResource(category.icon),
             contentDescription = null,
             tint = SettingsText,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(22.dp),
         )
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).padding(start = 16.dp)) {
             Text(
                 stringResource(category.title),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
                 color = SettingsText,
             )
             Text(
@@ -136,19 +165,19 @@ private fun CategoryRow(category: SettingCategory, onClick: () -> Unit) {
 @Composable
 private fun SignInButton(busy: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.widthIn(max = 320.dp).fillMaxWidth().heightIn(min = 48.dp)
+        Modifier.fillMaxWidth().heightIn(min = 48.dp)
             .clip(CircleShape)
-            .background(SettingsText)
+            .background(SettingsSurface)
             .clickable(enabled = !busy, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (busy) {
-            CircularProgressIndicator(color = SettingsCanvas, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+            CircularProgressIndicator(color = SettingsAccent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
         } else {
             Text(
                 stringResource(Res.string.you_sign_in_google),
-                color = SettingsCanvas,
-                style = MaterialTheme.typography.titleSmall,
+                color = SettingsAccent,
+                style = MaterialTheme.typography.titleMedium,
             )
         }
     }

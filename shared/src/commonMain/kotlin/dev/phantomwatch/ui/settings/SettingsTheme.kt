@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.ui.Bg
 import dev.phantomwatch.ui.Cyan
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate100
 import dev.phantomwatch.ui.Slate400
 import dev.phantomwatch.ui.Slate500
@@ -27,6 +27,7 @@ val SettingsText3 = Slate500
 val SettingsAccent = Cyan
 val SettingsError = Color(0xFFF87171)
 val SettingsHairline = Color(0x14FFFFFF)
+val SettingsTile = Color(0xFF262626)
 
 private val SettingsScheme = darkColorScheme(
     primary = Cyan,
@@ -56,56 +57,56 @@ private val SettingsShapes = Shapes(
 @Composable
 internal fun SettingsTheme(content: @Composable () -> Unit) {
     val base = MaterialTheme.typography
-    val rubik = Rubik
-    val typography = remember(rubik, base) {
+    val workSans = WorkSans
+    val typography = remember(workSans, base) {
         base.copy(
             headlineLarge = base.headlineLarge.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 30.sp,
                 lineHeight = 36.sp,
                 letterSpacing = (-0.5).sp,
             ),
             headlineSmall = base.headlineSmall.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 22.sp,
                 lineHeight = 28.sp,
                 letterSpacing = (-0.2).sp,
             ),
             titleLarge = base.titleLarge.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontWeight = FontWeight.Medium,
                 fontSize = 24.sp,
                 lineHeight = 30.sp,
                 letterSpacing = 0.sp,
             ),
             titleMedium = base.titleMedium.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontWeight = FontWeight.Medium,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
                 letterSpacing = 0.sp,
             ),
             bodyLarge = base.bodyLarge.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
             ),
             bodyMedium = base.bodyMedium.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
             ),
             labelMedium = base.labelMedium.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontWeight = FontWeight.Medium,
                 fontSize = 13.sp,
                 lineHeight = 16.sp,
                 letterSpacing = 0.sp,
             ),
             labelSmall = base.labelSmall.copy(
-                fontFamily = rubik,
+                fontFamily = workSans,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
             ),

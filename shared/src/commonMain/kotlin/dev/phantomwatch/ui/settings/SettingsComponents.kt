@@ -7,15 +7,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,19 +38,91 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.phantomwatch.res.*
+import dev.phantomwatch.ui.PhantomHero
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
+
+@Composable
+internal fun SettingsSectionLabel(text: String, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = MaterialTheme.typography.labelMedium, color = SettingsText3)
+        HorizontalDivider(
+            Modifier.weight(1f).padding(start = 12.dp),
+            thickness = 1.dp,
+            color = SettingsHairline,
+        )
+    }
+}
+
+@Composable
+internal fun SettingsAvatar(picture: String?, size: Dp) {
+    Box(
+        Modifier.size(size)
+            .clip(CircleShape)
+            .background(SettingsTile)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (picture != null) {
+            AsyncImage(
+                model = picture,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            Icon(
+                painter = painterResource(Res.drawable.ic_row_person),
+                contentDescription = null,
+                tint = SettingsText2,
+                modifier = Modifier.size(size * 0.42f),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun SettingsAccountHeader(name: String, subtitle: String, picture: String?) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SettingsAvatar(picture, 76.dp)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(
+                name,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = SettingsText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                color = SettingsText2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+    }
+}
 
 @Composable
 internal fun SettingsProfile(
@@ -56,31 +132,8 @@ internal fun SettingsProfile(
     picture: String? = null,
 ) {
     val avatar = if (compact) 44.dp else 96.dp
-    val glyph = if (compact) 20.dp else 40.dp
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.size(avatar)
-                .clip(CircleShape)
-                .background(if (compact) SettingsSurface else Color(0xFF262626))
-                .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (picture != null) {
-                AsyncImage(
-                    model = picture,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                )
-            } else {
-                Icon(
-                    painter = painterResource(Res.drawable.ic_row_person),
-                    contentDescription = null,
-                    tint = SettingsText2,
-                    modifier = Modifier.size(glyph),
-                )
-            }
-        }
+        SettingsAvatar(picture, avatar)
         Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
         Text(
             name,
@@ -102,44 +155,76 @@ internal fun SettingsProfile(
 internal fun SettingsGroup(
     items: List<SettingItem>,
     state: Map<String, Int>,
+    gutter: Dp,
     onValue: (String, Int) -> Unit,
     onAction: (SettingsAction) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SettingsSurface)) {
-        items.forEachIndexed { index, item ->
-            if (index > 0) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 16.dp),
-                    thickness = 1.dp,
-                    color = SettingsHairline,
-                )
-            }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        items.forEach { item ->
             when (item) {
                 is SettingItem.Toggle -> {
                     val checked = (state[item.key] ?: if (item.default) 1 else 0) != 0
-                    ToggleRow(item, checked) { onValue(item.key, if (it) 1 else 0) }
+                    ToggleRow(item, checked, gutter) { onValue(item.key, if (it) 1 else 0) }
                 }
                 is SettingItem.Choice -> {
                     val selected = (state[item.key] ?: item.default).coerceIn(0, item.options.lastIndex)
-                    ChoiceRow(item, selected) { onValue(item.key, it) }
+                    ChoiceRow(item, selected, gutter) { onValue(item.key, it) }
                 }
-                is SettingItem.Value -> ValueRow(item)
-                is SettingItem.Action -> ActionRow(item) { onAction(item.action) }
+                is SettingItem.Value -> ValueRow(item, gutter)
+                is SettingItem.Action -> ActionRow(item, gutter) { onAction(item.action) }
             }
         }
     }
 }
 
 @Composable
-private fun ToggleRow(item: SettingItem.Toggle, checked: Boolean, onToggle: (Boolean) -> Unit) {
+private fun RowShell(
+    icon: DrawableResource,
+    title: StringResource,
+    note: StringResource?,
+    gutter: Dp,
+    modifier: Modifier = Modifier,
+    titleColor: Color = SettingsText,
+    trailing: @Composable RowScope.() -> Unit,
+) {
     Row(
-        Modifier.fillMaxWidth()
-            .toggleable(value = checked, onValueChange = onToggle, role = Role.Switch)
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = gutter, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RowText(item.title, item.note, Modifier.weight(1f).padding(end = 12.dp))
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = titleColor,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+            Text(
+                stringResource(title),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+                color = titleColor,
+            )
+            if (note != null) {
+                Text(
+                    stringResource(note),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SettingsText2,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+        trailing()
+    }
+}
+
+@Composable
+private fun ToggleRow(item: SettingItem.Toggle, checked: Boolean, gutter: Dp, onToggle: (Boolean) -> Unit) {
+    RowShell(
+        icon = item.icon,
+        title = item.title,
+        note = item.note,
+        gutter = gutter,
+        modifier = Modifier.toggleable(value = checked, onValueChange = onToggle, role = Role.Switch),
+    ) {
         Switch(checked = checked, onCheckedChange = null, colors = settingsSwitchColors())
     }
 }
@@ -155,17 +240,16 @@ private fun settingsSwitchColors() = SwitchDefaults.colors(
 )
 
 @Composable
-private fun ChoiceRow(item: SettingItem.Choice, selected: Int, onSelect: (Int) -> Unit) {
+private fun ChoiceRow(item: SettingItem.Choice, selected: Int, gutter: Dp, onSelect: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Row(
-            Modifier.fillMaxWidth()
-                .clickable(role = Role.Button) { expanded = true }
-                .heightIn(min = 56.dp)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        RowShell(
+            icon = item.icon,
+            title = item.title,
+            note = item.note,
+            gutter = gutter,
+            modifier = Modifier.clickable(role = Role.Button) { expanded = true },
         ) {
-            RowText(item.title, item.note, Modifier.weight(1f).padding(end = 12.dp))
             Text(
                 stringResource(item.options[selected]),
                 style = MaterialTheme.typography.bodyMedium,
@@ -173,7 +257,7 @@ private fun ChoiceRow(item: SettingItem.Choice, selected: Int, onSelect: (Int) -
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            SettingsChevron(Modifier.padding(start = 4.dp))
+            SettingsChevron(Modifier.padding(start = 6.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             item.options.forEachIndexed { index, option ->
@@ -196,12 +280,8 @@ private fun ChoiceRow(item: SettingItem.Choice, selected: Int, onSelect: (Int) -
 }
 
 @Composable
-private fun ValueRow(item: SettingItem.Value) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RowText(item.title, item.note, Modifier.weight(1f).padding(end = 12.dp))
+private fun ValueRow(item: SettingItem.Value, gutter: Dp) {
+    RowShell(icon = item.icon, title = item.title, note = item.note, gutter = gutter) {
         Text(
             item.value,
             style = MaterialTheme.typography.bodyMedium,
@@ -213,36 +293,89 @@ private fun ValueRow(item: SettingItem.Value) {
 }
 
 @Composable
-private fun ActionRow(item: SettingItem.Action, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun ActionRow(item: SettingItem.Action, gutter: Dp, onClick: () -> Unit) {
+    RowShell(
+        icon = item.icon,
+        title = item.title,
+        note = item.note,
+        gutter = gutter,
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
+        titleColor = if (item.destructive) SettingsError else SettingsText,
     ) {
-        RowText(
-            item.title,
-            item.note,
-            Modifier.weight(1f).padding(end = 12.dp),
-            color = if (item.destructive) SettingsError else SettingsText,
-        )
         if (!item.destructive) SettingsChevron()
     }
 }
 
 @Composable
-private fun RowText(
-    title: StringResource,
-    note: StringResource?,
-    modifier: Modifier = Modifier,
-    color: Color = SettingsText,
-) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(stringResource(title), style = MaterialTheme.typography.titleMedium, color = color)
-        if (note != null) {
-            Text(stringResource(note), style = MaterialTheme.typography.bodyMedium, color = SettingsText2)
+internal fun SettingsDownloadCard(title: String, subtitle: String, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth()
+            .height(100.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF1391B3), Color(0xFF1B6480))))
+            .drawBehind {
+                val radius = size.width * 0.62f
+                val corner = Offset(size.width, 0f)
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(Color.White.copy(alpha = 0.16f), Color.Transparent),
+                        center = corner,
+                        radius = radius,
+                    ),
+                    radius = radius,
+                    center = corner,
+                )
+            }
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PhantomHero(Modifier.size(width = 48.dp, height = 54.dp))
+            Column(Modifier.weight(1f).padding(start = 10.dp, end = 34.dp)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                    maxLines = 1,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 16.sp),
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 17.sp, lineBreak = LineBreak.Heading),
+                    color = Color.White.copy(alpha = 0.85f),
+                    maxLines = 3,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 13.sp),
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
         }
+        Icon(
+            painter = painterResource(Res.drawable.ic_arrow_up_right),
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.align(Alignment.TopEnd).size(30.dp),
+        )
+    }
+}
+
+@Composable
+internal fun SettingsDangerRow(icon: DrawableResource, title: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 56.dp)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = SettingsError,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, color = SettingsError)
     }
 }
 

@@ -197,6 +197,11 @@
     <string name="you_profile_note">No account needed</string>
     <string name="you_sign_in_google">Continue with Google</string>
     <string name="you_sign_out">Sign out</string>
+    <string name="you_title_settings">Settings</string>
+    <string name="you_section_general">General</string>
+    <string name="you_section_app">App</string>
+    <string name="you_offline_title">Download with Phantom</string>
+    <string name="you_offline_note">Sibling app. Movies and episodes, saved to your phone.</string>
 
     <string name="you_section_playback">Playback</string>
     <string name="you_section_playback_blurb">Autoplay and intro skipping</string>
