@@ -38,8 +38,7 @@ import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
 import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.data.DetailCache
-import dev.phantomwatch.ui.Mono
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate300
 import dev.phantomwatch.ui.Slate400
 import kotlinx.coroutines.Dispatchers
@@ -142,21 +141,21 @@ internal fun NextUpHost(
                 .background(Color(0xF21A1A1A)).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(stringResource(R.string.next_up_title), color = Cyan, fontFamily = Mono, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.next_up_title), color = Cyan, fontFamily = WorkSans, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Text(
                 stringResource(R.string.season_episode, up.season, up.episode),
-                color = Color.White, fontFamily = Rubik, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                color = Color.White, fontFamily = WorkSans, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             )
             if (up.name.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    up.name, color = Slate300, fontFamily = Rubik, fontSize = 13.sp,
+                    up.name, color = Slate300, fontFamily = WorkSans, fontSize = 13.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text(stringResource(R.string.next_up_playing_in, left), color = Slate400, fontFamily = Mono, fontSize = 12.sp)
+            Text(stringResource(R.string.next_up_playing_in, left), color = Slate400, fontFamily = WorkSans, fontSize = 12.sp)
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
@@ -169,7 +168,7 @@ internal fun NextUpHost(
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        stringResource(R.string.next_up_play_now), color = Color(0xFF0B0B0B), fontFamily = Rubik,
+                        stringResource(R.string.next_up_play_now), color = Color(0xFF0B0B0B), fontFamily = WorkSans,
                         fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                     )
                 }
@@ -179,7 +178,7 @@ internal fun NextUpHost(
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        stringResource(R.string.common_cancel), color = Slate300, fontFamily = Rubik,
+                        stringResource(R.string.common_cancel), color = Slate300, fontFamily = WorkSans,
                         fontWeight = FontWeight.Medium, fontSize = 13.sp,
                     )
                 }

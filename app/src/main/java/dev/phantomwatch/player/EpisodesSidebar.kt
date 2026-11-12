@@ -51,8 +51,7 @@ import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
 import dev.phantomwatch.ui.Bg
 import dev.phantomwatch.ui.Cyan
-import dev.phantomwatch.ui.Mono
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate100
 import dev.phantomwatch.ui.Slate400
 import dev.phantomwatch.ui.Slate500
@@ -113,7 +112,7 @@ private fun SidebarHeader(onClose: () -> Unit) {
             stringResource(R.string.player_episodes),
             color = Slate100,
             fontSize = 18.sp,
-            fontFamily = Rubik,
+            fontFamily = WorkSans,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.weight(1f))
@@ -144,7 +143,7 @@ private fun SeasonPicker(seasons: List<SeasonInfo>, index: Int, seasonNo: Int, o
                 seasons.getOrNull(index)?.name ?: stringResource(R.string.player_season, seasonNo),
                 color = Cyan,
                 fontSize = 14.sp,
-                fontFamily = Rubik,
+                fontFamily = WorkSans,
                 fontWeight = FontWeight.Medium,
             )
             Spacer(Modifier.width(4.dp))
@@ -163,7 +162,7 @@ private fun SeasonPicker(seasons: List<SeasonInfo>, index: Int, seasonNo: Int, o
                             s.name,
                             color = if (i == index) Cyan else Slate100,
                             fontSize = 14.sp,
-                            fontFamily = Rubik,
+                            fontFamily = WorkSans,
                         )
                     },
                     onClick = {
@@ -199,7 +198,7 @@ private fun SidebarList(
                 stringResource(R.string.player_no_episodes),
                 color = Slate500,
                 fontSize = 14.sp,
-                fontFamily = Rubik,
+                fontFamily = WorkSans,
             )
         }
         else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
@@ -251,7 +250,7 @@ private fun EpisodeRow(e: Episode, current: Boolean, onClick: () -> Unit) {
                 color = if (current) Cyan else Slate100,
                 fontSize = 14.sp,
                 lineHeight = 18.sp,
-                fontFamily = Rubik,
+                fontFamily = WorkSans,
                 fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -261,7 +260,7 @@ private fun EpisodeRow(e: Episode, current: Boolean, onClick: () -> Unit) {
                 stringResource(R.string.player_episode_no, e.n),
                 color = if (current) Cyan.copy(alpha = 0.75f) else Slate500,
                 fontSize = 11.sp,
-                fontFamily = Mono,
+                fontFamily = WorkSans,
             )
         }
     }

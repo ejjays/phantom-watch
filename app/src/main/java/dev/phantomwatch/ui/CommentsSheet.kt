@@ -224,12 +224,12 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        stringResource(R.string.comments_title), color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                        stringResource(R.string.comments_title), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.width(6.dp))
                     page?.let {
-                        Text(stringResource(R.string.comments_count, it.total), color = Slate400, fontSize = 13.sp, fontFamily = Rubik)
+                        Text(stringResource(R.string.comments_count, it.total), color = Slate400, fontSize = 13.sp, fontFamily = WorkSans)
                     }
                     Spacer(Modifier.weight(1f))
                     Box(
@@ -246,9 +246,9 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                 when {
                     p == null && failed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(stringResource(R.string.comments_unavailable), color = Slate500, fontSize = 13.sp, fontFamily = Rubik)
+                            Text(stringResource(R.string.comments_unavailable), color = Slate500, fontSize = 13.sp, fontFamily = WorkSans)
                             Text(
-                                stringResource(R.string.comments_tap_retry), color = Cyan, fontSize = 12.sp, fontFamily = Rubik,
+                                stringResource(R.string.comments_tap_retry), color = Cyan, fontSize = 12.sp, fontFamily = WorkSans,
                                 modifier = Modifier.padding(top = 6.dp).clickable { attempt++ },
                             )
                         }
@@ -259,7 +259,7 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                     p.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             stringResource(R.string.comments_empty),
-                            color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
+                            color = Slate500, fontSize = 13.sp, fontFamily = WorkSans,
                         )
                     }
                     else -> {
@@ -336,7 +336,7 @@ internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () ->
                     stringResource(message),
                     color = if (ok) Cyan else Color(0xFFF87171),
                     fontSize = 12.sp,
-                    fontFamily = Rubik,
+                    fontFamily = WorkSans,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
@@ -419,7 +419,7 @@ private fun RootRow(
             CommentBody(c.body, 15, 22)
             Spacer(Modifier.height(2.dp))
             Text(
-                stringResource(R.string.comments_reply), color = Slate400, fontSize = 12.sp, fontFamily = Rubik,
+                stringResource(R.string.comments_reply), color = Slate400, fontSize = 12.sp, fontFamily = WorkSans,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onReply(c) }
                     .padding(horizontal = 2.dp, vertical = 5.dp),
@@ -462,7 +462,7 @@ private fun ReplyRow(
             CommentBody(c.body, 14, 20)
             Spacer(Modifier.height(1.dp))
             Text(
-                stringResource(R.string.comments_reply), color = Slate400, fontSize = 11.sp, fontFamily = Rubik,
+                stringResource(R.string.comments_reply), color = Slate400, fontSize = 11.sp, fontFamily = WorkSans,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onReply(c) }
                     .padding(horizontal = 2.dp, vertical = 4.dp),
@@ -494,7 +494,7 @@ private fun ToggleRow(text: String, color: Color, line: Boolean, onClick: () -> 
             .clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Text(text, color = color, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+        Text(text, color = color, fontSize = 12.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -508,20 +508,20 @@ private fun NameRow(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "@${c.author}", color = Color.White, fontSize = nameSize.sp, fontFamily = Rubik,
+            "@${c.author}", color = Color.White, fontSize = nameSize.sp, fontFamily = WorkSans,
             fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
         )
         val ago = Social.ago(c.at)
         if (ago.isNotEmpty()) {
             Text(
-                ago, color = Slate500, fontSize = metaSize.sp, fontFamily = Rubik,
+                ago, color = Slate500, fontSize = metaSize.sp, fontFamily = WorkSans,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
         Text(
             if (c.mine) stringResource(R.string.common_delete) else stringResource(R.string.comments_report), color = Slate500, fontSize = 11.sp,
-            fontFamily = Rubik,
+            fontFamily = WorkSans,
             modifier = Modifier.padding(start = 10.dp).clickable {
                 if (c.mine) onDelete(c) else onReport(c)
             },
@@ -531,7 +531,7 @@ private fun NameRow(
 
 @Composable
 private fun CommentBody(text: String, size: Int, line: Int) {
-    val style = TextStyle(color = BodyInk, fontSize = size.sp, lineHeight = line.sp, fontFamily = Rubik)
+    val style = TextStyle(color = BodyInk, fontSize = size.sp, lineHeight = line.sp, fontFamily = WorkSans)
     val match = remember(text) { Regex("^(@\\S+)(\\s+)([\\s\\S]+)$").find(text) }
     val modifier = Modifier
     if (match == null) {
@@ -567,7 +567,7 @@ private fun Composer(
     ) {
         error?.let {
             Text(
-                it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = Rubik,
+                it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = WorkSans,
                 modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
             )
         }
@@ -581,7 +581,7 @@ private fun Composer(
                 value = input,
                 onValueChange = onInput,
                 modifier = Modifier.weight(1f).focusRequester(focus),
-                textStyle = TextStyle(color = Color.White, fontSize = 15.sp, fontFamily = Rubik),
+                textStyle = TextStyle(color = Color.White, fontSize = 15.sp, fontFamily = WorkSans),
                 cursorBrush = SolidColor(Cyan),
                 maxLines = 4,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -591,7 +591,7 @@ private fun Composer(
                         if (input.isEmpty()) {
                             Text(
                                 stringResource(R.string.comments_hint), color = Slate500, fontSize = 15.sp,
-                                fontFamily = Rubik,
+                                fontFamily = WorkSans,
                             )
                         }
                         field()
@@ -619,7 +619,7 @@ private fun CommentAvatar(handle: String, size: androidx.compose.ui.unit.Dp) {
     ) {
         Text(
             handle.trimStart('@').firstOrNull()?.uppercase() ?: "?",
-            color = Slate300, fontSize = (size.value * 0.36f).sp, fontFamily = Rubik,
+            color = Slate300, fontSize = (size.value * 0.36f).sp, fontFamily = WorkSans,
             fontWeight = FontWeight.Medium,
         )
     }

@@ -533,7 +533,7 @@ private val SearchTextStyle: TextStyle
     @Composable get() = TextStyle(
         color = Color.White,
         fontSize = if (isExpanded(screenWidthDp())) 15.sp else 13.sp,
-        fontFamily = Rubik,
+        fontFamily = WorkSans,
     )
 
 @Composable
@@ -619,12 +619,12 @@ private fun BrowseBody(
     }
     if (failed) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(stringResource(Res.string.browse_tmdb_failed), color = Cyan, fontFamily = Mono, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(stringResource(Res.string.browse_tmdb_failed), color = Cyan, fontFamily = WorkSans, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
-            Text(stringResource(Res.string.browse_tap_retry), color = Slate400, fontFamily = Mono, fontSize = 12.sp)
+            Text(stringResource(Res.string.browse_tap_retry), color = Slate400, fontFamily = WorkSans, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
             androidx.compose.material3.TextButton(onClick = onRetry) {
-                Text(stringResource(Res.string.common_retry), color = Cyan, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.common_retry), color = Cyan, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             }
         }
         return
@@ -665,7 +665,7 @@ private fun BrowseBody(
                         Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, RuleEdge))))
                         Text(
                             stringResource(Res.string.browse_explore_more), color = Slate200, fontSize = if (isExpanded(width)) 28.sp else 20.sp,
-                            fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                            fontFamily = WorkSans, fontWeight = FontWeight.Bold,
                         )
                         Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(RuleEdge, Color.Transparent))))
                     }
@@ -733,13 +733,13 @@ private fun RailSection(
         ) {
             Text(
                 railTitle(rail.title, rail.arg), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
-                fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                fontFamily = WorkSans, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
             )
             if (!ranked) {
                 Row(Modifier.clickable { onSeeAll(rail.key) }, verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(Res.string.browse_see_all), color = Cyan, fontSize = if (isExpanded(width)) 15.sp else 13.sp,
-                        fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+                        fontFamily = WorkSans, fontWeight = FontWeight.SemiBold,
                     )
                     ChevronRightIcon(contentDescription = null, tint = Cyan, size = if (isExpanded(width)) 18.dp else 15.dp)
                 }
@@ -791,14 +791,14 @@ private fun SearchBody(
                 if (searching) stringResource(Res.string.browse_searching, query)
                 else if (results.isEmpty()) stringResource(Res.string.browse_no_results)
                 else stringResource(Res.string.browse_results_for, results.size, query),
-                color = Slate400, fontSize = 12.sp, fontFamily = Mono,
+                color = Slate400, fontSize = 12.sp, fontFamily = WorkSans,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (results.isEmpty() && !searching) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(stringResource(Res.string.browse_nothing_found), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
+                    Text(stringResource(Res.string.browse_nothing_found), color = Cyan, fontSize = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
-                    Text(stringResource(Res.string.browse_try_another), color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
+                    Text(stringResource(Res.string.browse_try_another), color = Slate400, fontSize = 12.sp, fontFamily = WorkSans)
                 }
             } else {
                 LazyVerticalGrid(
@@ -816,7 +816,7 @@ private fun SearchBody(
         }
     } else if (recents.isNotEmpty()) {
         Column(Modifier.fillMaxSize()) {
-            Text(stringResource(Res.string.browse_recent_search), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            Text(stringResource(Res.string.browse_recent_search), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(recents, key = { "${it.kind}-${it.id}" }) { item ->
                     PosterCard(item = item, width = 120.dp, height = 160.dp, onOpen = onOpen)
@@ -832,7 +832,7 @@ private fun SearchBody(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 searchGhost(ghost, run)
                 Spacer(Modifier.height(20.dp))
-                Text(stringResource(Res.string.browse_search_prompt), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.browse_search_prompt), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -871,7 +871,7 @@ private fun RailGrid(rail: RailState, width: Dp, onBack: () -> Unit, onOpen: (Ti
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         stringResource(Res.string.browse_all_pages, rail.totalPages),
-                        color = Slate600, fontSize = 11.sp, fontFamily = Mono, textAlign = TextAlign.Center,
+                        color = Slate600, fontSize = 11.sp, fontFamily = WorkSans, textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                     )
                 }

@@ -14,6 +14,7 @@ import dev.phantomwatch.agent.PlayRequest
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
+import dev.phantomwatch.ui.PhantomTypography
 
 class MainActivity : ComponentActivity() {
     // Android 13+ blocks every notification until the user grants this, which would silently
@@ -55,7 +56,7 @@ class MainActivity : ComponentActivity() {
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            MaterialTheme(colorScheme = darkColorScheme(), typography = PhantomTypography()) {
                 Surface(modifier = Modifier.fillMaxSize()) { AppRoot() }
             }
         }

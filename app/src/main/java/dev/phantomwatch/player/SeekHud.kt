@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.R
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.WorkSans
 import kotlin.math.roundToInt
 
 // 0 -> 2 -> 0 over 500ms, replayed per tap
@@ -49,7 +49,7 @@ internal fun SeekHud(back: Boolean, seconds: Int) {
         Spacer(Modifier.width(8.dp))
         Text(
             "$seconds", color = Color.White, fontSize = 20.sp,
-            fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+            fontFamily = WorkSans, fontWeight = FontWeight.SemiBold,
         )
     }
 }

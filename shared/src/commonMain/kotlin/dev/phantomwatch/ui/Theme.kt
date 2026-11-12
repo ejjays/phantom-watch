@@ -1,5 +1,6 @@
 package dev.phantomwatch.ui
 
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -19,29 +20,36 @@ val Slate400 = Color(0xFF94A3B8)
 val Slate500 = Color(0xFF64748B)
 val Slate600 = Color(0xFF475569)
 
-val Rubik: FontFamily
+val WorkSans: FontFamily
     @Composable get() = FontFamily(
-        Font(Res.font.rubik_regular, FontWeight.Normal),
-        Font(Res.font.rubik_medium, FontWeight.Medium),
-        Font(Res.font.rubik_semibold, FontWeight.SemiBold),
-        Font(Res.font.rubik_bold, FontWeight.Bold),
+        Font(Res.font.work_sans_regular, FontWeight.Normal),
+        Font(Res.font.work_sans_medium, FontWeight.Medium),
+        Font(Res.font.work_sans_semibold, FontWeight.SemiBold),
+        Font(Res.font.work_sans_bold, FontWeight.Bold),
     )
 
-val Inter: FontFamily
-    @Composable get() = FontFamily(
-        Font(Res.font.inter_regular, FontWeight.Normal),
-        Font(Res.font.inter_medium, FontWeight.Medium),
-        Font(Res.font.inter_semibold, FontWeight.SemiBold),
-    )
-
-val Mono: FontFamily
-    @Composable get() = FontFamily(
-        Font(Res.font.ibmplexmono_regular, FontWeight.Normal),
-        Font(Res.font.ibmplexmono_medium, FontWeight.Medium),
-        Font(Res.font.ibmplexmono_semibold, FontWeight.SemiBold),
-        Font(Res.font.ibmplexmono_bold, FontWeight.Bold),
-    )
-
-// single weight display face, used only on the chart cards
 val Lilita: FontFamily
     @Composable get() = FontFamily(Font(Res.font.lilita_one_regular, FontWeight.Normal))
+
+@Composable
+fun PhantomTypography(): Typography {
+    val f = WorkSans
+    val base = Typography()
+    return Typography(
+        displayLarge = base.displayLarge.copy(fontFamily = f),
+        displayMedium = base.displayMedium.copy(fontFamily = f),
+        displaySmall = base.displaySmall.copy(fontFamily = f),
+        headlineLarge = base.headlineLarge.copy(fontFamily = f),
+        headlineMedium = base.headlineMedium.copy(fontFamily = f),
+        headlineSmall = base.headlineSmall.copy(fontFamily = f),
+        titleLarge = base.titleLarge.copy(fontFamily = f),
+        titleMedium = base.titleMedium.copy(fontFamily = f),
+        titleSmall = base.titleSmall.copy(fontFamily = f),
+        bodyLarge = base.bodyLarge.copy(fontFamily = f),
+        bodyMedium = base.bodyMedium.copy(fontFamily = f),
+        bodySmall = base.bodySmall.copy(fontFamily = f),
+        labelLarge = base.labelLarge.copy(fontFamily = f),
+        labelMedium = base.labelMedium.copy(fontFamily = f),
+        labelSmall = base.labelSmall.copy(fontFamily = f),
+    )
+}

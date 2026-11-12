@@ -183,11 +183,11 @@ fun DetailScreen(
                 Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(stringResource(Res.string.detail_unavailable), color = Slate100, fontSize = 15.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.detail_unavailable), color = Slate100, fontSize = 15.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
-                Text(stringResource(Res.string.detail_load_failed), color = Slate400, fontSize = 12.sp, fontFamily = Mono)
+                Text(stringResource(Res.string.detail_load_failed), color = Slate400, fontSize = 12.sp, fontFamily = WorkSans)
                 Text(
-                    stringResource(Res.string.common_retry), color = Cyan, fontSize = 13.sp, fontFamily = Rubik,
+                    stringResource(Res.string.common_retry), color = Cyan, fontSize = 13.sp, fontFamily = WorkSans,
                     modifier = Modifier.padding(top = 10.dp).clickable { attempt++ },
                 )
             }
@@ -292,8 +292,8 @@ private fun EpisodesGate(isOpen: () -> Boolean, content: @Composable AnimatedVis
 @Composable
 private fun MetaCell(label: String, value: String) {
     Column {
-        Text(label, color = Slate500, fontSize = 11.sp, fontFamily = Mono)
-        Text(value, color = Slate100, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+        Text(label, color = Slate500, fontSize = 11.sp, fontFamily = WorkSans)
+        Text(value, color = Slate100, fontSize = 15.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -304,7 +304,7 @@ private fun Avatar(person: Person, size: androidx.compose.ui.unit.Dp, loadPhoto:
     } else {
         val initials = person.name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("")
         Box(Modifier.size(size).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-            Text(initials, color = Slate200, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(initials, color = Slate200, fontSize = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -340,7 +340,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
                         .clickable { seasonIdx = i }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    Text(seasons[i].name, color = if (active) Color.White else Slate400, fontSize = 13.sp, fontFamily = Rubik)
+                    Text(seasons[i].name, color = if (active) Color.White else Slate400, fontSize = 13.sp, fontFamily = WorkSans)
                 }
             }
         }
@@ -357,7 +357,7 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
             .clickable(onClick = onViewAll).padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(stringResource(Res.string.detail_view_all_episodes, total), color = Cyan, fontSize = 13.sp, fontFamily = Rubik)
+        Text(stringResource(Res.string.detail_view_all_episodes, total), color = Cyan, fontSize = 13.sp, fontFamily = WorkSans)
         ChevronRightIcon(contentDescription = null, tint = Cyan, size = 15.dp)
     }
 }
@@ -394,16 +394,16 @@ internal fun EpisodeRow(ep: Episode, fallbackStill: String?, playing: Boolean = 
             Text(
                 ep.air?.let { stringResource(Res.string.detail_episode_air, ep.n, airLabel(it)) }
                     ?: stringResource(Res.string.detail_episode, ep.n),
-                color = if (playing) Cyan else Slate500, fontSize = 11.sp, fontFamily = Mono,
+                color = if (playing) Cyan else Slate500, fontSize = 11.sp, fontFamily = WorkSans,
             )
-            Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(ep.name, color = Slate100, fontSize = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (playing) {
             Box(
                 Modifier.clip(CircleShape).background(Cyan.copy(alpha = 0.15f))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                Text(stringResource(Res.string.detail_playing), color = Cyan, fontSize = 9.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.detail_playing), color = Cyan, fontSize = 9.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             }
         } else {
             Icon(painterResource(Res.drawable.ic_play_outline), contentDescription = null, tint = Slate200, modifier = Modifier.size(18.dp))
@@ -430,7 +430,7 @@ fun WatchBar(isTv: Boolean, checking: Boolean, onWatch: () -> Unit, modifier: Mo
                 } else {
                     Icon(painterResource(Res.drawable.ic_play_filled), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(if (isTv) stringResource(Res.string.episodes_title) else stringResource(Res.string.detail_watch_now), color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                    Text(if (isTv) stringResource(Res.string.episodes_title) else stringResource(Res.string.detail_watch_now), color = Color.White, fontSize = 15.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -527,11 +527,11 @@ fun EpisodesScreen(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp)).background(SurfaceColor).padding(horizontal = 12.dp),
-                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp, fontFamily = Rubik),
+                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp, fontFamily = WorkSans),
                         singleLine = true,
                         decorationBox = { inner ->
                             Box(contentAlignment = Alignment.CenterStart) {
-                                if (query.isEmpty()) Text(stringResource(Res.string.detail_search_hint), color = Slate500, fontSize = 15.sp, fontFamily = Rubik)
+                                if (query.isEmpty()) Text(stringResource(Res.string.detail_search_hint), color = Slate500, fontSize = 15.sp, fontFamily = WorkSans)
                                 inner()
                             }
                         },
@@ -540,7 +540,7 @@ fun EpisodesScreen(
                         CloseIcon(contentDescription = stringResource(Res.string.common_close), tint = Slate200, size = 20.dp)
                     }
                 } else {
-                    Text(stringResource(Res.string.episodes_title), color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(stringResource(Res.string.episodes_title), color = Color.White, fontSize = 18.sp, fontFamily = WorkSans, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = { searching = true }) {
                         Icon(painterResource(Res.drawable.ic_search), contentDescription = stringResource(Res.string.common_search), tint = Color.White, modifier = Modifier.size(22.dp))
                     }
@@ -557,7 +557,7 @@ fun EpisodesScreen(
                                 .padding(horizontal = 16.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(seasons[i].name, color = if (active) Color.White else Slate400, fontSize = 13.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
+                            Text(seasons[i].name, color = if (active) Color.White else Slate400, fontSize = 13.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -578,11 +578,11 @@ fun EpisodesScreen(
                     }
                 }
                 shown.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (query.isNotEmpty()) stringResource(Res.string.detail_no_matches, query) else stringResource(Res.string.detail_no_episodes), color = Slate200, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+                    Text(if (query.isNotEmpty()) stringResource(Res.string.detail_no_matches, query) else stringResource(Res.string.detail_no_episodes), color = Slate200, fontSize = 15.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
                 }
                 else -> {
                     if (query.isNotEmpty()) {
-                        Text(stringResource(Res.string.detail_matches, shown.size), color = Slate500, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                        Text(stringResource(Res.string.detail_matches, shown.size), color = Slate500, fontSize = 11.sp, fontFamily = WorkSans, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                     }
                     LazyColumn(modifier = Modifier.imePadding(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
                         items(shown, key = { it.n }) { ep ->
@@ -602,12 +602,12 @@ fun EpisodesScreen(
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(ep.name, color = Color.White, fontSize = 16.sp, lineHeight = 21.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                    Text(ep.name, color = Color.White, fontSize = 16.sp, lineHeight = 21.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         ep.air?.let { stringResource(Res.string.detail_episode_air, ep.n, airLabel(it)) }
                                             ?: stringResource(Res.string.detail_episode, ep.n),
-                                        color = Slate400, fontSize = 13.sp, fontFamily = Mono,
+                                        color = Slate400, fontSize = 13.sp, fontFamily = WorkSans,
                                     )
                                 }
                             }
@@ -637,10 +637,10 @@ fun DetailBody(
                 Spacer(Modifier.width(12.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text(d.title, color = Color.White, fontSize = 20.sp, lineHeight = 28.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(d.title, color = Color.White, fontSize = 20.sp, lineHeight = 28.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    d.year?.let { Text(it, color = Slate400, fontSize = 12.sp, fontFamily = Mono) }
+                    d.year?.let { Text(it, color = Slate400, fontSize = 12.sp, fontFamily = WorkSans) }
                     Spacer(Modifier.width(6.dp))
                     Box(Modifier.clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -651,13 +651,13 @@ fun DetailBody(
                                 modifier = Modifier.size(11.dp),
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text(if (d.kind == "movie") stringResource(Res.string.detail_kind_movie) else stringResource(Res.string.detail_kind_series), color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                            Text(if (d.kind == "movie") stringResource(Res.string.detail_kind_movie) else stringResource(Res.string.detail_kind_series), color = Slate300, fontSize = 10.sp, fontFamily = WorkSans)
                         }
                     }
                     d.cert?.let { cert ->
                         Spacer(Modifier.width(6.dp))
                         Box(Modifier.clip(RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                            Text(cert, color = Slate300, fontSize = 10.sp, fontFamily = Mono)
+                            Text(cert, color = Slate300, fontSize = 10.sp, fontFamily = WorkSans)
                         }
                     }
                 }
@@ -666,12 +666,12 @@ fun DetailBody(
                     Icon(painterResource(Res.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     if (d.rating > 0) {
-                        Text(fmt1(d.rating), color = Color.White, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold)
+                        Text(fmt1(d.rating), color = Color.White, fontSize = 13.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(
                         if (d.votes > 0) stringResource(Res.string.detail_votes, d.votes) else stringResource(Res.string.detail_votes_none),
-                        color = Slate500, fontSize = 11.sp, fontFamily = Mono,
+                        color = Slate500, fontSize = 11.sp, fontFamily = WorkSans,
                     )
                 }
             }
@@ -688,7 +688,7 @@ fun DetailBody(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 d.genres.take(6).forEach { g ->
                     Box(Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                        Text(g, color = Slate100, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Text(g, color = Slate100, fontSize = 12.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium, maxLines = 1)
                     }
                 }
             }
@@ -701,10 +701,10 @@ fun DetailBody(
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text(stringResource(Res.string.detail_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(Res.string.detail_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
         if (d.overview.isNotEmpty()) {
-            Text(d.overview, color = Slate300, fontSize = 14.sp, lineHeight = 24.sp, fontFamily = Rubik)
+            Text(d.overview, color = Slate300, fontSize = 14.sp, lineHeight = 24.sp, fontFamily = WorkSans)
         } else if (pending) {
             ShimmerBox(Modifier.fillMaxWidth().height(14.dp))
             Spacer(Modifier.height(8.dp))
@@ -718,7 +718,7 @@ fun DetailBody(
         }
         if (d.kind != "movie") {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(Res.string.episodes_title), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.episodes_title), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             if (d.seasons.isNotEmpty()) {
                 SeasonPreview(
@@ -750,16 +750,16 @@ fun DetailBody(
         val dir = d.director
         if (dir != null) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(Res.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(person = dir, size = 44.dp, loadPhoto = photosReady)
                 Spacer(Modifier.width(10.dp))
-                Text(dir.name, color = Slate300, fontSize = 14.sp, fontFamily = Rubik)
+                Text(dir.name, color = Slate300, fontSize = 14.sp, fontFamily = WorkSans)
             }
         } else if (pending) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(Res.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_director), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ShimmerBox(Modifier.size(44.dp))
@@ -769,20 +769,20 @@ fun DetailBody(
         }
         if (photosReady && d.cast.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(Res.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(d.cast.take(8), key = { it.name }) { p ->
                     Column(Modifier.width(80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Avatar(person = p, size = 60.dp, loadPhoto = photosReady)
                         Spacer(Modifier.height(6.dp))
-                        Text(p.name, color = Slate200, fontSize = 11.sp, lineHeight = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.heightIn(min = 28.dp))
+                        Text(p.name, color = Slate200, fontSize = 11.sp, lineHeight = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.heightIn(min = 28.dp))
                     }
                 }
             }
         } else if (pending || !photosReady) {
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(Res.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(Res.string.detail_cast), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 repeat(8) {

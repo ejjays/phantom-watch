@@ -229,7 +229,7 @@ private fun HeroKind(item: Title, scale: Float = 1f) {
             if (item.kind == "movie") stringResource(Res.string.hero_kind_movie) else stringResource(Res.string.hero_kind_series),
             color = Cyan,
             fontSize = 11.sp * scale,
-            fontFamily = Rubik,
+            fontFamily = WorkSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp * scale,
         )
@@ -241,17 +241,17 @@ private fun HeroMeta(item: Title, detail: TitleDetail?, scale: Float = 1f) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * scale)) {
         item.rating?.takeIf { it > 0 }?.let { r ->
             Icon(painterResource(Res.drawable.ic_star), contentDescription = null, tint = StarYellow, modifier = Modifier.size(13.dp * scale))
-            Text(fmt1(r), color = Slate200, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+            Text(fmt1(r), color = Slate200, fontSize = 12.sp * scale, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
         }
-        item.year?.let { Text(it, color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium) }
+        item.year?.let { Text(it, color = Slate300, fontSize = 12.sp * scale, fontFamily = WorkSans, fontWeight = FontWeight.Medium) }
         detail?.runtime?.takeIf { it > 0 }?.let {
             Text(
                 if (it >= 60) stringResource(Res.string.hero_runtime_hm, it / 60, it % 60) else stringResource(Res.string.hero_runtime_m, it),
-                color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, fontWeight = FontWeight.Medium,
+                color = Slate300, fontSize = 12.sp * scale, fontFamily = WorkSans, fontWeight = FontWeight.Medium,
             )
         }
         detail?.genres?.take(2)?.takeIf { it.isNotEmpty() }?.let {
-            Text(it.joinToString(" · "), color = Slate300, fontSize = 12.sp * scale, fontFamily = Rubik, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(it.joinToString(" · "), color = Slate300, fontSize = 12.sp * scale, fontFamily = WorkSans, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -267,7 +267,7 @@ private fun HeroActions(item: Title, onOpen: (Title) -> Unit, scale: Float = 1f)
         ) {
             Icon(painterResource(Res.drawable.ic_play_filled), contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp * scale))
             Spacer(Modifier.width(7.dp * scale))
-            Text(stringResource(Res.string.common_play), color = Color.Black, fontFamily = Rubik, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale)
+            Text(stringResource(Res.string.common_play), color = Color.Black, fontFamily = WorkSans, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale)
         }
         Row(
             modifier = Modifier.height(42.dp * scale).clip(RoundedCornerShape(21.dp * scale)).background(Color.White.copy(alpha = 0.16f))
@@ -276,7 +276,7 @@ private fun HeroActions(item: Title, onOpen: (Title) -> Unit, scale: Float = 1f)
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(Res.string.hero_details), color = Color.White, fontFamily = Rubik, fontWeight = FontWeight.SemiBold, fontSize = 14.sp * scale)
+            Text(stringResource(Res.string.hero_details), color = Color.White, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp * scale)
         }
     }
 }

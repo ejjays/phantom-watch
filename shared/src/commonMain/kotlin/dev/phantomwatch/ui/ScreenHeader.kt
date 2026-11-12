@@ -37,8 +37,8 @@ fun ScreenHeader(title: String, onBack: (() -> Unit)?, lilita: Boolean = false) 
             Spacer(Modifier.width(4.dp))
         }
         Text(
-            title, color = Color.White, fontSize = if (isExpanded(screenW)) 24.sp else 20.sp,
-            fontFamily = if (lilita) Lilita else Rubik,
+            title, color = Color.White, fontSize = if (isExpanded(screenW)) 32.sp else 28.sp,
+            fontFamily = if (lilita) Lilita else WorkSans,
             fontWeight = when {
                 lilita -> FontWeight.Normal
                 isExpanded(screenW) -> FontWeight.Bold

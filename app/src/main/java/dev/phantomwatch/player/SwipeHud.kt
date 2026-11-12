@@ -25,7 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.R
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.WorkSans
 import kotlin.math.roundToInt
 
 data class SwipeHud(val brightness: Boolean, val frac: Float)
@@ -59,7 +59,7 @@ internal fun SwipeHudPill(hud: SwipeHud, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(12.dp))
         Text(
             "${(frac * 100).roundToInt()}%",
-            color = Color.White, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+            color = Color.White, fontSize = 12.sp, fontFamily = WorkSans, fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End, maxLines = 1, softWrap = false,
             modifier = Modifier.widthIn(min = 34.dp),
         )

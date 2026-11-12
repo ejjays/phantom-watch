@@ -27,7 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
+import dev.phantomwatch.ui.WorkSans
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.phantomwatch.R
@@ -51,7 +51,7 @@ internal fun PlayerFailedOverlay(show: Boolean, onPick: () -> Unit, onBack: () -
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(stringResource(R.string.player_playback_failed), color = Color.White, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+            Text(stringResource(R.string.player_playback_failed), color = Color.White, fontSize = 15.sp, fontFamily = WorkSans)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onPick) { Text(stringResource(R.string.player_choose_source)) }

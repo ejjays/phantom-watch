@@ -76,9 +76,9 @@ fun HistoryScreen(
             ScreenHeader(stringResource(Res.string.history_title), null, lilita = true)
             if (recent.isEmpty()) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(stringResource(Res.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Medium)
+                    Text(stringResource(Res.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
-                    Text(stringResource(Res.string.history_empty_body), color = Slate400, fontSize = 12.sp, fontFamily = Rubik)
+                    Text(stringResource(Res.string.history_empty_body), color = Slate400, fontSize = 12.sp, fontFamily = WorkSans)
                 }
             } else {
                 LazyVerticalGrid(
@@ -165,7 +165,7 @@ internal fun ContinuePoster(
             }
             if (r.season.isNotEmpty()) {
                 Text(
-                    stringResource(Res.string.season_episode, r.season, r.episode), color = Color.White, fontSize = 10.sp, fontFamily = Mono,
+                    stringResource(Res.string.season_episode, r.season, r.episode), color = Color.White, fontSize = 10.sp, fontFamily = WorkSans,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.align(Alignment.TopStart).padding(badgeInset)
                         .clip(RoundedCornerShape(6.dp)).background(Color(0xCC1E1E1E))
@@ -183,7 +183,7 @@ internal fun ContinuePoster(
         if (caption) {
             Text(
                 r.title.uppercase(), color = Slate100, fontSize = if (width >= 150.dp) 16.sp else 12.sp,
-                fontFamily = Rubik, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                fontFamily = WorkSans, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = if (centered) TextAlign.Center else TextAlign.Start,
                 onTextLayout = { centered = !it.isLineEllipsized(0) },
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -204,7 +204,7 @@ internal fun ContinueRow(recent: List<Recent>, width: Dp, onPlay: (Recent) -> Un
         ) {
             Text(
                 stringResource(Res.string.rail_continue), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
-                fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                fontFamily = WorkSans, fontWeight = FontWeight.Bold,
             )
         }
         LazyRow(

@@ -56,7 +56,7 @@ import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.res.*
 import dev.phantomwatch.ui.Bg
 import dev.phantomwatch.ui.PosterCard
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate300
 import dev.phantomwatch.ui.Slate400
 import dev.phantomwatch.ui.SurfaceColor
@@ -204,7 +204,7 @@ private fun Info(media: Title, d: TitleDetail?, synopsis: String?, modifier: Mod
     Column(modifier.padding(bottom = 24.dp)) {
         Spacer(Modifier.height(16.dp))
         Text(
-            media.title, color = Color.White, fontSize = 24.sp, fontFamily = Rubik,
+            media.title, color = Color.White, fontSize = 24.sp, fontFamily = WorkSans,
             fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 20.dp),
         )
@@ -216,11 +216,11 @@ private fun Info(media: Title, d: TitleDetail?, synopsis: String?, modifier: Mod
             ) {
                 Text(
                     stringResource(Res.string.player_story_plot), color = Color.White, fontSize = 16.sp,
-                    fontFamily = Rubik, fontWeight = FontWeight.Medium,
+                    fontFamily = WorkSans, fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    synopsis, color = Slate300, fontSize = 15.sp, fontFamily = Rubik,
+                    synopsis, color = Slate300, fontSize = 15.sp, fontFamily = WorkSans,
                     lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -272,7 +272,7 @@ private fun SimilarColumn(items: List<Title>, onOpen: (Title) -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    t.title, color = Color.White, fontSize = 14.sp, fontFamily = Rubik,
+                    t.title, color = Color.White, fontSize = 14.sp, fontFamily = WorkSans,
                     fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 val meta = listOfNotNull(
@@ -281,7 +281,7 @@ private fun SimilarColumn(items: List<Title>, onOpen: (Title) -> Unit) {
                 ).joinToString(" · ")
                 if (meta.isNotEmpty()) {
                     Spacer(Modifier.height(2.dp))
-                    Text(meta, color = Slate400, fontSize = 12.sp, fontFamily = Rubik, maxLines = 1)
+                    Text(meta, color = Slate400, fontSize = 12.sp, fontFamily = WorkSans, maxLines = 1)
                 }
             }
         }
@@ -291,7 +291,7 @@ private fun SimilarColumn(items: List<Title>, onOpen: (Title) -> Unit) {
 @Composable
 private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
-        text, color = Color.White, fontSize = 18.sp, fontFamily = Rubik,
+        text, color = Color.White, fontSize = 18.sp, fontFamily = WorkSans,
         fontWeight = FontWeight.SemiBold, modifier = modifier,
     )
 }

@@ -113,7 +113,8 @@ import dev.phantomwatch.ui.CommentsSheet
 import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.ui.EpisodesScreen
 import dev.phantomwatch.ui.PosterCard
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.Lilita
+import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.ShareIcon
 import dev.phantomwatch.ui.Slate200
 import dev.phantomwatch.ui.Slate300
@@ -357,7 +358,7 @@ fun PlayerPanel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            stringResource(R.string.player_story_plot), color = Color.White, fontSize = 22.sp, fontFamily = Rubik,
+                            stringResource(R.string.player_story_plot), color = Color.White, fontSize = 22.sp, fontFamily = WorkSans,
                             fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
                         )
                         Box(
@@ -388,9 +389,9 @@ private fun StatCard(value: String, label: String, modifier: Modifier = Modifier
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(value, color = Color.White, fontSize = 18.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold)
+        Text(value, color = Color.White, fontSize = 18.sp, fontFamily = WorkSans, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(2.dp))
-        Text(label, color = Slate400, fontSize = 11.sp, fontFamily = Rubik)
+        Text(label, color = Slate400, fontSize = 11.sp, fontFamily = WorkSans)
     }
 }
 
@@ -460,7 +461,7 @@ private fun ActionIcon(onClick: () -> Unit = {}, content: @Composable () -> Unit
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold)
+    Text(text, color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -518,8 +519,8 @@ private fun PlayerInfo(
     }
     Column(modifier) {
                 Text(
-                    media.title, color = Color.White, fontSize = 24.sp, fontFamily = Rubik,
-                    fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    media.title, color = Color.White, fontSize = 24.sp, fontFamily = Lilita,
+                    fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 20.dp)
                         .clickable(enabled = synopsis != null) { onOpenPlot() },
                 )
@@ -531,12 +532,12 @@ private fun PlayerInfo(
                             .padding(horizontal = 18.dp, vertical = 14.dp),
                     ) {
                         Text(
-                            stringResource(R.string.player_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                            stringResource(R.string.player_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans,
                             fontWeight = FontWeight.Medium,
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            synopsis, color = Slate300, fontSize = 15.sp, fontFamily = Rubik,
+                            synopsis, color = Slate300, fontSize = 15.sp, fontFamily = WorkSans,
                             lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -579,7 +580,7 @@ private fun PlayerInfo(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Text(
-                                            stringResource(R.string.player_episodes_full), color = Slate200, fontSize = 13.sp, fontFamily = Rubik,
+                                            stringResource(R.string.player_episodes_full), color = Slate200, fontSize = 13.sp, fontFamily = WorkSans,
                                             fontWeight = FontWeight.Medium,
                                         )
                                         ChevronRightIcon(contentDescription = stringResource(R.string.player_all_episodes), tint = Slate200, size = 15.dp)
@@ -591,7 +592,7 @@ private fun PlayerInfo(
                                     CircularProgressIndicator(color = Cyan, modifier = Modifier.size(22.dp))
                                 }
                                 episodes.isEmpty() -> Text(
-                                    stringResource(R.string.player_no_episodes), color = Slate500, fontSize = 13.sp, fontFamily = Rubik,
+                                    stringResource(R.string.player_no_episodes), color = Slate500, fontSize = 13.sp, fontFamily = WorkSans,
                                     modifier = Modifier.padding(horizontal = 20.dp).padding(vertical = 12.dp),
                                 )
                                 else -> {
@@ -624,7 +625,7 @@ private fun PlayerInfo(
                                                 ) {
                                                     Text(
                                                         ep.n.toString(), color = fg,
-                                                        fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium,
+                                                        fontSize = 15.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium,
                                                     )
                                                 }
                                             }
@@ -662,7 +663,7 @@ private fun SimilarList(items: List<Title>, onOpen: (Title) -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    t.title, color = Color.White, fontSize = 14.sp, fontFamily = Rubik,
+                    t.title, color = Color.White, fontSize = 14.sp, fontFamily = WorkSans,
                     fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 val meta = listOfNotNull(
@@ -671,7 +672,7 @@ private fun SimilarList(items: List<Title>, onOpen: (Title) -> Unit) {
                 ).joinToString(" · ")
                 if (meta.isNotEmpty()) {
                     Spacer(Modifier.height(2.dp))
-                    Text(meta, color = Slate400, fontSize = 12.sp, fontFamily = Rubik, maxLines = 1)
+                    Text(meta, color = Slate400, fontSize = 12.sp, fontFamily = WorkSans, maxLines = 1)
                 }
             }
         }
@@ -688,12 +689,12 @@ private fun PlotBody(
 ) {
     Column(modifier.verticalScroll(scrollState).padding(20.dp)) {
         Text(
-            media.title, color = Color.White, fontSize = 20.sp, fontFamily = Rubik,
-            fontWeight = FontWeight.Bold, lineHeight = 28.sp,
+            media.title, color = Color.White, fontSize = 20.sp, fontFamily = Lilita,
+            fontWeight = FontWeight.Normal, lineHeight = 28.sp,
         )
         Spacer(Modifier.height(14.dp))
         Text(
-            synopsis.orEmpty(), color = Slate300, fontSize = 15.sp, fontFamily = Rubik,
+            synopsis.orEmpty(), color = Slate300, fontSize = 15.sp, fontFamily = WorkSans,
             lineHeight = 24.sp,
         )
         val year = d?.year ?: media.year
@@ -726,7 +727,7 @@ private fun PlotBody(
                         Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.08f))
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                     ) {
-                        Text(g, color = Slate200, fontSize = 12.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
+                        Text(g, color = Slate200, fontSize = 12.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -817,7 +818,7 @@ private fun RailPlot(media: Title, d: TitleDetail?, synopsis: String, onClose: (
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                stringResource(R.string.player_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = Rubik,
+                stringResource(R.string.player_story_plot), color = Color.White, fontSize = 16.sp, fontFamily = WorkSans,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
             )
             Box(

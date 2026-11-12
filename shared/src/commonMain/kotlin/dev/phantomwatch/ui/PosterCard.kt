@@ -73,7 +73,7 @@ fun PosterCard(
         if (caption || item.poster == null) {
             var centered by remember { mutableStateOf(false) }
             Text(
-                item.title.uppercase(), color = Slate100, fontSize = titleSize, fontFamily = Rubik,
+                item.title.uppercase(), color = Slate100, fontSize = titleSize, fontFamily = WorkSans,
                 fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = if (centered) TextAlign.Center else TextAlign.Start,
                 onTextLayout = { centered = !it.isLineEllipsized(0) },
@@ -97,7 +97,7 @@ private fun RankNumeral(rank: Int, size: Dp, color: Color, stroke: Dp, modifier:
         "$rank",
         style = TextStyle(
             fontSize = em,
-            fontFamily = Rubik,
+            fontFamily = WorkSans,
             fontWeight = FontWeight.Bold,
             lineHeight = em,
             color = color,

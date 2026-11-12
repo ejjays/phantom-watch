@@ -174,7 +174,7 @@ fun ExploreGenrePicker(selected: ExploreGenre, loading: Boolean, onSelect: (Expl
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(selected.label, color = Slate200, fontFamily = Rubik, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(selected.label, color = Slate200, fontFamily = WorkSans, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             if (loading) {
                 CircularProgressIndicator(color = Cyan, strokeWidth = 1.5.dp, modifier = Modifier.size(16.dp))
             } else {
@@ -213,7 +213,7 @@ fun ExploreGenrePicker(selected: ExploreGenre, loading: Boolean, onSelect: (Expl
                     ) {
                         Text(
                             g.label, color = if (on) Cyan else Slate200,
-                            fontFamily = Rubik, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                            fontFamily = WorkSans, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1,
                         )
                     }
                 }

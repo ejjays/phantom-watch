@@ -56,7 +56,7 @@ import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
 import dev.phantomwatch.ui.Cyan
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate400
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
@@ -196,7 +196,7 @@ private fun SettingsHeader(title: String, onBack: () -> Unit) {
             modifier = Modifier.size(16.dp).rotate(180f),
         )
         Spacer(Modifier.width(6.dp))
-        Text(title, color = Color.White, fontSize = 14.sp, fontFamily = Rubik, fontWeight = FontWeight.Medium)
+        Text(title, color = Color.White, fontSize = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -224,12 +224,12 @@ private fun SettingsRow(
                 withStyle(SpanStyle(color = if (selected) Cyan else Color.White)) { append(label) }
                 if (note != null) withStyle(SpanStyle(color = Slate400)) { append("  $note") }
             },
-            fontSize = 14.sp, fontFamily = Rubik,
+            fontSize = 14.sp, fontFamily = WorkSans,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
         if (value != null) {
             Spacer(Modifier.width(8.dp))
-            Text(value, color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp, fontFamily = Rubik)
+            Text(value, color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp, fontFamily = WorkSans)
         }
         if (chevron) {
             Spacer(Modifier.width(6.dp))

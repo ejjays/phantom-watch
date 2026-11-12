@@ -90,8 +90,8 @@ import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
 import dev.phantomwatch.ui.Cyan
-import dev.phantomwatch.ui.Mono
-import dev.phantomwatch.ui.Rubik
+import dev.phantomwatch.ui.Lilita
+import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate200
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -354,7 +354,7 @@ fun PlayerStage(
                 ) {
                     Text(
                         "${playerClock(positionMs)} / ${playerClock(durationMs)}",
-                        color = Slate200, fontSize = 11.sp, fontFamily = Mono,
+                        color = Slate200, fontSize = 11.sp, fontFamily = WorkSans,
                         modifier = Modifier.weight(1f),
                     )
                     if (fullscreen && landscapePhone && canEpisodes) {
@@ -538,7 +538,7 @@ fun PlayerStage(
         }
         if (flash != null) {
             Text(
-                flash, color = Color.White, fontSize = 16.sp, fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                flash, color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = maxHeight / 8)
                     .clip(CircleShape).background(Color.Black.copy(alpha = 0.7f))
@@ -657,7 +657,7 @@ private fun PlayerTopBar(
             if (fullscreen && !titleBelow) {
                 Text(
                     title, color = Color.White,
-                    fontSize = if (large) 17.sp else 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+                    fontSize = if (large) 17.sp else 15.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal,
                     maxLines = 1, modifier = Modifier.weight(1f),
                 )
             } else {
@@ -696,7 +696,7 @@ private fun PlayerTopBar(
         }
         if (titleBelow) {
             Text(
-                title, color = Color.White, fontSize = 15.sp, fontFamily = Rubik, fontWeight = FontWeight.SemiBold,
+                title, color = Color.White, fontSize = 15.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 16.dp, top = 2.dp),
             )
@@ -754,7 +754,7 @@ private fun PlayerSeekBar(
             } else {
                 Text(
                     playerClock((at * durationMs).toLong()),
-                    color = Color.White, fontSize = 12.sp, fontFamily = Mono,
+                    color = Color.White, fontSize = 12.sp, fontFamily = WorkSans,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 )
@@ -848,7 +848,7 @@ private fun ScrubPreview(
                 preview(Modifier.fillMaxWidth())
                 Text(
                     playerClock(positionMs),
-                    color = Color.White, fontSize = 10.sp, fontFamily = Mono, fontWeight = FontWeight.SemiBold,
+                    color = Color.White, fontSize = 10.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
                         .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(3.dp))
                         .padding(horizontal = 3.dp, vertical = 1.dp),
@@ -887,7 +887,7 @@ private fun PlayerPill(text: String, modifier: Modifier = Modifier, onClick: () 
     ) {
         Text(
             text, color = Color.White, fontSize = 12.sp,
-            fontFamily = Rubik, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
+            fontFamily = WorkSans, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
         )
         Spacer(Modifier.width(1.dp))
         Icon(

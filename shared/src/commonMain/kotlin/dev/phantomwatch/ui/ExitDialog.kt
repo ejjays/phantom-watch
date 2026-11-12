@@ -47,13 +47,13 @@ fun ExitDialog(onCancel: () -> Unit, onExit: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    stringResource(Res.string.exit_title), color = Slate100, fontFamily = Rubik,
+                    stringResource(Res.string.exit_title), color = Slate100, fontFamily = WorkSans,
                     fontWeight = FontWeight.Bold, fontSize = 19.sp, textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     stringResource(Res.string.exit_body),
-                    color = Slate400, fontFamily = Rubik, fontSize = 14.sp, lineHeight = 20.sp,
+                    color = Slate400, fontFamily = WorkSans, fontSize = 14.sp, lineHeight = 20.sp,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(22.dp))
@@ -79,6 +79,6 @@ private fun Pill(text: String, modifier: Modifier, bg: Color, fg: Color, weight:
         modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(bg).pressClick(onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = fg, fontFamily = Rubik, fontWeight = weight, fontSize = 15.sp)
+        Text(text, color = fg, fontFamily = WorkSans, fontWeight = weight, fontSize = 15.sp)
     }
 }
