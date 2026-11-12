@@ -115,6 +115,7 @@ data class RailState(
     val loadingMore: Boolean = false,
     val arg: String? = null,
     val ranked: Boolean = false,
+    val ranks: List<Int> = emptyList(),
     val landscape: Boolean = false,
 )
 
@@ -224,8 +225,9 @@ fun HomeScreen(
                         val chart = def.chart?.let { Chart.top(key, country.code, it) }
                         if (!chart.isNullOrEmpty()) {
                             return@map RailState(
-                                def.key, Res.string.rail_chart, def.path, chart, 1, 1,
-                                arg = country.name, ranked = true, landscape = def.landscape,
+                                def.key, Res.string.rail_chart, def.path, chart.map { it.title }, 1, 1,
+                                arg = country.name, ranked = true, ranks = chart.map { it.rank },
+                                landscape = def.landscape,
                             )
                         }
                         val r = Tmdb.rail(key, def.path, 1)
@@ -749,7 +751,7 @@ private fun RailSection(
             val shown = if (ranked) rail.items.take(10) else rail.items
             itemsIndexed(shown, key = { _, it -> "${it.kind}-${it.id}" }, contentType = { _, _ -> "poster" }) { i, item ->
                 if (ranked) {
-                    TopTenCard(i + 1, item, railW, railH, onOpen)
+                    TopTenCard(rail.ranks.getOrNull(i) ?: i + 1, item, railW, railH, onOpen)
                 } else {
                     PosterCard(item = item, width = railW, height = railH, onOpen = onOpen, caption = false)
                 }

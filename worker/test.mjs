@@ -95,6 +95,8 @@ assert.match(sent[0], /24h/);
 const { parseRows } = await import('./chart.mjs');
 assert.deepEqual(parseRows('<span class="rank">01</span><img src="x"><button>Animals</button>'), ['Animals']);
 assert.deepEqual(parseRows('<span class="rank">02</span><img src="x"><button>Trinidad &amp; Tobago</button>'), ['Trinidad & Tobago']);
+assert.deepEqual(parseRows('<span class="rank">02</span><button>A Dog&#x27;s Perfect Christmas</button>'), ["A Dog's Perfect Christmas"]);
+assert.deepEqual(parseRows('<span class="rank">01</span><button>Pok&#xe9;mon</button>'), ['Pok\u00e9mon']);
 assert.deepEqual(parseRows('<span class="rank">01</span><button>no image</button>'), ['no image']);
 assert.deepEqual(parseRows('<span class="rank">01</span><td>no button</td>'), [], 'a rank without a title is not a row');
 

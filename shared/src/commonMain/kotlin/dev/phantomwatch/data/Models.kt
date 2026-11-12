@@ -78,6 +78,7 @@ data class Stream(
     val headers: Map<String, String> = emptyMap(),
     val enSubs: Boolean = false,
     val intro: LongRange? = null,
+    val recap: LongRange? = null,
     val dub: String? = null,
     val dubs: List<Dub> = emptyList(),
     val outro: LongRange? = null,

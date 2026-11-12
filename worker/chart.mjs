@@ -3,6 +3,8 @@
 const TMDB = 'https://api.themoviedb.org/3';
 const UA = 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36';
 const TTL = 6 * 3600;
+// bumped when the row shape changes: the edge cache outlives a deploy
+const V = 2;
 const JSON_H = { 'content-type': 'application/json' };
 
 export async function handleChart(url) {
@@ -12,14 +14,16 @@ export async function handleChart(url) {
   if (!/^[A-Z]{2}$/.test(code)) return json({ error: 'country' }, 400);
   if (!tmdb) return json({ error: 'key' }, 400);
 
-  const key = `https://chart.pw/${code}/${kind}`;
+  const key = `https://chart.pw/${V}/${code}/${kind}`;
   const hit = await cache.match(key);
   if (hit) return new Response(hit.body, { headers: JSON_H });
 
   const slug = await slugOf(code);
   const html = await text(`https://www.netflix.com/tudum/top10/${kind === 'tv' ? 'tv/' : ''}${slug}`);
   const rows = parseRows(html).slice(0, 10);
-  const results = (await Promise.all(rows.map((r) => resolve(r, kind, tmdb)))).filter(Boolean);
+  const filled = await Promise.all(rows.map((r, i) => resolve(r, kind, tmdb).then((hit) => [i, hit])));
+  // netflix rows are numbered by position, so dropping one renumbers the rest
+  const results = filled.filter(([, hit]) => hit).map(([i, hit]) => ({ ...hit, rank: i + 1 }));
   const body = JSON.stringify({ c: code, kind, slug, at: Date.now(), results });
   // a country netflix does not chart must not pin an empty list for six hours
   if (results.length) {
@@ -90,7 +94,9 @@ function decode(s) {
   return s
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
+    .replace(/&#(?:x27|39);/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(+d))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>');
 }

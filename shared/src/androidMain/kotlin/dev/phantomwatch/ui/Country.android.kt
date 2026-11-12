@@ -13,10 +13,18 @@ private val Articled = setOf(
 
 @Composable
 actual fun deviceCountry(): Country {
-    val sim = LocalContext.current.getSystemService(TelephonyManager::class.java)?.networkCountryIso
-    val code = sim?.uppercase()?.takeIf { it.length == 2 }
-        ?: Locale.getDefault().country.uppercase().takeIf { it.length == 2 }
+    val tm = LocalContext.current.getSystemService(TelephonyManager::class.java)
+    // a roaming or unprovisioned sim reports no country, but the carrier id still names it
+    val code = sequenceOf(
+        tm?.networkCountryIso,
+        tm?.simCountryIso,
+        tm?.simOperator?.takeIf { it.length >= 5 }?.let { it.substring(0, 3) }
+            ?.toIntOrNull()?.let { mcc -> McCountry[mcc] },
+        Locale.getDefault().country,
+    ).mapNotNull { it?.uppercase()?.takeIf { c -> c.length == 2 } }.firstOrNull()
         ?: return Country("", "")
     val name = Locale.Builder().setRegion(code).build().getDisplayCountry(Locale.ENGLISH).ifBlank { code }
     return Country(code, if (code in Articled) "the $name" else name)
 }
+
+private val McCountry = mapOf(515 to "PH", 310 to "US", 302 to "CA", 214 to "ES", 262 to "DE", 234 to "GB")

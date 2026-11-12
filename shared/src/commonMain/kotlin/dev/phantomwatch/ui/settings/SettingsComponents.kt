@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -38,24 +38,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.phantomwatch.res.*
-import dev.phantomwatch.ui.PhantomHero
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -159,7 +155,7 @@ internal fun SettingsGroup(
     onValue: (String, Int) -> Unit,
     onAction: (SettingsAction) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.forEach { item ->
             when (item) {
                 is SettingItem.Toggle -> {
@@ -239,6 +235,9 @@ private fun settingsSwitchColors() = SwitchDefaults.colors(
     uncheckedBorderColor = Color(0xFF6B7684),
 )
 
+private val ChoiceMenuWidth = 132.dp
+private val ChoiceValueWidth = 88.dp
+
 @Composable
 private fun ChoiceRow(item: SettingItem.Choice, selected: Int, gutter: Dp, onSelect: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -259,9 +258,14 @@ private fun ChoiceRow(item: SettingItem.Choice, selected: Int, gutter: Dp, onSel
             )
             SettingsChevron(Modifier.padding(start = 6.dp))
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            offset = DpOffset(-(ChoiceMenuWidth - ChoiceValueWidth), 0.dp),
+        ) {
             item.options.forEachIndexed { index, option ->
                 DropdownMenuItem(
+                    modifier = Modifier.fillMaxWidth(),
                     text = {
                         Text(
                             stringResource(option),
@@ -269,6 +273,19 @@ private fun ChoiceRow(item: SettingItem.Choice, selected: Int, gutter: Dp, onSel
                             color = if (index == selected) SettingsAccent else SettingsText,
                         )
                     },
+                    trailingIcon = if (index == selected) {
+                        {
+                            Icon(
+                                painter = painterResource(Res.drawable.ic_chevron_right),
+                                contentDescription = null,
+                                tint = SettingsAccent,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    contentPadding = PaddingValues(start = 16.dp, end = 12.dp),
                     onClick = {
                         expanded = false
                         onSelect(index)
@@ -303,58 +320,6 @@ private fun ActionRow(item: SettingItem.Action, gutter: Dp, onClick: () -> Unit)
         titleColor = if (item.destructive) SettingsError else SettingsText,
     ) {
         if (!item.destructive) SettingsChevron()
-    }
-}
-
-@Composable
-internal fun SettingsDownloadCard(title: String, subtitle: String, onClick: () -> Unit) {
-    Box(
-        Modifier.fillMaxWidth()
-            .height(100.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF1391B3), Color(0xFF1B6480))))
-            .drawBehind {
-                val radius = size.width * 0.62f
-                val corner = Offset(size.width, 0f)
-                drawCircle(
-                    Brush.radialGradient(
-                        listOf(Color.White.copy(alpha = 0.16f), Color.Transparent),
-                        center = corner,
-                        radius = radius,
-                    ),
-                    radius = radius,
-                    center = corner,
-                )
-            }
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PhantomHero(Modifier.size(width = 48.dp, height = 54.dp))
-            Column(Modifier.weight(1f).padding(start = 10.dp, end = 34.dp)) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White,
-                    maxLines = 1,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 16.sp),
-                )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 17.sp, lineBreak = LineBreak.Heading),
-                    color = Color.White.copy(alpha = 0.85f),
-                    maxLines = 3,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 13.sp),
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-            }
-        }
-        Icon(
-            painter = painterResource(Res.drawable.ic_arrow_up_right),
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.align(Alignment.TopEnd).size(30.dp),
-        )
     }
 }
 

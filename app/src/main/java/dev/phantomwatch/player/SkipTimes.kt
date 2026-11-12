@@ -23,14 +23,18 @@ object SkipTimes {
     }
 
     // fills what the provider did not send: opening from AniSkip, ending from the indexes
-    suspend fun fill(s: Stream, tmdbId: String, season: String, episode: String, durationMs: Long): Stream {
+    suspend fun fill(s: Stream, tmdbId: String, season: String, episode: String, durationMs: Long, withRecap: Boolean = false): Stream {
         if (durationMs < 60_000) return s
         var out = s
         if (out.intro == null) fallback(tmdbId, episode.ifBlank { "1" }, durationMs)?.let { out = out.copy(intro = it) }
+        if (withRecap && out.recap == null) {
+            recap(out.imdb, season.ifBlank { "1" }, episode.ifBlank { "1" }, durationMs)?.let { out = out.copy(recap = it) }
+        }
         if (out.outro == null) {
             outro(tmdbId, out.imdb, season.ifBlank { "1" }, episode.ifBlank { "1" }, durationMs)?.let { out = out.copy(outro = it) }
         }
         out.intro?.let { AppLog.d("intro ${it.first / 1000}-${it.last / 1000}s") }
+        out.recap?.let { AppLog.d("recap ${it.first / 1000}-${it.last / 1000}s") }
         out.outro?.let { AppLog.d("outro ${it.first / 1000}-${it.last / 1000}s dur=${durationMs / 1000}s") }
         return out
     }
@@ -38,6 +42,13 @@ object SkipTimes {
     suspend fun fallback(tmdbId: String, episode: String, durationMs: Long): LongRange? = withContext(Dispatchers.IO) {
         aniSkip(tmdbId, episode, durationMs, "types[]=op&types[]=mixed-op", listOf("op", "mixed-op"))
     }
+
+    suspend fun recap(imdb: String?, season: String, episode: String, durationMs: Long): LongRange? =
+        withContext(Dispatchers.IO) {
+            val s = season.toIntOrNull() ?: return@withContext null
+            val e = episode.toIntOrNull() ?: return@withContext null
+            recapDb(imdb, s, e)?.takeIf { it.first in 1 until durationMs }
+        }
 
     // each index is timed on one release, so a window that starts past the end describes another cut
     suspend fun outro(tmdbId: String, imdb: String?, season: String, episode: String, durationMs: Long): LongRange? =
@@ -86,7 +97,24 @@ object SkipTimes {
         val start = if (o.has("start_ms")) o.optLong("start_ms") else (o.optDouble("start_sec") * 1000).toLong()
         val end = if (o.has("end_ms")) o.optLong("end_ms") else (o.optDouble("end_sec") * 1000).toLong()
         if (end <= start) return null
-        AppLog.d("introdb tt$id s${season}e$episode ${start / 1000}-${end / 1000}s")
+        AppLog.d("introdb outro tt$id s${season}e${episode} ${start / 1000}-${end / 1000}s")
+        return start..end
+    }
+
+    // only the pre-roll recap lives here: introdb is the one index that carries it
+    private suspend fun recapDb(imdb: String?, season: Int, episode: Int): LongRange? {
+        val id = imdb?.removePrefix("tt")?.takeIf { it.isNotEmpty() } ?: return null
+        val json = runCatching {
+            Http.getJson(
+                "https://api.introdb.app/segments?imdb_id=tt$id&season=$season&episode=$episode",
+                "https://introdb.app/",
+            )
+        }.getOrNull() ?: return null
+        val o = json.optJSONObject("recap") ?: return null
+        val start = if (o.has("start_ms")) o.optLong("start_ms") else (o.optDouble("start_sec") * 1000).toLong()
+        val end = if (o.has("end_ms")) o.optLong("end_ms") else (o.optDouble("end_sec") * 1000).toLong()
+        if (end <= start) return null
+        AppLog.d("introdb recap tt$id s${season}e${episode} ${start / 1000}-${end / 1000}s")
         return start..end
     }
 

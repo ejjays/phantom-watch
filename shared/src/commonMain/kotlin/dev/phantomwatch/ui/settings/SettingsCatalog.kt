@@ -73,6 +73,31 @@ fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> 
                 Res.drawable.ic_row_forward,
                 Res.string.you_playback_skip_note,
             ),
+            SettingItem.Choice(
+                SettingsKeys.SEEK_STEP,
+                Res.string.you_player_seek,
+                Res.drawable.ic_row_seek,
+                Res.string.you_player_seek_note,
+                options = listOf(
+                    Res.string.you_player_seek_5,
+                    Res.string.you_player_seek_10,
+                    Res.string.you_player_seek_15,
+                    Res.string.you_player_seek_30,
+                ),
+                default = 1,
+            ),
+            SettingItem.Choice(
+                SettingsKeys.NEXT_COUNT,
+                Res.string.you_player_countdown,
+                Res.drawable.ic_row_countdown,
+                Res.string.you_player_countdown_note,
+                options = listOf(
+                    Res.string.you_player_countdown_5,
+                    Res.string.you_player_countdown_10,
+                    Res.string.you_player_countdown_15,
+                ),
+                default = 1,
+            ),
         ),
     ),
     SettingCategory(

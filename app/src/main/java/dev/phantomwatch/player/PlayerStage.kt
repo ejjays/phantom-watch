@@ -121,6 +121,7 @@ fun PlayerStage(
     positionMs: Long,
     durationMs: Long,
     intro: LongRange? = null,
+    recap: LongRange? = null,
     onSkipIntro: () -> Unit = {},
     outro: LongRange? = null,
     onNextEpisode: (() -> Unit)? = null,
@@ -180,8 +181,7 @@ fun PlayerStage(
     var headerH by remember { mutableFloatStateOf(0f) }
     var settings by remember { mutableStateOf(false) }
     val keys = onKeySeek
-    val inIntro = intro != null && durationMs > 0 && positionMs in intro && !Pip.inPip
-    val inOutro = !inIntro && outro != null && onNextEpisode != null && durationMs > 0 && positionMs in outro && !Pip.inPip
+    val at = StageAt(intro, recap, outro, durationMs, positionMs)
     val stageFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { if (keys != null) stageFocus.requestFocus() }
     val cfg = LocalConfiguration.current
@@ -280,11 +280,11 @@ fun PlayerStage(
                         onFullscreen()
                         true
                     }
-                    e.key == Key.N && inOutro -> {
+                    e.key == Key.N && at.inOutro -> {
                         onNextEpisode?.invoke()
                         true
                     }
-                    e.key == Key.S && inIntro -> {
+                    e.key == Key.S && at.inIntro -> {
                         onSkipIntro()
                         true
                     }
@@ -578,14 +578,14 @@ fun PlayerStage(
                 }
             }
         }
-        LaunchedEffect(inOutro) { if (inOutro) AppLog.d("outro pill on ${positionMs / 1000}s") }
-        if (inIntro || inOutro) {
+        LaunchedEffect(at.inOutro) { if (at.inOutro) AppLog.d("outro pill on ${positionMs / 1000}s") }
+        if (at.inIntro || at.inOutro) {
             PlayerPill(
-                text = stringResource(if (inIntro) R.string.player_skip_intro else R.string.player_next_episode),
+                text = stringResource(pillText(at.inRecap, at.inIntro)),
                 modifier = Modifier.align(Alignment.BottomEnd)
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
                     .padding(end = 16.dp, bottom = maxOf(seekInset, bottomPad) + if (controlsVisible) 64.dp else 16.dp),
-            ) { if (inIntro) onSkipIntro() else onNextEpisode?.invoke() }
+            ) { if (at.inIntro || at.inRecap) onSkipIntro() else onNextEpisode?.invoke() }
         }
         if (stalled && showSpinner) {
             Box(

@@ -31,8 +31,9 @@
     <string name="update_allow_install">Allow Phantom Watch to install apps, then run install.sh again</string>
 
     <string name="next_up_title">UP NEXT</string>
-    <string name="next_up_playing_in">Playing in %1$ds</string>
-    <string name="next_up_play_now">Play now</string>
+    <string name="next_up_playing_in">Up next in %1$ds</string>
+    <string name="next_up_autoplay">Autoplay</string>
+    <string name="next_up_stay">Stay on this episode</string>
 
     <string name="player_playback_failed">Playback failed</string>
     <string name="player_choose_source">Choose source</string>
@@ -53,6 +54,7 @@
     <string name="player_subs_off">Turn subtitles off</string>
     <string name="player_subs_on">Turn subtitles on</string>
     <string name="player_settings">Player settings</string>
+    <string name="player_skip_recap">Skip recap</string>
     <string name="player_skip_intro">Skip intro</string>
     <string name="player_next_episode">Next episode</string>
     <string name="player_more_like_this">More Like This</string>

@@ -53,3 +53,23 @@ internal fun SeekHud(back: Boolean, seconds: Int) {
         )
     }
 }
+
+// recap wins over opening when the two overlap; an outro never shares the screen with either
+internal data class StageAt(
+    val intro: LongRange?,
+    val recap: LongRange?,
+    val outro: LongRange?,
+    val duration: Long,
+    val position: Long,
+) {
+    private fun has(range: LongRange?) = range != null && duration > 0 && position in range && !Pip.inPip
+    val inRecap: Boolean get() = has(recap)
+    val inIntro: Boolean get() = !inRecap && has(intro)
+    val inOutro: Boolean get() = !inIntro && has(outro)
+}
+
+internal fun pillText(recap: Boolean, intro: Boolean): Int = when {
+    recap -> R.string.player_skip_recap
+    intro -> R.string.player_skip_intro
+    else -> R.string.player_next_episode
+}

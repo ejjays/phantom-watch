@@ -185,7 +185,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             val best = live.first()
             val streamSubs = Providers.subsFor(best, bundle.subs)
             AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
-            val base = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro, dub = best.dub)
+            val base = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro, recap = best.recap, dub = best.dub)
             resolved = Providers.restore(base.copy(dubs = Providers.dubsOf(live, best, streamSubs, Providers.langName(DetailCache.detail(media.kind, media.id)?.language) ?: "Sub")), DubPref.get(context, media.kind, media.id))
         } catch (e: CancellationException) {
             throw e
@@ -603,7 +603,13 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     }
     var positionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
-    LaunchedEffect(live.url, durationMs > 0) { live = SkipTimes.fill(live, media.id, season, episode, durationMs) }
+    val skipOn = remember { Settings.on(context, Settings.SKIP_INTRO, true) }
+    val seekStep = remember { Settings.seekSeconds(Settings.choice(context, Settings.SEEK_STEP, 1)) }
+    LaunchedEffect(live.url, durationMs > 0) {
+        live = SkipTimes.fill(live, media.id, season, episode, durationMs, skipOn)
+        // fill runs once per url, so a mid-session toggle would otherwise leave the old range behind
+        live = live.copy(intro = if (skipOn) live.intro else null, recap = if (skipOn) live.recap else null)
+    }
     var bufferedMs by remember { mutableStateOf(0L) }
     var videoW by remember { mutableStateOf(0) }
     var videoH by remember { mutableStateOf(0) }
@@ -648,9 +654,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         attachSubs(next.subs, null, next, pos)
     }
     fun accSeek(side: SeekSide) {
-        val dir = if (side == SeekSide.Left) -10000L else 10000L
+        val stepMs = seekStep * 1000L
+        val dir = if (side == SeekSide.Left) -stepMs else stepMs
         val now = System.currentTimeMillis()
-        accTotal = if (accSide == side && now - accAt < 1000) accTotal + 10 else 10
+        accTotal = if (accSide == side && now - accAt < 1000) accTotal + seekStep else seekStep
         accSide = side
         accAt = now
         exo.seekTo((exo.currentPosition + dir).coerceAtLeast(0))
@@ -937,7 +944,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         stalled = stalled,
         positionMs = positionMs,
         durationMs = durationMs,
-        intro = live.intro, dubs = live.dubs,
+        intro = live.intro, recap = live.recap, dubs = live.dubs,
         outro = outroWindow(live.outro, durationMs, next != null),
         onNextEpisode = next?.let { up -> { onEpisode(up.season, up.episode) } },
         currentDub = live.dub, onPickDub = ::playDub,
@@ -1068,7 +1075,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val tablet = cfg.screenWidthDp >= 840
     Box(Modifier.fillMaxSize()) {
     if (Settings.on(context, Settings.AUTOPLAY, true)) {
-        NextUpHost(exo, media, season, episode, onEpisode)
+        NextUpHost(exo, media, season, episode, onEpisode, Settings.nextSeconds(Settings.choice(context, Settings.NEXT_COUNT, 1)))
     }
     if (Pip.inPip) {
         stage(0.dp, false)

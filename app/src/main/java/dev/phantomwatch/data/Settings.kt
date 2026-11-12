@@ -14,10 +14,20 @@ object Settings {
     const val SKIP_INTRO = SettingsKeys.SKIP_INTRO
     const val SHARE_USAGE = SettingsKeys.SHARE_USAGE
     const val AUTO_REFRESH = SettingsKeys.AUTO_REFRESH
+    const val SEEK_STEP = SettingsKeys.SEEK_STEP
+    const val NEXT_COUNT = SettingsKeys.NEXT_COUNT
 
     const val SIZE_SMALL = 0
     const val SIZE_MEDIUM = 1
     const val SIZE_LARGE = 2
+
+    val STEP_SECONDS = listOf(5, 10, 15, 30)
+    val NEXT_SECONDS = listOf(5, 10, 15)
+
+    // the picker stores the row it was given, not the number on it
+    fun seekSeconds(index: Int): Int = STEP_SECONDS.getOrElse(index) { 10 }
+
+    fun nextSeconds(index: Int): Int = NEXT_SECONDS.getOrElse(index) { 10 }
 
     const val BG_OFF = 0
     const val BG_DIM = 1

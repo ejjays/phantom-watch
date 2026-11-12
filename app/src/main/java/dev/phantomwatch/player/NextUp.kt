@@ -45,8 +45,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-private const val NEXT_SECONDS = 10
-
 internal data class NextUp(val season: String, val episode: String, val name: String)
 
 internal fun nextInSeason(numbers: List<Int>, current: Int): Int? =
@@ -105,11 +103,12 @@ internal fun NextUpHost(
     season: String,
     episode: String,
     onEpisode: (String, String) -> Unit,
+    seconds: Int,
 ) {
     if (media.kind != "tv" || Pip.inPip) return
     var ended by remember { mutableStateOf(false) }
     var next by remember(media.id, season, episode) { mutableStateOf<NextUp?>(null) }
-    var left by remember { mutableStateOf(NEXT_SECONDS) }
+    var left by remember { mutableStateOf(seconds) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
@@ -124,7 +123,7 @@ internal fun NextUpHost(
         if (next == null) next = withContext(Dispatchers.IO) { runCatching { findNextUp(media.id, season, episode) }.getOrNull() }
         AppLog.d("ended next=${next?.let { "s${it.season}e${it.episode}" } ?: "none"}")
         val up = next ?: return@LaunchedEffect
-        left = NEXT_SECONDS
+        left = seconds
         while (left > 0) {
             delay(1000)
             left--
@@ -158,8 +157,11 @@ internal fun NextUpHost(
             Text(stringResource(R.string.next_up_playing_in, left), color = Slate400, fontFamily = WorkSans, fontSize = 12.sp)
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // autoplay is what happens if this card is ignored, so the secondary button is the
+                // one that stops it; side loaded streams stutter on the first segment and a loaded
+                // remote click is a plausible way to land here, so cancelling takes a deliberate tap
                 Box(
-                    Modifier.clip(RoundedCornerShape(50)).background(Cyan)
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))
                         .clickable {
                             ended = false
                             next = null
@@ -168,18 +170,18 @@ internal fun NextUpHost(
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        stringResource(R.string.next_up_play_now), color = Color(0xFF0B0B0B), fontFamily = WorkSans,
-                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                        stringResource(R.string.next_up_autoplay), color = Slate300, fontFamily = WorkSans,
+                        fontWeight = FontWeight.Medium, fontSize = 13.sp,
                     )
                 }
                 Box(
-                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))
+                    Modifier.clip(RoundedCornerShape(50)).background(Cyan)
                         .clickable { ended = false }
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        stringResource(R.string.common_cancel), color = Slate300, fontFamily = WorkSans,
-                        fontWeight = FontWeight.Medium, fontSize = 13.sp,
+                        stringResource(R.string.next_up_stay), color = Color(0xFF0B0B0B), fontFamily = WorkSans,
+                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                     )
                 }
             }

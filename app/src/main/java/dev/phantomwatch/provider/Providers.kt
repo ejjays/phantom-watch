@@ -23,7 +23,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class VideoFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap(), val intro: LongRange? = null, val dub: String? = null, val subs: List<Sub> = emptyList(), val outro: LongRange? = null)
+data class VideoFormat(val url: String, val isHls: Boolean, val label: String, val height: Int, val english: Boolean = true, val referer: String = "", val enSubs: Boolean = false, val enAudio: Boolean = false, val headers: Map<String, String> = emptyMap(), val intro: LongRange? = null, val dub: String? = null, val subs: List<Sub> = emptyList(), val outro: LongRange? = null, val recap: LongRange? = null)
 
 // every leg runs in providers.js; this object only talks to that engine
 object Providers {
@@ -359,7 +359,7 @@ object Providers {
         return Stream(
             url = f.url, isHls = f.isHls, subs = subsFor(f, b.subs), referer = f.referer,
             sampleMp4 = null, imdb = b.imdb, headers = f.headers, enSubs = f.enSubs, intro = f.intro,
-            dub = f.dub, outro = f.outro,
+            dub = f.dub, outro = f.outro, recap = f.recap,
         )
     }
 }

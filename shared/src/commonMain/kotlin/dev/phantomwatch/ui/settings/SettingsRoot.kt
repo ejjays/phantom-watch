@@ -81,20 +81,10 @@ internal fun SettingsRoot(
                         }
                     }
                 }
-                item("banner") {
-                    Spacer(Modifier.height(28.dp))
-                    Box(Modifier.padding(horizontal = gutter)) {
-                        SettingsDownloadCard(
-                            title = stringResource(Res.string.you_offline_title),
-                            subtitle = stringResource(Res.string.you_offline_note),
-                            onClick = { data.onAction(SettingsAction.GetPhantom) },
-                        )
-                    }
-                }
                 item("general") {
                     SettingsSectionLabel(
                         stringResource(Res.string.you_section_general),
-                        Modifier.padding(start = gutter, end = gutter, top = 20.dp, bottom = 8.dp),
+                        Modifier.padding(start = gutter, end = gutter, top = 32.dp, bottom = 8.dp),
                     )
                     CategoryList(general, categories, gutter, onOpen)
                 }
