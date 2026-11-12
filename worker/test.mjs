@@ -2,7 +2,8 @@ import assert from 'node:assert';
 import worker from './telemetry.mjs';
 
 const row = (h, legs) => ({ ts: Date.now() + h * 3600000, kind: 'tv', tmdb: '1', season: '1', episode: '1', formats: 2, legs: JSON.stringify(legs) });
-const env = { KEY: 'k', DB: null, TG_TOKEN: 't', TG_CHAT: 'c' };
+// -1 keeps the digest out of the alert cases; the digest test pins its own hour
+const env = { KEY: 'k', DB: null, TG_TOKEN: 't', TG_CHAT: 'c', DIGEST_UTC_HOUR: '-1' };
 const sent = [];
 
 globalThis.fetch = async (url, init) => {
@@ -82,7 +83,7 @@ env.DB = db([...base5, row(0, { love: [2, 100] })], '[]');
 await worker.scheduled({ scheduledTime: Date.now() }, env);
 assert.equal(sent.length, 0, 'quiet when under the sample floor');
 
-const digestEnv = { ...env };
+const digestEnv = { ...env, DIGEST_UTC_HOUR: '1' };
 const digestHour = new Date();
 digestHour.setUTCHours(1, 0, 0, 0);
 sent.length = 0;
