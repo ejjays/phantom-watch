@@ -94,6 +94,20 @@ object Tmdb {
         }
     }
 
+    // agent and deep-link plays carry no poster, so history backfills it from the id alone
+    suspend fun poster(apiKey: String, kind: String, id: String): String? {
+        return try {
+            val path = if (kind == "movie") "movie" else "tv"
+            val e = httpJson(
+                "${TmdbHost.base}/$path/$id?api_key=$apiKey",
+                "https://www.themoviedb.org/",
+            ) ?: return null
+            img(e.optString("poster_path"), "w342")
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun detail(apiKey: String, kind: String, id: String): TitleDetail? {
         return try {
             val path = if (kind == "movie") "movie" else "tv"

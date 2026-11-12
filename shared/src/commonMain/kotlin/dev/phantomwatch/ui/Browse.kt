@@ -279,6 +279,18 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
+    LaunchedEffect(browse.recent) {
+        val missing = browse.recent.filter { it.poster.isNullOrBlank() }
+        if (missing.isEmpty()) return@LaunchedEffect
+        val found = withContext(ioDispatcher) {
+            missing.mapNotNull { r -> Tmdb.poster(key, r.kind, r.id)?.let { r to it } }
+        }
+        if (found.isEmpty()) return@LaunchedEffect
+        val by = found.toMap()
+        val fixed = browse.recent.map { r -> by[r]?.let { r.copy(poster = it) } ?: r }
+        browse.recent = fixed
+        withContext(ioDispatcher) { onRestoreRecent(fixed) }
+    }
     LaunchedEffect(browse.nav.top) { syncRoute(browse.nav.top.path) }
     // TMDB's popular list drifts daily, so a process that lives for days would keep day-one rows
     OnResumeEffect {
