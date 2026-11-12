@@ -197,10 +197,7 @@ internal fun AppRoot() {
                         DetailPane(item, onClose, onPlay, startEpisodes, onClose)
                     },
                     clipsScreen = { open ->
-                        ClipsScreen(
-                            titles = browse.trending, onOpen = open, paused = browse.openTitle != null,
-                            focus = browse.clipFocus, onFocusUsed = { browse.clipFocus = null },
-                        )
+                        ClipsScreen(titles = browse.trending, onOpen = open, paused = browse.openTitle != null)
                     },
                     youScreen = {
                         val settings = remember(youRev) { liveSettings(context) }

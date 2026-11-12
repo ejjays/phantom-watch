@@ -152,7 +152,7 @@
     <string name="rail_tv_popular">Popular Series</string>
     <string name="rail_tv_top">Top Rated Series</string>
     <string name="rail_anime">Anime</string>
-    <string name="rail_soon">Coming Soon</string>
+    <string name="rail_action">Action</string>
 
     <string name="comments_deleted">Comment deleted</string>
     <string name="comments_delete_failed">Could not delete comment</string>

@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -91,29 +90,22 @@ fun ClipsScreen(
     titles: List<Title>,
     onOpen: (Title) -> Unit,
     paused: Boolean = false,
-    focus: Title? = null,
-    onFocusUsed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // the trailer the user picked in Coming Soon leads the reel for as long as this screen lives
-    val feed = remember(titles, focus) {
-        if (focus == null) titles else (listOf(focus) + titles).distinctBy { it.kind to it.id }
-    }
-    DisposableEffect(Unit) { onDispose { onFocusUsed() } }
-    var clips by remember(feed) { mutableStateOf<List<Clip>>(emptyList()) }
-    var loading by remember(feed) { mutableStateOf(true) }
+    var clips by remember(titles) { mutableStateOf<List<Clip>>(emptyList()) }
+    var loading by remember(titles) { mutableStateOf(true) }
     val density = LocalDensity.current
     val navBottom = with(density) { WindowInsets.navigationBars.getBottom(this).toDp() }
     // the tab pill floats over the feed at navBottom + 8 + 64, so its chrome starts 16 above that
     val tabClear = navBottom + 76.dp
 
-    LaunchedEffect(feed) {
+    LaunchedEffect(titles) {
         loading = true
         // boot the token WebView now so it is warm by the time a key lands
         TrailerBridge.warm()
-        val slots = arrayOfNulls<Clip>(feed.size)
+        val slots = arrayOfNulls<Clip>(titles.size)
         coroutineScope {
-            feed.forEachIndexed { i, t ->
+            titles.forEachIndexed { i, t ->
                 launch {
                     val k = withContext(ioDispatcher) { clipKeyOf(t) } ?: return@launch
                     slots[i] = Clip(t, k)

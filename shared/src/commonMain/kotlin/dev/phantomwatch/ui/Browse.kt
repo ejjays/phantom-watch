@@ -91,7 +91,6 @@ import dev.phantomwatch.res.*
 import org.jetbrains.compose.resources.StringResource
 import dev.phantomwatch.core.ioDispatcher
 import dev.phantomwatch.core.nowMs
-import dev.phantomwatch.core.todayIso
 import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Chart
@@ -136,15 +135,7 @@ private fun railDefs(country: Country): List<RailDef> = listOfNotNull(
     RailDef("tv-popular", Res.string.rail_tv_popular, "tv/popular"),
     RailDef("tv-top", Res.string.rail_tv_top, "tv/top_rated"),
     RailDef("anime", Res.string.rail_anime, "discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc"),
-    comingSoon(),
-)
-
-// tmdb's upcoming list keeps films that already opened (it tracks the us physical window too),
-// so this asks by primary release date, the same date the card shows, and nothing older can appear
-private fun comingSoon(): RailDef = RailDef(
-    "soon",
-    Res.string.rail_soon,
-    "discover/movie?primary_release_date.gte=${todayIso()}&with_release_type=2%7C3&sort_by=popularity.desc",
+    RailDef("action", Res.string.rail_action, "discover/movie?with_genres=28&sort_by=popularity.desc"),
 )
 
 private fun localRail(country: Country): RailDef? {
@@ -177,12 +168,9 @@ class BrowseState {
     var results by mutableStateOf<List<Title>>(emptyList())
     var resultsFor by mutableStateOf("")
     var trending by mutableStateOf<List<Title>>(emptyList())
-    var clipFocus by mutableStateOf<Title?>(null)
     var rails by mutableStateOf<List<RailState>>(emptyList())
     var recent by mutableStateOf<List<Recent>>(emptyList())
-    var exploreItems by mutableStateOf<List<Title>>(emptyList())
-    var explorePage by mutableStateOf(0)
-    var exploreTotal by mutableStateOf(1)
+    val explore = ExploreFeed()
     var loading by mutableStateOf(true)
     var failed by mutableStateOf(false)
     var loaded by mutableStateOf(false)
@@ -221,7 +209,6 @@ fun HomeScreen(
     val focusManager = LocalFocusManager.current
     var searching by remember { mutableStateOf(false) }
     var searchSeq by remember { mutableStateOf(0) }
-    var exploreMore by remember { mutableStateOf(false) }
     var selected by remember(browse.openTitle) { mutableStateOf(browse.openTitle) }
     val recents = remember { mutableStateListOf<Title>() }
 
@@ -248,9 +235,7 @@ fun HomeScreen(
                 }
                 browse.trending = foundTrending.take(12)
                 browse.rails = foundRails
-                browse.exploreItems = emptyList()
-                browse.explorePage = 0
-                browse.exploreTotal = 1
+                browse.explore.reset()
                 browse.failed = foundTrending.isEmpty() && foundRails.all { it.items.isEmpty() }
             } catch (_: Exception) {
                 browse.failed = !hadContent
@@ -290,36 +275,7 @@ fun HomeScreen(
     }
 
     fun loadMoreExplore() {
-        if (exploreMore || browse.explorePage >= browse.exploreTotal) return
-        exploreMore = true
-        scope.launch {
-            try {
-                // both grow with every page, so the dedupe set and page walk stay off the main thread
-                val (page, total, fresh) = withContext(ioDispatcher) {
-                    val seen = (browse.rails.flatMap { it.items } + browse.exploreItems)
-                        .mapTo(HashSet()) { "${it.kind}-${it.id}" }
-                    var page = browse.explorePage
-                    var total = browse.exploreTotal
-                    var fresh = emptyList<Title>()
-                    var skipped = 0
-                    while (page < total && skipped < 3) {
-                        val r = Tmdb.rail(key, "movie/popular", page + 1) ?: break
-                        page += 1
-                        skipped += 1
-                        total = r.totalPages
-                        fresh = r.items.filter { "${it.kind}-${it.id}" !in seen }
-                        if (fresh.isNotEmpty()) break
-                    }
-                    Triple(page, total, fresh)
-                }
-                if (fresh.isNotEmpty()) browse.exploreItems = browse.exploreItems + fresh
-                browse.explorePage = page
-                browse.exploreTotal = total
-            } catch (_: Exception) {
-            } finally {
-                exploreMore = false
-            }
-        }
+        browse.explore.loadMore(key, browse.rails, scope)
     }
 
     LaunchedEffect(Unit) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
@@ -472,19 +428,14 @@ fun HomeScreen(
                                 trending = browse.trending,
                                 rails = browse.rails,
                                 recent = browse.recent,
-                                exploreItems = browse.exploreItems,
-                                exploreMore = exploreMore,
-                                exploreTotal = browse.exploreTotal,
+                                explore = browse.explore,
+                                onGenre = { browse.explore.select(it, key, scope) },
                                 loading = browse.loading,
                                 failed = browse.failed,
                                 detailOpen = selected != null,
                                 listState = browse.homeScroll,
                                 width = contentW,
                                 onOpen = openItem,
-                                onTrailer = { t ->
-                                    browse.clipFocus = t
-                                    browse.nav.select(Route.Clips)
-                                },
                                 onPlayRecent = { r ->
                                     onWatch(Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster), r.season, r.episode)
                                 },
@@ -623,16 +574,14 @@ private fun BrowseBody(
     trending: List<Title>,
     rails: List<RailState>,
     recent: List<Recent>,
-    exploreItems: List<Title>,
-    exploreMore: Boolean,
-    exploreTotal: Int,
+    explore: ExploreFeed,
     loading: Boolean,
     failed: Boolean,
     detailOpen: Boolean,
     listState: LazyListState,
     width: Dp,
     onOpen: (Title) -> Unit,
-    onTrailer: (Title) -> Unit,
+    onGenre: (ExploreGenre) -> Unit,
     onPlayRecent: (Recent) -> Unit,
     onSeeAll: (String) -> Unit,
     onRailEnd: (String) -> Unit,
@@ -641,7 +590,7 @@ private fun BrowseBody(
 ) {
     val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
-    val exploreRows = remember(exploreItems, cols) { exploreItems.chunked(cols) }
+    val exploreRows = remember(explore.items, cols) { explore.items.chunked(cols) }
     // outside composition: a state read here would re-run every poster card in the content lambda
     LaunchedEffect(listState) {
         snapshotFlow {
@@ -686,24 +635,30 @@ private fun BrowseBody(
         rails.forEach { rail ->
             if (rail.items.isNotEmpty()) {
                 item(key = "rail-${rail.key}", contentType = "rail") {
-                    // a trailer is the only thing a film that is not out yet can open
-                    RailSection(rail, width, if (rail.key == "soon") onTrailer else onOpen, onSeeAll, onRailEnd)
+                    RailSection(rail, width, onOpen, onSeeAll, onRailEnd)
                 }
             }
         }
-        if (exploreItems.isNotEmpty() || exploreMore) {
+        if (explore.items.isNotEmpty() || explore.loading) {
             item(key = "explore", contentType = "header") {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 44.dp, bottom = 28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                Column(
+                    Modifier.fillMaxWidth().padding(top = 44.dp, bottom = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, RuleEdge))))
-                    Text(
-                        stringResource(Res.string.browse_explore_more), color = Slate200, fontSize = if (isExpanded(width)) 28.sp else 20.sp,
-                        fontFamily = Rubik, fontWeight = FontWeight.Bold,
-                    )
-                    Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(RuleEdge, Color.Transparent))))
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, RuleEdge))))
+                        Text(
+                            stringResource(Res.string.browse_explore_more), color = Slate200, fontSize = if (isExpanded(width)) 28.sp else 20.sp,
+                            fontFamily = Rubik, fontWeight = FontWeight.Bold,
+                        )
+                        Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(RuleEdge, Color.Transparent))))
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    ExploreGenrePicker(explore.genre, explore.loading, onGenre)
                 }
             }
         }
@@ -713,7 +668,7 @@ private fun BrowseBody(
             contentType = { "row" },
         ) { row ->
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).animateItem(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 row.forEach { item ->
@@ -721,7 +676,7 @@ private fun BrowseBody(
                 }
             }
         }
-        if (exploreMore) {
+        if (explore.loading) {
             item(key = "more", contentType = "more") {
                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Cyan, modifier = Modifier.size(24.dp))

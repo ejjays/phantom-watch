@@ -8,9 +8,6 @@ const val BROWSER_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrom
 
 fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
-// UTC is close enough for a release-date floor: a day of slack only adds today's releases
-fun todayIso(): String = Clock.System.now().toString().take(10)
-
 expect val ioDispatcher: CoroutineDispatcher
 
 expect suspend fun httpJson(url: String, referer: String): JSONObject?
