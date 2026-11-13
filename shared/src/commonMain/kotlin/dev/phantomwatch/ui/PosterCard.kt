@@ -114,10 +114,21 @@ private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (T
     val glyph = height * if (twoDigit) 0.44f else 0.61f
     // the numeral is not condensed here, so the gutter has to hold its full width
     val lead = height * if (twoDigit) 0.385f else 0.26f
+    val expanded = isExpanded(screenWidthDp())
+    val castW = height * if (expanded) 0.12f else 0.14f
+    val castInk = if (expanded) 0.5f else 0.55f
     Box(Modifier.width(width + lead).height(height).pressClick { onOpen(item) }) {
         RankNumeral(
             rank, glyph, Color.White, 3.dp,
             Modifier.align(Alignment.BottomStart).offset(y = height * 0.092f),
+        )
+        Box(
+            Modifier.align(Alignment.BottomEnd).size(castW, height).offset(x = -width)
+                .background(
+                    Brush.horizontalGradient(
+                        0f to Color.Transparent, 0.3f to Color.Transparent, 1f to Color.Black.copy(alpha = castInk),
+                    ),
+                ),
         )
         Box(
             Modifier.align(Alignment.BottomEnd).size(width, height)
