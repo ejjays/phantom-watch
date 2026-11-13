@@ -2,10 +2,12 @@ package dev.phantomwatch.player
 
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.C
+import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -66,6 +68,18 @@ internal class SubsController(
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
     }
 
+    // a sub is attached by rebuilding the media source, so it must never land while the first frame
+    // is still loading: that restarts the fetch the watchdog is timing and costs the whole source
+    private suspend fun awaitReady(limitMs: Long = 40_000): Boolean {
+        val end = SystemClock.elapsedRealtime() + limitMs
+        while (SystemClock.elapsedRealtime() < end) {
+            val state = exo.playbackState
+            if (state == Player.STATE_READY || state == Player.STATE_ENDED) return true
+            delay(250)
+        }
+        return false
+    }
+
     fun runOsSubs() {
         val s = stream
         if (s.url != osFor) {
@@ -91,7 +105,10 @@ internal class SubsController(
                     AppLog.d("os skipped, provider en subs")
                     return@launch
                 }
-                delay(8000)
+                if (!awaitReady()) {
+                    AppLog.d("os skipped, stream never started")
+                    return@launch
+                }
                 if (AiSubtitles.enabled) {
                     AppLog.d("os skipped, ai subs on")
                     return@launch
