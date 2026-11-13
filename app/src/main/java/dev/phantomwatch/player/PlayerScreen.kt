@@ -672,10 +672,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         accTotal = if (accSide == side && now - accAt < 1000) accTotal + seekStep else seekStep
         accSide = side
         accAt = now
-        // a burst of taps is one seek: every exo.seekTo drops the buffer and re-fetches, so eight
-        // taps in two seconds restarted the loader eight times and stalled on the slowest one
-        val base = if (seekTarget >= 0) seekTarget else exo.currentPosition
-        val target = (base + dir).coerceAtLeast(0)
+        // a burst of taps is one seek: each seekTo drops the buffer and re-fetches
+        val target = ((if (seekTarget >= 0) seekTarget else exo.currentPosition) + dir).coerceAtLeast(0)
         seekTarget = target
         seekJob?.cancel()
         seekJob = resumeScope.launch {
@@ -834,23 +832,19 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         }
     }
     PlaybackWatchdog(exo, stalled, stats.startup > 0, live) {
-        // a hang at 14:00 used to restart the episode at 0:00, so the swap cost the viewer their
-        // place on top of the stall: carry the position into the new source instead
+        // a hang at 14:00 used to restart at 0:00: carry the position into the swap
         val at = exo.currentPosition
-        if (swaps >= MAX_SWAPS) {
-            // every host is banned and each retry re-bans the same two, so the swap loop never
-            // ends: stop and let the source picker show instead of spinning forever
+        val s = if (swaps < MAX_SWAPS) Providers.nextStream(media, season, episode, live.url) else null
+        if (s == null) {
+            // every host is banned and each retry re-bans the same two, so the loop never ends
             AppLog.d("watchdog: gave up after $swaps swaps")
             onGiveUp(live.url)
             return@PlaybackWatchdog
         }
-        val s = Providers.nextStream(media, season, episode, live.url)
-        if (s != null) {
-            swaps += 1
-            live = s.copy(subs = s.subs.cached(context, s.url, s.headers, s.referer))
-            AppLog.d("watchdog: swap at ${at / 1000}s")
-            attach(at)
-        } else onGiveUp(live.url)
+        swaps += 1
+        live = s.copy(subs = s.subs.cached(context, s.url, s.headers, s.referer))
+        AppLog.d("watchdog: swap at ${at / 1000}s")
+        attach(at)
     }
     val playerView = LocalView.current
     DisposableEffect(playing) {
