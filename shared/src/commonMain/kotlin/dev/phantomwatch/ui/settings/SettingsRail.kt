@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,6 +67,7 @@ internal fun SettingsRail(
             RailItem(
                 icon = category.icon,
                 label = category.title,
+                scale = category.iconScale,
                 selected = selected == index,
                 onClick = { onSelect(index) },
             )
@@ -77,6 +79,7 @@ internal fun SettingsRail(
 private fun RailItem(
     icon: DrawableResource,
     label: StringResource,
+    scale: Float,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -99,7 +102,7 @@ private fun RailItem(
             painter = painterResource(icon),
             contentDescription = null,
             tint = if (selected) SettingsText else SettingsText2,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(20.dp).scale(scale),
         )
         Spacer(Modifier.width(12.dp))
         Text(

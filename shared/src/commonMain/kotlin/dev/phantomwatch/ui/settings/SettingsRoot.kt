@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,7 +37,7 @@ import dev.phantomwatch.ui.Lilita
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
-private val GeneralIds = setOf("playback", "subtitles", "library")
+private val PlaybackIds = setOf("playback", "subtitles", "library")
 
 @Composable
 internal fun SettingsRoot(
@@ -45,8 +46,8 @@ internal fun SettingsRoot(
     onOpen: (Int) -> Unit,
     data: SettingsData,
 ) {
-    val general = categories.filter { it.id in GeneralIds }
-    val app = categories.filterNot { it.id in GeneralIds }
+    val playback = categories.filter { it.id in PlaybackIds }
+    val app = categories.filterNot { it.id in PlaybackIds }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.align(Alignment.TopCenter).widthIn(max = SettingsContentMax).fillMaxWidth()) {
@@ -81,12 +82,12 @@ internal fun SettingsRoot(
                         }
                     }
                 }
-                item("general") {
+                item("playback") {
                     SettingsSectionLabel(
-                        stringResource(Res.string.you_section_general),
+                        stringResource(Res.string.you_section_playback),
                         Modifier.padding(start = gutter, end = gutter, top = 32.dp, bottom = 8.dp),
                     )
-                    CategoryList(general, categories, gutter, onOpen)
+                    CategoryList(playback, categories, gutter, onOpen)
                 }
                 item("app") {
                     SettingsSectionLabel(
@@ -131,9 +132,9 @@ private fun CategoryRow(category: SettingCategory, gutter: Dp, onClick: () -> Un
             painter = painterResource(category.icon),
             contentDescription = null,
             tint = SettingsText,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(22.dp).scale(category.iconScale),
         )
-        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp)) {
             Text(
                 stringResource(category.title),
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),

@@ -41,10 +41,11 @@ sealed interface SettingItem {
         override val icon: DrawableResource,
         override val note: StringResource? = null,
         val destructive: Boolean = false,
+        val noteText: String? = null,
     ) : SettingItem
 }
 
-enum class SettingsAction { ClearHistory, Updates, Licences, Privacy, Feedback, GetPhantom }
+enum class SettingsAction { ClearHistory, Updates, Licences, Privacy, ReportProblem, GetPhantom }
 
 data class SettingCategory(
     val id: String,
@@ -52,14 +53,15 @@ data class SettingCategory(
     val title: StringResource,
     val blurb: StringResource,
     val items: List<SettingItem>,
+    val iconScale: Float = 1f,
 )
 
-fun settingsCatalog(version: String): List<SettingCategory> = listOf(
+fun settingsCatalog(version: String, update: String? = null): List<SettingCategory> = listOf(
     SettingCategory(
         id = "playback",
         icon = Res.drawable.ic_cat_playback,
-        title = Res.string.you_section_playback,
-        blurb = Res.string.you_section_playback_blurb,
+        title = Res.string.you_section_player,
+        blurb = Res.string.you_section_player_blurb,
         items = listOf(
             SettingItem.Toggle(
                 SettingsKeys.AUTOPLAY,
@@ -99,6 +101,7 @@ fun settingsCatalog(version: String): List<SettingCategory> = listOf(
                 default = 1,
             ),
         ),
+        iconScale = 1.06f,
     ),
     SettingCategory(
         id = "subtitles",
@@ -164,6 +167,39 @@ fun settingsCatalog(version: String): List<SettingCategory> = listOf(
         ),
     ),
     SettingCategory(
+        id = "support",
+        icon = Res.drawable.ic_cat_support,
+        title = Res.string.you_section_support,
+        blurb = Res.string.you_section_support_blurb,
+        items = listOf(
+            SettingItem.Action(
+                SettingsAction.Privacy,
+                Res.string.you_support_privacy,
+                Res.drawable.ic_row_shield,
+                Res.string.you_support_privacy_note,
+            ),
+            SettingItem.Toggle(
+                SettingsKeys.SHARE_USAGE,
+                Res.string.you_support_share,
+                Res.drawable.ic_row_globe,
+                Res.string.you_support_share_note,
+            ),
+            SettingItem.Action(
+                SettingsAction.ReportProblem,
+                Res.string.you_support_report,
+                Res.drawable.ic_row_message,
+                Res.string.you_support_report_note,
+            ),
+            SettingItem.Action(
+                SettingsAction.GetPhantom,
+                Res.string.you_support_get_phantom,
+                Res.drawable.ic_row_download,
+                Res.string.you_support_get_phantom_note,
+            ),
+        ),
+        iconScale = 1.1f,
+    ),
+    SettingCategory(
         id = "about",
         icon = Res.drawable.ic_cat_about,
         title = Res.string.you_section_about,
@@ -176,9 +212,10 @@ fun settingsCatalog(version: String): List<SettingCategory> = listOf(
             ),
             SettingItem.Action(
                 SettingsAction.Updates,
-                Res.string.you_about_updates,
+                if (update != null) Res.string.you_about_update_now else Res.string.you_about_updates,
                 Res.drawable.ic_row_refresh,
-                Res.string.you_about_updates_note,
+                if (update != null) null else Res.string.you_about_updates_note,
+                noteText = update?.let { "Version $it is available" },
             ),
             SettingItem.Action(
                 SettingsAction.Licences,
@@ -186,24 +223,7 @@ fun settingsCatalog(version: String): List<SettingCategory> = listOf(
                 Res.drawable.ic_row_document,
                 Res.string.you_about_licences_note,
             ),
-            SettingItem.Action(
-                SettingsAction.Privacy,
-                Res.string.you_about_privacy,
-                Res.drawable.ic_row_shield,
-                Res.string.you_about_privacy_note,
-            ),
-            SettingItem.Toggle(
-                SettingsKeys.SHARE_USAGE,
-                Res.string.you_about_share,
-                Res.drawable.ic_row_globe,
-                Res.string.you_about_share_note,
-            ),
-            SettingItem.Action(
-                SettingsAction.Feedback,
-                Res.string.you_about_feedback,
-                Res.drawable.ic_row_message,
-                Res.string.you_about_feedback_note,
-            ),
         ),
+        iconScale = 1.06f,
     ),
 )

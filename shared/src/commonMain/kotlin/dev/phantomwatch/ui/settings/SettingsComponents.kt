@@ -181,6 +181,7 @@ private fun RowShell(
     gutter: Dp,
     modifier: Modifier = Modifier,
     titleColor: Color = SettingsText,
+    noteText: String? = null,
     trailing: @Composable RowScope.() -> Unit,
 ) {
     Row(
@@ -193,15 +194,16 @@ private fun RowShell(
             tint = titleColor,
             modifier = Modifier.size(22.dp),
         )
-        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp)) {
             Text(
                 stringResource(title),
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
                 color = titleColor,
             )
-            if (note != null) {
+            val line = noteText ?: note?.let { stringResource(it) }
+            if (line != null) {
                 Text(
-                    stringResource(note),
+                    line,
                     style = MaterialTheme.typography.bodyMedium,
                     color = SettingsText2,
                     modifier = Modifier.padding(top = 2.dp),
@@ -318,6 +320,7 @@ private fun ActionRow(item: SettingItem.Action, gutter: Dp, onClick: () -> Unit)
         gutter = gutter,
         modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
         titleColor = if (item.destructive) SettingsError else SettingsText,
+        noteText = item.noteText,
     ) {
         if (!item.destructive) SettingsChevron()
     }

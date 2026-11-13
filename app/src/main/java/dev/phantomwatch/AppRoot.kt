@@ -242,6 +242,7 @@ internal fun AppRoot() {
                     },
                     youScreen = {
                         val settings = remember(youRev) { liveSettings(context) }
+                        val clipboard = LocalClipboardManager.current
                         SettingsScreen(
                             SettingsData(
                                 version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
@@ -261,7 +262,11 @@ internal fun AppRoot() {
                                         SettingsAction.Updates -> openUrl(context, RELEASE_URL + "/releases")
                                         SettingsAction.Licences -> openUrl(context, RELEASE_URL + "#licence")
                                         SettingsAction.Privacy -> openUrl(context, RELEASE_URL + "#privacy")
-                                        SettingsAction.Feedback -> openUrl(context, RELEASE_URL + "/issues")
+                                        SettingsAction.ReportProblem -> {
+                                            clipboard.setText(AnnotatedString(reportText()))
+                                            openUrl(context, RELEASE_URL + "/issues/new?body=" + android.net.Uri.encode(deviceLine()))
+                                            toast(context, R.string.you_report_copied)
+                                        }
                                         SettingsAction.GetPhantom -> PhantomDownload.open(context)
                                     }
                                 },
@@ -478,4 +483,17 @@ private fun openUrl(ctx: android.content.Context, url: String) {
     runCatching {
         ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
     }
+}
+
+private fun deviceLine(): String =
+    "PhantomWatch ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · " +
+        "${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
+
+private fun reportText(): String = buildString {
+    appendLine(deviceLine())
+    appendLine()
+    appendLine("What happened:")
+    appendLine()
+    appendLine("Logs:")
+    AppLog.snapshot().takeLast(60).forEach { appendLine(it) }
 }
