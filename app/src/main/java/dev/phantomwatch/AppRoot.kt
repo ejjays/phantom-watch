@@ -40,7 +40,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,6 +56,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.rememberLottieAnimatable
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -216,14 +216,23 @@ internal fun AppRoot() {
                     onExitApp = { (context as? android.app.Activity)?.finish() },
                     searchGhost = { ghost, run ->
                         val comp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lottie_search))
-                        key(run) {
-                            LottieAnimation(
-                                composition = comp,
-                                iterations = 1,
-                                isPlaying = true,
-                                modifier = Modifier.size(ghost),
-                            )
+                        val anim = rememberLottieAnimatable()
+                        val ghostScope = rememberCoroutineScope()
+                        var busy by remember { mutableStateOf(false) }
+                        LaunchedEffect(run, comp) {
+                            val composition = comp ?: return@LaunchedEffect
+                            if (busy) return@LaunchedEffect
+                            busy = true
+                            ghostScope.launch {
+                                anim.animate(composition, iterations = 1, initialProgress = 0f)
+                                busy = false
+                            }
                         }
+                        LottieAnimation(
+                            composition = comp,
+                            progress = { anim.progress },
+                            modifier = Modifier.size(ghost),
+                        )
                     },
                     detailPane = { item, onClose, onPlay, startEpisodes ->
                         DetailPane(item, onClose, onPlay, startEpisodes, onClose)
