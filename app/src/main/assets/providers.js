@@ -587,6 +587,9 @@
 
     // dub is a separate cut with its own source id; one cut missing must not kill the leg
     var both = await Promise.all([cut('sub'), cut('dub')]);
+    // some episodes 403 the sub source and still serve the dub: use that cut, and label it
+    var dubOnly = !both[0] && both[1];
+    if (dubOnly) { both[0] = both[1]; both[1] = null; }
     var sub = both[0];
     if (!sub) return empty();
     var srcObj = sub.srcObj;
@@ -647,6 +650,7 @@
       dFormats.forEach(function (f) { f.subs = ownDubSubs; f.enSubs = ownDubSubs.length > 0; });
       formats = formats.concat(dFormats);
     }
+    if (dubOnly) formats.forEach(function (f) { f.dub = 'English'; });
     return { formats: formats, subs: subs };
   }
 

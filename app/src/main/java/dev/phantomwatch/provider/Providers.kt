@@ -150,7 +150,7 @@ object Providers {
                     val blocked = all.filter { DeadHosts.blocked(it.url) }
                         .distinctBy { DeadHosts.hostOf(it.url) }
                     if (blocked.isNotEmpty()) {
-                        AppLog.d("direct dead hosts ${blocked.size}")
+                        AppLog.d("direct dead hosts " + blocked.joinToString(" ") { DeadHosts.hostOf(it.url) })
                         withTimeoutOrNull(6000) {
                             coroutineScope {
                                 blocked.map { f -> async { if (alive(f.url, f.headers, f.referer)) DeadHosts.forgive(f.url) } }
@@ -303,6 +303,8 @@ object Providers {
             .distinctBy { it.first }
             .map { (label, f) -> Dub(label, f.url, f.isHls, f.referer, f.headers, f.subs, f.enSubs) }
         if (dubs.isEmpty()) return emptyList()
+        // a dub-only cut is already listed; the base entry would be the same url under another name
+        if (base.dub != null) return dubs
         val back = Dub("$baseName · ${providerName(base)}", base.url, base.isHls, base.referer, base.headers, baseSubs, base.enSubs, base = true)
         return listOf(back) + dubs
     }
