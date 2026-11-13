@@ -138,6 +138,8 @@ import org.json.JSONObject
 
 // long enough to swallow a burst of double taps, short enough that a single one still feels direct
 private const val SEEK_SETTLE_MS = 250L
+// 30s of lead, so an instant tap on the pill still lands on a warm cache
+private const val PREFETCH_LEAD_MS = 30_000L
 // a dead provider stack bans every host it has: past this many swaps the loop is not recovering
 private const val MAX_SWAPS = 3
 
@@ -946,6 +948,16 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         }
     }
     val next = rememberNextUp(media, season, episode)
+    val outro = outroWindow(live.outro, durationMs, next != null)
+    // ahead of the pill, since a scrape takes a few seconds; not before the first frame, or it
+    // competes with the segment this episode is loading
+    val warmNext = stats.startup > 0 && outro != null && positionMs >= outro.first - PREFETCH_LEAD_MS
+    LaunchedEffect(warmNext, next?.season, next?.episode) {
+        val up = next ?: return@LaunchedEffect
+        if (!warmNext) return@LaunchedEffect
+        AppLog.d("next prefetch s${up.season}e${up.episode}")
+        Resolve.prefetch(media, up.season, up.episode)
+    }
     @Composable
     fun stage(
         seekInset: androidx.compose.ui.unit.Dp,
@@ -974,7 +986,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         positionMs = positionMs,
         durationMs = durationMs,
         intro = live.intro, recap = live.recap, dubs = live.dubs,
-        outro = outroWindow(live.outro, durationMs, next != null),
+        outro = outro,
         onNextEpisode = next?.let { up -> { onEpisode(up.season, up.episode) } },
         currentDub = live.dub, onPickDub = ::playDub,
         qualities = q.rungs, quality = q.current, qualityNow = nowLabel, onPickQuality = { pickQuality(exo, q.group, it) },

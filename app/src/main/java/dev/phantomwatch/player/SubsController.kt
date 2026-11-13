@@ -68,8 +68,8 @@ internal class SubsController(
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
     }
 
-    // a sub is attached by rebuilding the media source, so it must never land while the first frame
-    // is still loading: that restarts the fetch the watchdog is timing and costs the whole source
+    // attaching a sub rebuilds the media source; landing it mid-load restarts the fetch the
+    // watchdog is timing
     private suspend fun awaitReady(limitMs: Long = 40_000): Boolean {
         val end = SystemClock.elapsedRealtime() + limitMs
         while (SystemClock.elapsedRealtime() < end) {

@@ -128,8 +128,7 @@ object Providers {
                             // a dead bridge is not a provider outage, so keep it out of the leg stats
                             val skipped = js == null || js.optBoolean("skipped")
                             val formats = formatsOf(js)
-                            // the head of the order is the only leg with 1080p, subs and dubs at once,
-                            // so a hang there must never ban its host for the rest of the episode
+                            // the head of the order carries 1080p, subs and dubs; its hosts survive a hang
                             if (name == order.first()) formats.forEach { DeadHosts.keepHost(it.url) }
                             ch.send(
                                 LegResult(
