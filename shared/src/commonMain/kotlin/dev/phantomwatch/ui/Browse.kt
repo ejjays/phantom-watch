@@ -718,9 +718,8 @@ private fun RailSection(
     val snap = rememberSnapFlingBehavior(rowState)
     // the numeral lives in the left gutter, so the padding is uneven to centre the poster itself
     val lead = railH * 0.26f
-    val gutter = ((width - railW) / 2).coerceAtLeast(16.dp)
-    val side = if (landscape) (gutter - lead).coerceAtLeast(8.dp) else 16.dp
-    val tail = if (landscape) gutter else 16.dp
+    val side = if (landscape) chartStart(width, railW, lead) else 16.dp
+    val tail = if (landscape) chartEnd(width, railW) else 16.dp
     LaunchedEffect(rowState, ranked) {
         if (ranked) return@LaunchedEffect
         snapshotFlow {
@@ -736,7 +735,7 @@ private fun RailSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                railTitle(rail.title, rail.arg), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
+                railTitle(rail.title, rail.arg), color = Slate200, fontSize = if (isExpanded(width)) 26.sp else 16.sp,
                 fontFamily = WorkSans, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
             )
             if (!ranked) {

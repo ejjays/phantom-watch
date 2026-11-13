@@ -131,7 +131,8 @@ private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (T
                     Modifier.matchParentSize()
                         .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.9f))),
                 )
-                val name = (height * 0.118f).value.coerceIn(13f, 21f).sp
+                // 0.118 of the card height, so the name keeps the same share on a tablet as on a phone
+                val name = (height * 0.118f).value.coerceIn(13f, 40f).sp
                 Text(
                     item.title, color = Color.White,
                     style = TextStyle(

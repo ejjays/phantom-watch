@@ -203,7 +203,7 @@ internal fun ContinueRow(recent: List<Recent>, width: Dp, onPlay: (Recent) -> Un
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                stringResource(Res.string.rail_continue), color = Slate200, fontSize = if (isExpanded(width)) 22.sp else 16.sp,
+                stringResource(Res.string.rail_continue), color = Slate200, fontSize = if (isExpanded(width)) 26.sp else 16.sp,
                 fontFamily = WorkSans, fontWeight = FontWeight.Bold,
             )
         }

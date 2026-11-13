@@ -34,4 +34,33 @@ class WindowLayoutTest {
         assertFalse(isExpanded(839.dp))
         assertTrue(isExpanded(840.dp))
     }
+
+    @Test
+    fun chartCardKeepsItsPhoneShare() {
+        assertEquals(411f * 0.74f, landscapeCell(411.dp).value, 0.05f)
+    }
+
+    @Test
+    fun chartCardGrowsOnTablets() {
+        val cell = landscapeCell(1115.dp)
+        assertTrue(cell.value > 520f)
+        assertTrue(cell.value <= 660f)
+        assertEquals(660f, landscapeCell(1400.dp).value, 0.01f)
+    }
+
+    @Test
+    fun chartRowStartsAtTheContentMarginOnTablets() {
+        val width = 1115.dp
+        val lead = landscapeCell(width) * 9f / 16f * 0.26f
+        assertEquals(16f, chartStart(width, landscapeCell(width), lead).value, 0.01f)
+        assertEquals(16f, chartEnd(width, landscapeCell(width)).value, 0.01f)
+    }
+
+    @Test
+    fun chartPosterStaysCentredOnPhones() {
+        val width = 411.dp
+        val cell = landscapeCell(width)
+        val lead = cell * 9f / 16f * 0.26f
+        assertEquals((width - cell).value / 2f, (chartStart(width, cell, lead) + lead).value, 0.5f)
+    }
 }
