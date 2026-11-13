@@ -650,7 +650,7 @@
       dFormats.forEach(function (f) { f.subs = ownDubSubs; f.enSubs = ownDubSubs.length > 0; });
       formats = formats.concat(dFormats);
     }
-    if (dubOnly) formats.forEach(function (f) { f.dub = 'English'; });
+    if (dubOnly) formats.forEach(function (f) { f.dub = 'English'; f.subs = subs; });
     return { formats: formats, subs: subs };
   }
 
