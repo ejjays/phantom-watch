@@ -236,7 +236,6 @@ internal fun AppRoot() {
                         SettingsScreen(
                             SettingsData(
                                 version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                                providerCount = providerCount(),
                                 settings = settings,
                                 account = remember(youRev) { Social.account() },
                                 accountBusy = accountBusy,
@@ -441,8 +440,6 @@ private fun LogFab() {
 
 private const val RELEASE_URL = "https://github.com/ejjays/phantom-watch"
 
-private fun providerCount(): Int = RemoteConfig.providerNames().size
-
 private fun liveSettings(ctx: android.content.Context): Map<String, Int> = mapOf(
     Settings.SUBS_ON to if (Settings.on(ctx, Settings.SUBS_ON, true)) 1 else 0,
     Settings.SUBS_SIZE to Settings.choice(ctx, Settings.SUBS_SIZE, Settings.SIZE_MEDIUM),
@@ -453,7 +450,6 @@ private fun liveSettings(ctx: android.content.Context): Map<String, Int> = mapOf
     Settings.CONTINUE_WATCHING to if (Settings.on(ctx, Settings.CONTINUE_WATCHING, true)) 1 else 0,
     Settings.AUTOPLAY to if (Settings.on(ctx, Settings.AUTOPLAY, true)) 1 else 0,
     Settings.SKIP_INTRO to if (Settings.on(ctx, Settings.SKIP_INTRO, true)) 1 else 0,
-    Settings.AUTO_REFRESH to if (Settings.on(ctx, Settings.AUTO_REFRESH, true)) 1 else 0,
     Settings.SHARE_USAGE to if (Telemetry.enabled(ctx)) 1 else 0,
 )
 

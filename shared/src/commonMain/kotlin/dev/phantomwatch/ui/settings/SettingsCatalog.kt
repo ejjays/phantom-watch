@@ -54,7 +54,7 @@ data class SettingCategory(
     val items: List<SettingItem>,
 )
 
-fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> = listOf(
+fun settingsCatalog(version: String): List<SettingCategory> = listOf(
     SettingCategory(
         id = "playback",
         icon = Res.drawable.ic_cat_playback,
@@ -164,31 +164,6 @@ fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> 
         ),
     ),
     SettingCategory(
-        id = "providers",
-        icon = Res.drawable.ic_cat_providers,
-        title = Res.string.you_section_providers,
-        blurb = Res.string.you_section_providers_blurb,
-        items = listOf(
-            SettingItem.Value(
-                Res.string.you_providers_configured,
-                Res.drawable.ic_row_database,
-                value = providerCount.toString(),
-            ),
-            SettingItem.Toggle(
-                SettingsKeys.AUTO_REFRESH,
-                Res.string.you_providers_refresh,
-                Res.drawable.ic_row_refresh,
-                Res.string.you_providers_refresh_note,
-            ),
-            SettingItem.Toggle(
-                SettingsKeys.SHARE_USAGE,
-                Res.string.you_providers_share,
-                Res.drawable.ic_row_globe,
-                Res.string.you_providers_share_note,
-            ),
-        ),
-    ),
-    SettingCategory(
         id = "about",
         icon = Res.drawable.ic_cat_about,
         title = Res.string.you_section_about,
@@ -216,6 +191,12 @@ fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> 
                 Res.string.you_about_privacy,
                 Res.drawable.ic_row_shield,
                 Res.string.you_about_privacy_note,
+            ),
+            SettingItem.Toggle(
+                SettingsKeys.SHARE_USAGE,
+                Res.string.you_about_share,
+                Res.drawable.ic_row_globe,
+                Res.string.you_about_share_note,
             ),
             SettingItem.Action(
                 SettingsAction.Feedback,

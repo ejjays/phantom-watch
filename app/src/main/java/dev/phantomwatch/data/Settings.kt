@@ -13,7 +13,6 @@ object Settings {
     const val AUTOPLAY = SettingsKeys.AUTOPLAY
     const val SKIP_INTRO = SettingsKeys.SKIP_INTRO
     const val SHARE_USAGE = SettingsKeys.SHARE_USAGE
-    const val AUTO_REFRESH = SettingsKeys.AUTO_REFRESH
     const val SEEK_STEP = SettingsKeys.SEEK_STEP
     const val NEXT_COUNT = SettingsKeys.NEXT_COUNT
 

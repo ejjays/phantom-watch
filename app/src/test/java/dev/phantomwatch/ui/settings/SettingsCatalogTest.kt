@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsCatalogTest {
-    private val catalog = settingsCatalog(providerCount = 3, version = "1.0 (1)")
+    private val catalog = settingsCatalog(version = "1.0 (1)")
 
     private fun keys(): List<String> = catalog.flatMap { it.items }.mapNotNull {
         when (it) {
@@ -37,15 +37,14 @@ class SettingsCatalogTest {
     @Test
     fun categoriesKeepTheirOrder() {
         assertEquals(
-            listOf("playback", "subtitles", "library", "providers", "about"),
+            listOf("playback", "subtitles", "library", "about"),
             catalog.map { it.id },
         )
     }
 
     @Test
-    fun providerCountAndVersionReachTheScreen() {
+    fun versionReachesTheScreen() {
         val values = catalog.flatMap { it.items }.filterIsInstance<SettingItem.Value>()
-        assertTrue(values.any { it.value == "3" })
         assertTrue(values.any { it.value == "1.0 (1)" })
     }
 }

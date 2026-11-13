@@ -6,7 +6,6 @@ import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.core.Log
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.data.Chart
-import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.player.TrailerBridge
 import dev.phantomwatch.provider.JsProviders
@@ -28,8 +27,7 @@ class PhantomApp : Application() {
         JsProviders.init(this)
         TrailerBridge.init(this)
         Social.init(this)
-        if (Settings.on(this, Settings.AUTO_REFRESH, true)) {
-            Thread { RemoteConfig.refresh(this) }.start()
-        }
+        // the signed config carries the provider legs, so a stale one means dead sources
+        Thread { RemoteConfig.refresh(this) }.start()
     }
 }

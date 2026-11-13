@@ -11,12 +11,11 @@ object SettingsKeys {
     const val AUTOPLAY = "autoplay"
     const val SKIP_INTRO = "skip_intro"
     const val SHARE_USAGE = "share_usage"
-    const val AUTO_REFRESH = "auto_refresh"
     const val SEEK_STEP = "seek_step"
     const val NEXT_COUNT = "next_count"
 
     val ALL = setOf(
         SUBS_ON, SUBS_SIZE, SUBS_BG, SAVE_HISTORY, CONTINUE_WATCHING,
-        AUTOPLAY, SKIP_INTRO, SHARE_USAGE, AUTO_REFRESH, SEEK_STEP, NEXT_COUNT,
+        AUTOPLAY, SKIP_INTRO, SHARE_USAGE, SEEK_STEP, NEXT_COUNT,
     )
 }

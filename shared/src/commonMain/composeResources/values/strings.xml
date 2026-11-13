@@ -218,8 +218,6 @@
     <string name="you_section_subtitles_blurb">Captions, size and background</string>
     <string name="you_section_library">Library</string>
     <string name="you_section_library_blurb">History and continue watching</string>
-    <string name="you_section_providers">Providers</string>
-    <string name="you_section_providers_blurb">Streams, config and sharing</string>
     <string name="you_section_about">About</string>
     <string name="you_section_about_blurb">Version, updates and legal</string>
 
@@ -249,12 +247,6 @@
     <string name="you_clear_body">Your Continue watching and Recently watched will be emptied. This cannot be undone.</string>
     <string name="you_clear_confirm">Clear</string>
 
-    <string name="you_providers_configured">Providers configured</string>
-    <string name="you_providers_refresh">Auto-refresh sources</string>
-    <string name="you_providers_refresh_note">Pick up new sources without an update</string>
-    <string name="you_providers_share">Share anonymous usage</string>
-    <string name="you_providers_share_note">Playback and source stats, no personal data</string>
-
     <string name="you_about_version">Version</string>
     <string name="you_about_updates">Check for updates</string>
     <string name="you_about_updates_note">Open the latest release page</string>
@@ -262,6 +254,8 @@
     <string name="you_about_licences_note">Open source notices</string>
     <string name="you_about_privacy">Privacy policy</string>
     <string name="you_about_privacy_note">What the app stores and sends</string>
+    <string name="you_about_share">Share anonymous usage</string>
+    <string name="you_about_share_note">Playback and source stats, no personal data</string>
     <string name="you_about_feedback">Send feedback</string>
     <string name="you_about_feedback_note">Tell us what broke</string>
 </resources>

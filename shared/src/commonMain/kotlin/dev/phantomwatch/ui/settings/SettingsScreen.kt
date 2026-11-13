@@ -35,7 +35,6 @@ import dev.phantomwatch.ui.screenWidthDp
 
 data class SettingsData(
     val version: String,
-    val providerCount: Int,
     val settings: Map<String, Int>,
     val account: Account? = null,
     val accountBusy: Boolean = false,
@@ -51,8 +50,8 @@ data class SettingsData(
 fun SettingsScreen(data: SettingsData) {
     SettingsTheme {
         val pane = settingsPane(screenWidthDp())
-        val categories = remember(data.version, data.providerCount) {
-            settingsCatalog(data.providerCount, data.version)
+        val categories = remember(data.version) {
+            settingsCatalog(data.version)
         }
         val state = rememberSaveable(saver = SettingsStateSaver) {
             defaultSettings(categories).apply { putAll(data.settings) }
