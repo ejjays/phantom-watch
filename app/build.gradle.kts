@@ -181,6 +181,8 @@ dependencies {
     implementation("androidx.appfunctions:appfunctions:1.0.0-rc01")
     ksp("androidx.appfunctions:appfunctions-compiler:1.0.0-rc01")
     testImplementation("junit:junit:4.13.2")
+    // a real server on loopback, so the subtitle cache is tested through its own network path
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     // real org.json on the unit-test classpath; android.jar only ships stubs
     testImplementation("org.json:json:20260814")
 }

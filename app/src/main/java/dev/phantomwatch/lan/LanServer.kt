@@ -153,21 +153,11 @@ internal class LanServer(
         }.build()
         client.newCall(req).execute().use { r ->
             val text = r.body?.string().orEmpty()
-            val body = if (text.trimStart().startsWith("WEBVTT")) text else toVtt(text, sub.url)
+            val body = Subtitles.toVtt(text, sub.url)
             if (body.isEmpty()) return notFound(out)
             if (method == "HEAD") return head(out, 200, mapOf("Content-Type" to VTT))
             send(out, 200, mapOf("Content-Type" to VTT), body.toByteArray())
         }
-    }
-
-    private fun toVtt(text: String, url: String): String {
-        val path = url.substringBefore('?').lowercase()
-        val cues = if (path.endsWith(".ass") || text.contains("[Events]")) {
-            Subtitles.parseAss(text)
-        } else {
-            Subtitles.parseCues(text)
-        }
-        return if (cues.isEmpty()) "" else Subtitles.renderCues(cues)
     }
 
     private fun link(url: String): String {

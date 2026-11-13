@@ -56,4 +56,28 @@ class SubtitlesTest {
         val f = Subtitles.shiftSubFile("1\n00:00:01,000 --> 00:00:02,000\nHi\n", 1000, dir)
         assertEquals(2000L, Subtitles.parseCues(f!!.readText())[0].start)
     }
+
+    @Test
+    fun srtBecomesWebVtt() {
+        val srt = "\uFEFF1\n00:00:01,000  -->  00:00:02,000\nHello\n\n2\n00:00:03,500 --> 00:00:04,000\nWorld\n"
+        val vtt = Subtitles.toVtt(srt, "https://cdn.example/subs/en")
+        assertTrue(vtt.startsWith("WEBVTT"))
+        assertTrue(vtt.contains("00:00:01.000 --> 00:00:02.000"))
+        assertEquals(2, Subtitles.parseCues(vtt).size)
+    }
+
+    @Test
+    fun webVttPassesThroughUnchanged() {
+        val vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello\n"
+        assertEquals(vtt, Subtitles.toVtt(vtt, "https://cdn.example/subs/en.vtt"))
+    }
+
+    // the player picks its parser from the extension alone
+    @Test
+    fun mimeFollowsTheExtensionNotTheQuery() {
+        assertEquals("application/x-subrip", Subtitles.mimeOf("https://cdn.example/s/en.srt"))
+        assertEquals("application/x-subrip", Subtitles.mimeOf("https://cdn.example/s/en.srt?token=1"))
+        assertEquals("text/vtt", Subtitles.mimeOf("file:///data/cache/sub--123.vtt"))
+        assertEquals("text/vtt", Subtitles.mimeOf("https://cdn.example/s/en"))
+    }
 }

@@ -1,6 +1,5 @@
 package dev.phantomwatch.subs
 
-import android.net.Uri
 import dev.phantomwatch.data.Sub
 import java.io.File
 
@@ -110,7 +109,16 @@ object Subtitles {
     }
 
     fun mimeOf(url: String): String {
-        val path = Uri.parse(url).path.orEmpty()
-        return if (path.endsWith(".srt", true)) "application/x-subrip" else "text/vtt"
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        return if (path.endsWith(".srt")) "application/x-subrip" else "text/vtt"
+    }
+
+    // providers hand out srt and ass under every extension they like, and the player picks a
+    // parser from the mime alone: an srt served as text/vtt loads the track and yields no cues
+    fun toVtt(text: String, url: String): String {
+        if (text.removePrefix("\uFEFF").trimStart().startsWith("WEBVTT")) return text
+        val path = url.substringBefore('?').lowercase()
+        val cues = if (path.endsWith(".ass") || text.contains("[Events]")) parseAss(text) else parseCues(text)
+        return if (cues.isEmpty()) "" else renderCues(cues)
     }
 }
