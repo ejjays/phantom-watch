@@ -245,10 +245,9 @@
     <string name="you_library_history">Save watch history</string>
     <string name="you_library_history_note">Keep watched titles in History</string>
     <string name="you_library_clear">Clear watch history</string>
-    <string name="you_library_clear_note">Remove every watched entry</string>
-    <string name="you_clear_title">Clear watch history?</string>
-    <string name="you_clear_body">Removes resume points and recently watched titles from this device. It cannot be undone.</string>
-    <string name="you_clear_confirm">Clear history</string>
+    <string name="you_clear_title">Clear your watch history?</string>
+    <string name="you_clear_body">Your Continue watching and Recently watched will be emptied. This cannot be undone.</string>
+    <string name="you_clear_confirm">Clear</string>
 
     <string name="you_providers_configured">Providers configured</string>
     <string name="you_providers_refresh">Auto-refresh sources</string>

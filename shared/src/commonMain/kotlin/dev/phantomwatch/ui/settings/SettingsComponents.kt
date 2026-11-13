@@ -359,15 +359,28 @@ internal fun SettingsChevron(modifier: Modifier = Modifier) {
 internal fun SettingsConfirmDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.you_clear_title)) },
-        text = { Text(stringResource(Res.string.you_clear_body)) },
+        title = {
+            Text(
+                stringResource(Res.string.you_clear_title),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
+                color = SettingsText,
+            )
+        },
+        text = {
+            Text(stringResource(Res.string.you_clear_body), style = MaterialTheme.typography.bodyMedium, color = SettingsText2)
+        },
         confirmButton = {
             TextButton(onClick = { onConfirm(); onDismiss() }) {
-                Text(stringResource(Res.string.you_clear_confirm), color = SettingsError)
+                Text(stringResource(Res.string.you_clear_confirm), style = MaterialTheme.typography.labelMedium, color = SettingsError)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.common_cancel)) }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(Res.string.common_cancel), style = MaterialTheme.typography.labelMedium, color = SettingsText)
+            }
         },
+        containerColor = SettingsTile,
+        titleContentColor = SettingsText,
+        textContentColor = SettingsText2,
     )
 }

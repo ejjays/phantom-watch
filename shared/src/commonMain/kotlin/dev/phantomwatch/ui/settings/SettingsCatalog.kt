@@ -159,7 +159,6 @@ fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> 
                 SettingsAction.ClearHistory,
                 Res.string.you_library_clear,
                 Res.drawable.ic_row_trash,
-                Res.string.you_library_clear_note,
                 destructive = true,
             ),
         ),
