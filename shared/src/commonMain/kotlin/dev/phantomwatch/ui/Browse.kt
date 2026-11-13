@@ -13,6 +13,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,6 +72,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -544,21 +546,31 @@ private val SearchTextStyle: TextStyle
 private fun SearchHeader(query: String, onQuery: (String) -> Unit) {
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    val expanded = isExpanded(screenWidthDp())
+    var focused by remember { mutableStateOf(false) }
+    val ring = Color.White.copy(alpha = if (focused) 0.14f else 0.08f)
+    val lift = if (focused) Color.White.copy(alpha = 0.035f) else Color.Transparent
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp).padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            Modifier.widthIn(max = 480.dp).fillMaxWidth()
-                .height(if (isExpanded(screenWidthDp())) 52.dp else 48.dp)
-                .clip(CircleShape).background(SurfaceColor).padding(horizontal = 16.dp),
+            Modifier.widthIn(max = if (expanded) 640.dp else 480.dp).fillMaxWidth()
+                .height(if (expanded) 56.dp else 48.dp)
+                .clip(CircleShape).background(SurfaceColor).background(lift).border(1.dp, ring, CircleShape)
+                .padding(start = 18.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Icon(
+                painterResource(Res.drawable.ic_search), contentDescription = null,
+                tint = Slate400, modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
             BasicTextField(
                 value = query,
                 onValueChange = onQuery,
-                modifier = Modifier.weight(1f).focusRequester(focusRequester),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester).onFocusChanged { focused = it.isFocused },
                 textStyle = SearchTextStyle,
                 singleLine = true,
                 cursorBrush = SolidColor(Cyan),
@@ -567,6 +579,17 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit) {
                     inner()
                 },
             )
+            if (query.isNotEmpty()) {
+                Box(
+                    Modifier.size(32.dp).clip(CircleShape).clickable { onQuery("") },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painterResource(Res.drawable.ic_close), contentDescription = stringResource(Res.string.common_clear),
+                        tint = Slate400, modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
         }
     }
 }
