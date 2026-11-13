@@ -26,6 +26,12 @@ private const val HANG_BAN_MIN = 5L
 // the host answered, so this may be a slow edge or a wedged decoder: a short sit-out is enough
 private const val HANG_SOFT_MIN = 2L
 
+// a saved spot past the tail cannot play, but a slow segment looks identical for the first
+// seconds: rewinding on that dumped the viewer at 0:00 and started the load over, so only
+// a resume point at the end of the file is treated as unplayable
+internal fun resumeIsPastTail(started: Boolean, positionMs: Long, durationMs: Long): Boolean =
+    !started && durationMs > 0 && positionMs > durationMs - TAIL_MS
+
 // a stream that hangs never errors, so the fallback path never runs: ExoPlayer just buffers
 // drop the resume, ban the host, then let the caller walk to the next format
 @Composable
@@ -40,11 +46,8 @@ internal fun PlaybackWatchdog(
     val stuckNow by rememberUpdatedState(onStuck)
     LaunchedEffect(live.url, stalled, started) {
         if (!stalled) return@LaunchedEffect
-        // a saved spot past the tail cannot play, but a slow segment looks identical for the first
-        // seconds: rewinding on that dumped the viewer at 0:00 and started the load over, so only
-        // a resume point at the end of the file is treated as unplayable
         val dur = exo.duration
-        if (!started && dur > 0 && exo.currentPosition > dur - TAIL_MS) {
+        if (resumeIsPastTail(started, exo.currentPosition, dur)) {
             delay(RESUME_MS)
             if (!stalledNow) return@LaunchedEffect
             AppLog.d("watchdog: resume ${exo.currentPosition / 1000}s past the tail, back to 0")
