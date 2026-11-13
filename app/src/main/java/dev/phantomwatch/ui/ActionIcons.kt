@@ -11,16 +11,6 @@ import androidx.compose.ui.unit.Dp
 import dev.phantomwatch.R
 
 @Composable
-internal fun DownloadIcon(contentDescription: String?, tint: Color, size: Dp) {
-    Icon(
-        painter = painterResource(R.drawable.ic_download),
-        contentDescription = contentDescription,
-        tint = tint,
-        modifier = Modifier.size(size),
-    )
-}
-
-@Composable
 internal fun SendIcon(contentDescription: String?, tint: Color, size: Dp) {
     Icon(
         painter = painterResource(R.drawable.ic_send),

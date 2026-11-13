@@ -136,7 +136,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private const val DOWNLOAD_BUTTON_ENABLED = false
 // long enough to swallow a burst of double taps, short enough that a single one still feels direct
 private const val SEEK_SETTLE_MS = 250L
 // a dead provider stack bans every host it has: past this many swaps the loop is not recovering
@@ -625,7 +624,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     var videoH by remember { mutableStateOf(0) }
     var playing by remember { mutableStateOf(false) }
     var stalled by remember { mutableStateOf(true) }
-    var downloadOpen by remember { mutableStateOf(false) }
     var seekMark by remember { mutableStateOf<SeekMark?>(null) }
     var hideJob: Job? by remember { mutableStateOf(null) }
     var lastSaveAt by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
@@ -1317,22 +1315,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             }
         }
     }
-        if (DOWNLOAD_BUTTON_ENABLED && !Pip.inPip) {
-            PlayerDownloadFab(stream, onOpen = {
-                downloadOpen = true
-            })
-        }
         if (!Pip.inPip) PlayerFailedOverlay(netErr, onPickList, onBack)
-    }
-    if (downloadOpen) {
-        PlayerDownloadDialog(
-            media = media,
-            season = season,
-            episode = episode,
-            stream = stream,
-            videoH = videoH,
-            durationMs = durationMs,
-            onDismiss = { downloadOpen = false },
-        )
     }
 }

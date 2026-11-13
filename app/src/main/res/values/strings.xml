@@ -168,19 +168,6 @@
     <string name="social_reply_gone">That reply is no longer available</string>
     <string name="social_post_failed">Could not post</string>
 
-    <string name="player_download">Download</string>
-    <string name="player_download_title">Download with Phantom</string>
-    <string name="player_download_auto_quality">Auto quality</string>
-    <string name="player_download_sub_included">English subtitle included.</string>
-    <string name="player_download_sub_added">English subtitle added if the stream provides one.</string>
-    <string name="player_download_sub_none">No separate English subtitle found.</string>
-    <string name="player_download_saves_to">Saves to Movies/PhantomWatch.</string>
-    <string name="player_download_needs_update">Phantom needs an update. Install the latest version and try again.</string>
-    <string name="player_download_opening">Opening Phantom…</string>
-    <string name="player_download_update">Update Phantom</string>
-    <string name="player_download_install">Install Phantom</string>
-    <string name="player_download_open">Open Phantom</string>
-
     <string name="player_engine_down">Provider engine unavailable</string>
     <string name="player_no_streams">No direct streams found</string>
     <string name="player_resolve_failed">resolve failed</string>
