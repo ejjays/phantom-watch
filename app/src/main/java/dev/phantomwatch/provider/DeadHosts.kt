@@ -9,6 +9,9 @@ object DeadHosts {
     // host -> ban expiry, so a short cooldown can expire inside the same process
     private val mem = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private var prefs: android.content.SharedPreferences? = null
+    // the leg that carries the top tier is not worth losing to a hang: a wrong ban there costs the
+    // viewer 1080p, the subs and the dubs at once, while a missing one costs a single timeout
+    private val keep = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     fun init(ctx: android.content.Context) {
         if (prefs == null) {
@@ -65,9 +68,19 @@ object DeadHosts {
 
     // a hang is a short ban like any other: the re-admit probe can lift it as soon as the host
     // streams the manifest again, so one bad edge cannot hide the provider for the session
-    fun markHang(url: String, minutes: Long = 120) {
+    fun markHang(url: String, minutes: Long = 120): Boolean {
+        if (kept(url)) return false
         ban(url, System.currentTimeMillis() + minutes * 60_000)
+        return true
     }
+
+    // called by the resolver for the leg whose formats the rest of the app falls back on
+    fun keepHost(url: String) {
+        val h = hostOf(url)
+        if (h.isNotEmpty()) keep.add(h)
+    }
+
+    fun kept(url: String): Boolean = hostOf(url) in keep
 
     // called only once the probe streams real bytes of the manifest, never on a header alone
     fun forgive(url: String) {

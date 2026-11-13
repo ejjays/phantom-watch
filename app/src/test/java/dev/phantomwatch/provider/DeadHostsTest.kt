@@ -27,4 +27,18 @@ class DeadHostsTest {
         DeadHosts.cooldown("https://rate.example/a", 0)
         assertFalse(DeadHosts.blocked("https://rate.example/a"))
     }
+
+    @Test
+    fun aKeptHostIsNeverBannedByAHang() {
+        DeadHosts.keepHost("https://kept.example/a")
+        assertFalse(DeadHosts.markHang("https://kept.example/a", 120))
+        assertFalse(DeadHosts.blocked("https://kept.example/a"))
+    }
+
+    @Test
+    fun aKeptHostIsStillBannedByAnError() {
+        DeadHosts.keepHost("https://kept-err.example/a")
+        DeadHosts.mark("https://kept-err.example/a", 2)
+        assertTrue(DeadHosts.blocked("https://kept-err.example/a"))
+    }
 }
