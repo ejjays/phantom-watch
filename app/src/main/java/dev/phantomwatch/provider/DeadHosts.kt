@@ -66,11 +66,11 @@ object DeadHosts {
 
     // a hang is not one probe away from fine: the host served the manifest and still stalled,
     // so only its own expiry clears it, never the re-admit probe
-    fun markHang(url: String, hours: Long = 2) {
-        mark(url, hours)
+    fun markHang(url: String, minutes: Long = 120) {
+        val until = System.currentTimeMillis() + minutes * 60_000
+        ban(url, until)
         val h = hostOf(url)
         if (h.isEmpty()) return
-        val until = System.currentTimeMillis() + hours * 3_600_000
         hang[h] = until
         try {
             prefs?.edit()?.putLong("hang|$h", until)?.apply()

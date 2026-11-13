@@ -7,7 +7,7 @@ import org.junit.Test
 class DeadHostsTest {
     @Test
     fun theProbeDoesNotForgiveAHang() {
-        DeadHosts.markHang("https://hung.example/a", 2)
+        DeadHosts.markHang("https://hung.example/a", 120)
         DeadHosts.forgive("https://hung.example/a")
         assertTrue(DeadHosts.blocked("https://hung.example/a"))
     }

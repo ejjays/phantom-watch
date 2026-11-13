@@ -20,7 +20,9 @@ private const val STUCK_MS = 30_000L
 // a start that never renders shows in seconds; only a mid-play hang can be a slow edge
 private const val START_STUCK_MS = 12_000L
 // a hang is usually one bad edge, not a dead provider: keep the ban short so the host can recover
-private const val HANG_BAN_H = 2L
+private const val HANG_BAN_MIN = 120L
+// the host answered, so this may be a slow edge or a wedged decoder: a short sit-out is enough
+private const val HANG_SOFT_MIN = 10L
 
 // a stream that hangs never errors, so the fallback path never runs: ExoPlayer just buffers
 // drop the resume, ban the host, then let the caller walk to the next format
@@ -45,12 +47,12 @@ internal fun PlaybackWatchdog(
         delay(if (started) STUCK_MS else START_STUCK_MS)
         if (!stalledNow) return@LaunchedEffect
         val host = DeadHosts.hostOf(live.url)
-        AppLog.d("watchdog: $host stuck at ${exo.currentPosition / 1000}s, next source")
-        // a wedged decoder stalls exactly like a dead CDN, so only blame the host if it stops answering;
-        // the url stays out of the session list either way, which is per-release and cannot poison a title
-        if (!withContext(Dispatchers.IO) { Providers.alive(live.url, live.headers, live.referer) }) {
-            DeadHosts.markHang(live.url, HANG_BAN_H)
-        }
+        val alive = withContext(Dispatchers.IO) { Providers.alive(live.url, live.headers, live.referer) }
+        val ban = if (alive) HANG_SOFT_MIN else HANG_BAN_MIN
+        AppLog.d("watchdog: $host stuck at ${exo.currentPosition / 1000}s, ban ${ban}m, next source")
+        // ban the host, not the rung: the sibling heights hang the same way and each costs a full
+        // timeout, which is how a dead 1080p source ends up walking down to 360p
+        DeadHosts.markHang(live.url, ban)
         DeadReleases.urls.add(live.url)
         stuckNow()
     }
