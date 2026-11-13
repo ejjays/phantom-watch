@@ -65,6 +65,7 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
+import dev.phantomwatch.core.UpdateChecker
 import dev.phantomwatch.core.ioDispatcher
 import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Settings
@@ -142,6 +143,11 @@ internal fun AppRoot() {
         }
     }
     var crash by remember { mutableStateOf(CrashReport.pending(context)) }
+    var update by remember { mutableStateOf(UpdateChecker.available(context)) }
+    LaunchedEffect(Unit) {
+        val fresh = withContext(Dispatchers.IO) { UpdateChecker.refresh(context) }
+        update = fresh?.takeIf { it.code > UpdateChecker.installedCode(context) }
+    }
     LaunchedEffect(screen, Pip.playing) {
         (context as? MainActivity)?.armPip(screen is Screen.Player, Pip.playing)
     }
@@ -247,6 +253,7 @@ internal fun AppRoot() {
                             SettingsData(
                                 version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                                 settings = settings,
+                                updateVersion = update?.tag,
                                 account = remember(youRev) { Social.account() },
                                 accountBusy = accountBusy,
                                 accountError = accountError,
@@ -259,7 +266,13 @@ internal fun AppRoot() {
                                             browse.recent = emptyList()
                                             toast(context, R.string.you_history_cleared)
                                         }
-                                        SettingsAction.Updates -> openUrl(context, RELEASE_URL + "/releases")
+                                        SettingsAction.Updates -> scope.launch {
+                                            val known = update ?: withContext(Dispatchers.IO) {
+                                                UpdateChecker.refresh(context, force = true)
+                                            }?.takeIf { it.code > UpdateChecker.installedCode(context) }?.also { update = it }
+                                            if (known != null) installRelease(context, known)
+                                            else openUrl(context, RELEASE_URL + "/releases")
+                                        }
                                         SettingsAction.Licences -> openUrl(context, RELEASE_URL + "#licence")
                                         SettingsAction.Privacy -> openUrl(context, RELEASE_URL + "#privacy")
                                         SettingsAction.ReportProblem -> {
@@ -355,6 +368,7 @@ internal fun AppRoot() {
                 backdrop = tabBackdrop,
                 selectedTabIndex = { browse.tab },
                 onSelect = browse::selectTab,
+                updateBadge = update != null,
             )
         }
         if ((BuildConfig.DEBUG || BuildConfig.LOGUI) && !PlayerUi.hidesChrome) LogFab()
@@ -482,6 +496,18 @@ private fun toast(ctx: android.content.Context, res: Int) {
 private fun openUrl(ctx: android.content.Context, url: String) {
     runCatching {
         ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+    }
+}
+
+private fun installRelease(ctx: android.content.Context, release: UpdateChecker.Release) {
+    runCatching {
+        ctx.startActivity(
+            android.content.Intent(ctx, UpdateInstallActivity::class.java)
+                .putExtra("url", release.url)
+                .putExtra("size", release.size)
+                .putExtra("github", true)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
 

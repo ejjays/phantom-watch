@@ -362,6 +362,10 @@ class InteractiveHighlight(
 internal val LocalLiquidBottomTabScale =
     staticCompositionLocalOf { { 1f } }
 
+// the selected tab is painted by an accent-tinted copy of the row, so anything that must keep its
+// own colour (the update badge) is skipped there and left to the plain row underneath
+internal val LocalLiquidBottomTabTinted = staticCompositionLocalOf { false }
+
 @Composable
 fun RowScope.LiquidBottomTab(
     onClick: () -> Unit,
@@ -551,7 +555,8 @@ fun LiquidBottomTabs(
                 CompositionLocalProvider(
                     LocalLiquidBottomTabScale provides {
                         lerp(1f, 1.1f, dampedDragAnimation.pressProgress)
-                    }
+                    },
+                    LocalLiquidBottomTabTinted provides true
                 ) {
                     Row(
                         Modifier

@@ -4,12 +4,31 @@ import java.net.URI
 
 internal object UpdateTrust {
     private const val MAX_APK_BYTES = 200L * 1024 * 1024
+    private val RELEASE_HOSTS = setOf(
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+    )
 
     fun validUrl(value: String): Boolean = runCatching {
         val uri = URI(value)
         uri.scheme == "http" && uri.host == "127.0.0.1" && uri.port in 1024..65535 &&
             uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null &&
             uri.rawPath in setOf("/app-debug.apk", "/app-release.apk")
+    }.getOrDefault(false)
+
+    fun releaseEntry(value: String): Boolean = runCatching {
+        val uri = URI(value)
+        uri.scheme == "https" && uri.host == "github.com" && uri.rawUserInfo == null &&
+            uri.rawQuery == null && uri.rawFragment == null &&
+            uri.path.startsWith("/ejjays/phantom-watch/releases/download/") &&
+            uri.path.endsWith(".apk")
+    }.getOrDefault(false)
+
+    // asset redirects land on a signed cdn url whose path carries no file name, so only the host is checked
+    fun releaseHop(value: String): Boolean = runCatching {
+        val uri = URI(value)
+        uri.scheme == "https" && uri.host in RELEASE_HOSTS && uri.rawUserInfo == null
     }.getOrDefault(false)
 
     fun validToken(value: String): Boolean = value.matches(Regex("[a-f0-9]{64}"))

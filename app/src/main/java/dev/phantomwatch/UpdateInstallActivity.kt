@@ -30,7 +30,12 @@ class UpdateInstallActivity : Activity() {
         alive = WeakReference(this)
         log("start appop=${packageManager.canRequestPackageInstalls()}")
         val url = intent.getStringExtra("url").orEmpty()
-        if (!UpdateTrust.validUrl(url)) return finishWith("rejected url")
+        val github = intent.getBooleanExtra("github", false)
+        if (github) {
+            if (!UpdateTrust.releaseEntry(url)) return finishWith("rejected release url")
+        } else {
+            if (!UpdateTrust.validUrl(url)) return finishWith("rejected url")
+        }
         if (!packageManager.canRequestPackageInstalls()) {
             Toast.makeText(this, getString(R.string.update_allow_install), Toast.LENGTH_LONG).show()
             runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
@@ -50,17 +55,16 @@ class UpdateInstallActivity : Activity() {
     }
 
     private fun commit(url: String) {
+        val github = intent.getBooleanExtra("github", false)
         val token = intent.getStringExtra("token").orEmpty()
-        check(UpdateTrust.validToken(token)) { "invalid update token" }
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.instanceFollowRedirects = false
-        conn.connectTimeout = 5000
-        conn.readTimeout = 120000
+        if (github) check(UpdateTrust.releaseEntry(url)) { "invalid release url" } else check(UpdateTrust.validToken(token)) { "invalid update token" }
+        val conn = open(url, if (github) null else token, github)
         try {
-            conn.setRequestProperty("X-PhantomWatch-Update", token)
             check(conn.responseCode == 200) { "server said ${conn.responseCode}" }
             val expectedSize = conn.contentLengthLong
             check(UpdateTrust.validSize(expectedSize)) { "invalid apk size" }
+            val declared = intent.getLongExtra("size", 0L)
+            check(declared <= 0 || declared == expectedSize) { "apk size does not match release" }
             val cache = File(cacheDir, "update.apk")
             var total = 0L
             conn.inputStream.use { input ->
@@ -102,6 +106,24 @@ class UpdateInstallActivity : Activity() {
         } finally {
             conn.disconnect()
         }
+    }
+
+    private fun open(url: String, token: String?, follow: Boolean): HttpURLConnection {
+        var current = url
+        repeat(4) {
+            val conn = URL(current).openConnection() as HttpURLConnection
+            conn.instanceFollowRedirects = false
+            conn.connectTimeout = 5000
+            conn.readTimeout = 120000
+            if (token != null) conn.setRequestProperty("X-PhantomWatch-Update", token)
+            if (conn.responseCode !in 300..399) return conn
+            val next = conn.getHeaderField("Location") ?: error("redirect without location")
+            conn.disconnect()
+            check(follow) { "unexpected redirect" }
+            check(UpdateTrust.releaseHop(next)) { "redirect left github" }
+            current = next
+        }
+        error("too many redirects")
     }
 
     private fun verifyApk(apk: File): String {
