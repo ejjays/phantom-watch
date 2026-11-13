@@ -206,9 +206,11 @@ internal fun AppRoot() {
                         if (m.kind != "tv") browse.openTitle = null
                         screen = Screen.Player(m.title, null, m, seas, ep, Screen.Home)
                     },
-                    loadRecent = {
-                        if (Settings.on(context, Settings.CONTINUE_WATCHING, true)) Resume.recent(context) else emptyList()
+                    loadRecent = { Resume.recent(context) },
+                    continueWatching = remember(youRev) {
+                        Settings.on(context, Settings.CONTINUE_WATCHING, true)
                     },
+                    recentRev = Resume.rev,
                     onRemoveRecent = { Resume.remove(context, it.kind, it.id, it.season, it.episode) },
                     onRestoreRecent = { Resume.restore(context, it) },
                     onExitApp = { (context as? android.app.Activity)?.finish() },

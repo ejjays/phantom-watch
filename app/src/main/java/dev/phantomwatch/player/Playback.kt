@@ -70,7 +70,9 @@ internal fun loadControl(maxBufferMs: Int = 90_000, startMs: Int = 1_500, minBuf
         .setBufferDurationsMsForStreaming(minBufferMs, maxBufferMs, startMs, 5_000)
         .setPrioritizeTimeOverSizeThresholds(true)
         .setTargetBufferBytes(96 * 1024 * 1024)
-        .setBackBuffer(10_000, false)
+        // a back tap must land inside the retained window: at 10s a -10s seek sat exactly on the
+        // edge and re-fetched from the CDN, which is a 20s spinner when that segment hangs
+        .setBackBuffer(30_000, true)
         .build()
 
 class PlaybackService : MediaSessionService() {

@@ -164,18 +164,26 @@ internal fun detectLang(cues: List<SubtitleCue>): String? {
     return best?.takeIf { it.value > 0 }?.key
 }
 
-internal fun mediaHeaders(stream: Stream): Map<String, String> {
+internal fun mediaHeaders(stream: Stream): Map<String, String> =
+    mediaHeaders(stream.url, stream.headers, stream.referer, stream.auth)
+
+internal fun mediaHeaders(
+    url: String,
+    headers: Map<String, String>,
+    referer: String,
+    auth: String? = null,
+): Map<String, String> {
     val ref = when {
-        stream.url.startsWith("file") -> emptyMap()
-        stream.headers.isNotEmpty() -> stream.headers
-        stream.referer.isNotEmpty() -> mapOf(
-            "Referer" to stream.referer,
-            "Origin" to "https://${stream.referer.substringAfter("://").substringBefore('/')}",
+        url.startsWith("file") -> emptyMap()
+        headers.isNotEmpty() -> headers
+        referer.isNotEmpty() -> mapOf(
+            "Referer" to referer,
+            "Origin" to "https://${referer.substringAfter("://").substringBefore('/')}",
         )
         else -> emptyMap()
     }
     return mapOf("User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36") +
-        ref + (stream.auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
+        ref + (auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
 }
 
 // 429 is a rate limit and 403 an expired token or geo block: retrying either only holds the
@@ -189,21 +197,16 @@ private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
     }
 }
 
-// expired DNS is not transient, so it gets a brief ban; 403 and 429 clear in minutes, not a dead host
+// a 403 or a 429 is about this url's token or rate window, not the host: banning the host there is
+// how one expired segment hid a healthy CDN. Only expired DNS is worth a ban.
 internal fun noteDeadHost(chain: String, code: Int?, url: String) {
     when {
         chain.contains("UnknownHostException") -> {
-            DeadHosts.mark(url, 1)
+            DeadHosts.cooldown(url, 10)
             AppLog.d("player dead host ${DeadHosts.hostOf(url)}")
         }
-        code == 429 -> {
-            DeadHosts.cooldown(url, 10)
-            AppLog.d("player rate limited host ${DeadHosts.hostOf(url)}")
-        }
-        code == 403 -> {
-            DeadHosts.cooldown(url, 10)
-            AppLog.d("player refused host ${DeadHosts.hostOf(url)}")
-        }
+        code == 429 -> AppLog.d("player rate limited ${DeadHosts.hostOf(url)}")
+        code == 403 -> AppLog.d("player refused ${DeadHosts.hostOf(url)}")
     }
 }
 
@@ -243,8 +246,12 @@ internal fun buildMediaFactory(
         .setUserAgent(headers.getValue("User-Agent"))
         .setDefaultRequestProperties(headers)
         .setConnectTimeoutMs(15_000)
-        .setReadTimeoutMs(30_000)
-    return DefaultMediaSourceFactory(http)
+        // a stalled segment socket is retried at the read timeout; 30s matched the watchdog, so
+        // every hang cost a full half minute before the loader even tried again
+        .setReadTimeoutMs(15_000)
+    // cached provider subs arrive as file:// while the stream is https: an http-only factory
+    // loads the track but never the cues
+    return DefaultMediaSourceFactory(androidx.media3.datasource.DefaultDataSource.Factory(context, http))
         .setLoadErrorHandlingPolicy(retry)
 }
 

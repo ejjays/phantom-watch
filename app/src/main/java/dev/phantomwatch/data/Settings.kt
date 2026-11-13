@@ -50,11 +50,14 @@ object Settings {
         prefs(ctx).edit().putInt(key, value).apply()
     }
 
-    // subtitle size is a multiple of the picture height, which is how the player sizes its cues
-    internal fun sizeFraction(choice: Int): Float = when (choice) {
-        SIZE_SMALL -> 0.042f
-        SIZE_LARGE -> 0.068f
-        else -> 0.0533f
+    // a fraction of the picture alone lands under the player's legibility floor on a phone, which
+    // made all three sizes render the same, so the choice scales the size the player already picks
+    const val SUBS_BASE_FRACTION = 0.0533f
+
+    internal fun sizeScale(choice: Int): Float = when (choice) {
+        SIZE_SMALL -> 0.82f
+        SIZE_LARGE -> 1.22f
+        else -> 1f
     }
 
     internal fun bgAlpha(choice: Int): Float = when (choice) {

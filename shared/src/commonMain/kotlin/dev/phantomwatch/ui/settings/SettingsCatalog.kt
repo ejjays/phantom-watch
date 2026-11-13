@@ -109,13 +109,13 @@ fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> 
             SettingItem.Toggle(
                 SettingsKeys.SUBS_ON,
                 Res.string.you_subs_on,
-                Res.drawable.ic_row_text,
+                Res.drawable.ic_row_cc,
                 Res.string.you_subs_on_note,
             ),
             SettingItem.Choice(
                 SettingsKeys.SUBS_SIZE,
                 Res.string.you_subs_size,
-                Res.drawable.ic_row_display,
+                Res.drawable.ic_row_text,
                 options = listOf(
                     Res.string.you_subs_size_small,
                     Res.string.you_subs_size_medium,
@@ -126,7 +126,7 @@ fun settingsCatalog(providerCount: Int, version: String): List<SettingCategory> 
             SettingItem.Choice(
                 SettingsKeys.SUBS_BG,
                 Res.string.you_subs_background,
-                Res.drawable.ic_row_moon,
+                Res.drawable.ic_row_caption_bg,
                 Res.string.you_subs_bg_note,
                 options = listOf(
                     Res.string.you_subs_bg_off,

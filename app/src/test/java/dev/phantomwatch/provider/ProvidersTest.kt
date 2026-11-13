@@ -1,5 +1,6 @@
 package dev.phantomwatch.provider
 
+import dev.phantomwatch.data.Dub
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
 import org.json.JSONArray
@@ -202,10 +203,26 @@ class ProvidersTest {
     }
 
     @Test
-    fun providerWithoutOwnSubsBorrowsEnglish() {
+    fun providerWithoutOwnSubsGetsNone() {
         val subs = listOf(Sub("English", "a", "vidlink"), Sub("Español", "b", "love"))
         val f = VideoFormat("u", false, "vap-auto", 1080)
-        assertEquals(listOf("a"), Providers.subsFor(f, subs).map { it.url })
+        assertTrue(Providers.subsFor(f, subs).isEmpty())
+    }
+
+    @Test
+    fun aBannedHostIsRankedLastAndStillListed() {
+        DeadHosts.markHang("https://ban1.example/a", 5)
+        val banned = VideoFormat("https://ban1.example/a", true, "ban1-1080p", 1080)
+        val ok = VideoFormat("https://ok1.example/a", true, "ok1-1080p", 1080)
+        val out = Providers.rankLast(listOf(banned, ok)) { DeadHosts.blocked(it) }
+        assertEquals(listOf(ok, banned), out)
+    }
+
+    @Test
+    fun aSavedDubOnABannedHostIsStillReturned() {
+        DeadHosts.markHang("https://ban2.example/a", 5)
+        val d = Dub("English · HiAnime", "https://ban2.example/a", true, "")
+        assertEquals(d, Providers.savedDub(listOf(d), "English · HiAnime"))
     }
 
     @Test

@@ -124,7 +124,6 @@ import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.provider.Providers
 import dev.phantomwatch.provider.Resolve
 import dev.phantomwatch.subs.MkvSubs
-import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.data.DetailCache
 import dev.phantomwatch.data.DubPref
@@ -138,6 +137,10 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 private const val DOWNLOAD_BUTTON_ENABLED = false
+// long enough to swallow a burst of double taps, short enough that a single one still feels direct
+private const val SEEK_SETTLE_MS = 250L
+// a dead provider stack bans every host it has: past this many swaps the loop is not recovering
+private const val MAX_SWAPS = 3
 
 @OptIn(UnstableApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -174,19 +177,24 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             val bundle = withContext(Dispatchers.IO) {
                 Resolve.streams(media, season, episode, fresh = retryN > 0)
             }
-            // prefer non-banned; fall back to full set so user can still pick
-            val notDead = bundle.formats.filter { it.url !in DeadReleases.urls }
-            val live = notDead.filter { !DeadHosts.blocked(it.url) }.ifEmpty { notDead }
+            // a banned host is ranked last by the resolve, never dropped here: filtering it out is
+            // how one false positive erased a provider from the picker and from the dub menu
+            val live = bundle.formats.filter { it.url !in DeadReleases.urls }
             AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
                 resolveErr = context.getString(if (JsProviders.engineDown) R.string.player_engine_down else R.string.player_no_streams)
                 return@LaunchedEffect
             }
             val best = live.first()
-            val streamSubs = Providers.subsFor(best, bundle.subs)
+            val streamSubs = Providers.subsFor(best, bundle.subs).cached(context, best.url, best.headers, best.referer)
             AppLog.d("direct play provider=${Providers.providerName(best)} label=${best.label} height=${best.height} hls=${best.isHls} enSubs=${best.enSubs} enAudio=${best.enAudio} streamSubs=${streamSubs.size}")
-            val base = Stream(best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb, headers = best.headers, enSubs = best.enSubs, intro = best.intro, recap = best.recap, dub = best.dub)
-            resolved = Providers.restore(base.copy(dubs = Providers.dubsOf(live, best, streamSubs, Providers.langName(DetailCache.detail(media.kind, media.id)?.language) ?: "Sub")), DubPref.get(context, media.kind, media.id))
+            val base = Stream(
+                best.url, best.isHls, streamSubs, best.referer, null, imdb = bundle.imdb,
+                headers = best.headers, enSubs = best.enSubs, intro = best.intro, recap = best.recap, dub = best.dub,
+            )
+            val dubs = Providers.dubsOf(live, best, streamSubs, Providers.langName(DetailCache.detail(media.kind, media.id)?.language) ?: "Sub")
+                .map { d -> d.copy(subs = d.subs.cached(context, d.url, d.headers, d.referer)) }
+            resolved = Providers.restore(base.copy(dubs = dubs), DubPref.get(context, media.kind, media.id))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -196,6 +204,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val rs = resolved
     var gaveUpSent by remember { mutableStateOf(false) }
     var directErrs by remember { mutableStateOf(0) }
+    var swaps by remember { mutableStateOf(0) }
     var netErr by remember { mutableStateOf(false) }
     var resumeJob: Job? by remember { mutableStateOf(null) }
     var forcedNames by remember { mutableStateOf<List<String>?>(null) }
@@ -297,6 +306,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         autoplay: Boolean = true,
     ) {
         runCatching {
+            if (subs.isNotEmpty()) AppLog.d("subs attach " + subs.joinToString { "${it.url.substringBefore("://")} ${it.label}" })
             exo.setMediaSource(sourceFor(context, src, subs, firstUri, meta), pos)
             exo.prepare()
             if (autoplay) exo.play()
@@ -424,7 +434,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
 
             override fun onPlaybackStateChanged(state: Int) {
                 if (exo.currentMediaItem?.localConfiguration?.uri?.toString() != live.url) return
-                if (state == Player.STATE_READY) { netErr = false; directErrs = 0 }
+                if (state == Player.STATE_READY) { netErr = false; directErrs = 0; swaps = 0 }
                 val now = SystemClock.elapsedRealtime()
                 if (state == Player.STATE_READY) {
                     if (stats.startup == 0L && stats.attachAt > 0) stats.startup = now - stats.attachAt
@@ -550,7 +560,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     LaunchedEffect(live.url) { subs.runOsSubs() }
     LaunchedEffect(live.url) { subs.sync() }
     LaunchedEffect(live.url) { subs.watchSelection() }
-    val subSize = remember { Settings.sizeFraction(Settings.choice(context, Settings.SUBS_SIZE, Settings.SIZE_MEDIUM)) }
+    val subSize = remember { Settings.sizeScale(Settings.choice(context, Settings.SUBS_SIZE, Settings.SIZE_MEDIUM)) }
     val subBg = remember { Settings.bgAlpha(Settings.choice(context, Settings.SUBS_BG, Settings.BG_DIM)) }
     var langDone by remember { mutableStateOf(false) }
     LaunchedEffect(embedNames) {
@@ -625,6 +635,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     var accSide by remember { mutableStateOf<SeekSide?>(null) }
     var accTotal by remember { mutableStateOf(0) }
     var accAt by remember { mutableStateOf(0L) }
+    var seekTarget by remember { mutableStateOf(-1L) }
+    var seekJob by remember { mutableStateOf<Job?>(null) }
     fun poke() {
         controls = true
         hideJob?.cancel()
@@ -660,7 +672,17 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         accTotal = if (accSide == side && now - accAt < 1000) accTotal + seekStep else seekStep
         accSide = side
         accAt = now
-        exo.seekTo((exo.currentPosition + dir).coerceAtLeast(0))
+        // a burst of taps is one seek: every exo.seekTo drops the buffer and re-fetches, so eight
+        // taps in two seconds restarted the loader eight times and stalled on the slowest one
+        val base = if (seekTarget >= 0) seekTarget else exo.currentPosition
+        val target = (base + dir).coerceAtLeast(0)
+        seekTarget = target
+        seekJob?.cancel()
+        seekJob = resumeScope.launch {
+            delay(SEEK_SETTLE_MS)
+            exo.seekTo(target)
+            seekTarget = -1
+        }
         seekMark = SeekMark(side, accTotal)
         resumeScope.launch {
             delay(1000)
@@ -812,8 +834,23 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         }
     }
     PlaybackWatchdog(exo, stalled, stats.startup > 0, live) {
+        // a hang at 14:00 used to restart the episode at 0:00, so the swap cost the viewer their
+        // place on top of the stall: carry the position into the new source instead
+        val at = exo.currentPosition
+        if (swaps >= MAX_SWAPS) {
+            // every host is banned and each retry re-bans the same two, so the swap loop never
+            // ends: stop and let the source picker show instead of spinning forever
+            AppLog.d("watchdog: gave up after $swaps swaps")
+            onGiveUp(live.url)
+            return@PlaybackWatchdog
+        }
         val s = Providers.nextStream(media, season, episode, live.url)
-        if (s != null) { live = s; attach(0) } else onGiveUp(live.url)
+        if (s != null) {
+            swaps += 1
+            live = s.copy(subs = s.subs.cached(context, s.url, s.headers, s.referer))
+            AppLog.d("watchdog: swap at ${at / 1000}s")
+            attach(at)
+        } else onGiveUp(live.url)
     }
     val playerView = LocalView.current
     DisposableEffect(playing) {
@@ -1092,7 +1129,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                     PlayerWide(
                         media, season, episode, overview, videoAspect, fullscreen, tablet,
                         onEpisode, onOpenTitle,
-                    ) { inset, style -> stage(inset, fullscreen, seekBar = true, subStyle = style) }
+                    ) { inset, style ->
+                        stage(inset, fullscreen, seekBar = true, subStyle = style, subBg = subBg)
+                    }
                 }
                 Box(Modifier.width(openW).fillMaxHeight().clipToBounds().background(Color.Black)) {
                     if (openW > 0.dp) {
@@ -1212,9 +1251,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 )
                 val letterbox = ((stageHpx - videoHpx) / 2f).coerceAtLeast(0f)
                 val subPx = maxOf(
-                    videoHpx * subSize,
+                    videoHpx * Settings.SUBS_BASE_FRACTION,
                     with(density) { (if (theater) 15.dp else 13.dp).toPx() },
-                )
+                ) * subSize
                 val subStyle = subPx to
                     if (theater) {
                         0f

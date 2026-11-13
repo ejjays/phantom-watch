@@ -7,16 +7,21 @@ import org.junit.Test
 class SettingsTest {
     @Test
     fun sizeOrderIsSmallerThanMediumSmallerThanLarge() {
-        val small = Settings.sizeFraction(Settings.SIZE_SMALL)
-        val medium = Settings.sizeFraction(Settings.SIZE_MEDIUM)
-        val large = Settings.sizeFraction(Settings.SIZE_LARGE)
+        val small = Settings.sizeScale(Settings.SIZE_SMALL)
+        val medium = Settings.sizeScale(Settings.SIZE_MEDIUM)
+        val large = Settings.sizeScale(Settings.SIZE_LARGE)
         assertTrue(small < medium)
         assertTrue(medium < large)
     }
 
     @Test
     fun unknownSizeFallsBackToTheDefault() {
-        assertEquals(Settings.sizeFraction(Settings.SIZE_MEDIUM), Settings.sizeFraction(99))
+        assertEquals(Settings.sizeScale(Settings.SIZE_MEDIUM), Settings.sizeScale(99))
+    }
+
+    @Test
+    fun mediumKeepsTheSizeThePlayerAlreadyUsed() {
+        assertEquals(1f, Settings.sizeScale(Settings.SIZE_MEDIUM))
     }
 
     @Test
@@ -32,7 +37,7 @@ class SettingsTest {
     @Test
     fun everySizeNominalStaysUnderAFifthOfThePicture() {
         listOf(Settings.SIZE_SMALL, Settings.SIZE_MEDIUM, Settings.SIZE_LARGE).forEach {
-            assertTrue(Settings.sizeFraction(it) < 0.2f)
+            assertTrue(Settings.SUBS_BASE_FRACTION * Settings.sizeScale(it) < 0.2f)
         }
     }
 }

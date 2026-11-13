@@ -1,6 +1,9 @@
 package dev.phantomwatch.data
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -11,6 +14,11 @@ object Resume {
     private const val END_SLACK_MS = 30_000L
     private const val RECENT = "recent"
     private const val RECENT_MAX = 12
+
+    // the player saves on dispose, after the home screen has already read the list, so the list has
+    // to follow the store rather than being loaded once
+    var rev by mutableIntStateOf(0)
+        private set
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -81,6 +89,7 @@ object Resume {
     @Synchronized
     fun clear(ctx: Context) {
         prefs(ctx).edit().clear().apply()
+        rev++
     }
 
     @Synchronized
@@ -90,6 +99,7 @@ object Resume {
             .remove(key(kind, id, season, episode))
             .putString(RECENT, encode(dropRecent(decode(p.getString(RECENT, null)), kind, id, season, episode)))
             .apply()
+        rev++
     }
 
     @Synchronized
@@ -97,6 +107,7 @@ object Resume {
         val edit = prefs(ctx).edit()
         list.forEach { edit.putLong(key(it.kind, it.id, it.season, it.episode), it.positionMs) }
         edit.putString(RECENT, encode(list)).apply()
+        rev++
     }
 
     @Synchronized
@@ -116,6 +127,7 @@ object Resume {
                 .remove(k)
                 .putString(RECENT, encode(dropRecent(old, media.kind, media.id, season, episode)))
                 .apply()
+            rev++
             return
         }
         val entry = Recent(media.kind, media.id, media.title, media.poster, season, episode, positionMs, durationMs)
@@ -123,5 +135,6 @@ object Resume {
             .putLong(k, positionMs)
             .putString(RECENT, encode(mergeRecent(old, entry)))
             .apply()
+        rev++
     }
 }

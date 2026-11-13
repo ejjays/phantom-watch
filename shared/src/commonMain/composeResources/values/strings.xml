@@ -228,8 +228,8 @@
     <string name="you_playback_skip">Skip intros and recaps</string>
     <string name="you_playback_skip_note">Skip button over intros</string>
 
-    <string name="you_subs_on">Subtitles</string>
-    <string name="you_subs_on_note">Show captions by default</string>
+    <string name="you_subs_on">Show captions</string>
+    <string name="you_subs_on_note">On by default</string>
     <string name="you_subs_size">Text size</string>
     <string name="you_subs_size_small">Small</string>
     <string name="you_subs_size_medium">Medium</string>

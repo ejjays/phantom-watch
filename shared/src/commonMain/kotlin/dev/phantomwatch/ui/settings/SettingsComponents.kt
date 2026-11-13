@@ -276,7 +276,7 @@ private fun ChoiceRow(item: SettingItem.Choice, selected: Int, gutter: Dp, onSel
                     trailingIcon = if (index == selected) {
                         {
                             Icon(
-                                painter = painterResource(Res.drawable.ic_chevron_right),
+                                painter = painterResource(Res.drawable.ic_check),
                                 contentDescription = null,
                                 tint = SettingsAccent,
                                 modifier = Modifier.size(18.dp),

@@ -8,7 +8,6 @@ object DeadReleases {
 object DeadHosts {
     // host -> ban expiry, so a short cooldown can expire inside the same process
     private val mem = java.util.concurrent.ConcurrentHashMap<String, Long>()
-    private val hang = mutableMapOf<String, Long>()
     private var prefs: android.content.SharedPreferences? = null
 
     fun init(ctx: android.content.Context) {
@@ -64,36 +63,16 @@ object DeadHosts {
         return false
     }
 
-    // a hang is not one probe away from fine: the host served the manifest and still stalled,
-    // so only its own expiry clears it, never the re-admit probe
+    // a hang is a short ban like any other: the re-admit probe can lift it as soon as the host
+    // streams the manifest again, so one bad edge cannot hide the provider for the session
     fun markHang(url: String, minutes: Long = 120) {
-        val until = System.currentTimeMillis() + minutes * 60_000
-        ban(url, until)
-        val h = hostOf(url)
-        if (h.isEmpty()) return
-        hang[h] = until
-        try {
-            prefs?.edit()?.putLong("hang|$h", until)?.apply()
-        } catch (_: Exception) {
-        }
+        ban(url, System.currentTimeMillis() + minutes * 60_000)
     }
 
-    fun hangBanned(url: String): Boolean {
-        val h = hostOf(url)
-        if (h.isEmpty()) return false
-        val until = hang[h] ?: try {
-            prefs?.getLong("hang|$h", 0) ?: 0
-        } catch (_: Exception) {
-            0
-        }
-        if (until <= System.currentTimeMillis()) return false
-        hang[h] = until
-        return true
-    }
-
+    // called only once the probe streams real bytes of the manifest, never on a header alone
     fun forgive(url: String) {
         val h = hostOf(url)
-        if (h.isEmpty() || hangBanned(url)) return
+        if (h.isEmpty()) return
         mem.remove(h)
         try {
             prefs?.edit()?.remove(h)?.apply()

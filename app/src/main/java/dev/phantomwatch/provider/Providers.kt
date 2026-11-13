@@ -176,9 +176,15 @@ object Providers {
             } else if (referer.isNotEmpty()) {
                 b.header("Referer", referer)
             }
-            val call = Http.client.newCall(b.header("Range", "bytes=0-0").build())
+            // a host that hangs the manifest still answers a 1-byte range, so read a real prefix:
+            // the re-admit probe must not resurrect a stream that never delivers
+            val call = Http.client.newCall(b.header("Range", "bytes=0-4095").build())
             call.timeout().deadline(6, java.util.concurrent.TimeUnit.SECONDS)
-            call.execute().use { it.code in 200..299 }
+            call.execute().use { r ->
+                if (r.code !in 200..299) return@use false
+                val body = r.body ?: return@use false
+                body.source().read(okio.Buffer(), 4096) > 0
+            }
         } catch (_: Exception) {
             false
         }
@@ -277,7 +283,9 @@ object Providers {
         if (saved == null) return null
         val pick = dubs.firstOrNull { !it.base && it.label == saved }
             ?: dubs.firstOrNull { !it.base && it.label.substringBefore(" · ") == saved.substringBefore(" · ") }
-        return pick?.takeUnless { DeadHosts.blocked(it.url) }
+        // a banned host costs one stall and the watchdog walks off it; silently dropping the saved
+        // pick instead looks like the preference was forgotten
+        return pick
     }
 
     fun restore(s: Stream, saved: String?): Stream {
@@ -309,12 +317,10 @@ object Providers {
         return listOf(back) + dubs
     }
 
-    // own-provider subs fit this cut; other legs' files drift, so they are only a fallback
+    // a sub belongs to the leg that served it: another leg's file is timed to another cut
     fun subsFor(f: VideoFormat, subs: List<Sub>): List<Sub> {
         if (f.label.startsWith("rock-")) return emptyList()
-        val own = subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
-        if (own.isNotEmpty() || f.dub != null) return own
-        return subs.filter { it.label.contains("english", true) }
+        return subs.filter { it.src.isEmpty() || f.label.startsWith(it.src) }
     }
 
     fun providerName(f: VideoFormat): String = when {

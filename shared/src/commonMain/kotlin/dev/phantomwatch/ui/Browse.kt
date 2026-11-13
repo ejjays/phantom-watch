@@ -195,6 +195,8 @@ fun HomeScreen(
     browse: BrowseState,
     onWatch: (Title, String, String) -> Unit,
     loadRecent: () -> List<Recent> = { emptyList() },
+    continueWatching: Boolean = true,
+    recentRev: Int = 0,
     onRemoveRecent: (Recent) -> Unit = {},
     onRestoreRecent: (List<Recent>) -> Unit = {},
     onExitApp: (() -> Unit)? = null,
@@ -280,7 +282,7 @@ fun HomeScreen(
         browse.explore.loadMore(key, browse.rails, scope)
     }
 
-    LaunchedEffect(Unit) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
+    LaunchedEffect(continueWatching, recentRev) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
     LaunchedEffect(browse.recent) {
         val missing = browse.recent.filter { it.poster.isNullOrBlank() }
         if (missing.isEmpty()) return@LaunchedEffect
@@ -441,7 +443,7 @@ fun HomeScreen(
                             BrowseBody(
                                 trending = browse.trending,
                                 rails = browse.rails,
-                                recent = browse.recent,
+                                recent = if (continueWatching) browse.recent else emptyList(),
                                 explore = browse.explore,
                                 onGenre = { browse.explore.select(it, key, scope) },
                                 loading = browse.loading,
