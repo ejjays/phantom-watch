@@ -66,7 +66,6 @@ import dev.phantomwatch.core.CrashReport
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.core.UpdateChecker
-import dev.phantomwatch.core.ioDispatcher
 import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Title
@@ -78,8 +77,6 @@ import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
 import dev.phantomwatch.player.Screen
 import dev.phantomwatch.player.SourcesScreen
-import dev.phantomwatch.player.TrailerBridge
-import dev.phantomwatch.player.TrailerCache
 import dev.phantomwatch.player.navLabel
 import dev.phantomwatch.social.GoogleAuth
 import dev.phantomwatch.social.Social
@@ -87,7 +84,6 @@ import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.ClipsScreen
-import dev.phantomwatch.ui.clipKeyOf
 import dev.phantomwatch.ui.Route
 import dev.phantomwatch.ui.DetailPane
 import dev.phantomwatch.ui.HomeLiquidTabs
@@ -153,16 +149,6 @@ internal fun AppRoot() {
     LaunchedEffect(Unit) {
         Telemetry.appContext = context.applicationContext
         DeadHosts.init(context)
-        TrailerBridge.warm()
-    }
-    // the clips tab opens on this title, and resolving is what makes the first swipe feel slow
-    LaunchedEffect(browse.trending) {
-        val first = browse.trending.firstOrNull() ?: return@LaunchedEffect
-        val key = clipKeyOf(first) ?: return@LaunchedEffect
-        val s = TrailerBridge.resolve(key) ?: return@LaunchedEffect
-        val url = s.hls ?: s.video ?: return@LaunchedEffect
-        // the resolve is cheap to repeat and the cache is what the player waits on
-        withContext(ioDispatcher) { TrailerCache.prefetch(context, url) }
     }
     val ask = PlayRequest.pending
     LaunchedEffect(ask) {
