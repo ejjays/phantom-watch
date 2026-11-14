@@ -83,7 +83,6 @@ import dev.phantomwatch.player.TrailerCache
 import dev.phantomwatch.player.navLabel
 import dev.phantomwatch.social.GoogleAuth
 import dev.phantomwatch.social.Social
-import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.ui.BrowseState
@@ -153,7 +152,6 @@ internal fun AppRoot() {
     }
     LaunchedEffect(Unit) {
         Telemetry.appContext = context.applicationContext
-        SubsApi.init(context)
         DeadHosts.init(context)
         TrailerBridge.warm()
     }

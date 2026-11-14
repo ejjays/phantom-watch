@@ -12,54 +12,9 @@ import org.json.JSONObject
 
 object AiSubs {
     suspend fun keys(): List<String> = withContext(Dispatchers.IO) {
-        val personal = BuildConfig.GROQ_API_KEY.split(',').map { it.trim() }.filter { it.isNotEmpty() }
-        val out = mutableListOf<String>()
-        out.addAll(personal)
-        out.addAll(fetchRemoteKeys())
+        val out = BuildConfig.GROQ_API_KEY.split(',').map { it.trim() }.filter { it.isNotEmpty() }
         AppLog.d("ai keys=${out.distinct().size}")
-        return@withContext out.distinct().take(6)
-    }
-
-    private suspend fun fetchRemoteKeys(): List<String> {
-        val out = mutableListOf<String>()
-        val base = BuildConfig.SUPABASE_URL.trimEnd('/')
-        if (base.isEmpty()) return out
-        repeat(3) { attempt ->
-            try {
-                val token = SubsApi.userToken() ?: return out
-                val url = "$base/rest/v1/ai_service_keys?provider=eq.groq&is_active=eq.true&select=api_key"
-                val req = okhttp3.Request.Builder()
-                    .url(url)
-                    .header("apikey", BuildConfig.SUPABASE_ANON_KEY)
-                    .header("Authorization", "Bearer $token")
-                    .build()
-                val call = Http.client.newCall(req)
-                call.timeout().deadline(15, TimeUnit.SECONDS)
-                val code: Int
-                val body: String?
-                call.execute().use { res ->
-                    code = res.code
-                    body = if (code == 200) res.body?.string() else null
-                }
-                if (code == 401) {
-                    SubsApi.dropSession()
-                    return@repeat
-                }
-                if (body == null) {
-                    if (attempt < 2) kotlinx.coroutines.delay(2000)
-                    return@repeat
-                }
-                val arr = org.json.JSONArray(body)
-                for (i in 0 until arr.length()) {
-                    val k = arr.optJSONObject(i)?.optString("api_key")?.trim() ?: ""
-                    if (k.isNotEmpty()) out.add(k)
-                }
-                return out
-            } catch (_: Exception) {
-                if (attempt < 2) kotlinx.coroutines.delay(2000)
-            }
-        }
-        return out
+        out.distinct().take(6)
     }
 
     internal fun parseNumberedLines(text: String, count: Int): List<String>? {

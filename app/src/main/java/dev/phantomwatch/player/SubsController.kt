@@ -19,7 +19,6 @@ import dev.phantomwatch.data.Sub
 import dev.phantomwatch.subs.AiSubs
 import dev.phantomwatch.subs.MkvSubs
 import dev.phantomwatch.subs.OsSubs
-import dev.phantomwatch.subs.SubsApi
 import dev.phantomwatch.subs.SubtitleCue
 import dev.phantomwatch.subs.Subtitles
 import kotlinx.coroutines.CancellationException
@@ -244,11 +243,6 @@ internal class SubsController(
         AppLog.d("ai cues=${all.size}")
         val merged = (stream.subs + Sub("AI English", Uri.fromFile(f).toString())).distinctBy { it.url }
         attach(merged, null, exo.currentPosition, exo.isPlaying)
-        if (stream.subKey.isNotEmpty() && all.size >= 5) {
-            withContext(Dispatchers.IO) {
-                SubsApi.store(stream.subKey, "AI English", Subtitles.renderCues(all), "ai")
-            }
-        }
     }
 
     suspend fun sync() {
