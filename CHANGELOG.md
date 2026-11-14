@@ -23,11 +23,17 @@
 - home: a history icon next to search resumes what you were part way through.
 - player: a 10s card at the end of an episode plays the next one.
 - player: resume where the episode was left off.
-- community: authors can delete their comments; three reports hide one pending
-  review.
-- update: the loopback updater needs a one-shot token and a matching signer.
+- community: authors can delete their comments; three reports flag one for review,
+  only a moderator hides it.
+- update: a GitHub release installs in app, with the signer and version pinned.
+- update: the installer activity is no longer exported.
 - i18n: every rendered string lives in `res/values/strings.xml`.
-- net: cleartext HTTP is refused except for `127.0.0.1`.
+- net: cleartext HTTP is refused.
+- home: trending paints before the rails, and the rails load in parallel.
+- subs: an embedded English track skips the OpenSubtitles fetch.
+- subs: the unused Supabase subtitle cache and remote key fetch are gone.
+- startup: the trailer WebView warms when the clip feed opens, not at launch.
+- logs: crash and update logs land in Downloads, minus stream urls.
 - build: detekt runs as its own CI job against a 210-finding baseline.
 - build: `versionCode` follows the commit count, R8 runs on release builds.
 - refactor: the flat `dev.phantomwatch` package is split by feature.
