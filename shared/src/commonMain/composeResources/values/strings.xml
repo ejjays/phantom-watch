@@ -146,7 +146,7 @@
 
     <string name="rail_popular">Top 10 Movies Today</string>
     <string name="rail_top">Top Rated</string>
-    <string name="rail_local">Top 10 Movies from %1$s</string>
+    <string name="rail_local">Top 10 Shows from %1$s</string>
     <string name="rail_chart">Top 10 in %1$s</string>
     <string name="rail_continue">Continue Watching</string>
     <string name="rail_tv_popular">Popular Series</string>

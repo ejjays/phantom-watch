@@ -152,10 +152,10 @@ private fun localRail(country: Country): RailDef? {
     return RailDef(
         "local",
         Res.string.rail_local,
-        "discover/movie?with_origin_country=${country.code}&sort_by=popularity.desc",
+        "discover/tv?with_origin_country=${country.code}&sort_by=popularity.desc",
         arg = country.name,
         ranked = true,
-        chart = "movie",
+        chart = "tv",
         landscape = true,
     )
 }
@@ -178,7 +178,7 @@ private suspend fun railOf(def: RailDef, key: String, country: Country): RailSta
 private fun railTitle(title: StringResource, arg: String?): String =
     if (arg != null) stringResource(title, arg) else stringResource(title)
 
-private const val FEED_CACHE_VERSION = 2
+private const val FEED_CACHE_VERSION = 3
 
 private fun feedTitle(e: JSONObject): Title? {
     val id = e.optString("id")

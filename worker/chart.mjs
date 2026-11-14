@@ -4,7 +4,7 @@ const TMDB = 'https://api.themoviedb.org/3';
 const UA = 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36';
 const TTL = 6 * 3600;
 // bumped when the row shape changes: the edge cache outlives a deploy
-const V = 2;
+const V = 3;
 const JSON_H = { 'content-type': 'application/json' };
 
 export async function handleChart(url) {
@@ -56,7 +56,10 @@ async function slugOf(code) {
 
 async function resolve(title, kind, tmdb) {
   // netflix hangs season and episode labels off show titles; the bare name is the better query
-  const tries = kind === 'tv' ? [title.replace(/:.*$/, ''), title] : [title];
+  const bare = kind === 'tv'
+    ? title.replace(/\s*:\s*(Season\s+\d+|S\d+.*|Limited Series)\s*$/i, '').trim()
+    : title;
+  const tries = kind === 'tv' ? [bare, title.replace(/:.*$/, ''), title] : [title];
   for (const q of new Set(tries)) {
     const hit = await search(q, kind, tmdb);
     if (hit) return hit;
@@ -72,6 +75,7 @@ async function search(q, kind, tmdb) {
   if (!hit) return null;
   return {
     id: hit.id,
+    media_type: kind,
     title: hit.title || hit.name,
     poster_path: hit.poster_path,
     backdrop_path: hit.backdrop_path,
