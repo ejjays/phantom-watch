@@ -101,8 +101,8 @@ internal class SubsController(
                     return@launch
                 }
                 // love subs drift on some encodes; only trust non-love sources
-                if (s.enSubs && hasReliableEnSubs(s.subs)) {
-                    AppLog.d("os skipped, provider en subs")
+                if (hasReliableEnSubs(s.subs)) {
+                    AppLog.d("os skipped, stream subs")
                     return@launch
                 }
                 if (!awaitReady()) {
@@ -113,17 +113,13 @@ internal class SubsController(
                     AppLog.d("os skipped, ai subs on")
                     return@launch
                 }
-                if (hasReliableEnSubs(s.subs)) {
-                    AppLog.d("os skipped, stream subs")
-                    return@launch
-                }
                 val hasEnEmbed = tracks()?.groups?.any { g ->
                     g.type == C.TRACK_TYPE_TEXT && (0 until g.length).any { i ->
                         val f = g.getTrackFormat(i)
                         looksEnglish("${f.language ?: "und"}:${f.label ?: ""}")
                     }
                 } == true
-                if (hasEnEmbed && hasReliableEnSubs(s.subs)) {
+                if (hasEnEmbed) {
                     AppLog.d("os skipped, embed subs")
                     return@launch
                 }
