@@ -46,7 +46,6 @@
     ctx = ctx || {};
     if (name === 'vap') return !ctx.imdb;
     if (name === 'paradise') return ctx.kind !== 'tv' || String(ctx.season) !== '1' || !ctx.title;
-    if (name === 'hianime') return ctx.isAnim === false;
     return false;
   }
 

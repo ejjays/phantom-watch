@@ -250,7 +250,7 @@ function skipFor(leg, job, info) {
   if ((cfg.legs[leg] || {}).enabled === false) return 'disabled';
   if (leg === 'hianime' && !KEY) return 'no TMDB key';
   // the app and the probe share these rules
-  if (window.__pwSkip(leg, { kind: job.kind, season: job.season, title: info.title, imdb: info.imdb, isAnim: info.isAnim })) {
+  if (window.__pwSkip(leg, { kind: job.kind, season: job.season, title: info.title, imdb: info.imdb })) {
     return 'not applicable';
   }
   return '';
@@ -297,8 +297,7 @@ async function meta(job) {
     getJson(`https://api.themoviedb.org/3/${ep}/${job.tmdbId}/external_ids?api_key=${KEY}`, 'https://www.themoviedb.org/'),
   ]);
   const title = ((a && (a.name || a.title)) || '').split(':')[0].trim();
-  const isAnim = ((a && a.genres) || []).some((g) => g.id === 16);
-  return { title, imdb: (b && b.imdb_id) || '', isAnim };
+  return { title, imdb: (b && b.imdb_id) || '' };
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

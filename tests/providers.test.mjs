@@ -67,10 +67,9 @@ test('legs that cannot serve the title are skipped', () => {
   assert.equal(window.__pwSkip('paradise', { kind: 'tv', season: '2', title: 'x' }), true);
   assert.equal(window.__pwSkip('paradise', { kind: 'tv', season: '1', title: 'x' }), false);
   assert.equal(window.__pwSkip('hianime', { kind: 'movie' }), false);
-  assert.equal(window.__pwSkip('hianime', { kind: 'movie', isAnim: false }), true);
+  assert.equal(window.__pwSkip('hianime', { kind: 'movie', isAnim: false }), false);
   assert.equal(window.__pwSkip('hianime', { kind: 'movie', isAnim: true }), false);
   assert.equal(window.__pwSkip('hianime', { kind: 'tv' }), false);
-  assert.equal(window.__pwSkip('hianime', { kind: 'tv', isAnim: false }), true);
   assert.equal(window.__pwSkip('love', { kind: 'movie' }), false);
 });
 
