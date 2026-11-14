@@ -562,7 +562,12 @@
     }
     async function cut(kind) {
       var page = origin + '/stream/mal/' + mal + '/' + epNum + '/' + kind;
-      var html = await raw(page, page, 10);
+      var r = await http({ url: page, referer: page, timeout: 10 });
+      if (r && (r.code === 403 || r.code === 429 || r.code >= 500)) {
+        await new Promise(function (res) { setTimeout(res, 400); });
+        r = await http({ url: page, referer: page, timeout: 10 });
+      }
+      var html = r && r.code === 200 ? r.body : null;
       if (html === null) return null;
       var idm = /data-id=["'](\d+)["']/.exec(html);
       if (!idm) return null;
