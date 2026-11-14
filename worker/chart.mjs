@@ -4,7 +4,7 @@ const TMDB = 'https://api.themoviedb.org/3';
 const UA = 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36';
 const TTL = 6 * 3600;
 // bumped when the row shape changes: the edge cache outlives a deploy
-const V = 3;
+const V = 4;
 const JSON_H = { 'content-type': 'application/json' };
 
 export async function handleChart(url) {
@@ -19,7 +19,7 @@ export async function handleChart(url) {
   if (hit) return new Response(hit.body, { headers: JSON_H });
 
   const slug = await slugOf(code);
-  const html = await text(`https://www.netflix.com/tudum/top10/${kind === 'tv' ? 'tv/' : ''}${slug}`);
+  const html = await text(`https://www.netflix.com/tudum/top10/${slug}${kind === 'tv' ? '/tv' : ''}`);
   const rows = parseRows(html).slice(0, 10);
   const filled = await Promise.all(rows.map((r, i) => resolve(r, kind, tmdb).then((hit) => [i, hit])));
   // netflix rows are numbered by position, so dropping one renumbers the rest
@@ -57,7 +57,7 @@ async function slugOf(code) {
 async function resolve(title, kind, tmdb) {
   // netflix hangs season and episode labels off show titles; the bare name is the better query
   const bare = kind === 'tv'
-    ? title.replace(/\s*:\s*(Season\s+\d+|S\d+.*|Limited Series)\s*$/i, '').trim()
+    ? title.replace(/\s*:\s*(Season\s+\d+|S\d+.*|Limited Series|Part\s+\d+)\s*$/i, '').trim()
     : title;
   const tries = kind === 'tv' ? [bare, title.replace(/:.*$/, ''), title] : [title];
   for (const q of new Set(tries)) {

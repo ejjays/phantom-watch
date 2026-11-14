@@ -178,7 +178,7 @@ private suspend fun railOf(def: RailDef, key: String, country: Country): RailSta
 private fun railTitle(title: StringResource, arg: String?): String =
     if (arg != null) stringResource(title, arg) else stringResource(title)
 
-private const val FEED_CACHE_VERSION = 3
+private const val FEED_CACHE_VERSION = 4
 
 private fun feedTitle(e: JSONObject): Title? {
     val id = e.optString("id")
