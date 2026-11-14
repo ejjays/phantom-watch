@@ -101,6 +101,7 @@ import dev.phantomwatch.data.Recent
 import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -153,6 +154,20 @@ private fun localRail(country: Country): RailDef? {
         chart = "movie",
         landscape = true,
     )
+}
+
+private suspend fun railOf(def: RailDef, key: String, country: Country): RailState {
+    val chart = def.chart?.let { Chart.top(key, country.code, it) }
+    if (!chart.isNullOrEmpty()) {
+        return RailState(
+            def.key, Res.string.rail_chart, def.path, chart.map { it.title }, 1, 1,
+            arg = country.name, ranked = true, ranks = chart.map { it.rank },
+            landscape = def.landscape,
+        )
+    }
+    val r = Tmdb.rail(key, def.path, 1)
+        ?: return RailState(def.key, def.title, def.path, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
+    return RailState(def.key, def.title, def.path, r.items, 1, r.totalPages, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
 }
 
 @Composable
@@ -217,36 +232,41 @@ fun HomeScreen(
     var searchSeq by remember { mutableStateOf(0) }
     var selected by remember(browse.openTitle) { mutableStateOf(browse.openTitle) }
     val recents = remember { mutableStateListOf<Title>() }
+    var feedLoading by remember { mutableStateOf(false) }
 
     fun loadBrowse() {
+        if (feedLoading) return
+        feedLoading = true
         scope.launch {
             // a failed refresh must not replace a feed the user is already looking at
             val hadContent = browse.rails.any { it.items.isNotEmpty() }
+            val previous = browse.rails
             browse.loading = true
             try {
                 val foundTrending = withContext(ioDispatcher) { Tmdb.trending(key) }
-                val foundRails = withContext(ioDispatcher) {
-                    railDefs(country).map { def ->
-                        val chart = def.chart?.let { Chart.top(key, country.code, it) }
-                        if (!chart.isNullOrEmpty()) {
-                            return@map RailState(
-                                def.key, Res.string.rail_chart, def.path, chart.map { it.title }, 1, 1,
-                                arg = country.name, ranked = true, ranks = chart.map { it.rank },
-                                landscape = def.landscape,
-                            )
+                browse.trending = foundTrending.take(12)
+                val defs = railDefs(country)
+                val found = arrayOfNulls<RailState>(defs.size)
+                coroutineScope {
+                    defs.forEachIndexed { i, def ->
+                        launch {
+                            found[i] = withContext(ioDispatcher) {
+                                runCatching { railOf(def, key, country) }.getOrElse {
+                                    RailState(def.key, def.title, def.path, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
+                                }
+                            }
+                            browse.rails = defs.indices.mapNotNull { n ->
+                                found[n] ?: previous.firstOrNull { it.key == defs[n].key }
+                            }
                         }
-                        val r = Tmdb.rail(key, def.path, 1)
-                            ?: return@map RailState(def.key, def.title, def.path, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
-                        RailState(def.key, def.title, def.path, r.items, 1, r.totalPages, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
                     }
                 }
-                browse.trending = foundTrending.take(12)
-                browse.rails = foundRails
                 browse.explore.reset()
-                browse.failed = foundTrending.isEmpty() && foundRails.all { it.items.isEmpty() }
+                browse.failed = foundTrending.isEmpty() && found.filterNotNull().all { it.items.isEmpty() }
             } catch (_: Exception) {
                 browse.failed = !hadContent
             } finally {
+                feedLoading = false
                 browse.loading = false
                 browse.loaded = true
                 browse.loadedAt = nowMs()
