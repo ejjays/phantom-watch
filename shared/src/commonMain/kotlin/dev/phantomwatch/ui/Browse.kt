@@ -222,7 +222,7 @@ class BrowseState {
     var failed by mutableStateOf(false)
     var loaded by mutableStateOf(false)
     var loadedAt by mutableStateOf(0L)
-    var hydrated = false
+    var hydrated by mutableStateOf(false)
     val homeScroll = LazyListState()
 
     fun selectTab(index: Int) {
@@ -568,6 +568,7 @@ fun HomeScreen(
                                 onGenre = { browse.explore.select(it, key, scope) },
                                 loading = browse.loading,
                                 failed = browse.failed,
+                                hydrated = browse.hydrated,
                                 detailOpen = selected != null,
                                 listState = browse.homeScroll,
                                 width = contentW,
@@ -713,6 +714,7 @@ private fun BrowseBody(
     explore: ExploreFeed,
     loading: Boolean,
     failed: Boolean,
+    hydrated: Boolean,
     detailOpen: Boolean,
     listState: LazyListState,
     width: Dp,
@@ -735,7 +737,7 @@ private fun BrowseBody(
             info.visibleItemsInfo.lastOrNull()?.index?.let { it to info.totalItemsCount } ?: (-1 to 0)
         }.collect { (last, total) -> if (last >= total - 2) onGridEnd() }
     }
-    if (loading && trending.isEmpty() && rails.all { it.items.isEmpty() }) {
+    if (loading && hydrated && trending.isEmpty() && rails.all { it.items.isEmpty() }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Cyan)
         }
