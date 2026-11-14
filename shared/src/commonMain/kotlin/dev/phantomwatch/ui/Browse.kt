@@ -94,6 +94,7 @@ import dev.phantomwatch.res.*
 import org.jetbrains.compose.resources.StringResource
 import dev.phantomwatch.core.ioDispatcher
 import dev.phantomwatch.core.nowMs
+import dev.phantomwatch.core.SplashGate
 import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Chart
@@ -367,10 +368,14 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (browse.hydrated) return@LaunchedEffect
+        if (browse.hydrated) {
+            SplashGate.ready = true
+            return@LaunchedEffect
+        }
         val raw = withContext(ioDispatcher) { runCatching { readFeed() }.getOrNull() }
         if (raw != null) browse.restoreFeed(raw, country)
         browse.hydrated = true
+        SplashGate.ready = true
         if (nowMs() - browse.loadedAt > 6 * 60 * 60 * 1000L) loadBrowse()
     }
 
@@ -402,6 +407,7 @@ fun HomeScreen(
     }
 
     fun loadMoreExplore() {
+        if (!browse.hydrated) return
         browse.explore.loadMore(key, browse.rails, scope)
     }
 

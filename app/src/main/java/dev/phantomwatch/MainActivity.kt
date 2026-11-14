@@ -1,6 +1,7 @@
 package dev.phantomwatch
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -10,8 +11,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import dev.phantomwatch.agent.PlayRequest
 import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.core.SplashGate
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.ui.PhantomTypography
@@ -23,7 +26,11 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.Theme_PhantomWatch)
+        val splash = installSplashScreen()
+        val bornAt = SystemClock.uptimeMillis()
+        splash.setKeepOnScreenCondition {
+            !SplashGate.ready && SystemClock.uptimeMillis() - bornAt < 2500
+        }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),

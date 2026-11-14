@@ -21,6 +21,8 @@
 - providers: a leg that cannot serve a title reports `skipped`.
 - providers: hianime keeps movie support and follows the configured TMDB base.
 - home: a history icon next to search resumes what you were part way through.
+- home: the splash stays up until the cached feed is drawn, so no half-built home
+  shows first. It gives up after 2.5s on a cold first run.
 - player: a 10s card at the end of an episode plays the next one.
 - player: resume where the episode was left off.
 - community: authors can delete their comments; three reports flag one for review,
