@@ -67,8 +67,8 @@ internal class SubsController(
         AppLog.d(if (subsOff) "subs off" else "subs on (${stream.subs.size})")
     }
 
-    // attaching a sub rebuilds the media source; landing it mid-load restarts the fetch the
-    // watchdog is timing
+    // attaching a sub rebuilds media source so landing mid load restarts the
+    // fetch the watchdog is timing
     private suspend fun awaitReady(limitMs: Long = 40_000): Boolean {
         val end = SystemClock.elapsedRealtime() + limitMs
         while (SystemClock.elapsedRealtime() < end) {
@@ -89,7 +89,7 @@ internal class SubsController(
         if (osJob?.isActive == true) return
         osJob = scope.launch {
             try {
-                // a dub speaks a different script than the sub cut OS hashes against: its captions drift
+                // dub speaks a different script than the sub cut os hashes against, captions drift
                 if (s.dub != null) {
                     AppLog.d("os skipped, dub cut")
                     return@launch
@@ -99,7 +99,7 @@ internal class SubsController(
                     AppLog.d("os no api key")
                     return@launch
                 }
-                // love subs drift on some encodes; only trust non-love sources
+                // love subs drift on some encodes, only trust non love sources
                 if (hasReliableEnSubs(s.subs)) {
                     AppLog.d("os skipped, stream subs")
                     return@launch

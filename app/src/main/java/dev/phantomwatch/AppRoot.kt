@@ -99,7 +99,7 @@ import kotlinx.coroutines.withContext
 
 @Composable
 internal fun AppRoot() {
-    // a player that is not actually playing restores into a dead screen that re-resolves forever
+    // not playing is dead screen, restoring there resolves forever
     var screen by remember {
         mutableStateOf<Screen>(
             Playback.lastScreen?.takeIf { Playback.player?.isPlaying == true } ?: Screen.Home,

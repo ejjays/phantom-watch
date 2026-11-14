@@ -99,7 +99,7 @@ class ExploreFeed {
         val path = explorePath(genre)
         scope.launch {
             try {
-                // both grow with every page, so the dedupe set and page walk stay off the main thread
+                // both grow every page so dedupe set and page walk stay off main thread
                 val (next, pages, fresh) = withContext(ioDispatcher) {
                     val seen = (rails.flatMap { it.items } + items).mapTo(HashSet()) { "${it.kind}-${it.id}" }
                     var p = page
@@ -141,7 +141,7 @@ class ExploreFeed {
                 val r = withContext(ioDispatcher) { Tmdb.rail(apiKey, explorePath(next), 1) }
                 if (mine != gen) return@launch
                 if (r == null) {
-                    // keep the picker on the list whose rows are still on screen
+                    // keep picker on the list whose rows are on screen
                     genre = prev
                     return@launch
                 }

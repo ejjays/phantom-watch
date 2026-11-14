@@ -13,7 +13,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
-// the cache file is what the player parses, so these assert on the bytes on disk
+// player parses the cache file so these assert on bytes on disk
 class SubCacheTest {
     private lateinit var server: MockWebServer
     private lateinit var dir: File

@@ -2,7 +2,7 @@ package dev.phantomwatch.data
 
 import dev.phantomwatch.core.httpJson
 
-// the netflix chart is resolved by the worker; url stays blank on a build without one
+// netflix chart resolved by worker, url blank on a build without one
 object Chart {
     var url: String = ""
     var key: String = ""
@@ -16,7 +16,7 @@ object Chart {
             val out = mutableListOf<Ranked>()
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
-                // a title missing from tmdb leaves a hole; fall back to its place in the list
+                // title missing on tmdb leaves a hole, fall back to its list place
                 Tmdb.titleOf(o)?.let { out.add(Ranked(it, o.optInt("rank", i + 1))) }
             }
             out.takeIf { it.isNotEmpty() }

@@ -67,7 +67,7 @@ import dev.phantomwatch.player.playerClock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-// falls back to the poster while it resolves, or if YouTube refuses
+// poster shows while it resolves or if youtube refuses
 @Composable
 internal fun TrailerHero(
     videoId: String,
@@ -84,10 +84,10 @@ internal fun TrailerHero(
     var started by remember(videoId) { mutableStateOf(false) }
     var buffering by remember(videoId) { mutableStateOf(true) }
     var pos by remember(videoId) { mutableStateOf(0L) }
-    // read inside the draw scope only, so a frame tick repaints the bar without recomposing
+    // read inside draw scope only so a frame tick repaints bar without recomposing
     val frac = remember(videoId) { mutableFloatStateOf(0f) }
-    // a prewarmed clip only needs enough lead to start on a swipe; the rest would be stolen
-    // from the clip that is actually playing
+    // prewarmed clip only needs enough lead to start on swipe, rest gets stolen
+    // from the clip actually playing
     val exo = remember(videoId) {
         val b = if (audio != null) ExoPlayer.Builder(ctx, audio.renderers(ctx)) else ExoPlayer.Builder(ctx)
         val cap = if (chrome.prewarm) 12_000 else 30_000
@@ -128,7 +128,7 @@ internal fun TrailerHero(
         TrailerBridge.warm()
         stream = TrailerBridge.resolve(videoId)
     }
-    // keyed on the url: the same stream arriving twice must not reload the source mid-play
+    // keyed on url, same stream twice must not reload source while playing
     LaunchedEffect(stream?.hls ?: stream?.video) {
         val s = stream ?: return@LaunchedEffect
         AppLog.d("trailer src ${if (s.hls != null) "hls" else "adaptive"} audio=${audio != null}")
@@ -155,7 +155,7 @@ internal fun TrailerHero(
     LaunchedEffect(muted) {
         exo.volume = if (muted || chrome.prewarm) 0f else 1f
     }
-    // the buffered clip takes over the moment the swipe lands on it
+    // buffered clip takes over when swipe lands on it
     LaunchedEffect(chrome.prewarm, chrome.paused, stream) {
         if (stream == null) return@LaunchedEffect
         exo.volume = if (muted || chrome.prewarm) 0f else 1f

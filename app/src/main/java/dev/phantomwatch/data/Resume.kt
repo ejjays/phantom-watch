@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 import org.json.JSONArray
 import org.json.JSONObject
 
-// remembers where each title/episode was left off
+// remembers where each title and episode was left
 object Resume {
     private const val PREFS = "phantom_resume"
     private const val MIN_MS = 10_000L
@@ -15,8 +15,8 @@ object Resume {
     private const val RECENT = "recent"
     private const val RECENT_MAX = 12
 
-    // the player saves on dispose, after the home screen has already read the list, so the list has
-    // to follow the store rather than being loaded once
+    // player saves on dispose after home read the list so the list has
+    // to follow the store not load once
     var rev by mutableIntStateOf(0)
         private set
 
@@ -26,7 +26,7 @@ object Resume {
     private fun key(kind: String, id: String, season: String, episode: String) =
         "$kind|$id|$season|$episode"
 
-    // a position at the very end would reopen the episode at STATE_ENDED
+    // position at the very end reopens the episode at STATE_ENDED
     internal fun shouldClear(positionMs: Long, durationMs: Long): Boolean =
         positionMs < MIN_MS || (durationMs > 0 && positionMs >= durationMs - END_SLACK_MS)
 

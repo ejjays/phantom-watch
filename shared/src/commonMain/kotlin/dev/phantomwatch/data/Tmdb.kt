@@ -26,7 +26,7 @@ object Tmdb {
     internal fun img(path: String?, size: String): String? =
         path?.takeIf { it.startsWith("/") }?.let { "${TmdbHost.image}$size$it" }
 
-    // talk, news and reality fill TMDB's tv lists; this app is movies and scripted series
+    // talk, news, reality fill tmdb tv lists, app is movies and scripted series
     private val unscripted = setOf(10763, 10764, 10767)
 
     private fun isUnscripted(e: JSONObject): Boolean {
@@ -77,7 +77,7 @@ object Tmdb {
     suspend fun rail(apiKey: String, path: String, page: Int = 1): RailPage? {
         return try {
             val data = httpJson(
-                // a discover path carries its own query, so the key cannot assume a leading ?
+                // discover path has its own query, key cannot assume leading ?
                 "${TmdbHost.base}/$path${if ('?' in path) "&" else "?"}api_key=$apiKey&page=$page",
                 "https://www.themoviedb.org/",
             ) ?: return null
@@ -94,7 +94,7 @@ object Tmdb {
         }
     }
 
-    // agent and deep-link plays carry no poster, so history backfills it from the id alone
+    // agent and deeplink plays have no poster, history backfills from id
     suspend fun poster(apiKey: String, kind: String, id: String): String? {
         return try {
             val path = if (kind == "movie") "movie" else "tv"
@@ -379,7 +379,7 @@ object Tmdb {
         }
     }
 
-    // the clip feed wants a key per title without paying for a full detail call
+    // clip feed wants a key per title, no full detail call needed
     suspend fun clipKey(apiKey: String, kind: String, id: String): String? = try {
         val path = if (kind == "movie") "movie" else "tv"
         val e = httpJson("${TmdbHost.base}/$path/$id/videos?api_key=$apiKey", "https://www.themoviedb.org/")
@@ -388,7 +388,7 @@ object Tmdb {
         null
     }
 
-    // a full trailer beats a teaser beats a bare scene; official and english win the ties
+    // trailer beats teaser beats scene, official and english win ties
     private fun pickVideo(arr: JSONArray?): String? {
         if (arr == null) return null
         var best = -1

@@ -55,7 +55,7 @@ fun HomeLiquidTabs(
     modifier: Modifier = Modifier,
     updateBadge: Boolean = false,
 ) {
-    // local state so the bubble starts sliding in the same snapshot, not after the route recomposes
+    // local state so bubble slides in same snapshot not after route recompose
     var tab by remember { mutableIntStateOf(selectedTabIndex()) }
     LaunchedEffect(Unit) {
         snapshotFlow { selectedTabIndex() }.collect { index ->
@@ -63,9 +63,9 @@ fun HomeLiquidTabs(
         }
     }
 
-    // the bubble paints an accent-tinted copy of the row over the selected tab, so a badge drawn in
-    // the row itself would be recoloured and then covered; it is drawn last instead, on top, at the
-    // spot the You icon reported
+    // bubble paints accent tinted row copy over selected tab, badge drawn in
+    // row would be recoloured then covered, so it draws last on top at the
+    // spot the you icon reported
     var barOrigin by remember { mutableStateOf<Offset?>(null) }
     var youIcon by remember { mutableStateOf<Rect?>(null) }
 
@@ -118,7 +118,7 @@ fun HomeLiquidTabs(
 
 @Composable
 private fun TabIcon(icon: DrawableResource, onBounds: ((Rect) -> Unit)? = null) {
-    // the tinted copy sits 4dp higher, so only the real row reports where the icon landed
+    // tinted copy sits 4dp higher so only real row reports where icon landed
     val report = if (LocalLiquidBottomTabTinted.current) null else onBounds
     Icon(
         painterResource(icon),

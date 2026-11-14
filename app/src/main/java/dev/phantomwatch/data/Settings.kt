@@ -23,7 +23,7 @@ object Settings {
     val STEP_SECONDS = listOf(5, 10, 15, 30)
     val NEXT_SECONDS = listOf(5, 10, 15)
 
-    // the picker stores the row it was given, not the number on it
+    // picker stores the row it got not the number on it
     fun seekSeconds(index: Int): Int = STEP_SECONDS.getOrElse(index) { 10 }
 
     fun nextSeconds(index: Int): Int = NEXT_SECONDS.getOrElse(index) { 10 }
@@ -49,8 +49,8 @@ object Settings {
         prefs(ctx).edit().putInt(key, value).apply()
     }
 
-    // a fraction of the picture alone lands under the player's legibility floor on a phone, which
-    // made all three sizes render the same, so the choice scales the size the player already picks
+    // a fraction of the picture lands under legibility floor on phone which
+    // made all three sizes the same so the choice scales the size player picks
     const val SUBS_BASE_FRACTION = 0.0533f
 
     internal fun sizeScale(choice: Int): Float = when (choice) {

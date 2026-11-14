@@ -54,7 +54,7 @@ internal fun SeekHud(back: Boolean, seconds: Int) {
     }
 }
 
-// recap wins over opening when the two overlap; an outro never shares the screen with either
+// recap wins over opening when they overlap, outro never shares screen with either
 internal data class StageAt(
     val intro: LongRange?,
     val recap: LongRange?,

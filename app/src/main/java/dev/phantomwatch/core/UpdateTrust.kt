@@ -18,7 +18,7 @@ internal object UpdateTrust {
             uri.path.endsWith(".apk")
     }.getOrDefault(false)
 
-    // asset redirects land on a signed cdn url whose path carries no file name, so only the host is checked
+    // redirects land on signed cdn url with no file name in path, only host checked
     fun releaseHop(value: String): Boolean = runCatching {
         val uri = URI(value)
         uri.scheme == "https" && uri.host in RELEASE_HOSTS && uri.rawUserInfo == null

@@ -58,7 +58,7 @@ object TrailerBridge {
 
     suspend fun resolve(videoId: String): Result? {
         cache[videoId]?.let { (at, r) -> if (System.currentTimeMillis() - at < 30 * 60_000) return r }
-        // the feed prefetches the clip the player is about to ask for, so share the one request
+        // feed prefetches the clip, player is about to ask for, so share one request
         val mine = CompletableDeferred<Result?>()
         inflight.putIfAbsent(videoId, mine)?.let { return it.await() }
         try {

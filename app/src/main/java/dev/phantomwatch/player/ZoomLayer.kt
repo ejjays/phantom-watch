@@ -7,8 +7,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import dev.phantomwatch.core.AppLog
 
-// one pinch fills the stage, a pinch the other way fits it again; one finger still reaches the
-// tap zones, and a two-finger drag is consumed so it cannot turn into a brightness swipe
+// one pinch fills stage, pinch back fits it again, one finger still reaches the
+// tap zones, two finger drag consumed so it cant turn into brightness swipe
 internal fun Modifier.pinchZoom(mode: () -> Int, safe: () -> Boolean, onMode: (Int) -> Unit): Modifier =
     pointerInput(Unit) {
         awaitEachGesture {

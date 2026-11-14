@@ -75,7 +75,7 @@ private data class Clip(val title: Title, val key: String)
 
 private enum class ClipStage { Idle, Prewarm, Active }
 
-// survives the tab switch, which disposes this screen and would otherwise refetch every key
+// survives tab switch which disposes this screen and refetches every key
 private val clipKeys = ConcurrentHashMap<String, String>()
 
 internal suspend fun clipKeyOf(t: Title): String? {
@@ -84,7 +84,7 @@ internal suspend fun clipKeyOf(t: Title): String? {
     return Tmdb.clipKey(TmdbHost.key, t.kind, t.id)?.also { clipKeys[id] = it }
 }
 
-// one player at a time: a pager that composes a player per page churns the codec and stalls
+// one player at a time, pager that composes player per page churns codec and stalls
 @Composable
 fun ClipsScreen(
     titles: List<Title>,
@@ -96,12 +96,12 @@ fun ClipsScreen(
     var loading by remember(titles) { mutableStateOf(true) }
     val density = LocalDensity.current
     val navBottom = with(density) { WindowInsets.navigationBars.getBottom(this).toDp() }
-    // the tab pill floats over the feed at navBottom + 8 + 64, so its chrome starts 16 above that
+    // tab pill floats over feed at navBottom + 8 + 64 so chrome starts 16 above
     val tabClear = navBottom + 76.dp
 
     LaunchedEffect(titles) {
         loading = true
-        // boot the token WebView now so it is warm by the time a key lands
+        // boot token webview now, warm by the time a key lands
         TrailerBridge.warm()
         val slots = arrayOfNulls<Clip>(titles.size)
         coroutineScope {
@@ -109,7 +109,7 @@ fun ClipsScreen(
                 launch {
                     val k = withContext(ioDispatcher) { clipKeyOf(t) } ?: return@launch
                     slots[i] = Clip(t, k)
-                    // only the ready prefix is published, so a late reply never shifts the open page
+                    // only ready prefix published, late reply never shifts open page
                     var n = 0
                     while (n < slots.size && slots[n] != null) n++
                     clips = slots.take(n).filterNotNull()
@@ -129,7 +129,7 @@ fun ClipsScreen(
             )
             else -> {
                 val pager = rememberPagerState(pageCount = { clips.size })
-                // resolving is the slow half of a swipe, and the bridge caches for 30 min
+                // resolving is the slow half of a swipe, bridge caches 30 min
                 val nextKey = clips.getOrNull(pager.currentPage + 1)?.key
                 LaunchedEffect(nextKey) {
                     nextKey?.let { withContext(ioDispatcher) { TrailerBridge.resolve(it) } }
@@ -158,14 +158,14 @@ private fun ClipPage(clip: Clip, stage: ClipStage, paused: Boolean, tabClear: Dp
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val dir = LocalLayoutDirection.current
-        // landscape puts the nav bar and a cutout on the side, not the bottom
+        // landscape puts nav bar and cutout on the side not bottom
         val side = with(density) {
             maxOf(WindowInsets.navigationBars.getRight(this, dir), WindowInsets.displayCutout.getRight(this, dir)).toDp()
         }
-        // a short window has to keep room for the title, so the expanded text cannot take ten lines
+        // short window needs room for title so expanded text cant take ten lines
         val cap = minOf(with(density) { 20.sp.toDp() * 10 }, (maxHeight - tabClear - 48.dp) * 0.55f)
         val frame = ClipFrame(tabClear, side, cap)
-        // a tablet shows the same reel a phone would: one 9:16 column on black, nothing beside it
+        // tablet shows same reel as phone, one 9:16 column on black nothing beside
         val reel = minOf(640.dp, maxHeight * 0.85f)
         Box(Modifier.align(Alignment.Center).width(reel).fillMaxHeight().clipToBounds()) {
             ClipVideo(clip, stage, paused, frame)
@@ -262,9 +262,9 @@ private fun ClipOverview(overview: String, cap: Dp) {
     var open by remember(overview) { mutableStateOf(false) }
     val scroll = rememberScrollState()
     val touch = remember { MutableInteractionSource() }
-    // only a text that actually overflows needs its drag kept away from the pager
+    // only text that overflows keeps its drag away from pager
     val scrolls = open && scroll.maxValue > 0
-    // collapsed always shows the top, so the first line is never a leftover scrolled position
+    // collapsed always shows top so first line is never leftover scroll
     LaunchedEffect(open) { if (!open) scroll.scrollTo(0) }
     Text(
         text = clipBody(overview, open), color = Color.White.copy(alpha = 0.94f), fontSize = 14.sp, lineHeight = 20.sp,
@@ -278,13 +278,13 @@ private fun ClipOverview(overview: String, cap: Dp) {
     )
 }
 
-// the text sits inside the pager, so leftover drag at its ends would otherwise flip the clip
+// text sits inside pager so leftover drag at its ends flips the clip
 private object KeepPageScroll : NestedScrollConnection {
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) = Offset(0f, available.y)
     override suspend fun onPostFling(consumed: Velocity, available: Velocity) = Velocity(0f, available.y)
 }
 
-// the tail is cut by hand so the bold "more" lands on the last line instead of after an ellipsis
+// tail cut by hand so bold more lands on last line not after ellipsis
 private fun clipBody(overview: String, open: Boolean) = buildAnnotatedString {
     val flat = overview.replace('\n', ' ').trim()
     if (open) {

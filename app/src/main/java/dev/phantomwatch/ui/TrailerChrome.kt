@@ -4,17 +4,17 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-// the clips feed lifts the player's chrome clear of the floating tab bar; nothing else moves
+// clips feed lifts player chrome clear of floating tab bar, nothing else moves
 internal data class TrailerChrome(
     val progress: Boolean = true,
     val topInset: Dp = 0.dp,
     val bottomInset: Dp = 0.dp,
-    // set to park the mute button bottom-right instead, above the clips poster
+    // set to park mute button bottom right instead, above clips poster
     val muteBottom: Dp? = null,
     val muteEnd: Dp = 12.dp,
-    // the clip below the current one: prepared and buffered, silent, not yet on screen
+    // clip below current one, prepared buffered silent not on screen yet
     val prewarm: Boolean = false,
-    // a sheet covers the player, so keep the picture and drop the sound
+    // sheet covers player, keep picture drop sound
     val paused: Boolean = false,
 )
 

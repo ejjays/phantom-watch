@@ -136,11 +136,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-// long enough to swallow a burst of double taps, short enough that a single one still feels direct
+// long enough to swallow double tap burst, short enough a single tap feels direct
 private const val SEEK_SETTLE_MS = 250L
-// 30s of lead, so an instant tap on the pill still lands on a warm cache
+// 30s lead so an instant tap on pill still hits warm cache
 private const val PREFETCH_LEAD_MS = 30_000L
-// a dead provider stack bans every host it has: past this many swaps the loop is not recovering
+// dead provider stack bans every host, past this many swaps loop is not recovering
 private const val MAX_SWAPS = 3
 
 @OptIn(UnstableApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -178,8 +178,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             val bundle = withContext(Dispatchers.IO) {
                 Resolve.streams(media, season, episode, fresh = retryN > 0)
             }
-            // a banned host is ranked last by the resolve, never dropped here: filtering it out is
-            // how one false positive erased a provider from the picker and from the dub menu
+            // resolve ranks banned host last never drops it, filtering it out is
+            // how one false positive erased provider from picker and dub menu
             val live = bundle.formats.filter { it.url !in DeadReleases.urls }
             AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
@@ -348,7 +348,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         val dnames = (0 until dg.length).map { i -> trackName(dg.getFormat(i)) }
         embedGroup = dg
         if (dnames != embedNames) embedNames = dnames
-        // media3 drops an override whose group is rebuilt, so re-apply until a track sticks
+        // media3 drops an override when its group rebuilds so re-apply till track sticks
         val anySel = texts.any { it.isSelected }
         if (stream.subs.isEmpty() && !anySel && !subs.subsOff) {
             if (names != forcedNames) {
@@ -499,7 +499,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 } else if (directErrs <= 3 && (errPos >= 60_000 || errPos < 10_000)) {
                     resumeJob?.cancel()
                     resumeJob = resumeScope.launch {
-                        // the bundle is cached for 5 min: reuse it rather than hit every provider again
+                        // bundle cached 5 min, reuse it instead of hitting every provider
                         val fresh = try {
                             withContext(Dispatchers.IO) {
                                 Providers.nextStream(media, season, episode, live.url, fresh = directErrs > 1)
@@ -618,7 +618,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val seekStep = remember { Settings.seekSeconds(Settings.choice(context, Settings.SEEK_STEP, 1)) }
     LaunchedEffect(live.url, durationMs > 0) {
         live = SkipTimes.fill(live, media.id, season, episode, durationMs, skipOn)
-        // fill runs once per url, so a mid-session toggle would otherwise leave the old range behind
+        // fill runs once per url, mid session toggle leaves old range behind
         live = live.copy(intro = if (skipOn) live.intro else null, recap = if (skipOn) live.recap else null)
     }
     var bufferedMs by remember { mutableStateOf(0L) }
@@ -672,7 +672,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         accTotal = if (accSide == side && now - accAt < 1000) accTotal + seekStep else seekStep
         accSide = side
         accAt = now
-        // a burst of taps is one seek: each seekTo drops the buffer and re-fetches
+        // burst of taps is one seek, each seekTo drops buffer and fetches again
         val target = ((if (seekTarget >= 0) seekTarget else exo.currentPosition) + dir).coerceAtLeast(0)
         seekTarget = target
         seekJob?.cancel()
@@ -732,7 +732,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         else activity?.requestedOrientation ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
     val cfg = LocalConfiguration.current
-    // hidden bars must still reserve space, or an immersive first composition freezes the inset at 0
+    // hidden bars still reserve space or first immersive composition freezes inset at 0
     val statusTop = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val cut = WindowInsets.displayCutout.asPaddingValues()
     val cutL = cut.calculateLeftPadding(LocalLayoutDirection.current)
@@ -743,7 +743,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val smallScreen = cfg.smallestScreenWidthDp < 600
     val zoomable = smallScreen && cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     LaunchedEffect(media.id, season, episode, zoomable) { fillMode = 0 }
-    // a picture that already nearly fills the stage opens filled, so a 4% bar needs no pinch
+    // picture that nearly fills stage opens filled, 4% bar needs no pinch
     LaunchedEffect(media.id, season, episode, zoomable, nearFill) { if (zoomable && nearFill) fillMode = 2 }
     fun rotationEnabled() = try {
         android.provider.Settings.System.getInt(
@@ -757,7 +757,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
     }
     val portraitNow = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-    // bars ride the controls, but not before the first tap: the auto-show at load must not pop them
+    // bars ride controls not before first tap, auto show at load must not pop them
     LaunchedEffect(fullscreen, cfg.orientation, controls, episodesOpen, episodeSwitch, touched) {
         fullscreenBars(fullscreen && (portraitNow || !controls || episodesOpen || episodeSwitch || !touched))
     }
@@ -775,7 +775,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                     else -> -1
                 }
                 if (zone == -1 || zone == lastZone) return
-                // enable() reports the current angle at once, so acting on it flips fullscreen on open
+                // enable() reports the angle at once so acting on it flips fullscreen on open
                 val first = lastZone == -1
                 lastZone = zone
                 if (first) return
@@ -832,11 +832,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         }
     }
     PlaybackWatchdog(exo, stalled, stats.startup > 0, live) {
-        // a hang at 14:00 used to restart at 0:00: carry the position into the swap
+        // hang at 14:00 restarted at 0:00, carry position into swap
         val at = exo.currentPosition
         val s = if (swaps < MAX_SWAPS) Providers.nextStream(media, season, episode, live.url) else null
         if (s == null) {
-            // every host is banned and each retry re-bans the same two, so the loop never ends
+            // all hosts banned, each retry bans the same two, loop never ends
             AppLog.d("watchdog: gave up after $swaps swaps")
             onGiveUp(live.url)
             return@PlaybackWatchdog
@@ -949,8 +949,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     }
     val next = rememberNextUp(media, season, episode)
     val outro = outroWindow(live.outro, durationMs, next != null)
-    // ahead of the pill, since a scrape takes a few seconds; not before the first frame, or it
-    // competes with the segment this episode is loading
+    // ahead of pill since a scrape takes a few seconds, not before first frame or it
+    // competes with the segment this episode loads
     val warmNext = stats.startup > 0 && outro != null && positionMs >= outro.first - PREFETCH_LEAD_MS
     LaunchedEffect(warmNext, next?.season, next?.episode) {
         val up = next ?: return@LaunchedEffect

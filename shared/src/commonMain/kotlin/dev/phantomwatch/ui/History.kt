@@ -69,7 +69,7 @@ fun HistoryScreen(
     val host = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val undoLabel = stringResource(Res.string.history_undo)
-    // a swipe settles against the list as it is now, not the one this card was first composed with
+    // swipe settles against the list now not the one this card started with
     val latest = rememberUpdatedState(recent)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -91,15 +91,15 @@ fun HistoryScreen(
                     itemsIndexed(recent, key = { _, r -> "history-${r.kind}-${r.id}" }) { i, r ->
                         val removedMsg = stringResource(Res.string.history_removed, r.title)
                         ContinueCard(r, gridW, onPlay, Modifier.animateItem()) { gone ->
-                            // this one card back where it was: a snapshot would resurrect anything
-                            // deleted since this card was composed
+                            // this one card back where it was, a snapshot brings back anything
+                            // deleted since card was composed
                             val at = latest.value.indexOfFirst {
                                 it.kind == gone.kind && it.id == gone.id &&
                                     it.season == gone.season && it.episode == gone.episode
                             }.takeIf { it >= 0 } ?: i
                             onDelete(gone)
                             scope.launch {
-                                // newest swipe owns the bar, or the old title outlives the card
+                                // newest swipe owns the bar or old title outlives the card
                                 host.currentSnackbarData?.dismiss()
                                 val done = host.showSnackbar(
                                     message = removedMsg,
@@ -146,7 +146,7 @@ private fun ContinueCard(
     }
 }
 
-// the home rail reuses this without the dismiss box: a horizontal drag there belongs to the row
+// home rail reuses this without dismiss box, horizontal drag there belongs to row
 @Composable
 internal fun ContinuePoster(
     r: Recent,
@@ -156,7 +156,7 @@ internal fun ContinuePoster(
 ) {
     val frac = if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else 0f
     val radius = width * 0.24f
-    // the corner arc reaches ~0.29 of the radius in from each edge, so a badge at a flat 10dp gets clipped
+    // corner arc reaches ~0.29 of the radius from each edge so a flat 10dp badge clips
     val badgeInset = (radius * 0.34f).coerceAtLeast(8.dp)
     Column(Modifier.width(width).pressClick { onPlay(r) }) {
         Box(Modifier.size(width, width * 1.5f).clip(RoundedCornerShape(radius)).background(SurfaceColor)) {

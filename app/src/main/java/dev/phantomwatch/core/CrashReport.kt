@@ -38,8 +38,8 @@ object CrashReport {
         mirror(ctx, text)
     }
 
-    // no adb on this tablet, so a crash that kills the UI before its dialog shows is otherwise
-    // unreadable: drop a copy where the user and Termux can open it, minus any stream url
+    // no adb on this tablet so a crash that kills the ui before its dialog is otherwise
+    // unreadable, drop copy where user and termux can open it minus stream url
     private fun mirror(ctx: Context, text: String) {
         if (android.os.Build.VERSION.SDK_INT < 29) return
         runCatching {

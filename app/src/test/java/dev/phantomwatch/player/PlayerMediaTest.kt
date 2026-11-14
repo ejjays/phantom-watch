@@ -127,7 +127,7 @@ class PlayerMediaTest {
     @Test
     fun loadControlConfiguresBufferDurations() {
         val lc = loadControl(90_000)
-        // a -10s double tap must land inside the retained window, or it re-fetches from the CDN
+        // -10s double tap must land inside retained window or it fetches from CDN again
         assertEquals(30_000_000L, lc.getBackBufferDurationUs(androidx.media3.exoplayer.analytics.PlayerId.UNSET))
         assertTrue(lc.retainBackBufferFromKeyframe(androidx.media3.exoplayer.analytics.PlayerId.UNSET))
     }

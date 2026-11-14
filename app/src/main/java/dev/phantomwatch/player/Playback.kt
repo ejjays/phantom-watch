@@ -34,7 +34,7 @@ internal object Playback {
 
     @OptIn(UnstableApi::class)
     private fun build(context: Context): ExoPlayer {
-        // one shared player can't shrink LoadControl for file:// streams: restore the torrent readahead if torrents come back
+        // one shared player cant shrink LoadControl for file:// streams, restore torrent readahead if they come back
         val selector = DefaultTrackSelector(context).apply {
             parameters = buildUponParameters()
                 .setPreferredAudioLanguage("en")
@@ -42,7 +42,7 @@ internal object Playback {
                 .build()
         }
         val load = loadControl()
-        // start ABR at 1080p-class rates so it opens on the top rung and only drops when the CDN can't feed it
+        // start abr at 1080p rates so it opens on top rung and drops only when cdn cant feed it
         val meter = DefaultBandwidthMeter.Builder(context)
             .setInitialBitrateEstimate(8_000_000)
             .build()
@@ -70,8 +70,8 @@ internal fun loadControl(maxBufferMs: Int = 90_000, startMs: Int = 1_500, minBuf
         .setBufferDurationsMsForStreaming(minBufferMs, maxBufferMs, startMs, 5_000)
         .setPrioritizeTimeOverSizeThresholds(true)
         .setTargetBufferBytes(96 * 1024 * 1024)
-        // a back tap must land inside the retained window: at 10s a -10s seek sat exactly on the
-        // edge and re-fetched from the CDN, which is a 20s spinner when that segment hangs
+        // back tap must land inside retained window, at 10s a -10s seek sat on the
+        // edge, fetching again is a 20s spinner when that segment hangs
         .setBackBuffer(30_000, true)
         .build()
 

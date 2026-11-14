@@ -129,7 +129,7 @@ internal object Social {
         val base = "/rest/v1/comments?kind=eq.$kind&tmdb_id=eq.$id" +
             "&hidden=eq.false&moderation_status=eq.visible&order=created_at.desc&limit=200"
         val headers = mapOf("Prefer" to "count=exact")
-        // parent_id is absent until the reply migration lands: fall back to the flat shape
+        // parent_id absent until the reply migration lands, fall back to flat shape
         val r = call("$base&select=id,body,created_at,user_id,parent_id,moderation_status", "GET", at, headers = headers)
             .takeIf { it.code in 200..299 }
             ?: call("$base&select=id,body,created_at,user_id", "GET", at, headers = headers)
@@ -241,7 +241,7 @@ internal object Social {
         val meta = user.optJSONObject("user_metadata")
         val name = meta?.optString("full_name").orEmpty().ifBlank { meta?.optString("name").orEmpty() }
         val email = user.optString("email").orEmpty()
-        // anonymous sessions have neither, so they never wipe the google profile
+        // anonymous sessions have neither so they never wipe the google profile
         if (name.isNotEmpty() || email.isNotEmpty()) {
             edit.putString("name", name)
                 .putString("email", email)

@@ -95,7 +95,7 @@ internal fun looksEnglish(name: String): Boolean {
 
 internal fun hasEnglishSubs(subs: List<Sub>): Boolean = subs.any { looksEnglish(it.label) }
 
-// love subs drift on some encodes; only non-love subs are trusted for OS skip
+// love subs drift on some encodes, only non love subs trusted for os skip
 internal fun hasReliableEnSubs(subs: List<Sub>): Boolean =
     subs.any { looksEnglish(it.label) && it.src != "love" }
 
@@ -186,8 +186,8 @@ internal fun mediaHeaders(
         ref + (auth?.let { mapOf("Authorization" to it) } ?: emptyMap())
 }
 
-// 429 is a rate limit and 403 an expired token or geo block: retrying either only holds the
-// player on a spinner before the same response, so surface it and let the player switch legs
+// 429 is a rate limit and 403 an expired token or geo block, retrying holds the
+// player on a spinner for the same response so surface it and let player switch legs
 @UnstableApi
 private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
     override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
@@ -197,8 +197,8 @@ private class FailFastLoadPolicy : DefaultLoadErrorHandlingPolicy(6) {
     }
 }
 
-// a 403 or a 429 is about this url's token or rate window, not the host: banning the host there is
-// how one expired segment hid a healthy CDN. Only expired DNS is worth a ban.
+// 403 or 429 is this url's token or rate window not the host so banning host is
+// how one expired segment hid a healthy cdn, only expired dns is worth a ban
 internal fun noteDeadHost(chain: String, code: Int?, url: String) {
     when {
         chain.contains("UnknownHostException") -> {
@@ -246,11 +246,11 @@ internal fun buildMediaFactory(
         .setUserAgent(headers.getValue("User-Agent"))
         .setDefaultRequestProperties(headers)
         .setConnectTimeoutMs(15_000)
-        // a stalled segment socket is retried at the read timeout; 30s matched the watchdog, so
-        // every hang cost a full half minute before the loader even tried again
+        // stalled segment socket retried at read timeout, 30s matched watchdog so
+        // every hang cost half a minute before loader tried again
         .setReadTimeoutMs(15_000)
-    // cached provider subs arrive as file:// while the stream is https: an http-only factory
-    // loads the track but never the cues
+    // cached subs are file:// while stream is https, http only factory loads track no cues
+    // loads the track and never the cues
     return DefaultMediaSourceFactory(androidx.media3.datasource.DefaultDataSource.Factory(context, http))
         .setLoadErrorHandlingPolicy(retry)
 }

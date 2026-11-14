@@ -39,7 +39,7 @@ abstract class AgentFunctions : AppFunctionService() {
         }.getOrElse { "error: ${it::class.simpleName}: ${it.message}" }
     }
 
-    // the screen is best effort: a background app is not allowed to bring itself up
+    // screen is best effort, background app cant bring itself up
     @AppFunctionDeclaration(isDescribedByKDoc = false)
     fun play(tmdbId: String, kind: String, title: String, season: String, episode: String): String {
         val ctx = applicationContext
@@ -87,7 +87,7 @@ abstract class AgentFunctions : AppFunctionService() {
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
-        // a background app loses the focus request, which clears playWhenReady
+        // background app loses focus request and playWhenReady goes false
         player.setAudioAttributes(attrs, false)
         player.setMediaSource(sourceFor(ctx, stream, streamSubs, null, null))
         player.prepare()
@@ -102,7 +102,7 @@ abstract class AgentFunctions : AppFunctionService() {
             delay(200)
             started += 200
         }
-        // hand focus back so a call still pauses normal playback
+        // hand focus back so a call still pauses playback
         player.setAudioAttributes(attrs, true)
         state = "${best.label} ${best.height}p"
     }
@@ -115,7 +115,7 @@ abstract class AgentFunctions : AppFunctionService() {
     }
 
     private companion object {
-        // outlives the unbind that follows a function returning
+        // outlives the unbind after the function returns
         val work = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
         @Volatile

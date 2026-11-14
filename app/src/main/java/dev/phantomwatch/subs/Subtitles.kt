@@ -113,8 +113,8 @@ object Subtitles {
         return if (path.endsWith(".srt")) "application/x-subrip" else "text/vtt"
     }
 
-    // providers hand out srt and ass under every extension they like, and the player picks a
-    // parser from the mime alone: an srt served as text/vtt loads the track and yields no cues
+    // providers hand out srt and ass under any extension, player picks a
+    // parser from mime alone so an srt served as text/vtt loads no cues
     fun toVtt(text: String, url: String): String {
         if (text.removePrefix("\uFEFF").trimStart().startsWith("WEBVTT")) return text
         val path = url.substringBefore('?').lowercase()

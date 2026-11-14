@@ -55,7 +55,7 @@ object UpdateChecker {
         }
     }
 
-    // the api order is not reliable, so the highest build number wins rather than the first entry
+    // api order not reliable, highest build number wins not first entry
     internal fun parse(body: String): Release? {
         val releases = JSONArray(body)
         var best: Release? = null
@@ -75,8 +75,8 @@ object UpdateChecker {
             if (!url.startsWith("https://github.com/")) continue
             val name = asset.optString("name")
             if (!name.endsWith(".apk", ignoreCase = true)) continue
-            // the build number sits in the file name, but a bare app-release.apk is a normal thing
-            // to upload, so the tag is the fallback before giving up on the release
+            // build number sits in file name but bare app-release.apk is normal
+            // to upload so tag is fallback before giving up on release
             val code = codeOf(name).takeIf { it > 0 } ?: codeOf(entry.optString("tag_name"))
             if (code <= 0) continue
             return Release(entry.optString("tag_name"), code, url, asset.optLong("size"))
@@ -84,7 +84,7 @@ object UpdateChecker {
         return null
     }
 
-    // the largest number wins: 1.0.374.apk is build 374, not build 1
+    // largest number wins, 1.0.374.apk is build 374 not 1
     private fun codeOf(text: String): Long =
         DIGITS.findAll(text).maxOfOrNull { it.value.toLongOrNull() ?: 0L } ?: 0L
 }

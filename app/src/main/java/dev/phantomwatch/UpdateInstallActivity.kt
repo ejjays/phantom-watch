@@ -23,7 +23,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-// the app downloads and commits the session itself: the installer can't read a content:// apk
+// app downloads and commits the session itself, installer cant read a content:// apk
 class UpdateInstallActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,7 +76,7 @@ class UpdateInstallActivity : Activity() {
             verifyApk(cache)
             log("verified update ${cache.length()} bytes for $packageName")
             val installer = packageManager.packageInstaller
-            // A session left waiting for a tap blocks the next one once the system cap is hit
+            // session left waiting for a tap blocks the next one at the system cap
             runCatching { installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } } }
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
             params.setSize(cache.length())

@@ -5,7 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-// the service cannot navigate the activity, so a play call leaves the request here instead
+// service cant navigate activity so a play call leaves the request here
 object PlayRequest {
     const val EXTRA_ID = "pw_play_id"
     const val EXTRA_KIND = "pw_play_kind"
@@ -24,7 +24,7 @@ object PlayRequest {
     var pending by mutableStateOf<Ask?>(null)
         private set
 
-    // a blocked background start never reaches take(), so this is also the "did the UI open" flag
+    // blocked background start never reaches take(), also the did ui open flag
     @Volatile
     var adopted = false
 

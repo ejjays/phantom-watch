@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
 
-// english names that take a definite article, so a rail reads "in the Philippines" and not "in Philippines"
+// english names that take an article, rail reads "in the Philippines" not "in Philippines"
 private val Articled = setOf(
     "AE", "BS", "CD", "CF", "CG", "CZ", "DO", "FK", "GB", "GM", "IM", "KM",
     "KY", "MH", "MP", "MV", "NL", "PH", "SB", "SC", "TC", "US", "VA", "VG", "VI",

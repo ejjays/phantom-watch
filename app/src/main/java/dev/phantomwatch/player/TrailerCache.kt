@@ -13,15 +13,15 @@ import dev.phantomwatch.core.AppLog
 import java.io.File
 import kotlin.math.abs
 
-// segments outlive the player, so a clip watched once starts from disk when it is swiped back to
+// segments outlive player so a clip watched once starts from disk when swiped back
 object TrailerCache {
     private var cache: SimpleCache? = null
 
-    // a fresh player estimates 1 mbps, so the playlist it opens is the one worth warming
+    // fresh player estimates 1 mbps so the playlist it opens is worth warming
     private const val START_BITRATE = 1_000_000
     private const val HEAD = 64 * 1024
 
-    // the prefetch builds this on an IO thread while the player builds it on main
+    // prefetch builds this on io thread while player builds it on main
     @Synchronized
     private fun get(ctx: Context): SimpleCache = cache ?: SimpleCache(
         File(ctx.applicationContext.cacheDir, "trailer-cache"),
@@ -34,7 +34,7 @@ object TrailerCache {
         .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx))
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-    // blocking: the playlist reads are the ones a player repeats on every open, so warm just those
+    // blocking, playlist reads repeat on every open so warm just those
     fun prefetch(ctx: Context, url: String) {
         val t0 = System.currentTimeMillis()
         runCatching {

@@ -23,5 +23,5 @@ fun settingsGutter(pane: SettingsPane): Dp = if (pane == SettingsPane.Compact) 2
 
 val SettingsContentMax = 640.dp
 
-// the floating tab bar is 64dp tall and lifts 8dp, on top of the nav bar the screen already pads
+// floating tab bar is 64dp tall and lifts 8dp over the nav bar screen already pads
 val SettingsNavClearance = 96.dp

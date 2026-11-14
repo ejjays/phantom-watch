@@ -7,7 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.phantomwatch.json.JSONObject
 
-// AniSkip keys on MAL episode + runtime, so it fits any provider's cut of the same episode
+// aniskip keys on mal episode + runtime so it fits any provider's cut
 object SkipTimes {
     internal fun windowOf(json: JSONObject, types: List<String>): LongRange? {
         val results = json.optJSONArray("results") ?: return null
@@ -22,7 +22,7 @@ object SkipTimes {
         return null
     }
 
-    // fills what the provider did not send: opening from AniSkip, ending from the indexes
+    // fills what the provider didn't send, opening from aniskip, ending from the indexes
     suspend fun fill(s: Stream, tmdbId: String, season: String, episode: String, durationMs: Long, withRecap: Boolean = false): Stream {
         if (durationMs < 60_000) return s
         var out = s
@@ -50,7 +50,7 @@ object SkipTimes {
             recapDb(imdb, s, e)?.takeIf { it.first in 1 until durationMs }
         }
 
-    // each index is timed on one release, so a window that starts past the end describes another cut
+    // each index is timed on one release so a window past the end is another cut
     suspend fun outro(tmdbId: String, imdb: String?, season: String, episode: String, durationMs: Long): LongRange? =
         withContext(Dispatchers.IO) {
             val s = season.toIntOrNull()
@@ -61,8 +61,8 @@ object SkipTimes {
             fits(tv) ?: fits(anime) ?: fits(if (s != null && e != null) theIntroDb(imdb, s, e, durationMs) else null)
         }
 
-    // TVDB-mapped credits, and end_ms is usually null, i.e. "runs to the end": the one shape that
-    // still lands on the credits when the provider serves a shorter cut
+    // tvdb mapped credits, end_ms usually null meaning runs to the end, the one shape that
+    // still lands on credits when provider serves a shorter cut
     private suspend fun theIntroDb(imdb: String?, season: Int, episode: Int, durationMs: Long): LongRange? {
         val id = imdb?.removePrefix("tt")?.takeIf { it.isNotEmpty() } ?: return null
         val json = runCatching {
@@ -101,7 +101,7 @@ object SkipTimes {
         return start..end
     }
 
-    // only the pre-roll recap lives here: introdb is the one index that carries it
+    // only pre roll recap here, introdb is the one index with it
     private suspend fun recapDb(imdb: String?, season: Int, episode: Int): LongRange? {
         val id = imdb?.removePrefix("tt")?.takeIf { it.isNotEmpty() } ?: return null
         val json = runCatching {

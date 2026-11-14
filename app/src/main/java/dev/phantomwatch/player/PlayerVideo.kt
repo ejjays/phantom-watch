@@ -73,21 +73,21 @@ fun PlayerVideo(
     modifier: Modifier = Modifier,
 ) {
     var videoSurface by remember { mutableStateOf<SurfaceView?>(null) }
-    // a 16:9 encode often pads a wider picture with real black rows: measure them and crop so the
-    // picture fills the stage. the view exists long before the first frame does
+    // a 16:9 encode pads a wider picture with real black rows, measure and crop so the
+    // picture fills stage, view exists long before first frame
     var padTarget by remember { mutableStateOf(0f) }
     val pad by animateFloatAsState(padTarget, tween(320), label = "pad")
     LaunchedEffect(videoSurface) {
         val sv = videoSurface ?: return@LaunchedEffect
-        // a second pass runs with the zoom on, reads the cropped view as bar-free and undoes itself
+        // second pass with zoom on reads cropped view as bar free and undoes itself
         if (padTarget > 0f) return@LaunchedEffect
-        // one frame lies: a fade or a dark shot reads as bars, so a few frames decide together
+        // one frame lies, fade or dark shot reads as bars so a few frames decide together
         val seen = ArrayList<Float>(5)
         repeat(100) {
             delay(400)
             seen += frameBars(sv) ?: return@repeat
-            // padding is always black, picture rows only sometimes read as black, so the smallest
-            // sample is the honest one; a 0 is a vetoed frame, not a measurement
+            // padding is always black, picture rows sometimes black so the smallest
+            // sample is honest, a 0 is a vetoed frame not a measurement
             padTarget = seen.filter { it > 0f }.minOrNull() ?: 0f
             if (seen.size < 5) return@repeat
             AppLog.d("video pad ${(padTarget * 100).toInt()}%")
@@ -95,7 +95,7 @@ fun PlayerVideo(
         }
         AppLog.d("video pad none")
     }
-    // a trip to the background kills the view's surface: without a rebind the picture stays black
+    // a trip to background kills the surface, without rebind picture stays black
     val ctx = LocalContext.current
     var resumeTick by remember { mutableStateOf(0) }
     val bound = remember { intArrayOf(0) }
@@ -108,10 +108,10 @@ fun PlayerVideo(
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val aspect = if (pad > 0f && enhSession == null) videoAspect / (1f - pad) else videoAspect
         val fitH = minOf(maxVideoH?.coerceAtMost(maxHeight) ?: maxHeight, maxWidth / aspect)
-        // side bars mean the picture can be filled without covering the notch strip first
+        // side bars mean picture can fill without covering notch strip first
         val safe = maxWidth / aspect >= maxHeight
         LaunchedEffect(safe) { onSafe(safe) }
-        // a bar of a few percent is not worth a pinch: cropping it costs almost nothing
+        // few percent bar is not worth a pinch, cropping costs almost nothing
         val near = !safe && maxWidth / aspect >= maxHeight * 0.9f
         LaunchedEffect(near) { onNear(near) }
         val safeW = (maxWidth - cutL - cutR).coerceAtLeast(maxWidth * 0.5f)
@@ -125,7 +125,7 @@ fun PlayerVideo(
             1 -> cutL + (if (vw <= safeW) (safeW - vw) / 2 else 0.dp) - (maxWidth - vw) / 2
             else -> 0.dp
         }
-        // the glow's side bands would paint the strip the safe fill leaves for the notch
+        // glow side bands paint the strip safe fill leaves for notch
         if (glow && pad <= 0f && mode != 1) AmbientGlow(videoSurface, aspect, Modifier.fillMaxSize())
         if (enhSession != null) {
             AndroidView(
@@ -151,7 +151,7 @@ fun PlayerVideo(
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
-                        // before the player: setPlayer auto-shows the controller and hide() animates
+                        // before player, setPlayer auto shows controller and hide() animates
                         useController = false
                         this.player = exo
                         layoutParams = ViewGroup.LayoutParams(
@@ -222,8 +222,8 @@ private fun SubtitleLayer(cues: String, style: Pair<Float, Float>?, topPx: Float
     }
 }
 
-// rows that are black across the whole frame are padding, not picture: a 2.39 film in a 16:9
-// encode carries about 13% top and bottom, and the two sides have to match
+// rows black across the whole frame are padding not picture, a 2.39 film in 16:9
+// encode carries about 13% top and bottom and both sides have to match
 internal fun barFraction(px: IntArray, w: Int, h: Int): Float? {
     var top = -1
     var bottom = -1
@@ -241,7 +241,7 @@ internal fun barFraction(px: IntArray, w: Int, h: Int): Float? {
     if (top < 0) return null
     val bars = (top + (h - 1 - bottom)).toFloat() / h
     val skew = kotlin.math.abs(top - (h - 1 - bottom)).toFloat() / h
-    // 5%, not 2%: one row of the 48 is already 2.08%, so a single row of asymmetry used to veto
+    // 5% not 2%, one row of 48 is already 2.08% so a single row of asymmetry vetoed
     return if (bars >= 0.04f && bars <= 0.4f && skew <= 0.05f) bars else 0f
 }
 

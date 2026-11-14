@@ -16,7 +16,7 @@ class PhantomApp : Application() {
         super.onCreate()
         CrashReport.install(this)
         AppLog.init(this)
-        // app-wide, not per-activity: an AppFunction call wakes the service with no activity at all
+        // app wide not per activity, an appfunction call wakes service with no activity
         RemoteConfig.load(this)
         Log.sink = AppLog::d
         TmdbHost.key = RemoteConfig.tmdbKey()

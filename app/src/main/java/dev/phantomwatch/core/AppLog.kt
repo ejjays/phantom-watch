@@ -11,11 +11,11 @@ object AppLog {
     private val fmt = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
     private var sink: File? = null
 
-    // a plain buffer, not a state: every thread logs, and a state written off the main thread
-    // conflicts with any composition that logs too (the trailer logs inside remember)
+    // plain buffer not state, every thread logs, state off main thread
+    // conflicts with composition that logs too, trailer logs inside remember
     fun snapshot(): List<String> = synchronized(buf) { buf.toList() }
 
-    // debug only: a file lets adb read the buffer without opening the log sheet
+    // debug only, file lets adb read buffer without opening log sheet
     fun init(ctx: Context) {
         if (!BuildConfig.DEBUG) return
         sink = File(ctx.filesDir, "applog.txt").also { runCatching { it.writeText("") } }

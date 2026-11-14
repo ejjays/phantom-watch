@@ -1,9 +1,9 @@
-// netflix publishes a per-country top 10 as server-rendered html; the app cannot
-// carry ten tmdb lookups per home load, so they are resolved here and cached
+// netflix serves per country top 10 as server rendered html, app cant
+// do ten tmdb lookups per home load so they resolve here and cache
 const TMDB = 'https://api.themoviedb.org/3';
 const UA = 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36';
 const TTL = 6 * 3600;
-// bumped when the row shape changes: the edge cache outlives a deploy
+// bump when row shape changes, edge cache outlives a deploy
 const V = 4;
 const JSON_H = { 'content-type': 'application/json' };
 

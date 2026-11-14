@@ -56,8 +56,8 @@ internal suspend fun findNextUp(id: String, season: String, episode: String): Ne
     val key = RemoteConfig.tmdbKey()
     val eps = DetailCache.episodes("tv", id, s)
         ?: Tmdb.season(key, id, s).also { if (it.isNotEmpty()) DetailCache.putEpisodes("tv", id, s, it) }
-    // no season data is "unknown", not "no next episode": without a target the pill and the end
-    // card both vanish and the episode can only be advanced by hand
+    // no season data is unknown not no next episode, without target pill and end
+    // card both vanish and episode only advances by hand
     if (eps.isEmpty()) {
         AppLog.d("next up guess s${s}e${e + 1}, no season data")
         return NextUp(s.toString(), (e + 1).toString(), "")
@@ -82,9 +82,9 @@ internal fun rememberNextUp(media: Title, season: String, episode: String): Next
     return up
 }
 
-// timings are cut for another release, so clamp to this file: a window that stops before the end
-// was cut for this release's structure and is trusted; one that runs to the end is the ambiguous
-// "credits at the end" case the indexes get a minute wrong, so it never surfaces past three minutes
+// timings are cut for another release so clamp to this file, a window that stops before end
+// was cut for this release and is trusted, one that runs to end is the ambiguous
+// credits at the end case indexes get a minute wrong so it never surfaces past 3 min
 internal fun outroWindow(known: LongRange?, durationMs: Long, hasNext: Boolean): LongRange? {
     if (durationMs <= 0) return known
     val latest = (durationMs - 180_000).coerceAtLeast(0)
@@ -157,9 +157,9 @@ internal fun NextUpHost(
             Text(stringResource(R.string.next_up_playing_in, left), color = Slate400, fontFamily = WorkSans, fontSize = 12.sp)
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // autoplay is what happens if this card is ignored, so the secondary button is the
-                // one that stops it; side loaded streams stutter on the first segment and a loaded
-                // remote click is a plausible way to land here, so cancelling takes a deliberate tap
+                // autoplay happens if card is ignored, secondary button is the
+                // one that stops it, sideloaded streams stutter on first segment and a loaded
+                // remote click can land here so cancelling takes a deliberate tap
                 Box(
                     Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))
                         .clickable {

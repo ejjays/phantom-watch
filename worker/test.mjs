@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import worker from './telemetry.mjs';
 
 const row = (h, legs) => ({ ts: Date.now() + h * 3600000, kind: 'tv', tmdb: '1', season: '1', episode: '1', formats: 2, legs: JSON.stringify(legs) });
-// -1 keeps the digest out of the alert cases; the digest test pins its own hour
+// -1 keeps digest out of alert cases, the digest test pins its own hour
 const env = { KEY: 'k', DB: null, TG_TOKEN: 't', TG_CHAT: 'c', DIGEST_UTC_HOUR: '-1' };
 const sent = [];
 

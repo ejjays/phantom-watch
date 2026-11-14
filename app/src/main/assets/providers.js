@@ -9,12 +9,12 @@
     return { formats: [], subs: [], skipped: true };
   }
 
-  // canonical pick order: real height first, then 1080p+ with EN subs, then a
-  // fixed rung over an adaptive master (the master's ABR settles low: 268p while
-  // its own 1080p rung served 804), EN subs, english audio, then height.
-  // an auto rung's height is the ladder's ceiling, not what it serves, so it
-  // never claims the 1080p+ bucket; a 0 height means the leg never reported one,
-  // so it cannot outrank a known height (a 0-height rung once won and sat dead)
+  // pick order: real height first, then 1080p+ with en subs, then a
+  // fixed rung over adaptive master (abr settles low, 268p while
+  // its own 1080p rung served 804), en subs, english audio, then height
+  // auto rung height is the ladder ceiling not what it serves so it
+  // never claims the 1080p+ bucket, 0 height means the leg never reported one
+  // so it cant outrank a known height (0 height rung once won and sat dead)
   function rankOf(f) {
     var h = typeof f.height === 'number' ? f.height : 0;
     var auto = /-auto$/.test(f.label || '');
@@ -41,7 +41,7 @@
     });
   }
 
-  // legs that cannot serve this title at all; the app and probe.js share this
+  // legs that cant serve this title at all, app and probe.js share this
   function pwSkip(name, ctx) {
     ctx = ctx || {};
     if (name === 'vap') return !ctx.imdb;
@@ -71,7 +71,7 @@
     p.reject(new Error(msg || 'bridge'));
   }
 
-  // native extractor: no pw.voe in node/probe, so the caller just skips
+  // native extractor, no pw.voe in node/probe so caller skips
   function voe(code) {
     return new Promise(function (resolve) {
       if (!pw || typeof pw.voe !== 'function') { resolve(null); return; }
@@ -120,7 +120,7 @@
     return m ? parseInt(m[1], 10) : 0;
   }
 
-  // disabled due to desynced captions
+  // disabled, captions desynced
   async function love(ctx) {
     var cfg = ctx.cfg || {};
     var api = cfg.api || 'https://api.vidlove.cc';
@@ -193,7 +193,7 @@
         } catch (e) {}
       }
     }
-    // the cache keeps every revision; only the newest is re-timed for the current encode
+    // cache keeps every revision, only newest is retimed for current encode
     subs.sort(function (a, b) { return capVer(b.url) - capVer(a.url); });
     var enSubs = subs.some(function (s) { return /english/i.test(s.label); });
     formats.sort(function (a, b) { return b.height - a.height; });
@@ -327,9 +327,9 @@
     return list.length ? Math.max.apply(null, list.map(function (f) { return f.height; })) : 0;
   }
 
-  // cinesrc "light" -> lightspeed.st. The cdn gates on Origin, not Referer ("404 Removed"),
-  // and only the master carries the audio group: the rungs are video-only, so a rung
-  // picked from the master plays silent.
+  // cinesrc light -> lightspeed.st, cdn gates on Origin not Referer (404 Removed)
+  // and only master carries audio group, rungs are video only so a rung
+  // picked from master plays silent
   async function light(ctx) {
     var cfg = ctx.cfg || {};
     var referer = cfg.referer || 'https://cinesrc.st/';
@@ -411,7 +411,7 @@
     auto.referer = referer;
     auto.enSubs = e.subs;
     auto.enAudio = e.audio;
-    // a bare rung is video-only here: vixsrc keeps sound in a separate rendition group
+    // bare rung is video only here, vixsrc keeps sound in separate rendition
     var splitAudio = /#EXT-X-MEDIA:[^\r\n]*TYPE=AUDIO/.test(manifest);
     return { formats: splitAudio ? [auto] : [auto].concat(rungs), subs: [] };
   }
@@ -547,7 +547,7 @@
     if (mal <= 0) return empty();
     var n = parseInt(ctx.episode, 10);
     var epNum = ctx.kind === 'movie' ? 1 : (isNaN(n) || n <= 0 ? 1 : n);
-    // TMDB flattens some anime into one long season; AniList keeps the cours apart.
+    // tmdb flattens some anime into one long season, anilist keeps cours apart
     if (M.episodes && epNum > M.episodes) {
       var edges = (M.relations && M.relations.edges) || [];
       for (var q = 0; q < edges.length; q++) {
@@ -589,9 +589,9 @@
       return { srcObj: srcObj, master: master, manifest: manifest };
     }
 
-    // dub is a separate cut with its own source id; one cut missing must not kill the leg
+    // dub is a separate cut with its own source id, one cut missing must not kill leg
     var both = await Promise.all([cut('sub'), cut('dub')]);
-    // some episodes 403 the sub source and still serve the dub: use that cut, and label it
+    // some episodes 403 the sub source but serve the dub, use that cut and label it
     var dubOnly = !both[0] && both[1];
     if (dubOnly) { both[0] = both[1]; both[1] = null; }
     var sub = both[0];
@@ -646,8 +646,8 @@
       });
       var dFormats = [dAuto].concat(dRungs);
       if (dIntro) dFormats.forEach(function (f) { f.intro = dIntro; });
-      // the dub cut usually points at the sub cut's own vtt, and that reads as JP captions over
-      // dub audio: keep only the captions the dub actually owns
+      // dub cut points at the sub cut's own vtt which reads as jp captions over
+      // dub audio, keep only captions the dub owns
       var ownDubSubs = dSubs.filter(function (s) {
         return !subs.some(function (o) { return o.url === s.url; });
       });
@@ -702,7 +702,7 @@
     var eps = await getJson('/anime/' + showId + '/episode');
     var arr = (eps && eps.data) || [];
     var uid = pickUid(arr, ctx.episode);
-    // Same flattening as hianime: the provider lists the next cour as its own show.
+    // same flattening as hianime, provider lists next cour as its own show
     if (!uid && arr.length && Number(ctx.episode) > arr.length) {
       var s2 = await getJson('/search?q=' + urlencode(ctx.title + ' Season 2') + '&limit=20');
       var l2 = (s2 && s2.data) || [];
@@ -818,7 +818,7 @@
     var em = /https:\/\/abstream\.to\/embed\/([a-z0-9]+)/.exec(body);
     if (!em) {
       var vm = /https:\/\/voe\.sx\/e\/([a-z0-9]+)/.exec(body);
-      // no native extractor (probe/CI) means this title is out of reach here, not a failure
+      // no native extractor (probe/ci) means title is out of reach here not a failure
       if (!vm || cfg.voe === false || typeof pw.voe !== 'function') return skipped();
       var v = await voe(vm[1]);
       if (!v || !v.url) return empty();
@@ -962,7 +962,7 @@
     var d = st.acc % 61;
     var i = st.S[d] >>> 0;
     var s = (i ^ Math.imul(2654435769, n + 1)) >>> 0;
-    // d is always < S.length (61), so the chunk's r is always -1 and l is n|s
+    // d is always < S.length (61) so chunk r is always -1 and l is n|s
     var l = (st.acc | s) >>> 0;
     var lv = (streamRot((l + st.acc) >>> 0, 31 & d) ^ streamRot(st.acc, 31 & Math.imul(d, 7))) >>> 0;
     var nv = streamMix((lv + 2654435769) >>> 0);
@@ -1070,8 +1070,8 @@
     try { return decodeURIComponent(m[1]); } catch (e) { return proxy; }
   }
 
-  // netmirror clone: tmdb id in, signed mp4 cdn + srt captions out. the cdn
-  // 429s hard on bursts, so one request and one shot per rung
+  // netmirror clone, tmdb id in, signed mp4 cdn + srt captions out, cdn
+  // 429s hard on bursts so one request and one shot per rung
   async function net79(ctx) {
     var cfg = ctx.cfg || {};
     var api = (cfg.api || 'https://net79.cc').replace(/\/+$/, '');

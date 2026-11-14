@@ -88,7 +88,7 @@ fun TopTenCard(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) ->
     if (width > height) TopTenWide(rank, item, width, height, onOpen) else TopTenTall(rank, item, width, height, onOpen)
 }
 
-// outline numeral in the gutter, bottom-aligned, with the poster sliding over its right side
+// outline numeral in gutter bottom aligned, poster slides over its right side
 @Composable
 private fun RankNumeral(rank: Int, size: Dp, color: Color, stroke: Dp, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
@@ -112,7 +112,7 @@ private fun RankNumeral(rank: Int, size: Dp, color: Color, stroke: Dp, modifier:
 private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (Title) -> Unit) {
     val twoDigit = rank > 9
     val glyph = height * if (twoDigit) 0.44f else 0.61f
-    // the numeral is not condensed here, so the gutter has to hold its full width
+    // numeral is not condensed here so gutter holds its full width
     val lead = height * if (twoDigit) 0.385f else 0.26f
     val expanded = isExpanded(screenWidthDp())
     val castW = height * if (expanded) 0.12f else 0.14f
@@ -137,12 +137,12 @@ private fun TopTenWide(rank: Int, item: Title, width: Dp, height: Dp, onOpen: (T
             val art = item.backdrop ?: item.poster
             if (art != null) {
                 AsyncImage(model = art, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                // the still carries no lettering, unlike the portrait poster, so the name has to be drawn
+                // still has no lettering unlike portrait poster so name has to be drawn
                 Box(
                     Modifier.matchParentSize()
                         .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.9f))),
                 )
-                // 0.118 of the card height, so the name keeps the same share on a tablet as on a phone
+                // 0.118 of card height so name keeps same share on tablet as phone
                 val name = (height * 0.118f).value.coerceIn(13f, 40f).sp
                 Text(
                     item.title, color = Color.White,

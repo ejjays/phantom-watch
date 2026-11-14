@@ -1,6 +1,6 @@
 package dev.phantomwatch.data
 
-// one list for the store and the settings UI: the two drifted apart once and every toggle
+// one list for the store and setting ui: the two drifted apart once and every toggle
 // silently wrote a key nothing read
 object SettingsKeys {
     const val SUBS_ON = "subs_on"

@@ -237,7 +237,7 @@ class BrowseState {
         return true
     }
 
-    // the last feed is painted before the network answers, so a cold start is not a spinner
+    // last feed painted before network answers, cold start is not a spinner
     fun restoreFeed(raw: String, country: Country) {
         if (rails.isNotEmpty() || trending.isNotEmpty()) return
         val o = runCatching { JSONObject(raw) }.getOrNull() ?: return
@@ -249,7 +249,7 @@ class BrowseState {
             val def = defs[e.optString("key")] ?: return@mapNotNull null
             val items = feedTitles(e.optJSONArray("items"))
             if (items.isEmpty()) return@mapNotNull null
-            // a chart row swapped the rail's title and ranks for the live chart's
+            // chart row swapped rail title and ranks for live chart's
             val ranks = e.optJSONArray("ranks")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty()
             val chart = ranks.isNotEmpty()
             RailState(
@@ -327,7 +327,7 @@ fun HomeScreen(
         if (feedLoading) return
         feedLoading = true
         scope.launch {
-            // a failed refresh must not replace a feed the user is already looking at
+            // failed refresh must not replace feed the user is looking at
             browse.loading = true
             try {
                 val foundTrending = withContext(ioDispatcher) { Tmdb.trending(key) }
@@ -425,7 +425,7 @@ fun HomeScreen(
         withContext(ioDispatcher) { onRestoreRecent(fixed) }
     }
     LaunchedEffect(browse.nav.top) { syncRoute(browse.nav.top.path) }
-    // TMDB's popular list drifts daily, so a process that lives for days would keep day-one rows
+    // tmdb popular drifts daily, a process alive for days keeps day one rows
     OnResumeEffect {
         if (!browse.hydrated) return@OnResumeEffect
         val onHomeTop = browse.nav.top is Route.Home && browse.homeScroll.firstVisibleItemIndex == 0
@@ -466,16 +466,16 @@ fun HomeScreen(
         selected = t
         recents.removeAll { it.kind == t.kind && it.id == t.id }
         recents.add(0, t)
-        // removeLast() resolves to the Java 21 List member, which does not exist before API 35
+        // removeLast() is the java 21 list member, missing before api 35
         if (recents.size > 6) recents.removeAt(recents.lastIndex)
     }
 
     val inSearch = browse.query.trim().length >= 2
     val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
     var exitAsk by remember { mutableStateOf(false) }
-    // registered first so the more specific handler below wins on Android: last callback wins
+    // registered first so the specific handler below wins, last callback wins
     if (onExitApp != null) PlatformBackHandler(enabled = true) { exitAsk = true }
-    // only while an in-screen view is up, so back at home falls through to the host
+    // only while a screen view is up, back at home falls to the host
     PlatformBackHandler(enabled = browse.nav.canPop) { browse.back() }
     val screenW = screenWidthDp()
     val expanded = isExpanded(screenW)
@@ -702,7 +702,7 @@ private fun SearchHeader(query: String, onQuery: (String) -> Unit) {
     }
 }
 
-// one remembered instance, so a parent recomposition doesn't invalidate every poster card
+// one remembered instance so parent recomposition doesnt invalidate every poster card
 @Composable
 private fun <T> stableCallback(block: (T) -> Unit): (T) -> Unit {
     val latest = rememberUpdatedState(block)
@@ -739,11 +739,11 @@ private fun BrowseBody(
     val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
     val exploreRows = remember(explore.items, cols) { explore.items.chunked(cols) }
-    // outside composition: a state read here would re-run every poster card in the content lambda
+    // outside composition, a state read here reruns every poster card in content lambda
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
-            // the index, not a boolean: snapshotFlow drops repeats, so a latched boolean could never retry
+            // index not boolean, snapshotFlow drops repeats so a latched boolean never retries
             info.visibleItemsInfo.lastOrNull()?.index?.let { it to info.totalItemsCount } ?: (-1 to 0)
         }.collect { (last, total) -> if (last >= total - 2) onGridEnd() }
     }
@@ -771,7 +771,7 @@ private fun BrowseBody(
         contentPadding = PaddingValues(bottom = 128.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // one item per rail, so an explore page only recomposes the grid rows
+        // one item per rail so explore only recomposes grid rows
         item(key = "hero", contentType = "hero") {
             TrendingHero(trending = trending, paused = detailOpen, onOpen = onOpen, width = width, listState = listState)
         }
@@ -848,7 +848,7 @@ private fun RailSection(
     val railW = if (landscape) landscapeCell(width) else featuredCell(width)
     val railH = if (landscape) railW * 9f / 16f else railW * 4f / 3f
     val snap = rememberSnapFlingBehavior(rowState)
-    // the numeral lives in the left gutter, so the padding is uneven to centre the poster itself
+    // numeral lives in left gutter so padding is uneven to centre poster
     val lead = railH * 0.26f
     val side = if (landscape) chartStart(width, railW, lead) else 16.dp
     val tail = if (landscape) chartEnd(width, railW) else 16.dp

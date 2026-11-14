@@ -13,9 +13,9 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
-// a provider vtt sits behind the same referer as its stream, and the player fetches a sideloaded
-// sub without it, so the file 403s and no track ever appears: download it and hand over a local
-// file, the same path the OpenSubtitles captions already render through
+// provider vtt sits behind same referer as stream, player fetches sideloaded
+// sub without it so the file 403s and no track appears, download it and hand a local
+// file, same path opensubtitles captions already use
 internal object SubCache {
     private val done = ConcurrentHashMap<String, File>()
 
@@ -27,13 +27,13 @@ internal object SubCache {
 
     internal fun cacheName(url: String): String = "sub-" + url.hashCode().toString() + ".vtt"
 
-    // a dir, not a Context: the write path stays reachable from a plain JVM test
+    // dir not context, write path stays reachable from plain jvm test
     internal fun store(dir: File, url: String, headers: Map<String, String>): File? {
         done[url]?.let { return it }
         val f = File(dir, cacheName(url))
         if (f.length() > 0) {
-            // an earlier build wrote the provider's srt bytes under this .vtt name, and the
-            // player then parsed them as WebVTT: track selected, no cues, nothing in the log
+            // earlier build wrote provider srt bytes under this .vtt name and the
+            // player parsed them as webvtt, track selected no cues nothing in log
             if (isVtt(f)) return f.also { done[url] = it }
             f.delete()
         }
@@ -69,7 +69,7 @@ internal object SubCache {
         String(head, 0, n, Charsets.UTF_8).removePrefix("\uFEFF").trimStart().startsWith("WEBVTT")
     }.getOrDefault(false)
 
-    // the file is served as text/vtt whatever the provider sent
+    // file served as text/vtt whatever provider sent
     private fun asVtt(body: ByteArray, url: String): ByteArray? {
         val text = decode(body) ?: return null
         val vtt = Subtitles.toVtt(text, url)
@@ -78,7 +78,7 @@ internal object SubCache {
 
     private fun decode(b: ByteArray): String? = runCatching {
         val s = String(b, Charsets.UTF_8)
-        // srt in the wild is often latin-1: the timings survive either way, the dialogue does not
+        // srt in the wild is often latin1, timings survive either way dialogue does not
         if (s.contains('\uFFFD')) String(b, Charsets.ISO_8859_1) else s
     }.getOrNull()
 }
