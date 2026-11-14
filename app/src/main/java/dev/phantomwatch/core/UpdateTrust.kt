@@ -10,13 +10,6 @@ internal object UpdateTrust {
         "release-assets.githubusercontent.com",
     )
 
-    fun validUrl(value: String): Boolean = runCatching {
-        val uri = URI(value)
-        uri.scheme == "http" && uri.host == "127.0.0.1" && uri.port in 1024..65535 &&
-            uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null &&
-            uri.rawPath in setOf("/app-debug.apk", "/app-release.apk")
-    }.getOrDefault(false)
-
     fun releaseEntry(value: String): Boolean = runCatching {
         val uri = URI(value)
         uri.scheme == "https" && uri.host == "github.com" && uri.rawUserInfo == null &&
@@ -30,8 +23,6 @@ internal object UpdateTrust {
         val uri = URI(value)
         uri.scheme == "https" && uri.host in RELEASE_HOSTS && uri.rawUserInfo == null
     }.getOrDefault(false)
-
-    fun validToken(value: String): Boolean = value.matches(Regex("[a-f0-9]{64}"))
 
     fun validSize(size: Long): Boolean = size in 1..MAX_APK_BYTES
 

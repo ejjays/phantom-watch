@@ -31,23 +31,20 @@ instead of trying to hide it in the app.
   stream URLs, no account.
 - **The app's own data** (watch positions, cached config) is not backed up
   (`allowBackup="false"`).
-- **Updates** are fetched from `127.0.0.1` with a one-shot token, without
-  redirects, inside a size cap. The APK must have the same package, a
-  non-lower `versionCode`, and the same signer as the installed app; release
-  builds also pin the release certificate in `UPDATE_CERT_SHA256`. A foreign
-  APK signed with the old debug key is rejected.
+- **Updates** are fetched from the project's GitHub release URL over https,
+  following at most four redirects that stay on GitHub hosts, inside a size
+  cap. The APK must have the same package, a non-lower `versionCode`, and the
+  same signer as the installed app; release builds also pin the release
+  certificate in `UPDATE_CERT_SHA256`. A foreign APK signed with the old debug
+  key is rejected.
 
 ## Known exposures, accepted on purpose
 
-- **The update helper activity is exported.** Any local app can start it, but
-  it only talks to `127.0.0.1` with the token from the intent and can only
-  install an APK signed with the app's key and pinned certificate. The worst
-  case is a spurious installer prompt.
 - **Losing the release keystore** ends updates for installed release builds.
   I keep it off-repo and back it up offline, twice. The same applies to the
   OTA signing key.
-- **Cleartext traffic.** Only `127.0.0.1` is allowed in the clear, for the update
-  helper. An `http://` provider stream will not load until its host is added to
+- **Cleartext traffic is off.** Every provider, API and media host is https;
+  an `http://` stream will not load until its host is added to
   `res/xml/network_security_config.xml`.
 - **The WebView bridge.** The page is a local `https://phantom.local/` blob
   with network loads blocked; only the signed script runs in it. The bridge

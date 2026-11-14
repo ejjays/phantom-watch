@@ -6,24 +6,14 @@ import org.junit.Test
 
 class UpdateTrustTest {
     @Test
-    fun onlyAcceptsLoopbackApkUrls() {
-        assertTrue(UpdateTrust.validUrl("http://127.0.0.1:8123/app-debug.apk"))
-        assertTrue(UpdateTrust.validUrl("http://127.0.0.1:8123/app-release.apk"))
-        assertFalse(UpdateTrust.validUrl("http://localhost:8123/app-debug.apk"))
-        assertFalse(UpdateTrust.validUrl("http://127.0.0.2:8123/app-debug.apk"))
-        assertFalse(UpdateTrust.validUrl("https://127.0.0.1:8123/app-debug.apk"))
-        assertFalse(UpdateTrust.validUrl("http://127.0.0.1:8123/other.apk"))
-        assertFalse(UpdateTrust.validUrl("http://user@127.0.0.1:8123/app-debug.apk"))
-        assertFalse(UpdateTrust.validUrl("http://127.0.0.1:8123/app-debug.apk?redirect=1"))
-        assertFalse(UpdateTrust.validUrl("http://127.0.0.1:8123/app-debug.apk#fragment"))
-    }
-
-    @Test
-    fun acceptsOnlyHexTokensOfExpectedLength() {
-        assertTrue(UpdateTrust.validToken("a".repeat(64)))
-        assertFalse(UpdateTrust.validToken("a".repeat(63)))
-        assertFalse(UpdateTrust.validToken("g".repeat(64)))
-        assertFalse(UpdateTrust.validToken("a".repeat(65)))
+    fun acceptsOnlyReleaseApkUrls() {
+        assertTrue(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom-watch/releases/download/v1/app-release.apk"))
+        assertFalse(UpdateTrust.releaseEntry("http://github.com/ejjays/phantom-watch/releases/download/v1/app-release.apk"))
+        assertFalse(UpdateTrust.releaseEntry("https://github.com/other/repo/releases/download/v1/app-release.apk"))
+        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom-watch/releases/download/v1/notes.txt"))
+        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom-watch/releases/download/v1/app-release.apk?x=1"))
+        assertTrue(UpdateTrust.releaseHop("https://release-assets.githubusercontent.com/github-production-release-asset/x"))
+        assertFalse(UpdateTrust.releaseHop("https://evil.test/github-production-release-asset/x"))
     }
 
     @Test

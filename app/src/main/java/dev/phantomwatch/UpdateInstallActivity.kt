@@ -23,19 +23,14 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-// loopback only, and the app commits the session itself: this ROM can't read a content:// URI
+// the app downloads and commits the session itself: the installer can't read a content:// apk
 class UpdateInstallActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         alive = WeakReference(this)
         log("start appop=${packageManager.canRequestPackageInstalls()}")
         val url = intent.getStringExtra("url").orEmpty()
-        val github = intent.getBooleanExtra("github", false)
-        if (github) {
-            if (!UpdateTrust.releaseEntry(url)) return finishWith("rejected release url")
-        } else {
-            if (!UpdateTrust.validUrl(url)) return finishWith("rejected url")
-        }
+        if (!UpdateTrust.releaseEntry(url)) return finishWith("rejected release url")
         if (!packageManager.canRequestPackageInstalls()) {
             Toast.makeText(this, getString(R.string.update_allow_install), Toast.LENGTH_LONG).show()
             runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
@@ -55,10 +50,8 @@ class UpdateInstallActivity : Activity() {
     }
 
     private fun commit(url: String) {
-        val github = intent.getBooleanExtra("github", false)
-        val token = intent.getStringExtra("token").orEmpty()
-        if (github) check(UpdateTrust.releaseEntry(url)) { "invalid release url" } else check(UpdateTrust.validToken(token)) { "invalid update token" }
-        val conn = open(url, if (github) null else token, github)
+        check(UpdateTrust.releaseEntry(url)) { "invalid release url" }
+        val conn = open(url)
         try {
             check(conn.responseCode == 200) { "server said ${conn.responseCode}" }
             val expectedSize = conn.contentLengthLong
@@ -108,18 +101,16 @@ class UpdateInstallActivity : Activity() {
         }
     }
 
-    private fun open(url: String, token: String?, follow: Boolean): HttpURLConnection {
+    private fun open(url: String): HttpURLConnection {
         var current = url
         repeat(4) {
             val conn = URL(current).openConnection() as HttpURLConnection
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 5000
             conn.readTimeout = 120000
-            if (token != null) conn.setRequestProperty("X-PhantomWatch-Update", token)
             if (conn.responseCode !in 300..399) return conn
             val next = conn.getHeaderField("Location") ?: error("redirect without location")
             conn.disconnect()
-            check(follow) { "unexpected redirect" }
             check(UpdateTrust.releaseHop(next)) { "redirect left github" }
             current = next
         }

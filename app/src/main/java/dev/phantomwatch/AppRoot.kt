@@ -503,7 +503,6 @@ private fun installRelease(ctx: android.content.Context, release: UpdateChecker.
             android.content.Intent(ctx, UpdateInstallActivity::class.java)
                 .putExtra("url", release.url)
                 .putExtra("size", release.size)
-                .putExtra("github", true)
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }
