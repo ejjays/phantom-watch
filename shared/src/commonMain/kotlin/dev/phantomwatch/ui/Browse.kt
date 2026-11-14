@@ -222,6 +222,7 @@ class BrowseState {
     var failed by mutableStateOf(false)
     var loaded by mutableStateOf(false)
     var loadedAt by mutableStateOf(0L)
+    var hydrated = false
     val homeScroll = LazyListState()
 
     fun selectTab(index: Int) {
@@ -259,6 +260,11 @@ class BrowseState {
         trending = trend
         rails = restored
         failed = false
+        val at = o.optLong("at", 0L)
+        if (at > 0) {
+            loaded = true
+            loadedAt = at
+        }
         Log.d("feed restore ${restored.size} rails")
     }
 
@@ -267,6 +273,7 @@ class BrowseState {
         val keep = rails.filter { it.items.isNotEmpty() && it.key in defs }
         if (trending.isEmpty() && keep.isEmpty()) return null
         val o = JSONObject().put("v", FEED_CACHE_VERSION)
+        o.put("at", nowMs())
         o.put("trending", JSONArray().also { a -> trending.forEach { a.put(titleJson(it)) } })
         o.put(
             "rails",
@@ -311,12 +318,6 @@ fun HomeScreen(
     val recents = remember { mutableStateListOf<Title>() }
     var feedLoading by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        if (browse.trending.isNotEmpty() || browse.rails.isNotEmpty()) return@LaunchedEffect
-        val raw = withContext(ioDispatcher) { runCatching { readFeed() }.getOrNull() } ?: return@LaunchedEffect
-        browse.restoreFeed(raw, country)
-    }
-
     fun loadBrowse() {
         if (feedLoading) return
         feedLoading = true
@@ -359,6 +360,14 @@ fun HomeScreen(
                 browse.loadedAt = nowMs()
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        if (browse.hydrated) return@LaunchedEffect
+        val raw = withContext(ioDispatcher) { runCatching { readFeed() }.getOrNull() }
+        if (raw != null) browse.restoreFeed(raw, country)
+        browse.hydrated = true
+        if (nowMs() - browse.loadedAt > 6 * 60 * 60 * 1000L) loadBrowse()
     }
 
     fun loadMoreRail(railKey: String) {
@@ -408,6 +417,7 @@ fun HomeScreen(
     LaunchedEffect(browse.nav.top) { syncRoute(browse.nav.top.path) }
     // TMDB's popular list drifts daily, so a process that lives for days would keep day-one rows
     OnResumeEffect {
+        if (!browse.hydrated) return@OnResumeEffect
         val onHomeTop = browse.nav.top is Route.Home && browse.homeScroll.firstVisibleItemIndex == 0
         if (onHomeTop && (!browse.loaded || nowMs() - browse.loadedAt > 6 * 60 * 60 * 1000L)) loadBrowse()
     }

@@ -28,6 +28,16 @@ class BrowseFeedCacheTest {
     }
 
     @Test
+    fun keepsTheFetchTimeSoAFreshColdStartDoesNotRefetch() {
+        val state = BrowseState()
+        state.trending = listOf(dune)
+        val restored = BrowseState()
+        restored.restoreFeed(state.feedJson(country)!!, country)
+        assertTrue(restored.loaded)
+        assertTrue(restored.loadedAt > 0)
+    }
+
+    @Test
     fun ignoresACacheFromAnotherVersion() {
         val restored = BrowseState()
         restored.restoreFeed("""{"v":99,"trending":[{"id":"1","kind":"movie","title":"x"}]}""", country)
