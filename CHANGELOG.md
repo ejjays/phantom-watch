@@ -30,6 +30,7 @@
 - i18n: every rendered string lives in `res/values/strings.xml`.
 - net: cleartext HTTP is refused.
 - home: trending paints before the rails, and the rails load in parallel.
+- home: the last feed paints while the network refreshes it.
 - subs: an embedded English track skips the OpenSubtitles fetch.
 - subs: the unused Supabase subtitle cache and remote key fetch are gone.
 - startup: the trailer WebView warms when the clip feed opens, not at launch.

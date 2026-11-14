@@ -101,6 +101,9 @@ import dev.phantomwatch.data.Recent
 import dev.phantomwatch.data.Search
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Tmdb
+import dev.phantomwatch.json.JSONArray
+import dev.phantomwatch.json.JSONObject
+import dev.phantomwatch.core.Log
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -174,6 +177,31 @@ private suspend fun railOf(def: RailDef, key: String, country: Country): RailSta
 private fun railTitle(title: StringResource, arg: String?): String =
     if (arg != null) stringResource(title, arg) else stringResource(title)
 
+private const val FEED_CACHE_VERSION = 1
+
+private fun feedTitle(e: JSONObject): Title? {
+    val id = e.optString("id")
+    val kind = e.optString("kind")
+    val name = e.optString("title")
+    if (id.isEmpty() || name.isEmpty() || (kind != "movie" && kind != "tv")) return null
+    return Title(
+        id, kind, name,
+        e.optString("poster").ifEmpty { null },
+        e.optString("backdrop").ifEmpty { null },
+        e.optDouble("rating").takeIf { !it.isNaN() },
+        e.optString("year").ifEmpty { null },
+        e.optString("overview").ifEmpty { null },
+    )
+}
+
+private fun feedTitles(arr: JSONArray?): List<Title> =
+    arr?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let(::feedTitle) } }.orEmpty()
+
+private fun titleJson(t: Title): JSONObject = JSONObject()
+    .put("id", t.id).put("kind", t.kind).put("title", t.title)
+    .put("poster", t.poster).put("backdrop", t.backdrop)
+    .put("rating", t.rating).put("year", t.year).put("overview", t.overview)
+
 private val RuleEdge = Color.White.copy(alpha = 0.16f)
 
 class BrowseState {
@@ -206,6 +234,53 @@ class BrowseState {
         if (leaving is Route.Search) query = ""
         return true
     }
+
+    // the last feed is painted before the network answers, so a cold start is not a spinner;
+    // chart rails are dropped because their title and rank come from the live chart call
+    fun restoreFeed(raw: String, country: Country) {
+        if (rails.isNotEmpty() || trending.isNotEmpty()) return
+        val o = runCatching { JSONObject(raw) }.getOrNull() ?: return
+        if (o.optInt("v") != FEED_CACHE_VERSION) return
+        val arr = o.optJSONArray("rails") ?: return
+        val defs = railDefs(country).filter { it.chart == null }.associateBy { it.key }
+        val restored = (0 until arr.length()).mapNotNull { i ->
+            val e = arr.optJSONObject(i) ?: return@mapNotNull null
+            val def = defs[e.optString("key")] ?: return@mapNotNull null
+            val items = feedTitles(e.optJSONArray("items"))
+            if (items.isEmpty()) return@mapNotNull null
+            RailState(
+                def.key, def.title, def.path, items,
+                e.optInt("page", 1), e.optInt("pages", 1),
+                arg = def.arg, ranked = def.ranked, landscape = def.landscape,
+            )
+        }
+        val trend = feedTitles(o.optJSONArray("trending")).take(12)
+        if (restored.isEmpty() && trend.isEmpty()) return
+        trending = trend
+        rails = restored
+        failed = false
+        Log.d("feed restore ${restored.size} rails")
+    }
+
+    fun feedJson(country: Country): String? {
+        val defs = railDefs(country).filter { it.chart == null }.map { it.key }.toSet()
+        val keep = rails.filter { it.items.isNotEmpty() && it.key in defs }
+        if (trending.isEmpty() && keep.isEmpty()) return null
+        val o = JSONObject().put("v", FEED_CACHE_VERSION)
+        o.put("trending", JSONArray().also { a -> trending.forEach { a.put(titleJson(it)) } })
+        o.put(
+            "rails",
+            JSONArray().also { a ->
+                keep.forEach { r ->
+                    a.put(
+                        JSONObject().put("key", r.key).put("page", r.page).put("pages", r.totalPages)
+                            .put("items", JSONArray().also { ia -> r.items.forEach { ia.put(titleJson(it)) } }),
+                    )
+                }
+            },
+        )
+        return o.toString()
+    }
 }
 
 @Composable
@@ -222,6 +297,8 @@ fun HomeScreen(
     detailPane: @Composable (Title?, () -> Unit, (Title, String, String) -> Unit, Boolean) -> Unit = { _, _, _, _ -> },
     youScreen: @Composable () -> Unit = {},
     clipsScreen: @Composable (onOpen: (Title) -> Unit) -> Unit = {},
+    readFeed: () -> String? = { null },
+    writeFeed: (String) -> Unit = {},
 ) {
     val key = TmdbHost.key
     val country = deviceCountry()
@@ -234,17 +311,21 @@ fun HomeScreen(
     val recents = remember { mutableStateListOf<Title>() }
     var feedLoading by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        if (browse.trending.isNotEmpty() || browse.rails.isNotEmpty()) return@LaunchedEffect
+        val raw = withContext(ioDispatcher) { runCatching { readFeed() }.getOrNull() } ?: return@LaunchedEffect
+        browse.restoreFeed(raw, country)
+    }
+
     fun loadBrowse() {
         if (feedLoading) return
         feedLoading = true
         scope.launch {
             // a failed refresh must not replace a feed the user is already looking at
-            val hadContent = browse.rails.any { it.items.isNotEmpty() }
-            val previous = browse.rails
             browse.loading = true
             try {
                 val foundTrending = withContext(ioDispatcher) { Tmdb.trending(key) }
-                browse.trending = foundTrending.take(12)
+                if (foundTrending.isNotEmpty()) browse.trending = foundTrending.take(12)
                 val defs = railDefs(country)
                 val found = arrayOfNulls<RailState>(defs.size)
                 coroutineScope {
@@ -256,15 +337,21 @@ fun HomeScreen(
                                 }
                             }
                             browse.rails = defs.indices.mapNotNull { n ->
-                                found[n] ?: previous.firstOrNull { it.key == defs[n].key }
+                                found[n]?.takeIf { it.items.isNotEmpty() }
+                                    ?: browse.rails.firstOrNull { it.key == defs[n].key }
+                                    ?: found[n]
                             }
                         }
                     }
                 }
                 browse.explore.reset()
-                browse.failed = foundTrending.isEmpty() && found.filterNotNull().all { it.items.isEmpty() }
+                browse.failed = browse.trending.isEmpty() && browse.rails.all { it.items.isEmpty() }
+                if (!browse.failed) {
+                    val snapshot = browse.feedJson(country)
+                    if (snapshot != null) withContext(ioDispatcher) { runCatching { writeFeed(snapshot) } }
+                }
             } catch (_: Exception) {
-                browse.failed = !hadContent
+                browse.failed = browse.trending.isEmpty() && browse.rails.all { it.items.isEmpty() }
             } finally {
                 feedLoading = false
                 browse.loading = false

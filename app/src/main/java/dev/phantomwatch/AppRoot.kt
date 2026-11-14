@@ -110,6 +110,7 @@ internal fun AppRoot() {
     var instant by remember { mutableStateOf(false) }
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    val feedFile = remember { java.io.File(context.cacheDir, "home-feed.json") }
     var youRev by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     var accountBusy by remember { mutableStateOf(false) }
@@ -230,6 +231,8 @@ internal fun AppRoot() {
                     clipsScreen = { open ->
                         ClipsScreen(titles = browse.trending, onOpen = open, paused = browse.openTitle != null)
                     },
+                    readFeed = { feedFile.takeIf { it.exists() }?.readText() },
+                    writeFeed = { feedFile.writeText(it) },
                     youScreen = {
                         val settings = remember(youRev) { liveSettings(context) }
                         val clipboard = LocalClipboardManager.current
