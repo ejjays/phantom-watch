@@ -39,7 +39,7 @@ object CrashReport {
     }
 
     // no adb on this tablet, so a crash that kills the UI before its dialog shows is otherwise
-    // unreadable: drop a copy where the user and Termux can open it
+    // unreadable: drop a copy where the user and Termux can open it, minus any stream url
     private fun mirror(ctx: Context, text: String) {
         if (android.os.Build.VERSION.SDK_INT < 29) return
         runCatching {
@@ -51,7 +51,8 @@ object CrashReport {
                     put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
                 },
             ) ?: return
-            ctx.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+            val safe = text.replace(Regex("https?://\\S+"), "<url>")
+            ctx.contentResolver.openOutputStream(uri)?.use { it.write(safe.toByteArray()) }
         }
     }
 
