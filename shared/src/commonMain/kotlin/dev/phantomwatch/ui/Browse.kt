@@ -177,7 +177,7 @@ private suspend fun railOf(def: RailDef, key: String, country: Country): RailSta
 private fun railTitle(title: StringResource, arg: String?): String =
     if (arg != null) stringResource(title, arg) else stringResource(title)
 
-private const val FEED_CACHE_VERSION = 1
+private const val FEED_CACHE_VERSION = 2
 
 private fun feedTitle(e: JSONObject): Title? {
     val id = e.optString("id")
@@ -236,23 +236,26 @@ class BrowseState {
         return true
     }
 
-    // the last feed is painted before the network answers, so a cold start is not a spinner;
-    // chart rails are dropped because their title and rank come from the live chart call
+    // the last feed is painted before the network answers, so a cold start is not a spinner
     fun restoreFeed(raw: String, country: Country) {
         if (rails.isNotEmpty() || trending.isNotEmpty()) return
         val o = runCatching { JSONObject(raw) }.getOrNull() ?: return
         if (o.optInt("v") != FEED_CACHE_VERSION) return
         val arr = o.optJSONArray("rails") ?: return
-        val defs = railDefs(country).filter { it.chart == null }.associateBy { it.key }
+        val defs = railDefs(country).associateBy { it.key }
         val restored = (0 until arr.length()).mapNotNull { i ->
             val e = arr.optJSONObject(i) ?: return@mapNotNull null
             val def = defs[e.optString("key")] ?: return@mapNotNull null
             val items = feedTitles(e.optJSONArray("items"))
             if (items.isEmpty()) return@mapNotNull null
+            // a chart row swapped the rail's title and ranks for the live chart's
+            val ranks = e.optJSONArray("ranks")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty()
+            val chart = ranks.isNotEmpty()
             RailState(
-                def.key, def.title, def.path, items,
+                def.key, if (chart) Res.string.rail_chart else def.title, def.path, items,
                 e.optInt("page", 1), e.optInt("pages", 1),
-                arg = def.arg, ranked = def.ranked, landscape = def.landscape,
+                arg = if (chart) country.name else def.arg, ranked = def.ranked,
+                ranks = ranks, landscape = def.landscape,
             )
         }
         val trend = feedTitles(o.optJSONArray("trending")).take(12)
@@ -269,7 +272,7 @@ class BrowseState {
     }
 
     fun feedJson(country: Country): String? {
-        val defs = railDefs(country).filter { it.chart == null }.map { it.key }.toSet()
+        val defs = railDefs(country).map { it.key }.toSet()
         val keep = rails.filter { it.items.isNotEmpty() && it.key in defs }
         if (trending.isEmpty() && keep.isEmpty()) return null
         val o = JSONObject().put("v", FEED_CACHE_VERSION)
@@ -281,6 +284,7 @@ class BrowseState {
                 keep.forEach { r ->
                     a.put(
                         JSONObject().put("key", r.key).put("page", r.page).put("pages", r.totalPages)
+                            .put("ranks", JSONArray().also { ra -> r.ranks.forEach { ra.put(it) } })
                             .put("items", JSONArray().also { ia -> r.items.forEach { ia.put(titleJson(it)) } }),
                     )
                 }

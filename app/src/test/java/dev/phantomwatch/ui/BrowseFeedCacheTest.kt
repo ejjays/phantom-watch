@@ -38,6 +38,20 @@ class BrowseFeedCacheTest {
     }
 
     @Test
+    fun keepsTheLocalChartRailWithItsRanks() {
+        val raw = """{"v":2,"at":1,"rails":[{"key":"local","page":1,"pages":1,"ranks":[7],""" +
+            """"items":[{"id":"438631","kind":"movie","title":"Dune"}]}]}"""
+        val state = BrowseState()
+        state.restoreFeed(raw, country)
+        assertEquals("local", state.rails.single().key)
+        assertEquals(listOf(7), state.rails.single().ranks)
+
+        val again = state.feedJson(country)!!
+        assertTrue(again.contains("\"key\":\"local\""))
+        assertTrue(again.contains("\"ranks\":[7]"))
+    }
+
+    @Test
     fun ignoresACacheFromAnotherVersion() {
         val restored = BrowseState()
         restored.restoreFeed("""{"v":99,"trending":[{"id":"1","kind":"movie","title":"x"}]}""", country)
@@ -48,7 +62,7 @@ class BrowseFeedCacheTest {
     fun neverOverwritesAFeedThatIsAlreadyShowing() {
         val state = BrowseState()
         state.trending = listOf(dune)
-        state.restoreFeed("""{"v":1,"trending":[{"id":"2","kind":"tv","title":"other"}]}""", country)
+        state.restoreFeed("""{"v":2,"trending":[{"id":"2","kind":"tv","title":"other"}]}""", country)
         assertEquals(listOf(dune), state.trending)
     }
 }
