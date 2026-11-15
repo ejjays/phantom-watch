@@ -834,7 +834,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     PlaybackWatchdog(exo, stalled, stats.startup > 0, live) {
         // hang at 14:00 restarted at 0:00, carry position into swap
         val at = exo.currentPosition
-        val s = if (swaps < MAX_SWAPS) Providers.nextStream(media, season, episode, live.url) else null
+        val s = if (swaps < MAX_SWAPS) Providers.nextStream(media, season, episode, live.url, hang = true) else null
         if (s == null) {
             // all hosts banned, each retry bans the same two, loop never ends
             AppLog.d("watchdog: gave up after $swaps swaps")

@@ -350,10 +350,22 @@ object Providers {
         formats: List<VideoFormat>,
         failedUrl: String,
         dead: Set<String>,
+        hang: Boolean = false,
         blocked: (String) -> Boolean,
     ): VideoFormat? {
-        val pool = formats.filter { it.url != failedUrl && it.url !in dead }
-        val open = pool.filterNot { blocked(it.url) }.ifEmpty { pool }
+        val rest = formats.filter { it.url != failedUrl && it.url !in dead }
+        // a hung fixed rung is usually the variant url, not the master: the auto reparses
+        // the master and finds a working rung, so try it before the walk
+        val failed = if (hang) formats.firstOrNull { it.url == failedUrl } else null
+        if (failed != null) {
+            val autos = rest.filter {
+                it.label.endsWith("-auto") && it.height >= failed.height &&
+                    it.dub == failed.dub && providerName(it) == providerName(failed) && !blocked(it.url)
+            }
+            autos.firstOrNull { it.enSubs == failed.enSubs }?.let { return it }
+            autos.firstOrNull()?.let { return it }
+        }
+        val open = rest.filterNot { blocked(it.url) }.ifEmpty { rest }
         val first = open.firstOrNull() ?: return null
         // auto rung advertises a height it may not serve, prefer a real rung when subs stay
         if (!first.label.endsWith("-auto")) return first
@@ -361,10 +373,17 @@ object Providers {
         return real.firstOrNull { it.height >= 720 } ?: real.firstOrNull() ?: first
     }
 
-    suspend fun nextStream(media: Title, season: String, episode: String, failedUrl: String, fresh: Boolean = false): Stream? {
+    suspend fun nextStream(
+        media: Title,
+        season: String,
+        episode: String,
+        failedUrl: String,
+        fresh: Boolean = false,
+        hang: Boolean = false,
+    ): Stream? {
         // later failure may mean signed urls expired so that one gets a fresh resolve
         val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode, fresh) } ?: return null
-        val f = nextFormat(b.formats, failedUrl, DeadReleases.urls, DeadHosts::blocked)
+        val f = nextFormat(b.formats, failedUrl, DeadReleases.urls, hang, DeadHosts::blocked)
             ?: return null
         AppLog.d("fallback ${providerName(f)} ${f.label} h=${f.height}")
         return Stream(

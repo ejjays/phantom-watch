@@ -70,4 +70,80 @@ class FallbackTest {
         val real = f("https://vix/y", "vix-1080p", 1080).copy(enSubs = true)
         assertEquals("https://vix/y", Providers.nextFormat(listOf(auto, real), "https://z/q", emptySet()) { false }?.url)
     }
+
+    @Test
+    fun aHungRungFallsToTheSameLegsAuto() {
+        val list = listOf(
+            f("https://cdn/a", "hianime-1080p", 1080),
+            f("https://cdn/b", "hianime-1080p", 1080),
+            f("https://cdn/auto", "hianime-auto", 1080),
+        )
+        val out = Providers.nextFormat(list, "https://cdn/a", emptySet(), hang = true) { false }
+        assertEquals("https://cdn/auto", out?.url)
+    }
+
+    @Test
+    fun aHungDubRungFallsToTheDubAuto() {
+        val list = listOf(
+            f("https://cdn/dub-1080", "hianime-dub-1080p", 1080).copy(dub = "English"),
+            f("https://cdn/sub-auto", "hianime-auto", 1080),
+            f("https://cdn/dub-auto", "hianime-dub-auto", 1080).copy(dub = "English"),
+        )
+        val out = Providers.nextFormat(list, "https://cdn/dub-1080", emptySet(), hang = true) { false }
+        assertEquals("https://cdn/dub-auto", out?.url)
+    }
+
+    @Test
+    fun aHungRungWalksWhenTheAutoIsDead() {
+        val list = listOf(
+            f("https://cdn/a", "hianime-1080p", 1080),
+            f("https://cdn/b", "hianime-1080p", 1080),
+            f("https://cdn/auto", "hianime-auto", 1080),
+        )
+        val out = Providers.nextFormat(list, "https://cdn/a", setOf("https://cdn/auto"), hang = true) { false }
+        assertEquals("https://cdn/b", out?.url)
+    }
+
+    @Test
+    fun aBannedAutoDoesNotCatchAHung() {
+        val list = listOf(
+            f("https://cdn/a", "hianime-1080p", 1080),
+            f("https://cdn/b", "hianime-1080p", 1080),
+            f("https://cdn/auto", "hianime-auto", 1080),
+        )
+        val out = Providers.nextFormat(list, "https://cdn/a", emptySet(), hang = true) { it.contains("auto") }
+        assertEquals("https://cdn/b", out?.url)
+    }
+
+    @Test
+    fun aHungRungWithNoAutoStillWalks() {
+        val list = listOf(
+            f("https://a/1080", "rock-Orion-1080p", 1080),
+            f("https://a/720", "rock-Orion-720p", 720),
+        )
+        val out = Providers.nextFormat(list, "https://a/1080", emptySet(), hang = true) { false }
+        assertEquals("https://a/720", out?.url)
+    }
+
+    @Test
+    fun aLowAutoDoesNotCatchAHung() {
+        val list = listOf(
+            f("https://cdn/a", "hianime-1080p", 1080),
+            f("https://cdn/b", "hianime-720p", 720),
+            f("https://cdn/auto", "hianime-auto", 480),
+        )
+        val out = Providers.nextFormat(list, "https://cdn/a", emptySet(), hang = true) { false }
+        assertEquals("https://cdn/b", out?.url)
+    }
+
+    @Test
+    fun aRelinkStillTakesTheSameRungOnAFreshUrl() {
+        val list = listOf(
+            f("https://cdn/a", "hianime-1080p", 1080),
+            f("https://cdn/b", "hianime-1080p", 1080),
+            f("https://cdn/auto", "hianime-auto", 1080),
+        )
+        val out = Providers.nextFormat(list, "https://cdn/a", emptySet()) { false }
+        assertEquals("https://cdn/b", out?.url)
+    }
 }
