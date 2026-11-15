@@ -5,12 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
 
-// english names that take an article, rail reads "in the Philippines" not "in Philippines"
-private val Articled = setOf(
-    "AE", "BS", "CD", "CF", "CG", "CZ", "DO", "FK", "GB", "GM", "IM", "KM",
-    "KY", "MH", "MP", "MV", "NL", "PH", "SB", "SC", "TC", "US", "VA", "VG", "VI",
-)
-
 @Composable
 actual fun deviceCountry(): Country {
     val tm = LocalContext.current.getSystemService(TelephonyManager::class.java)
@@ -24,7 +18,7 @@ actual fun deviceCountry(): Country {
     ).mapNotNull { it?.uppercase()?.takeIf { c -> c.length == 2 } }.firstOrNull()
         ?: return Country("", "")
     val name = Locale.Builder().setRegion(code).build().getDisplayCountry(Locale.ENGLISH).ifBlank { code }
-    return Country(code, if (code in Articled) "the $name" else name)
+    return Country(code, countryName(code, name))
 }
 
 private val McCountry = mapOf(515 to "PH", 310 to "US", 302 to "CA", 214 to "ES", 262 to "DE", 234 to "GB")
