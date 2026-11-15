@@ -1389,6 +1389,8 @@
     await new Promise(function (res) { setTimeout(res, Math.min(4, parseInt(m[1], 10) || 2) * 1000); });
     return null;
   }
+  // the site blocks an address that keeps asking, a refusal parks the leg for a while
+  var aaCool = 0;
   async function aaCut(lane, showId, ep, audio) {
     var qh = aaHex(await aaSha(new TextEncoder().encode(aaQuery)));
     var body = JSON.stringify({
@@ -1405,9 +1407,12 @@
     };
     var r = await aaWait(await post()) || await post();
     aaTake(r);
-    // a burned address gets NEED_CAPTCHA back for a long stretch: a fresh bootstrap,
-    // a get instead of a post and a nine minute wait all still hit it, so the leg
-    // answers empty and the app falls through rather than spending its budget
+    // cloudflare walls this address off, bootstrap, get, a long wait and a browser
+    // visit all hit it, the leg stands down rather than ask every episode
+    if (r && r.body && /NEED_CAPTCHA/.test(r.body)) {
+      aaCool = Date.now() + 10 * 60000;
+      return null;
+    }
     if (!r || r.error || r.code !== 200) return null;
     var root;
     try { root = JSON.parse(r.body); } catch (e) { return null; }
@@ -1432,6 +1437,7 @@
   }
   async function allanime(ctx) {
     if (pwSkip('allanime', ctx)) return skipped();
+    if (aaCool > Date.now()) return empty();
     var cfg = ctx.cfg || {};
     // mirrors move, both hosts come from remote config rather than constants
     aaHost = (cfg.site || 'https://mkissa.to').replace(/\/+$/, '');
