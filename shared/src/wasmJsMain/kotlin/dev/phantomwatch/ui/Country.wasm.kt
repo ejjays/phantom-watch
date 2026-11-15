@@ -15,16 +15,18 @@ private external fun regionName(code: String): String
 private external fun geoJson(): String
 
 private var resolved: Country? = null
+private var geo: String? = null
 
 @Composable
 actual fun deviceCountry(): Country {
     resolved?.let { return it }
     // a browser has no sim, so the network's ip is the only place the country really comes from
-    val ip = runCatching { JSONObject(geoJson()).optString("c") }.getOrNull()
-        ?.uppercase()?.takeIf { it.length == 2 }
+    val ip = runCatching { JSONObject(geo ?: geoJson().also { geo = it }).optString("c") }
+        .getOrNull()?.uppercase()?.takeIf { it.length == 2 }
     val code = ip ?: window.navigator.language.substringAfter('-', "").uppercase()
     val country = if (code.length != 2) Country("", "") else Country(code, nameOf(code))
-    resolved = country
+    // only a real answer is worth pinning: a dead proxy must not freeze the locale guess
+    if (ip != null) resolved = country
     return country
 }
 
