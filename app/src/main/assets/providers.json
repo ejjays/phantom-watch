@@ -1,5 +1,5 @@
 {
-  "version": 33,
+  "version": 40,
   "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
   "services": {
     "tmdb": {
