@@ -68,6 +68,8 @@ object Providers {
     private fun legBudget(name: String): Long = when (name) {
         "paradise" -> 28L
         "hianime" -> 27L
+        // first call reads the crypto chunk before it can resolve anything
+        "allanime" -> 30L
         "pinoy" -> 22L
         "videasy", "net79" -> 25L
         else -> 12L
@@ -78,9 +80,11 @@ object Providers {
         var hasTopTier = false
         var topTierAt = 0L
         for (i in names.indices) {
-            val hianimePending = names.contains("hianime") && completed.none { it.name == "hianime" }
+            // anime legs carry the subs and dubs and both land late, neither is
+            // cut off by an earlier top tier
+            val animePending = names.any { (it == "hianime" || it == "allanime") && completed.none { c -> c.name == it } }
             val timeoutMs = if (hasTopTier) {
-                if (hianimePending) {
+                if (animePending) {
                     // hianime dub scrape lands late, give it the longer budget
                     val remaining = 6_500L - (System.currentTimeMillis() - t0)
                     remaining.coerceAtLeast(0L)
@@ -111,7 +115,7 @@ object Providers {
                 coroutineScope {
                     val t0 = System.currentTimeMillis()
                     val imdb = async { Tmdb.imdbOf(tmdbId, kind, RemoteConfig.tmdbKey()) }
-                    val order = listOf("hianime", "paradise", "rock", "vix", "zee", "vap", "vidlink")
+                    val order = listOf("hianime", "allanime", "paradise", "rock", "vix", "zee", "vap", "vidlink")
                     val names = order + RemoteConfig.providerNames().filter { it !in order }
                     val ch = Channel<LegResult>(Channel.UNLIMITED)
                     val jobs = names.map { name ->

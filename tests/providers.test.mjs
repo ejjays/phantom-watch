@@ -285,3 +285,78 @@ test('videasy returns empty when /seed is rate limited', async () => {
   const res = JSON.parse(doneCalls[0].out);
   assert.deepEqual(res.formats, []);
 });
+
+test('allanime needs a tmdb key to search by title', () => {
+  assert.equal(window.__pwSkip('allanime', {}), true);
+  assert.equal(window.__pwSkip('allanime', { tmdbKey: 'k' }), false);
+});
+
+test('allanime skips live action titles from TMDB', async () => {
+  doneCalls.length = 0;
+  await withHttp(
+    (id, json) => {
+      const req = JSON.parse(json);
+      if (req.url.includes('/movie/1058424')) {
+        window.__pwBridge.httpDone(
+          id,
+          JSON.stringify({
+            code: 200,
+            body: JSON.stringify({ title: 'Hope', genres: [{ id: 878, name: 'Science Fiction' }] }),
+          })
+        );
+      }
+    },
+    async () => {
+      window.__pwRun('aa1', 'allanime', JSON.stringify({
+        kind: 'movie',
+        tmdbId: '1058424',
+        tmdbKey: 'k',
+        tmdbBase: 'https://api.themoviedb.org/3',
+      }));
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  );
+  assert.equal(doneCalls.length, 1);
+  assert.equal(JSON.parse(doneCalls[0].out).skipped, true);
+});
+
+test('allanime answers empty when the crypto chunk cannot be read', async () => {
+  doneCalls.length = 0;
+  const asked = [];
+  await withHttp(
+    (id, json) => {
+      const req = JSON.parse(json);
+      asked.push(req.url);
+      if (req.url.includes('api.themoviedb.org')) {
+        window.__pwBridge.httpDone(
+          id,
+          JSON.stringify({ code: 200, body: JSON.stringify({ name: 'Solo Leveling', genres: [{ id: 16 }] }) })
+        );
+      } else if (req.url.includes('api.mkissa.net/api')) {
+        window.__pwBridge.httpDone(
+          id,
+          JSON.stringify({ code: 200, body: JSON.stringify({ data: { shows: { edges: [{ _id: 'x1', name: 'Solo Leveling', englishName: 'Solo Leveling', availableEpisodes: { sub: 1, dub: 1 } }] } } }) })
+        );
+      } else {
+        // the site answers without an app entry, discovery gives up
+        window.__pwBridge.httpDone(id, JSON.stringify({ code: 200, body: '<html></html>' }));
+      }
+    },
+    async () => {
+      window.__pwRun('aa2', 'allanime', JSON.stringify({
+        kind: 'tv',
+        tmdbId: '127532',
+        season: '1',
+        episode: '1',
+        tmdbKey: 'k',
+        tmdbBase: 'https://api.themoviedb.org/3',
+      }));
+      await new Promise((r) => setTimeout(r, 30));
+    }
+  );
+  const res = JSON.parse(doneCalls[0].out);
+  assert.deepEqual(res.formats, []);
+  assert.equal(res.skipped, undefined);
+  assert.ok(asked.some((u) => u.startsWith('https://mkissa.to')));
+});
+

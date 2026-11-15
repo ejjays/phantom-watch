@@ -45,6 +45,8 @@
   function pwSkip(name, ctx) {
     ctx = ctx || {};
     if (name === 'vap') return !ctx.imdb;
+    // allanime needs a tmdb title to search by
+    if (name === 'allanime') return !ctx.tmdbKey;
     if (name === 'paradise') return ctx.kind !== 'tv' || String(ctx.season) !== '1' || !ctx.title;
     return false;
   }
@@ -1105,10 +1107,377 @@
     return { formats: formats, subs: subs };
   }
 
+  // the site signs each call with a key built from a mask in its own chunk plus
+  // a boot token, both only exist at run time so they are read out of the
+  // shipped bundle once per site build
+  var aaHost = 'https://mkissa.to', aaApi = 'https://api.mkissa.net', aaLane = 'k7';
+  var aaEpochMs = 604800000, aaGraceMs = 86400000, aaReqMs = 300000;
+  var aaCookie = '';
+  var aaCache = { cfg: null, key: null, epoch: 0, build: '', at: 0, cfgAt: 0 };
+  // the resolver only answers this exact operation, its hash is part of the
+  // signed token so a trimmed query fails server side
+  var aaQuery = "\nquery(\n$showId: String!\n$translationType: VaildTranslationTypeEnumType!\n$episodeString: String!\n) {\nepisode(\nshowId: $showId\ntranslationType: $translationType\nepisodeString: $episodeString\n) {\nepisodeString\nuploadDate\nsourceUrls\nthumbnail\nnotes\nshow{\n\n\n_id\nname\nenglishName\nnativeName\nslugTime\n\nthumbnail\n\ntbObj {\n  u\n  sm\n  md\n  ts\n}\n\nlastEpisodeInfo\nlastEpisodeDate\ntype\nseason\nscore\nairedStart\navailableEpisodes\nepisodeDuration\nepisodeCount\nlastUpdateEnd\ncharacterCount\n\ndescription\nbroadcastInterval\nbanner\ncharacters\navailableEpisodesDetail\nnameOnlyString\ncharacters\nisAdult\nrelatedShows\nrelatedMangas\naltNames\ndisqusIds\n}\npageStatus{\n_id\nnotes\npageId\nshowId\n\nviews\nlikesCount\ncommentCount\ndislikesCount\nboostsCount\nreviewCount\nuserScoreCount\nuserScoreTotalValue\nuserScoreAverValue\nviewers{\nfirstViewers{\nviewCount\nlastWatchedDate\nuser{\n\n  _id\n  username\n  displayName\n  createdAt\n  picture\n  reputation\n  roleLevel\n\n  \n  brief\n  followerCount\n  followingCount\n  pDec\n  equippedBadgeKey\n  equippedBadge {\n    key\n    name\n    rank\n    iconPath\n    date\n  }\n  ugcContributorStats {\n    mediaEditReviewSubmitCount\n    mediaEditApprovedCount\n    mediaEditRejectedCount\n    mediaEditAppliedCount\n    mediaEditContributionPoints\n    mediaEditModContributionPoints\n  }\n\n  hideMe\n\n}\n}\nrecViewers{\nviewCount\nlastWatchedDate\nuser{\n\n  _id\n  username\n  displayName\n  createdAt\n  picture\n  reputation\n  roleLevel\n\n  \n  brief\n  followerCount\n  followingCount\n  pDec\n  equippedBadgeKey\n  equippedBadge {\n    key\n    name\n    rank\n    iconPath\n    date\n  }\n  ugcContributorStats {\n    mediaEditReviewSubmitCount\n    mediaEditApprovedCount\n    mediaEditRejectedCount\n    mediaEditAppliedCount\n    mediaEditContributionPoints\n    mediaEditModContributionPoints\n  }\n\n  hideMe\n\n}\n}\n}\n\n}\nepisodeInfo{\nnotes\nthumbnails\n\ntbObj {\n  u\n  sm\n  md\n  ts\n}\n\nvidInforssub\nuploadDates\nvidInforsdub\nvidInforsraw\ndescription\n}\nversionFix\n}\n}\n";
+
+  function aaB64(s) { var t = atob(s), u = new Uint8Array(t.length); for (var i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; }
+  function aaB64s(u) { for (var s = "", i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); }
+  function aaCat(list) {
+    var n = 0, i, at = 0;
+    for (i = 0; i < list.length; i++) n += list[i].length;
+    var o = new Uint8Array(n);
+    for (i = 0; i < list.length; i++) { o.set(list[i], at); at += list[i].length; }
+    return o;
+  }
+  function aaHex(u) { for (var s = '', i = 0; i < u.length; i++) s += (u[i] < 16 ? '0' : '') + u[i].toString(16); return s; }
+  async function aaSha(u) { return new Uint8Array(await crypto.subtle.digest('SHA-256', u)); }
+  async function aaHmac(k, m) {
+    var key = await crypto.subtle.importKey('raw', k, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    return new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(m)));
+  }
+  async function aaGcm(k, iv, d, how) {
+    var key = await crypto.subtle.importKey('raw', k, { name: 'AES-GCM' }, false, [how]);
+    return new Uint8Array(await crypto.subtle[how]({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, d));
+  }
+  function aaTake(r) {
+    var h = r && r.headers && (r.headers['set-cookie'] || r.headers['Set-Cookie']);
+    if (!h) return;
+    var pairs = aaCookie ? aaCookie.split('; ') : [];
+    (typeof h === 'string' ? [h] : h).forEach(function (v) {
+      var one = String(v).split(';')[0].trim(), k = one.split('=')[0];
+      pairs = pairs.filter(function (p) { return p.split('=')[0] !== k; });
+      pairs.push(one);
+    });
+    aaCookie = pairs.join('; ');
+  }
+
+  // the config is a literal in a minified bundle, sliced out by walking the
+  // statement rather than matching a fixed shape
+  function aaEnd(text, start) {
+    var p = 0, b = 0, c = 0, q = '';
+    for (var i = start; i < text.length; i++) {
+      var ch = text[i];
+      if (q) { if (ch === '\\') i++; else if (ch === q) q = ''; continue; }
+      if (ch === '"' || ch === "'" || ch === '`') { q = ch; continue; }
+      if (ch === '(') p++; else if (ch === ')') p--;
+      else if (ch === '[') b++; else if (ch === ']') b--;
+      else if (ch === '{') c++; else if (ch === '}') c--;
+      else if (ch === ';' && !p && !b && !c) return i;
+    }
+    return -1;
+  }
+  function aaCutAt(text) {
+    var out = [], start = 0, p = 0, b = 0, c = 0, q = '';
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (q) { if (ch === '\\') i++; else if (ch === q) q = ''; continue; }
+      if (ch === '"' || ch === "'" || ch === '`') { q = ch; continue; }
+      if (ch === '(') p++; else if (ch === ')') p--;
+      else if (ch === '[') b++; else if (ch === ']') b--;
+      else if (ch === '{') c++; else if (ch === '}') c--;
+      else if (ch === ',' && !p && !b && !c) { out.push(text.slice(start, i)); start = i + 1; }
+    }
+    out.push(text.slice(start));
+    return out;
+  }
+  function aaBlock(text, start) {
+    var depth = 0, seen = false;
+    for (var i = start; i < text.length; i++) {
+      if (text[i] === '{') { depth++; seen = true; }
+      else if (text[i] === '}' && seen && --depth === 0) return i + 1;
+    }
+    return -1;
+  }
+  function aaFn(text, name) {
+    var m = new RegExp('function\\s+' + name + '\\s*\\(').exec(text);
+    if (!m) return null;
+    var end = aaBlock(text, text.indexOf('{', m.index));
+    return end === -1 ? null : text.slice(m.index, end);
+  }
+  // mask is a table of decoded strings next to the config literal, eval the
+  // table and its init then read the values back out
+  function aaFragmentCfg(chunk) {
+    var re = /\bsaltMul\s*:/g, m;
+    while ((m = re.exec(chunk)) !== null) {
+      var at = chunk.lastIndexOf('const ', m.index);
+      if (at < 0) continue;
+      var end = aaEnd(chunk, at);
+      if (end === -1 || m.index > end) continue;
+      var decls = aaCutAt(chunk.slice(at + 6, end)).map(function (v) {
+        var e = /^\s*([A-Za-z_$][\w$]*)\s*=\s*([\s\S]+)$/.exec(v);
+        return e ? { name: e[1], expression: e[2] } : null;
+      }).filter(Boolean);
+      var ci = -1, i;
+      for (i = 0; i < decls.length; i++) if (/\b(?:saltMul|fragMul)\s*:/.test(decls[i].expression)) { ci = i; break; }
+      if (ci < 0) continue;
+      var pi = -1;
+      for (i = ci - 1; i >= 0; i--) if (decls[i].expression.trim().charAt(0) === '[') { pi = i; break; }
+      // mask array and build id share one declaration, decls[0] is the id and
+      // the mask sits after it
+      var build = decls[0], parts = decls[pi];
+      var params = decls[ci];
+      if (!build || !parts || !params) continue;
+      var expr = build.expression + ';' + parts.expression + ';' + params.expression;
+      var names = {}, callRe = /\b([A-Za-z_$][\w$]*)\s*\(/g, cm;
+      while ((cm = callRe.exec(expr)) !== null) names[cm[1]] = 1;
+      var helpers = [], table = null;
+      for (var pass = 0; pass < 8 && !table; pass++) {
+        var changed = false;
+        for (var name in names) {
+          if (!Object.prototype.hasOwnProperty.call(names, name)) continue;
+          var dup = false;
+          for (i = 0; i < helpers.length; i++) if (new RegExp('function\\s+' + name + '\\s*\\(').test(helpers[i])) dup = true;
+          if (dup) continue;
+          var src = aaFn(chunk, name);
+          if (!src) continue;
+          helpers.push(src);
+          var refRe = /\b([A-Za-z_$][\w$]*)\s*\(/g, rm;
+          while ((rm = refRe.exec(src)) !== null) if (!names[rm[1]]) { names[rm[1]] = 1; changed = true; }
+        }
+        for (i = 0; i < helpers.length; i++) {
+          if (/^function\s+[A-Za-z_$][\w$]*\s*\(\)\s*\{const\s+e=\[/.test(helpers[i])) { table = helpers[i]; break; }
+        }
+        if (!changed && !table) break;
+      }
+      if (!table) continue;
+      var tableName = /^function\s+([A-Za-z_$][\w$]*)\s*\(/.exec(table)[1];
+      var initEnd = chunk.lastIndexOf(')(' + tableName + ',', at);
+      if (initEnd === -1) continue;
+      var initStart = -1, depth = 0;
+      for (i = initEnd; i >= 0; i--) {
+        if (chunk[i] === ')') depth++;
+        else if (chunk[i] === '(' && --depth === 0) { initStart = i; break; }
+      }
+      if (initStart < 0) continue;
+      var init = chunk.slice(initStart, chunk.indexOf(';', initEnd) + 1);
+      var keep = helpers.filter(function (x) { return x.indexOf('function ' + tableName) !== 0; });
+      var code = table + '\n' + init + '\n' + keep.join('\n') +
+        '\nreturn { buildId: (' + build.expression + '), maskParts: (' + parts.expression + '), params: (' + params.expression + ') };';
+      var out;
+      try { out = new Function(code)(); } catch (e) { continue; }
+      if (!out || !out.buildId || !out.maskParts || out.maskParts.length < 4) continue;
+      var p = out.params || {};
+      if (!isFinite(Number(p.saltMul)) || !isFinite(Number(p.saltAdd))) continue;
+      if (!isFinite(Number(p.fragMul)) || !isFinite(Number(p.fragAdd))) continue;
+      if (!p.parts || !p.parts.length || typeof p.bootPrefix !== 'string') continue;
+      return {
+        scheme: 'fragments', buildId: String(out.buildId),
+        maskParts: out.maskParts.slice(0, 4).map(String),
+        saltMul: Number(p.saltMul), saltAdd: Number(p.saltAdd),
+        fragMul: Number(p.fragMul), fragAdd: Number(p.fragAdd),
+        bootPrefix: p.bootPrefix, join: typeof p.join === 'string' ? p.join : '|',
+        parts: p.parts.slice(), omitEmptyLane: !!p.omitEmptyLane,
+      };
+    }
+    return null;
+  }
+  async function aaDiscover(force) {
+    if (!force && aaCache.cfg && Date.now() - aaCache.cfgAt < 6 * 3600 * 1000) return aaCache.cfg;
+    var html = await get(aaHost + '/', aaHost + '/', 15);
+    if (!html) return null;
+    var m = /(?:import\(|src=)["']([^"']+\/_app\/immutable\/entry\/app\.[^"']+\.js)["']/.exec(html);
+    if (!m) return null;
+    var appUrl = absUrl(m[1], aaHost), app = await get(appUrl, aaHost + '/', 15);
+    if (!app) return null;
+    var urls = [], seen = {}, re = /["']([^"']*\/?(?:chunks|nodes)\/[^"']+\.js)["']/g, cm;
+    while ((cm = re.exec(app)) !== null) {
+      var u = absUrl(cm[1], appUrl);
+      if (seen[u]) continue;
+      seen[u] = 1;
+      urls.push(u);
+    }
+    for (var i = 0; i < urls.length && i < 12; i += 3) {
+      var batch = urls.slice(i, i + 3);
+      var bodies = await Promise.all(batch.map(function (x) { return get(x, aaHost + '/', 15).catch(function () { return null; }); }));
+      for (var j = 0; j < bodies.length; j++) {
+        var text = bodies[j];
+        if (!text || !/client-crypto|x-aa-boot|aaReq|partB/.test(text)) continue;
+        var cfg = null;
+        try { cfg = aaFragmentCfg(text); } catch (e) {}
+        if (!cfg) continue;
+        aaCache.cfg = cfg;
+        aaCache.cfgAt = Date.now();
+        return cfg;
+      }
+    }
+    return null;
+  }
+  function aaMask(cfg) {
+    var out = new Uint8Array(32), name = String(cfg.buildId), i, j, p, part, off;
+    var seed = new Uint8Array(32);
+    for (i = 0; i < 32; i++) {
+      seed[i] = (name.charCodeAt(i % name.length) || 0) ^ (cfg.scheme === 'fragments'
+        ? ((i * cfg.saltMul + cfg.saltAdd) & 255) : ((i * 17 + 31) & 255));
+    }
+    for (p = 0; p < cfg.maskParts.length; p++) {
+      part = aaB64(cfg.maskParts[p]);
+      off = p * 8;
+      for (j = 0; j < 8; j++) {
+        out[off + j] = cfg.scheme === 'fragments'
+          ? part[j] ^ seed[off + j] ^ ((p * cfg.fragMul + j * cfg.fragAdd) & 255)
+          : (part[j] ^ seed[off + j]) ^ ((p * 41 + j * 7) & 255);
+      }
+    }
+    return out;
+  }
+  async function aaBoot(cfg, epoch) {
+    var key = await aaHmac(aaMask(cfg), (cfg.bootPrefix || 'aa-boot:') + cfg.buildId);
+    if (cfg.scheme !== 'fragments') return aaHex(await aaHmac(key, cfg.buildId + ':mkissa:mkissa.to:' + epoch + ':' + aaLane));
+    var f = { buildId: cfg.buildId, group: 'mkissa', host: 'mkissa.to', epoch: String(epoch), lane: aaLane };
+    var parts = cfg.omitEmptyLane && !f.lane ? cfg.parts.filter(function (p) { return p !== 'lane'; }) : cfg.parts;
+    return aaHex(await aaHmac(key, parts.map(function (p) { return f[p] == null ? '' : f[p]; }).join(cfg.join)));
+  }
+  async function aaLaneKey(force) {
+    var cfg = await aaDiscover(force);
+    if (!cfg) throw new Error('config');
+    if (!force && aaCache.key && aaCache.build === cfg.buildId && Date.now() - aaCache.at < 3 * 3600 * 1000) {
+      return { cfg: cfg, key: aaCache.key, epoch: aaCache.epoch };
+    }
+    var now = Date.now(), epoch = Math.floor(now / aaEpochMs);
+    if (now - epoch * aaEpochMs < aaGraceMs && epoch > 0) epoch -= 1;
+    var url = aaApi + '/client-crypto/v1/bootstrap?buildId=' + encodeURIComponent(cfg.buildId) + '&k=' + aaLane;
+    var boot = null;
+    for (var i = 0; i < 2 && !boot; i++) {
+      var r = await http({
+        url: url, referer: aaHost + '/', timeout: 12,
+        headers: { origin: aaHost, 'x-build-id': cfg.buildId, 'x-aa-boot': await aaBoot(cfg, epoch + i), cookie: aaCookie },
+      });
+      aaTake(r);
+      if (!r || r.code !== 200) continue;
+      try { var j = JSON.parse(r.body); if (j && j.partB) boot = j; } catch (e) {}
+    }
+    if (!boot) throw new Error('bootstrap');
+    var mask = aaMask(cfg), part = aaB64(boot.partB), key = new Uint8Array(32);
+    for (var k = 0; k < 32; k++) key[k] = part[k] ^ mask[k % mask.length];
+    aaCache.key = key;
+    aaCache.epoch = boot.epoch;
+    aaCache.build = cfg.buildId;
+    aaCache.at = Date.now();
+    return { cfg: cfg, key: key, epoch: boot.epoch };
+  }
+  async function aaToken(lane, qh) {
+    var ts = Math.floor(Date.now() / aaReqMs) * aaReqMs;
+    var iv = (await aaSha(new TextEncoder().encode(lane.epoch + ':' + lane.cfg.buildId + ':' + qh + ':' + ts + ':' + aaLane))).subarray(0, 12);
+    var plain = new TextEncoder().encode(JSON.stringify({ v: 1, ts: ts, epoch: lane.epoch, buildId: lane.cfg.buildId, qh: qh, k: aaLane }));
+    return aaB64s(aaCat([new Uint8Array([1]), iv, await aaGcm(lane.key, iv, plain, 'encrypt')]));
+  }
+  // shows is not gated, only the resolver is
+  async function aaFind(title) {
+    var q = 'query($search:SearchInput,$limit:Int,$page:Int,$translationType:VaildTranslationTypeEnumType,$countryOrigin:VaildCountryOriginEnumType){shows(search:$search,limit:$limit,page:$page,translationType:$translationType,countryOrigin:$countryOrigin){edges{_id name englishName slugTime availableEpisodes}}}';
+    var body = JSON.stringify({
+      query: q,
+      variables: { search: { allowAdult: false, allowUnknown: false, query: title }, limit: 20, page: 1, translationType: 'sub', countryOrigin: 'ALL' },
+    });
+    var r = await http({ url: aaApi + '/api', referer: aaHost + '/', method: 'POST', body: body, contentType: 'application/json', timeout: 15, headers: { origin: aaHost, cookie: aaCookie } });
+    aaTake(r);
+    var root = null;
+    try { root = JSON.parse(r && r.body); } catch (e) { return null; }
+    var list = (root && root.data && root.data.shows && root.data.shows.edges) || [];
+    var want = normTitle(title), best = null, near = null;
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i] || {}, names = [it.name, it.englishName].filter(Boolean).map(normTitle);
+      if (names.indexOf(want) >= 0) { best = it; break; }
+      if (!near) for (var j = 0; j < names.length; j++) if (names[j].indexOf(want) === 0) { near = it; break; }
+    }
+    var hit = best || near;
+    if (!hit || !hit._id) return null;
+    var eps = hit.availableEpisodes || {};
+    return { id: hit._id, sub: eps.sub || 0, dub: eps.dub || 0, slug: hit.slugTime || '' };
+  }
+  // the api rate limits by burst and answers with the seconds to wait
+  async function aaWait(r) {
+    var m = r && r.body && /try again in (\d+)/.exec(r.body);
+    if (!m) return r;
+    await new Promise(function (res) { setTimeout(res, Math.min(4, parseInt(m[1], 10) || 2) * 1000); });
+    return null;
+  }
+  async function aaCut(lane, showId, ep, audio) {
+    var qh = aaHex(await aaSha(new TextEncoder().encode(aaQuery)));
+    var body = JSON.stringify({
+      query: aaQuery,
+      variables: { showId: showId, translationType: audio, episodeString: String(ep) },
+      extensions: { aaReq: await aaToken(lane, qh), k: aaLane },
+    });
+    var post = function () {
+      return http({
+        url: aaApi + '/api', referer: aaHost + '/', method: 'POST', body: body,
+        contentType: 'application/json', timeout: 15,
+        headers: { origin: aaHost, 'x-build-id': lane.cfg.buildId, cookie: aaCookie },
+      });
+    };
+    var r = await aaWait(await post()) || await post();
+    aaTake(r);
+    // a burned address gets NEED_CAPTCHA back for a long stretch: a fresh bootstrap,
+    // a get instead of a post and a nine minute wait all still hit it, so the leg
+    // answers empty and the app falls through rather than spending its budget
+    if (!r || r.error || r.code !== 200) return null;
+    var root;
+    try { root = JSON.parse(r.body); } catch (e) { return null; }
+    var data = root.data || {};
+    if (data.tobeparsed) {
+      var raw = aaB64(data.tobeparsed);
+      if (raw[0] !== 1) return null;
+      try {
+        var plain = await aaGcm(lane.key, raw.subarray(1, 13), raw.subarray(13), 'decrypt');
+        data = JSON.parse(new TextDecoder().decode(plain));
+      } catch (e) { return null; }
+    }
+    return data.episode || null;
+  }
+  // only the player cut is a file the app can hand to exoplayer, the rest are
+  // embeds with their own extractors
+  function aaFile(ep) {
+    var list = (ep && ep.sourceUrls) || [];
+    for (var i = 0; i < list.length; i++) if (list[i].type === 'player' && /^https?:\/\//.test(list[i].sourceUrl || '')) return list[i].sourceUrl;
+    for (var j = 0; j < list.length; j++) if (/^Yt-mp4$/.test(list[j].sourceName || '') && /^https?:\/\//.test(list[j].sourceUrl || '')) return list[j].sourceUrl;
+    return '';
+  }
+  async function allanime(ctx) {
+    if (pwSkip('allanime', ctx)) return skipped();
+    var cfg = ctx.cfg || {};
+    // mirrors move, both hosts come from remote config rather than constants
+    aaHost = (cfg.site || 'https://mkissa.to').replace(/\/+$/, '');
+    aaApi = (cfg.api || 'https://api.mkissa.net').replace(/\/+$/, '');
+    var base = ctx.tmdbBase || 'https://api.themoviedb.org/3';
+    var kind = ctx.kind === 'movie' ? 'movie' : 'tv';
+    var meta = await get(base + '/' + kind + '/' + ctx.tmdbId + '?api_key=' + ctx.tmdbKey, 'https://www.themoviedb.org/', 10);
+    if (meta === null) return empty();
+    var title = '', anim = false;
+    try {
+      var o = JSON.parse(meta);
+      title = (o.name || o.title || '').split(':')[0].trim();
+      var genres = o.genres || [];
+      for (var gi = 0; gi < genres.length; gi++) if (genres[gi].id === 16) { anim = true; break; }
+    } catch (e) {}
+    if (!anim) return skipped();
+    if (!title) return empty();
+    var show = await aaFind(title);
+    if (!show) return empty();
+    var ep = ctx.kind === 'movie' ? 1 : (parseInt(ctx.episode, 10) || 1);
+    var lane;
+    try { lane = await aaLaneKey(false); } catch (e) { return empty(); }
+    var cuts = await Promise.all([
+      aaCut(lane, show.id, ep, 'sub').catch(function () { return null; }),
+      show.dub > 0 ? aaCut(lane, show.id, ep, 'dub').catch(function () { return null; }) : null,
+    ]);
+    var formats = [], sub = aaFile(cuts[0]), dub = aaFile(cuts[1]);
+    if (sub) {
+      var f = fmt(sub, false, 'allanime-1080p', 1080);
+      f.referer = aaHost + '/';
+      // the sub cut ships burned in, its mp4 text track carries no samples
+      f.enSubs = true;
+      formats.push(f);
+    }
+    if (dub) {
+      var d = fmt(dub, false, 'allanime-dub-1080p', 1080);
+      d.referer = aaHost + '/';
+      d.dub = 'English';
+      formats.push(d);
+    }
+    return formats.length ? { formats: formats, subs: [] } : empty();
+  }
   var legs = {
     love: love, rock: rock, vix: vix, zee: zee, light: light,
     paradise: paradise, vap: vap, vidlink: vidlink, hianime: hianime, pinoy: pinoy,
-    net79: net79, videasy: videasy,
+    net79: net79, videasy: videasy, allanime: allanime,
   };
 
   try {

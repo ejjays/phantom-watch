@@ -1,5 +1,5 @@
 {
-  "version": 32,
+  "version": 33,
   "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
   "services": {
     "tmdb": {
@@ -80,6 +80,11 @@
       "origin": "https://megaplay.buzz",
       "key": "i?LMTAx0Q6,:}50U",
       "iv": "hlsMediaAttached"
+    },
+    "allanime": {
+      "enabled": true,
+      "site": "https://mkissa.to",
+      "api": "https://api.mkissa.net"
     },
     "net79": {
       "enabled": false,

@@ -71,6 +71,7 @@ The Kotlin fallback in `FormatOrder.kt` must match, and both are pinned by
 |---|---|
 | `vap` | no IMDb id |
 | `paradise` | not a TV show, or not season 1, or no title |
+| `allanime` | no TMDB key |
 
 ## Adding a provider
 

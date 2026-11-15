@@ -20,7 +20,9 @@ LINE_CAPS = {
     "app/src/test/java": 400,
     # providers.js is the single home for every leg's extractor and the bridge loads this
     # one asset (no split without an APK), so the cap moves with the leg count: ~30/leg.
-    "app/src/main/assets/providers.js": 1140,
+    # allanime is the exception, its resolver is gated so the leg carries a client
+    # that reads the mask out of the site chunk, derives the AES key and signs each call
+    "app/src/main/assets/providers.js": 1520,
     "app/src/main/assets": 700,
     "worker": 700,
     "checks": 400,
