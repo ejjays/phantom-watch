@@ -246,9 +246,9 @@ internal fun buildMediaFactory(
         .setUserAgent(headers.getValue("User-Agent"))
         .setDefaultRequestProperties(headers)
         .setConnectTimeoutMs(15_000)
-        // stalled segment socket retried at read timeout, 30s matched watchdog so
-        // every hang cost half a minute before loader tried again
-        .setReadTimeoutMs(15_000)
+        // stalled segment socket retried at read timeout, 10s recovers faster than
+        // the 30s watchdog swaps and still tolerates a slow first byte
+        .setReadTimeoutMs(10_000)
     // cached subs are file:// while stream is https, http only factory loads track no cues
     // loads the track and never the cues
     return DefaultMediaSourceFactory(androidx.media3.datasource.DefaultDataSource.Factory(context, http))
