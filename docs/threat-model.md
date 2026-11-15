@@ -37,6 +37,12 @@ instead of trying to hide it in the app.
   same signer as the installed app; release builds also pin the release
   certificate in `UPDATE_CERT_SHA256`. A foreign APK signed with the old debug
   key is rejected.
+- **Debug builds also take an APK from loopback**, so `scripts/install.sh`
+  installs without a tap. The activity is exported only
+  in the debug manifest, the url must be `http://127.0.0.1:<port>/app-*.apk`
+  with no query, and the request must carry the 32-byte token from the
+  intent. `UpdateTrust.localEntry` answers false whenever `BuildConfig.DEBUG`
+  is off, so a release build keeps the GitHub-only rule above.
 
 ## Known exposures, accepted on purpose
 

@@ -17,6 +17,20 @@ class UpdateTrustTest {
     }
 
     @Test
+    fun acceptsLoopbackOnlyForDebugBuilds() {
+        val url = "http://127.0.0.1:8123/app-debug.apk"
+        val token = "a".repeat(64)
+        assertTrue(UpdateTrust.localEntry(url, token, allowLocal = true))
+        assertFalse(UpdateTrust.localEntry(url, token, allowLocal = false))
+        assertFalse(UpdateTrust.localEntry(url, "short", allowLocal = true))
+        assertFalse(UpdateTrust.localEntry("http://127.0.0.1:80/app-debug.apk", token, allowLocal = true))
+        assertFalse(UpdateTrust.localEntry("http://10.0.0.2:8123/app-debug.apk", token, allowLocal = true))
+        assertFalse(UpdateTrust.localEntry("http://127.0.0.1:8123/other.apk", token, allowLocal = true))
+        assertFalse(UpdateTrust.localEntry("http://127.0.0.1:8123/app-debug.apk?x=1", token, allowLocal = true))
+        assertFalse(UpdateTrust.localEntry("https://github.com/ejjays/phantom-watch/releases/download/v1/app-debug.apk", token, allowLocal = true))
+    }
+
+    @Test
     fun enforcesPositiveApkSizeWithinLimit() {
         assertFalse(UpdateTrust.validSize(0))
         assertTrue(UpdateTrust.validSize(1))

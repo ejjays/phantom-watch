@@ -30,7 +30,9 @@ class UpdateInstallActivity : Activity() {
         alive = WeakReference(this)
         log("start appop=${packageManager.canRequestPackageInstalls()}")
         val url = intent.getStringExtra("url").orEmpty()
-        if (!UpdateTrust.releaseEntry(url)) return finishWith("rejected release url")
+        val token = intent.getStringExtra("token").orEmpty()
+        val local = UpdateTrust.localEntry(url, token, BuildConfig.DEBUG)
+        if (!local && !UpdateTrust.releaseEntry(url)) return finishWith("rejected update url")
         if (!packageManager.canRequestPackageInstalls()) {
             Toast.makeText(this, getString(R.string.update_allow_install), Toast.LENGTH_LONG).show()
             runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
@@ -38,7 +40,7 @@ class UpdateInstallActivity : Activity() {
         }
         window.decorView.postDelayed({ finish() }, 300_000)
         Thread {
-            runCatching { commit(url) }.onFailure {
+            runCatching { commit(url, token, local) }.onFailure {
                 result(it.message ?: it.javaClass.simpleName)
             }
         }.start()
@@ -49,9 +51,11 @@ class UpdateInstallActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun commit(url: String) {
-        check(UpdateTrust.releaseEntry(url)) { "invalid release url" }
-        val conn = open(url)
+    private fun commit(url: String, token: String, local: Boolean) {
+        check(if (local) UpdateTrust.localEntry(url, token, true) else UpdateTrust.releaseEntry(url)) {
+            "invalid update url"
+        }
+        val conn = open(url, if (local) token else null)
         try {
             check(conn.responseCode == 200) { "server said ${conn.responseCode}" }
             val expectedSize = conn.contentLengthLong
@@ -101,16 +105,18 @@ class UpdateInstallActivity : Activity() {
         }
     }
 
-    private fun open(url: String): HttpURLConnection {
+    private fun open(url: String, token: String?): HttpURLConnection {
         var current = url
         repeat(4) {
             val conn = URL(current).openConnection() as HttpURLConnection
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 5000
             conn.readTimeout = 120000
+            if (token != null) conn.setRequestProperty("X-PhantomWatch-Update", token)
             if (conn.responseCode !in 300..399) return conn
             val next = conn.getHeaderField("Location") ?: error("redirect without location")
             conn.disconnect()
+            check(token == null) { "unexpected redirect" }
             check(UpdateTrust.releaseHop(next)) { "redirect left github" }
             current = next
         }

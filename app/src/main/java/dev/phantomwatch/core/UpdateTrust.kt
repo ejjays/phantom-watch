@@ -10,6 +10,16 @@ internal object UpdateTrust {
         "release-assets.githubusercontent.com",
     )
 
+    // scripts/install.sh serves a build on loopback, only a debug app takes that
+    // path and a release app answers false here whatever it is handed
+    fun localEntry(url: String, token: String, allowLocal: Boolean): Boolean =
+        allowLocal && token.matches(Regex("[a-f0-9]{64}")) && runCatching {
+            val uri = URI(url)
+            uri.scheme == "http" && uri.host == "127.0.0.1" && uri.port in 1024..65535 &&
+                uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null &&
+                uri.rawPath in setOf("/app-debug.apk", "/app-release.apk")
+        }.getOrDefault(false)
+
     fun releaseEntry(value: String): Boolean = runCatching {
         val uri = URI(value)
         uri.scheme == "https" && uri.host == "github.com" && uri.rawUserInfo == null &&

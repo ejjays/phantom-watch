@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- install.sh starts this activity over loopback; release keeps it closed and
+         UpdateTrust.localEntry answers false when BuildConfig.DEBUG is off -->
+    <application>
+        <activity
+            android:name=".UpdateInstallActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+</manifest>
