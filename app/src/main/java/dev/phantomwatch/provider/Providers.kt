@@ -345,6 +345,16 @@ object Providers {
         return ok + banned
     }
 
+    // a hung fixed rung is usually the variant url, not the master: the auto reparses
+    // the master and finds a working rung
+    private fun autoFor(formats: List<VideoFormat>, failed: VideoFormat, blocked: (String) -> Boolean): VideoFormat? {
+        val autos = formats.filter {
+            it.label.endsWith("-auto") && it.height >= failed.height &&
+                it.dub == failed.dub && providerName(it) == providerName(failed) && !blocked(it.url)
+        }
+        return autos.firstOrNull { it.enSubs == failed.enSubs } ?: autos.firstOrNull()
+    }
+
     // best format the last resolve holds, a dead edge costs one switch
     internal fun nextFormat(
         formats: List<VideoFormat>,
@@ -354,17 +364,8 @@ object Providers {
         blocked: (String) -> Boolean,
     ): VideoFormat? {
         val rest = formats.filter { it.url != failedUrl && it.url !in dead }
-        // a hung fixed rung is usually the variant url, not the master: the auto reparses
-        // the master and finds a working rung, so try it before the walk
         val failed = if (hang) formats.firstOrNull { it.url == failedUrl } else null
-        if (failed != null) {
-            val autos = rest.filter {
-                it.label.endsWith("-auto") && it.height >= failed.height &&
-                    it.dub == failed.dub && providerName(it) == providerName(failed) && !blocked(it.url)
-            }
-            autos.firstOrNull { it.enSubs == failed.enSubs }?.let { return it }
-            autos.firstOrNull()?.let { return it }
-        }
+        if (failed != null) autoFor(rest, failed, blocked)?.let { return it }
         val open = rest.filterNot { blocked(it.url) }.ifEmpty { rest }
         val first = open.firstOrNull() ?: return null
         // auto rung advertises a height it may not serve, prefer a real rung when subs stay
@@ -373,17 +374,18 @@ object Providers {
         return real.firstOrNull { it.height >= 720 } ?: real.firstOrNull() ?: first
     }
 
-    suspend fun nextStream(
+    internal enum class Fallback { Cached, Fresh, Hang }
+
+    internal suspend fun nextStream(
         media: Title,
         season: String,
         episode: String,
         failedUrl: String,
-        fresh: Boolean = false,
-        hang: Boolean = false,
+        mode: Fallback = Fallback.Cached,
     ): Stream? {
         // later failure may mean signed urls expired so that one gets a fresh resolve
-        val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode, fresh) } ?: return null
-        val f = nextFormat(b.formats, failedUrl, DeadReleases.urls, hang, DeadHosts::blocked)
+        val b = withTimeoutOrNull(20_000) { Resolve.streams(media, season, episode, mode == Fallback.Fresh) } ?: return null
+        val f = nextFormat(b.formats, failedUrl, DeadReleases.urls, mode == Fallback.Hang, DeadHosts::blocked)
             ?: return null
         AppLog.d("fallback ${providerName(f)} ${f.label} h=${f.height}")
         return Stream(

@@ -502,7 +502,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                         // bundle cached 5 min, reuse it instead of hitting every provider
                         val fresh = try {
                             withContext(Dispatchers.IO) {
-                                Providers.nextStream(media, season, episode, live.url, fresh = directErrs > 1)
+                                val mode = if (directErrs > 1) Providers.Fallback.Fresh else Providers.Fallback.Cached
+                                Providers.nextStream(media, season, episode, live.url, mode)
                             }
                         } catch (_: Exception) {
                             null
@@ -834,7 +835,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     PlaybackWatchdog(exo, stalled, stats.startup > 0, live) {
         // hang at 14:00 restarted at 0:00, carry position into swap
         val at = exo.currentPosition
-        val s = if (swaps < MAX_SWAPS) Providers.nextStream(media, season, episode, live.url, hang = true) else null
+        val s = if (swaps < MAX_SWAPS) Providers.nextStream(media, season, episode, live.url, Providers.Fallback.Hang) else null
         if (s == null) {
             // all hosts banned, each retry bans the same two, loop never ends
             AppLog.d("watchdog: gave up after $swaps swaps")
