@@ -1,5 +1,7 @@
 package dev.phantomwatch.core
 
+import kotlin.concurrent.Volatile
+
 // holds launcher window until cached feed restored, no halfbuilt home shows
 object SplashGate {
     @Volatile

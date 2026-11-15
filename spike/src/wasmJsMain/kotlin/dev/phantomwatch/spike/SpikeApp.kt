@@ -51,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
 private const val REPO = "https://github.com/ejjays/phantom-watch"
+private const val PHANTOM = "https://github.com/ejjays/phantom"
 
 @Composable
 fun SpikeApp() {
@@ -145,7 +146,6 @@ fun SpikeApp() {
                             SettingsScreen(
                                 SettingsData(
                                     version = "1.0 (web)",
-                                    providerCount = 8,
                                     settings = settings,
                                     onValue = { key, value -> settings[key] = value },
                                     onAction = { action ->
@@ -154,7 +154,8 @@ fun SpikeApp() {
                                             SettingsAction.Updates -> window.open("$REPO/releases", "_blank")
                                             SettingsAction.Licences -> window.open("$REPO#licence", "_blank")
                                             SettingsAction.Privacy -> window.open("$REPO#privacy", "_blank")
-                                            SettingsAction.Feedback -> window.open("$REPO/issues", "_blank")
+                                            SettingsAction.ReportProblem -> window.open("$REPO/issues/new", "_blank")
+                                            SettingsAction.GetPhantom -> window.open("$PHANTOM/releases/latest", "_blank")
                                         }
                                     },
                                 ),
