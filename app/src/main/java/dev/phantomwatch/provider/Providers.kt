@@ -339,6 +339,7 @@ object Providers {
         f.label.startsWith("vap-") -> "VAPlayer"
         f.label.startsWith("vidlink-") -> "VidLink"
         f.label.startsWith("hianime-") -> "HiAnime"
+        f.label.startsWith("allanime-") -> "AllAnime"
         f.label.startsWith("pinoy-") -> "Pinoy"
         else -> f.label
     }

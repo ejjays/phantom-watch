@@ -236,6 +236,7 @@ class ProvidersTest {
     fun namesProviders() {
         assertEquals("VidLove", Providers.providerName(VideoFormat("u", true, "love-dcloud-1080p", 1080)))
         assertEquals("HiAnime", Providers.providerName(VideoFormat("u", true, "hianime-auto", 0)))
+        assertEquals("AllAnime", Providers.providerName(VideoFormat("u", false, "allanime-1080p", 1080)))
         assertEquals("weird", Providers.providerName(VideoFormat("u", true, "weird", 0)))
     }
 }
