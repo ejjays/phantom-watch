@@ -14,10 +14,10 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.ScrubbingModeParameters
@@ -27,12 +27,14 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.core.Http
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.lan.LanShare
 import dev.phantomwatch.subs.SubtitleCue
 import dev.phantomwatch.subs.Subtitles
 import dev.phantomwatch.provider.DeadHosts
+import java.util.concurrent.TimeUnit
 
 internal fun trackName(f: Format): String {
     val lab = f.label ?: ""
@@ -242,13 +244,18 @@ internal fun buildMediaFactory(
             },
         ).setLoadErrorHandlingPolicy(retry)
     }
-    val http = DefaultHttpDataSource.Factory()
+    // okhttp drops a dead keep alive connection, the old httpurlconnection hung on it
+    val http = OkHttpDataSource.Factory(
+        Http.client.newBuilder()
+            // a segment can be slow, the per read timeout is the guard
+            .callTimeout(0, TimeUnit.MILLISECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            // stalled segment socket retried at read timeout, 5s halves the freeze
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build(),
+    )
         .setUserAgent(headers.getValue("User-Agent"))
         .setDefaultRequestProperties(headers)
-        .setConnectTimeoutMs(15_000)
-        // stalled segment socket retried at read timeout, 10s recovers faster than
-        // the 30s watchdog swaps and still tolerates a slow first byte
-        .setReadTimeoutMs(10_000)
     // cached subs are file:// while stream is https, http only factory loads track no cues
     // loads the track and never the cues
     return DefaultMediaSourceFactory(androidx.media3.datasource.DefaultDataSource.Factory(context, http))
