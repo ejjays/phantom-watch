@@ -55,7 +55,9 @@ def country():
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
-        self.send_header('Cache-Control', 'no-store, must-revalidate')
+        # no-cache revalidates (304 on Last-Modified) instead of no-store re-downloading the
+        # 16MB wasm on every load; either way a stale file can never be served
+        self.send_header('Cache-Control', 'no-cache')
         super().end_headers()
 
     def do_GET(self):

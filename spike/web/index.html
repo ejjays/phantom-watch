@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Phantom Watch</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#121011">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Phantom">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <!-- No favicon: an empty data URI stops the console 404 without adding a file. -->
   <link rel="icon" href="data:,">
   <style>
@@ -74,5 +81,11 @@
 <div id="app"></div>
 <div id="boot"><img src="./phantom.svg" alt="Phantom Watch"><div id="boot-msg"></div></div>
 <script type="module" src="./kotlin/PhantomWatch-spike.mjs"></script>
+<script>
+  // localhost is a secure origin, so the same file registers on the dev server and on a real host
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
+  }
+</script>
 </body>
 </html>
