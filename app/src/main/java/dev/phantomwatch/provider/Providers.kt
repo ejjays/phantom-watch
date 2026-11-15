@@ -365,7 +365,13 @@ object Providers {
     ): VideoFormat? {
         val rest = formats.filter { it.url != failedUrl && it.url !in dead }
         val failed = if (hang) formats.firstOrNull { it.url == failedUrl } else null
-        if (failed != null) autoFor(rest, failed, blocked)?.let { return it }
+        if (failed != null) {
+            autoFor(rest, failed, blocked)?.let { return it }
+            // the failed auto has no sibling auto, its own cut's rungs come before
+            // crossing to another audio
+            rest.firstOrNull { it.dub == failed.dub && !it.label.endsWith("-auto") && !blocked(it.url) }
+                ?.let { return it }
+        }
         val open = rest.filterNot { blocked(it.url) }.ifEmpty { rest }
         val first = open.firstOrNull() ?: return null
         // auto rung advertises a height it may not serve, prefer a real rung when subs stay

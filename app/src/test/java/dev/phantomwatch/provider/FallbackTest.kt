@@ -94,6 +94,18 @@ class FallbackTest {
     }
 
     @Test
+    fun aHungDubAutoTakesTheDubRungNotTheSubCut() {
+        val list = listOf(
+            f("https://cdn/sub-auto", "hianime-auto", 1080),
+            f("https://cdn/sub-1080", "hianime-1080p", 1080),
+            f("https://cdn/dub-auto", "hianime-dub-auto", 1080).copy(dub = "English"),
+            f("https://cdn/dub-1080", "hianime-dub-1080p", 1080).copy(dub = "English"),
+        )
+        val out = Providers.nextFormat(list, "https://cdn/dub-auto", emptySet(), hang = true) { false }
+        assertEquals("https://cdn/dub-1080", out?.url)
+    }
+
+    @Test
     fun aHungRungWalksWhenTheAutoIsDead() {
         val list = listOf(
             f("https://cdn/a", "hianime-1080p", 1080),
