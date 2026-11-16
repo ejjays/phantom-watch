@@ -15,3 +15,8 @@ internal fun countryName(code: String, name: String): String = if (code in Artic
 // sim country not ui locale, en gb phone in manila still gets ph
 @Composable
 expect fun deviceCountry(): Country
+
+// where a host without its own geo route asks for visitor country, blank means this origin
+object Geo {
+    var url: String = ""
+}

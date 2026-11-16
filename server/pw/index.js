@@ -1,6 +1,6 @@
 'use strict';
-// PhantomWatch web backend: resolves a title to playable formats and relays the
-// bytes with the headers the browser is not allowed to send (Referer/UA).
+// phantomwatch web backend: resolves a title to playable formats and relays bytes with the
+// headers a browser is not allowed to send (Referer/UA)
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -16,8 +16,8 @@ const TMDB = process.env.TMDB_KEY || '';
 const TELEMETRY = process.env.TELEMETRY_URL || '';
 const TELEMETRY_KEY = process.env.TELEMETRY_KEY || '';
 
-// The app keeps this map on the device (Torrents.DeadHosts). A relay without it re-tries a CDN
-// that just started 403ing on every single resolve.
+// app keeps this map on device (Torrents.DeadHosts). relay without it retries a cdn that just
+// started 403ing on every resolve
 const DEAD = new Map();
 const BAN_MS = 30 * 60 * 1000;
 const hostOf = (u) => { try { return new URL(u).host; } catch (e) { return ''; } };
@@ -151,8 +151,8 @@ async function handleResolve(req, res, base) {
 
   const ranked = pw.rank(all).filter((f) => f && f.url);
 
-  // One probe per host, best-ranked first: clears a stale ban, or sets a fresh one. The app gets
-  // this signal from playback failures; the relay has no such feedback, so the probe is all it has.
+  // one probe per host, best ranked first: clears a stale ban or sets a fresh one. app gets this
+  // signal from playback failures, relay has no such feedback so probe is all it has
   const probed = new Set();
   const heads = [];
   for (const f of ranked) {
@@ -168,7 +168,7 @@ async function handleResolve(req, res, base) {
     stats[f.src] = Object.assign({}, stats[f.src], { dead: true });
   }));
 
-  // Banned hosts sink to the back of the fallback chain, like the app's rankLast.
+  // banned hosts sink to back of fallback chain, like rankLast in app
   const ordered = ranked.filter((f) => !banned(f)).concat(ranked.filter(banned));
 
   const pick = ordered[0] || null;
@@ -182,7 +182,7 @@ async function handleResolve(req, res, base) {
   });
   const usable = pick ? subs.filter((s) => !s.src || String(pick.label || '').startsWith(s.src) || s.src === pick.src) : subs;
 
-  // Same event probe.js posts, so /health and the alerts see web traffic too.
+  // same event probe.js posts, so /health and alerts see web traffic too
   if (TELEMETRY) {
     const tel = {};
     for (const r of legs) {
@@ -298,6 +298,66 @@ function text(res, code, msg) {
   res.end(msg);
 }
 
+// web build runs on a static host and cannot answer /top10 itself. chart worker needs its own
+// key, which has no business in a page source, so it is called from here and cached for the
+// length of a chart update. netflix rescrapes are seconds long and that is the row home leads with
+const CHART = TELEMETRY.replace(/\/e$/, '');
+const CHART_TTL = 6 * 3600 * 1000;
+const CHARTS = new Map();
+const WARM = ['PH', 'US', 'GB', 'CA', 'AU', 'IN'];
+
+async function chartBody(params) {
+  const c = (params.get('c') || '').toUpperCase();
+  const kind = params.get('kind') === 'tv' ? 'tv' : 'movie';
+  const t = params.get('t') || TMDB;
+  if (!/^[A-Z]{2}$/.test(c) || !t) return null;
+  const id = `${c}|${kind}|${t}`;
+  const hit = CHARTS.get(id);
+  if (hit && Date.now() - hit.at < CHART_TTL) return hit.body;
+  const qs = new URLSearchParams({ k: TELEMETRY_KEY, c, kind, t });
+  const r = await fetch(`${CHART}/top10?${qs}`, { signal: AbortSignal.timeout(20000) }).catch(() => null);
+  if (!r || !r.ok) return hit ? hit.body : null;
+  const body = await r.text();
+  // empty list means netflix does not chart that country, do not pin it
+  if (/"results":\[\]/.test(body)) return body;
+  CHARTS.set(id, { at: Date.now(), body });
+  return body;
+}
+
+// keeps worker edge copy warm so first visitor of a chart update does not wait
+function warmCharts() {
+  if (!CHART || !TMDB) return;
+  for (const c of WARM) {
+    chartBody(new URLSearchParams({ c, kind: 'tv', t: TMDB })).catch(() => {});
+  }
+}
+
+// page served from a static host cannot see visitor country, and navigator.language is a poor
+// stand in: an en-US phone in manila asks for the US chart. resolver does see client address, so
+// it answers for the page
+const GEOS = new Map();
+const GEO_TTL = 6 * 3600 * 1000;
+
+function clientIp(req) {
+  const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return fwd || String(req.headers['x-real-ip'] || '') || (req.socket && req.socket.remoteAddress) || '';
+}
+
+async function countryOf(req) {
+  const ip = clientIp(req);
+  if (!ip) return '';
+  const hit = GEOS.get(ip);
+  if (hit && Date.now() - hit.at < GEO_TTL) return hit.c;
+  // server to server, so plain http costs nothing and needs no key
+  const r = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=countryCode`, {
+    signal: AbortSignal.timeout(5000),
+  }).catch(() => null);
+  const d = r && r.ok ? await r.json().catch(() => null) : null;
+  const c = d && /^[A-Z]{2}$/.test(d.countryCode || '') ? d.countryCode : '';
+  GEOS.set(ip, { at: Date.now(), c });
+  return c;
+}
+
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
   if (req.method === 'OPTIONS') {
@@ -311,6 +371,13 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     if (u.pathname === '/health') return json(res, 200, { ok: true, up: Math.round(process.uptime()), legs: LEGS });
+    if (u.pathname === '/geo') return json(res, 200, { c: await countryOf(req) });
+    if (u.pathname === '/top10') {
+      const body = await chartBody(u.searchParams);
+      if (!body) return text(res, 503, 'chart unavailable');
+      res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
+      return res.end(body);
+    }
     if (u.pathname === '/resolve') {
       if (req.method !== 'POST') return text(res, 405, 'POST');
       if (KEY && req.headers['x-pw-key'] !== KEY) return text(res, 401, 'key');
@@ -327,4 +394,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`pw listening on 127.0.0.1:${PORT} legs=${LEGS.join(',')} tmdb=${TMDB ? 'yes' : 'no'}`);
+  warmCharts();
+  setInterval(warmCharts, CHART_TTL / 2).unref();
 });
