@@ -1,0 +1,18 @@
+# The bundle keeps fixed filenames, so a cached copy would outlive the deploy that replaced it.
+# Cloudflare revalidates by default; this makes it explicit for the files an installed PWA must
+# never serve from a stale copy. player.js and icons.js belong here too: they are rebuilt far more
+# often than the wasm, and they are the ones that quietly stay stale.
+/index.html
+  Cache-Control: no-cache
+
+/sw.js
+  Cache-Control: no-cache
+
+/player.js
+  Cache-Control: no-cache
+
+/icons.js
+  Cache-Control: no-cache
+
+/kotlin/*
+  Cache-Control: no-cache

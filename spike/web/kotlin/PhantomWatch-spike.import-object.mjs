@@ -270,7 +270,6 @@ const js_code = {
     'org.w3c.dom.ShadowRootInit' : (mode) => ({ mode: mode }),
     'org.w3c.dom.AddEventListenerOptions_js_code' : (passive, once, capture) => ({ passive: passive, once: once, capture: capture }),
     'org.w3c.dom.location_$external_prop_getter' : (_this) => _this.location,
-    'org.w3c.dom.history_$external_prop_getter' : (_this) => _this.history,
     'org.w3c.dom.navigator_$external_prop_getter' : (_this) => _this.navigator,
     'org.w3c.dom.innerWidth_$external_prop_getter' : (_this) => _this.innerWidth,
     'org.w3c.dom.innerHeight_$external_prop_getter' : (_this) => _this.innerHeight,
@@ -286,6 +285,7 @@ const js_code = {
     'org.w3c.dom.MediaQueryList_$external_class_get' : () => MediaQueryList,
     'org.w3c.dom.origin_$external_prop_getter' : (_this) => _this.origin,
     'org.w3c.dom.protocol_$external_prop_getter' : (_this) => _this.protocol,
+    'org.w3c.dom.hostname_$external_prop_getter' : (_this) => _this.hostname,
     'org.w3c.dom.hash_$external_prop_getter' : (_this) => _this.hash,
     'org.w3c.dom.title_$external_prop_setter' : (_this, v) => _this.title = v,
     'org.w3c.dom.tabIndex_$external_prop_setter' : (_this, v) => _this.tabIndex = v,
@@ -364,16 +364,17 @@ const js_code = {
     'org.w3c.dom.userAgent_$external_prop_getter' : (_this) => _this.userAgent,
     'org.w3c.dom.language_$external_prop_getter' : (_this) => _this.language,
     'org.w3c.dom.caches_$external_prop_getter' : (_this) => _this.caches,
+    'org.w3c.dom.setTimeout_$external_fun' : (_this, p0, p1, p2, isDefault0, isDefault1) => _this.setTimeout(p0, isDefault0 ? undefined : p1, ...p2, ),
+    'org.w3c.dom.clearTimeout_$external_fun' : (_this, p0, isDefault0) => _this.clearTimeout(isDefault0 ? undefined : p0, ),
     'org.w3c.dom.fetch_$external_fun' : (_this, p0, p1, isDefault0) => _this.fetch(p0, isDefault0 ? undefined : p1, ),
-    'org.w3c.dom.back_$external_fun' : (_this, ) => _this.back(),
-    'org.w3c.dom.pushState_$external_fun' : (_this, p0, p1, p2, isDefault0) => _this.pushState(p0, p1, isDefault0 ? undefined : p2, ),
-    'org.w3c.dom.replaceState_$external_fun' : (_this, p0, p1, p2, isDefault0) => _this.replaceState(p0, p1, isDefault0 ? undefined : p2, ),
     'org.w3c.dom.Companion_$external_object_getInstance_1' : () => ({}),
     'org.w3c.dom.item_$external_fun' : (_this, p0) => _this.item(p0),
     'org.w3c.dom.top_$external_prop_getter' : (_this) => _this.top,
     'org.w3c.dom.left_$external_prop_getter' : (_this) => _this.left,
     'org.w3c.dom.remove_$external_fun' : (_this, ) => _this.remove(),
     'org.w3c.dom.Companion_$external_object_getInstance_2' : () => ({}),
+    'org.w3c.dom.getItem_$external_fun' : (_this, p0) => _this.getItem(p0),
+    'org.w3c.dom.setItem_$external_fun' : (_this, p0, p1) => _this.setItem(p0, p1),
     'org.w3c.dom.HTMLVideoElement_$external_class_instanceof' : (x) => x instanceof HTMLVideoElement,
     'org.w3c.dom.HTMLVideoElement_$external_class_get' : () => HTMLVideoElement,
     'org.w3c.dom.src_$external_prop_setter' : (_this, v) => _this.src = v,
@@ -383,6 +384,8 @@ const js_code = {
     'org.w3c.dom.type_$external_prop_setter' : (_this, v) => _this.type = v,
     'org.w3c.dom.HTMLButtonElement_$external_class_instanceof' : (x) => x instanceof HTMLButtonElement,
     'org.w3c.dom.HTMLButtonElement_$external_class_get' : () => HTMLButtonElement,
+    'org.w3c.dom.currentTime_$external_prop_getter' : (_this) => _this.currentTime,
+    'org.w3c.dom.duration_$external_prop_getter' : (_this) => _this.duration,
     'org.w3c.dom.parsing.DOMParser_$external_fun' : () => new DOMParser(),
     'org.w3c.dom.parsing.parseFromString_$external_fun' : (_this, p0, p1) => _this.parseFromString(p0, p1),
     'org.w3c.dom.pointerevents.pointerId_$external_prop_getter' : (_this) => _this.pointerId,
@@ -410,6 +413,7 @@ const js_code = {
     'org.w3c.workers.delete_$external_fun' : (_this, p0) => _this.delete(p0),
     'kotlinx.browser.window_$external_prop_getter' : () => window,
     'kotlinx.browser.document_$external_prop_getter' : () => document,
+    'kotlinx.browser.localStorage_$external_prop_getter' : () => localStorage,
     'org.w3c.dom.length_$external_prop_getter' : (_this) => _this.length,
     'androidx.compose.runtime.internal.weakMap_js_code' : () => (new WeakMap()),
     'androidx.compose.runtime.internal.set_$external_fun' : (_this, p0, p1) => _this.set(p0, p1),
@@ -709,14 +713,35 @@ const js_code = {
     'coil3.util.WeakRef_$external_fun' : (p0) => new WeakRef(p0),
     'coil3.util.deref_$external_fun' : (_this, ) => _this.deref(),
     'dev.phantomwatch.core.pwLog_$external_fun' : (p0, p1) => pwLog(p0, p1),
-    'dev.phantomwatch.ui.geoJson' : () => { try { const x = new XMLHttpRequest(); x.open('GET', '/geo', false); x.send(); return x.status === 200 ? x.responseText : ''; } catch (e) { return ''; } },
+    'dev.phantomwatch.core.postJson' : (url, key, body, ms, cb) => {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), ms);
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-pw-key': key },
+            body: body,
+            signal: c.signal,
+          })
+            .then(r => r.text().then(text => cb(JSON.stringify({ s: r.status, b: text }))))
+            .catch(e => cb(JSON.stringify({ s: 0, b: '', e: String((e && e.message) || e) })))
+            .finally(() => clearTimeout(t));
+        },
+    'dev.phantomwatch.ui.geoJson' : (url) => { try { const x = new XMLHttpRequest(); x.open('GET', url, false); x.send(); return x.status === 200 ? x.responseText : ''; } catch (e) { return ''; } },
     'dev.phantomwatch.ui.regionName' : (code) => new Intl.DisplayNames(['en'], { type: 'region' }).of(code),
+    'dev.phantomwatch.ui.onOwnEntry' : () => !!(window.history.state && window.history.state.pw),
+    'dev.phantomwatch.ui.pushEntry' : () => { window.history.pushState({ pw: 1 }, ''); },
+    'dev.phantomwatch.ui.popEntry' : () => { window.history.back(); },
+    'dev.phantomwatch.ui.replaceUrl' : (u) => { window.history.replaceState(window.history.state, '', u); },
     'dev.phantomwatch.ui.pwTitle_$external_fun' : (p0, p1) => pwTitle(p0, p1),
     'dev.phantomwatch.ui.pwFullscreen_$external_fun' : (p0) => pwFullscreen(p0),
+    'dev.phantomwatch.ui.pwStall_$external_fun' : (p0, p1) => pwStall(p0, p1),
     'dev.phantomwatch.ui.pwBounds_$external_fun' : (p0, p1, p2, p3) => pwBounds(p0, p1, p2, p3),
     'dev.phantomwatch.ui.pwDetach_$external_fun' : (p0) => pwDetach(p0),
     'dev.phantomwatch.ui.pwAttach_$external_fun' : (p0, p1) => pwAttach(p0, p1),
-    'dev.phantomwatch.spike.pwFsState_$external_fun' : () => pwFsState()
+    'dev.phantomwatch.spike.pwFsState_$external_fun' : () => pwFsState(),
+    'dev.phantomwatch.spike.pwEpisodes_$external_fun' : (p0) => pwEpisodes(p0),
+    'dev.phantomwatch.spike.pwAspect_$external_fun' : () => pwAspect(),
+    'dev.phantomwatch.spike.safeAreaCss' : () => { var d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'; document.body.appendChild(d); var c = getComputedStyle(d); var r = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].map(function (x) { return parseFloat(x) || 0; }).join(','); d.remove(); return r; }
 }
 
 const StringConstantsProxy = new Proxy({}, {
