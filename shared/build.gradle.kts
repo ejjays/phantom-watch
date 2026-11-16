@@ -38,6 +38,7 @@ kotlin {
             implementation("com.squareup.okhttp3:okhttp:4.12.0")
             implementation("androidx.activity:activity-compose:1.13.0")
             implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+            implementation("com.airbnb.android:lottie-compose:6.7.1")
         }
     }
 }

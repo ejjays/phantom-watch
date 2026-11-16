@@ -74,13 +74,7 @@ fun HistoryScreen(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ScreenHeader(stringResource(Res.string.history_title), null, lilita = true)
-            if (recent.isEmpty()) {
-                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(stringResource(Res.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(stringResource(Res.string.history_empty_body), color = Slate400, fontSize = 12.sp, fontFamily = WorkSans)
-                }
-            } else {
+            if (recent.isNotEmpty()) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(cols),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 128.dp),
@@ -111,6 +105,15 @@ fun HistoryScreen(
                         }
                     }
                 }
+            }
+        }
+        if (recent.isEmpty()) {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                AnimatedPhantom(Modifier.size(132.dp))
+                Spacer(Modifier.height(20.dp))
+                Text(stringResource(Res.string.history_empty_title), color = Cyan, fontSize = 14.sp, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(Res.string.history_empty_body), color = Slate400, fontSize = 12.sp, fontFamily = WorkSans)
             }
         }
         SnackbarHost(
