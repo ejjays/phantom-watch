@@ -1,6 +1,7 @@
 package dev.phantomwatch.subs
 
 import android.net.Uri
+import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.Http
 import java.io.File
 import java.nio.ByteBuffer
@@ -114,7 +115,10 @@ object OsSubs {
                 .header("User-Agent", UA)
                 .header("Accept", "application/json")
             val body = Http.client.newCall(b.build()).execute().use { res ->
-                if (res.code != 200) return null
+                if (res.code != 200) {
+                    AppLog.d("os http ${res.code}")
+                    return null
+                }
                 res.body?.string() ?: return null
             }
             pickFileId(body)

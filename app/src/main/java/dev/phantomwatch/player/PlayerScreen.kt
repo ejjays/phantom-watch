@@ -343,7 +343,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             val nonOs = names.indexOfFirst { it != subs.osTrack }
             if (nonOs >= 0) wi = nonOs
         }
-        if (wi < 0 && names.size == 1) wi = 0
+        if (wi < 0 && names.size == 1 && names[0] != "und") wi = 0
         val dg = if (wi >= 0) flat[wi].first else flat.first().first
         val dnames = (0 until dg.length).map { i -> trackName(dg.getFormat(i)) }
         embedGroup = dg
@@ -979,6 +979,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         maxVideoH: androidx.compose.ui.unit.Dp? = null,
         topPad: androidx.compose.ui.unit.Dp? = null,
     ) {
+        val canSubs = AiSubtitles.enabled || live.subs.isNotEmpty() || subs.osTrack != null ||
+            subs.aiSubUrl != null || embedNames.any { it != "und" }
         PlayerStage(
             title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
         fullscreen = fsUi, seekBar = seekBar,
@@ -1013,7 +1015,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         rotateButton = rotateButton, onRotate = onRotate,
         locked = locked,
         subsOn = !subs.subsOff,
-        canSubs = AiSubtitles.enabled || live.subs.isNotEmpty() || embedNames.isNotEmpty() || subs.osTrack != null || subs.aiSubUrl != null,
+        canSubs = canSubs,
         muted = muted,
         onScrub = ::scrubTo,
         preview = { mod ->
@@ -1049,7 +1051,11 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         onInteract = ::poke,
         onZoneTap = ::handleZone,
         onToggleSubs = {
-            subs.toggle()
+            if (canSubs) {
+                subs.toggle()
+            } else {
+                Toast.makeText(context, R.string.player_no_subs, Toast.LENGTH_SHORT).show()
+            }
             poke()
         },
         onSwipe = { bright, dy ->

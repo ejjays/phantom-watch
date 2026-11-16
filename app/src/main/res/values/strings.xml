@@ -53,6 +53,7 @@
     <string name="player_close">Close player</string>
     <string name="player_subs_off">Turn subtitles off</string>
     <string name="player_subs_on">Turn subtitles on</string>
+    <string name="player_no_subs">No subtitles available</string>
     <string name="player_settings">Player settings</string>
     <string name="player_skip_recap">Skip recap</string>
     <string name="player_skip_intro">Skip intro</string>

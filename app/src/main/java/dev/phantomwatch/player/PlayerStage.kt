@@ -667,7 +667,6 @@ private fun PlayerTopBar(
                 iconBox.focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    enabled = canSubs,
                 ) { onToggleSubs() },
                 contentAlignment = Alignment.Center,
             ) {
