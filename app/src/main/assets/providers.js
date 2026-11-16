@@ -11,7 +11,8 @@
 
   // pick order: real height first, then 1080p+ with en subs, then a
   // fixed rung over adaptive master (abr settles low, 268p while
-  // its own 1080p rung served 804), en subs, english audio, then height
+  // its own 1080p rung served 804), en subs, en subs that also carry a
+  // verified english audio track, english audio, then height
   // auto rung height is the ladder ceiling not what it serves so it
   // never claims the 1080p+ bucket, 0 height means the leg never reported one
   // so it cant outrank a known height (0 height rung once won and sat dead)
@@ -25,6 +26,7 @@
       (f.enSubs && h >= 1080 && !auto) ? 1 : 0,
       auto ? 0 : 1,
       f.enSubs ? 1 : 0,
+      (f.enSubs && f.enAudio) ? 1 : 0,
       f.english !== false ? 1 : 0,
       h
     ];

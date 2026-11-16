@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FormatOrderTest {
-    private data class Fx(val url: String, val label: String, val height: Int, val english: Boolean, val enSubs: Boolean)
+    private data class Fx(val url: String, val label: String, val height: Int, val english: Boolean, val enSubs: Boolean, val enAudio: Boolean)
 
     private fun fixture(): Pair<List<Fx>, List<String>> {
         val text = javaClass.getResourceAsStream("/pick_order.txt")!!.bufferedReader().use { it.readText() }
@@ -12,7 +12,7 @@ class FormatOrderTest {
         val split = lines.indexOf("order")
         val formats = lines.subList(0, split).map { l ->
             val p = l.split("|")
-            Fx(p[0], p[1], p[2].toInt(), p[3].toBoolean(), p[4].toBoolean())
+            Fx(p[0], p[1], p[2].toInt(), p[3].toBoolean(), p[4].toBoolean(), p[5].toBoolean())
         }
         return formats to lines.subList(split + 1, lines.size)
     }
@@ -20,7 +20,7 @@ class FormatOrderTest {
     @Test
     fun matchesSharedFixture() {
         val (fx, expected) = fixture()
-        val formats = fx.map { VideoFormat(it.url, true, it.label, it.height, it.english, "", it.enSubs) }
+        val formats = fx.map { VideoFormat(it.url, true, it.label, it.height, it.english, "", it.enSubs, it.enAudio) }
         assertEquals(expected, FormatOrder.sort(formats).map { it.url })
     }
 

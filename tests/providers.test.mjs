@@ -26,13 +26,14 @@ function fixture() {
   const lines = text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
   const split = lines.indexOf('order');
   const formats = lines.slice(0, split).map((l) => {
-    const [url, label, height, english, enSubs] = l.split('|');
+    const [url, label, height, english, enSubs, enAudio] = l.split('|');
     return {
       url,
       label,
       height: Number(height),
       english: english === 'true',
       enSubs: enSubs === 'true',
+      enAudio: enAudio === 'true',
       isHls: true,
       referer: '',
     };

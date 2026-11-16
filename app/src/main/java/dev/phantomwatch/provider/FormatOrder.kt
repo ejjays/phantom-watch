@@ -10,6 +10,7 @@ internal object FormatOrder {
             .thenByDescending { if (it.enSubs && it.height >= 1080 && !it.label.endsWith("-auto")) 1 else 0 }
             .thenByDescending { if (it.label.endsWith("-auto")) 0 else 1 }
             .thenByDescending { if (it.enSubs) 1 else 0 }
+            .thenByDescending { if (it.enSubs && it.enAudio) 1 else 0 }
             .thenByDescending { if (it.english) 1 else 0 }
             .thenByDescending { it.height },
     )
