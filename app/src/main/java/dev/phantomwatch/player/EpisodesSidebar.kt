@@ -1,5 +1,6 @@
 package dev.phantomwatch.player
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -39,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -55,7 +57,6 @@ import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate100
 import dev.phantomwatch.ui.Slate400
 import dev.phantomwatch.ui.Slate500
-import dev.phantomwatch.ui.SurfaceColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -154,7 +155,12 @@ private fun SeasonPicker(seasons: List<SeasonInfo>, index: Int, seasonNo: Int, o
                 modifier = Modifier.size(16.dp),
             )
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = SurfaceColor) {
+        DropdownMenu(
+            expanded = open, onDismissRequest = { open = false },
+            offset = DpOffset(x = 12.dp, y = 0.dp),
+            shape = RoundedCornerShape(12.dp), containerColor = Color(0xFF2A2729),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        ) {
             seasons.forEachIndexed { i, s ->
                 DropdownMenuItem(
                     text = {

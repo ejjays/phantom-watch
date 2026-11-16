@@ -741,6 +741,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val navBottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
     var keepTheater by remember { mutableStateOf(false) }
     var sheetLocked by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
     val smallScreen = cfg.smallestScreenWidthDp < 600
     val zoomable = smallScreen && cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     LaunchedEffect(media.id, season, episode, zoomable) { fillMode = 0 }
@@ -978,6 +979,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         onFullscreen: () -> Unit = { toggleFullscreen(); poke() },
         maxVideoH: androidx.compose.ui.unit.Dp? = null,
         topPad: androidx.compose.ui.unit.Dp? = null,
+        settingsBottom: androidx.compose.ui.unit.Dp = 0.dp,
+        hostedSettings: Boolean = false,
     ) {
         val canSubs = AiSubtitles.enabled || live.subs.isNotEmpty() || subs.osTrack != null ||
             subs.aiSubUrl != null || embedNames.any { it != "und" }
@@ -997,7 +1000,9 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         safe = if (zoomable) hasSafe else false,
         onMode = { fillMode = it },
         speed = speed, onPickSpeed = { speed = it; speedNote = "Speed ${speedLabel(it)}"; AppLog.d("speed ${it}x") },
-        bufferedMs = bufferedMs, paneH = maxVideoH,
+        bufferedMs = bufferedMs, paneH = maxVideoH, settingsBottom = settingsBottom,
+        settingsOpen = if (hostedSettings) settingsOpen else null,
+        onSettingsOpenChange = { settingsOpen = it },
         controlsVisible = controls && !Pip.inPip,
         flash = speedNote,
         swipeHud = swipeHud,
@@ -1281,6 +1286,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                         stage(
                             navBottom * sheetProg, theater,
                             topPad = statusTop * sheetProg,
+                            hostedSettings = true,
                             shiftPx = { sheetShift() },
                             maxVideoH = videoCap,
                             videoShiftPx = { playerVideoShift(sheetShift(), stageHpx, videoHpx) },
@@ -1328,6 +1334,22 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                             overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
                             onHeaderBottom = { headerBottom[0] = it },
                             onSheetLock = { sheetLocked = it },
+                        )
+                    }
+                    if (settingsOpen) {
+                        PlayerSettingsMenu(
+                            topPad = 0.dp,
+                            qualities = q.rungs, quality = q.current, qualityNow = nowLabel,
+                            onPickQuality = { pickQuality(exo, q.group, it) },
+                            speed = speed,
+                            onPickSpeed = {
+                                speed = it
+                                speedNote = "Speed ${speedLabel(it)}"
+                                AppLog.d("speed ${it}x")
+                            },
+                            dubs = live.dubs, current = live.dub, onPick = ::playDub,
+                            onDismiss = { settingsOpen = false },
+                            bottomPad = navBottom,
                         )
                     }
                 }

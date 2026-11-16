@@ -1,9 +1,18 @@
 package dev.phantomwatch.player
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,15 +39,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInputModeManager
@@ -56,10 +68,15 @@ import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
 import dev.phantomwatch.ui.Cyan
+import dev.phantomwatch.ui.SurfaceColor
 import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate400
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+
+private const val CLOSE_MS = 150L
 
 // "English · HiAnime" reads as just "English" here; the leg name is noise for a viewer
 private fun dubLabel(l: String): String = l.substringBefore(" · ")
@@ -80,29 +97,65 @@ internal fun PlayerSettingsMenu(
     current: String?,
     onPick: (Dub) -> Unit,
     onDismiss: () -> Unit,
+    bottomPad: Dp = 0.dp,
 ) {
     var page by remember { mutableStateOf(0) }
-    val phone = LocalConfiguration.current.smallestScreenWidthDp < 600
+    var shown by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { shown = true }
+    fun close() {
+        if (!shown) {
+            onDismiss()
+            return
+        }
+        shown = false
+        scope.launch {
+            delay(CLOSE_MS)
+            onDismiss()
+        }
+    }
+    val enter by animateFloatAsState(
+        if (shown) 1f else 0f,
+        tween(if (shown) 200 else CLOSE_MS.toInt(), easing = FastOutSlowInEasing),
+    )
+    val cfg = LocalConfiguration.current
+    val phone = cfg.smallestScreenWidthDp < 600
+    val floating = phone && cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     val first = remember { FocusRequester() }
     val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
     LaunchedEffect(Unit) { if (keyboard) first.requestFocus() }
-    BackHandler(onBack = onDismiss)
+    BackHandler(onBack = ::close)
     BoxWithConstraints(
-        Modifier.fillMaxSize().focusProperties { canFocus = false }.clickable(
+        Modifier.fillMaxSize()
+            .drawBehind { if (floating) drawRect(Color.Black.copy(alpha = 0.35f * enter)) }
+            .focusProperties { canFocus = false }.clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
-            onClick = onDismiss,
+            onClick = { close() },
         ),
     ) {
-        Column(
+        val corner = if (floating) 16.dp else 12.dp
+        val shell = if (floating) {
+            Modifier.align(Alignment.BottomCenter)
+                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp + bottomPad)
+                .fillMaxWidth()
+                .heightIn(max = (maxHeight - bottomPad).coerceAtLeast(96.dp))
+        } else {
             Modifier.align(Alignment.TopEnd).padding(top = topPad, end = 12.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
                 .widthIn(max = minOf(maxWidth * 0.55f, 232.dp))
                 .heightIn(max = paneH?.minus(topPad)?.coerceAtLeast(96.dp) ?: (maxHeight * 0.55f))
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Black.copy(alpha = 0.92f))
+        }
+        Column(
+            shell
+                .graphicsLayer {
+                    alpha = enter
+                    translationY = (1f - enter) * 18.dp.toPx()
+                }
+                .clip(RoundedCornerShape(corner))
+                .background(if (floating) SurfaceColor else Color.Black.copy(alpha = 0.92f))
                 .focusRequester(first)
-                .focusRing(RoundedCornerShape(12.dp))
+                .focusRing(RoundedCornerShape(corner))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -110,7 +163,17 @@ internal fun PlayerSettingsMenu(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 4.dp),
         ) {
-            when (page) {
+            AnimatedContent(
+                targetState = page,
+                transitionSpec = {
+                    (fadeIn(tween(150, easing = FastOutSlowInEasing)) +
+                        slideInVertically(tween(190, easing = FastOutSlowInEasing)) { it / 32 })
+                        .togetherWith(fadeOut(tween(110, easing = FastOutSlowInEasing)))
+                },
+                label = "settingsPage",
+            ) { p ->
+            Column(Modifier.fillMaxWidth()) {
+            when (p) {
                 1 -> {
                     SettingsHeader(stringResource(R.string.player_settings_quality)) { page = 0 }
                     // one rung means auto and that rung are the same choice, so auto is noise
@@ -118,6 +181,7 @@ internal fun PlayerSettingsMenu(
                         SettingsRow(stringResource(R.string.player_settings_auto), if (quality <= 0) qualityNow else null, 0, chevron = false, selected = quality <= 0) {
                             AppLog.d("quality auto")
                             onPickQuality(0)
+                            close()
                         }
                     }
                     qualities.forEach { r ->
@@ -125,6 +189,7 @@ internal fun PlayerSettingsMenu(
                         SettingsRow(r.label, null, 0, chevron = false, selected = only || r.height == quality) {
                             AppLog.d("quality ${r.label} h=${r.height}")
                             onPickQuality(r.height)
+                            close()
                         }
                     }
                 }
@@ -137,6 +202,7 @@ internal fun PlayerSettingsMenu(
                         ) {
                             AppLog.d("speed ${speedLabel(s)}")
                             onPickSpeed(s)
+                            close()
                         }
                     }
                 }
@@ -147,6 +213,7 @@ internal fun PlayerSettingsMenu(
                         SettingsRow(dubLabel(d.label), null, 0, chevron = false, selected = playing) {
                             AppLog.d("settings pick ${d.label}")
                             onPick(d)
+                            close()
                         }
                     }
                 }
@@ -177,6 +244,8 @@ internal fun PlayerSettingsMenu(
                         }
                     }
                 }
+            }
+            }
             }
         }
     }
@@ -215,6 +284,18 @@ private fun SettingsRow(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (!chevron) {
+            Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+                if (selected) {
+                    Icon(
+                        painterResource(R.drawable.ic_check),
+                        contentDescription = stringResource(R.string.player_settings_selected),
+                        tint = Cyan, modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+        }
         if (icon != 0) {
             Icon(painterResource(icon), contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(12.dp))
@@ -237,13 +318,6 @@ private fun SettingsRow(
                 painterResource(R.drawable.ic_chevron_right),
                 contentDescription = null, tint = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.size(16.dp),
-            )
-        }
-        if (selected) {
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                painterResource(R.drawable.ic_check),
-                contentDescription = stringResource(R.string.player_settings_selected), tint = Cyan, modifier = Modifier.size(16.dp),
             )
         }
     }

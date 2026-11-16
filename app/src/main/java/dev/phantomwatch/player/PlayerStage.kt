@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -143,6 +144,9 @@ fun PlayerStage(
     seekInset: Dp = 0.dp,
     topPad: Dp? = null,
     paneH: Dp? = null,
+    settingsBottom: Dp = 0.dp,
+    settingsOpen: Boolean? = null,
+    onSettingsOpenChange: (Boolean) -> Unit = {},
     shiftPx: () -> Float = { 0f },
     videoShiftPx: () -> Float = shiftPx,
     sheetZoneTopPx: () -> Float = { Float.MAX_VALUE },
@@ -179,7 +183,13 @@ fun PlayerStage(
 ) {
     val zone = rememberUpdatedState(sheetZoneTopPx)
     var headerH by remember { mutableFloatStateOf(0f) }
-    var settings by remember { mutableStateOf(false) }
+    var ownSettings by remember { mutableStateOf(false) }
+    val settings = settingsOpen ?: ownSettings
+    val hostedSettings = settingsOpen != null
+    fun setSettings(open: Boolean) {
+        if (!hostedSettings) ownSettings = open
+        onSettingsOpenChange(open)
+    }
     val keys = onKeySeek
     val at = StageAt(intro, recap, outro, durationMs, positionMs)
     val stageFocus = remember { FocusRequester() }
@@ -260,7 +270,7 @@ fun PlayerStage(
                 onInteract()
                 when {
                     e.key == Key.Escape && settings -> {
-                        settings = false
+                        setSettings(false)
                         true
                     }
                     settings || locked -> false
@@ -358,13 +368,22 @@ fun PlayerStage(
                         modifier = Modifier.weight(1f),
                     )
                     if (fullscreen && landscapePhone && canEpisodes) {
-                        Box(
-                            Modifier.size(48.dp).focusRing().clickable(
+                        Row(
+                            Modifier.height(48.dp).widthIn(min = 48.dp)
+                                .focusRing(RoundedCornerShape(24.dp)).clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                            ) { onEpisodes() },
-                            contentAlignment = Alignment.Center,
+                            ) { onEpisodes() }
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
                         ) {
+                            Text(
+                                stringResource(R.string.player_episodes_short),
+                                color = Color.White, fontSize = 11.sp, fontFamily = WorkSans,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(Modifier.width(4.dp))
                             Icon(
                                 painterResource(R.drawable.ic_episodes),
                                 contentDescription = stringResource(R.string.player_episodes),
@@ -508,9 +527,9 @@ fun PlayerStage(
                 canSubs = canSubs,
                 settingsOn = settings,
                 onSettings = {
-                    settings = !settings
+                    setSettings(!settings)
                     onInteract()
-                    AppLog.d(if (settings) "settings open" else "settings close")
+                    AppLog.d(if (!settings) "settings open" else "settings close")
                 },
                 onBack = onBack,
                 onFullscreen = onFullscreen,
@@ -595,20 +614,21 @@ fun PlayerStage(
                 CircularProgressIndicator(color = Cyan, modifier = Modifier.size(48.dp))
             }
         }
-        if (settings) {
+        if (settings && !hostedSettings) {
             PlayerSettingsMenu(
                 topPad = with(LocalDensity.current) { headerH.toDp() } + 4.dp,
                 paneH = paneH,
                 qualities = qualities,
                 quality = quality,
                 qualityNow = qualityNow,
-                onPickQuality = { onPickQuality(it); settings = false },
+                onPickQuality = onPickQuality,
                 speed = speed,
-                onPickSpeed = { onPickSpeed(it); settings = false },
+                onPickSpeed = onPickSpeed,
                 dubs = dubs,
                 current = currentDub,
-                onPick = { onPickDub(it); settings = false },
-                onDismiss = { settings = false },
+                onPick = onPickDub,
+                onDismiss = { setSettings(false) },
+                bottomPad = settingsBottom,
             )
         }
     }
