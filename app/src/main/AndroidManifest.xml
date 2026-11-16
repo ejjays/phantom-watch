@@ -30,6 +30,7 @@
             android:exported="true"
             android:hardwareAccelerated="true"
             android:supportsPictureInPicture="true"
+            android:screenOrientation="@integer/main_orientation"
             android:theme="@style/Theme.PhantomWatch.Splash"
             android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden">
