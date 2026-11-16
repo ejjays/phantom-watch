@@ -1,5 +1,6 @@
 package dev.phantomwatch.ui.settings
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -86,18 +87,18 @@ internal fun SettingsAvatar(picture: String?, size: Dp) {
                 modifier = Modifier.matchParentSize(),
             )
         } else {
-            Icon(
-                painter = painterResource(Res.drawable.ic_row_person),
+            Image(
+                painter = painterResource(Res.drawable.guest_avatar),
                 contentDescription = null,
-                tint = SettingsText2,
-                modifier = Modifier.size(size * 0.42f),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
             )
         }
     }
 }
 
 @Composable
-internal fun SettingsAccountHeader(name: String, subtitle: String, picture: String?) {
+internal fun SettingsAccountHeader(name: String, subtitle: String?, picture: String?) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         SettingsAvatar(picture, 76.dp)
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
@@ -108,14 +109,16 @@ internal fun SettingsAccountHeader(name: String, subtitle: String, picture: Stri
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                color = SettingsText2,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 3.dp),
-            )
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    color = SettingsText2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
         }
     }
 }
