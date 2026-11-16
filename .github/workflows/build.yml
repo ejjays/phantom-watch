@@ -20,6 +20,8 @@ jobs:
           python-version: "3.12"
       - name: Repo quality
         run: python3 checks/quality.py
+      - name: Web bundle resources
+        run: python3 checks/web_resources.py
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

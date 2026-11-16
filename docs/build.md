@@ -33,6 +33,7 @@ maintained.
 ./gradlew :app:testDebugUnitTest      # JVM unit tests
 ./gradlew :app:detekt                 # lint
 python3 checks/quality.py             # repo invariants (file caps, config schema, secrets)
+python3 checks/web_resources.py       # shipped wasm resources match their sources
 node --test tests/*.test.mjs          # provider pick-order tests
 node worker/test.mjs                  # telemetry worker tests
 ```

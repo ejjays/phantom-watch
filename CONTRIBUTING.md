@@ -13,6 +13,7 @@ before your first change.
 
   ```sh
   python3 checks/quality.py
+  python3 checks/web_resources.py
   ./gradlew :app:testDebugUnitTest
   node --test tests/*.test.mjs
   ```
