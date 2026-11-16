@@ -189,7 +189,7 @@ private fun ClipVideo(clip: Clip, stage: ClipStage, paused: Boolean, frame: Clip
                 paused = paused,
             ),
         ) {
-            TrailerHero(videoId = clip.key, poster = art, modifier = Modifier.fillMaxSize())
+            TrailerHero(videoId = clip.key, poster = art, modifier = Modifier.fillMaxSize(), fit = true)
         }
     } else if (art != null) {
         AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())

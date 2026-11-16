@@ -55,6 +55,7 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import dev.phantomwatch.R
@@ -75,6 +76,7 @@ internal fun TrailerHero(
     modifier: Modifier = Modifier,
     onSurface: (TextureView?) -> Unit = {},
     audio: TrailerAudio? = null,
+    fit: Boolean = false,
 ) {
     val chrome = LocalTrailerChrome.current
     val ctx = LocalContext.current
@@ -163,10 +165,10 @@ internal fun TrailerHero(
     }
 
     Box(modifier) {
-        if (poster != null) {
+        if (poster != null && !(fit && started)) {
             AsyncImage(model = poster, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
-            Box(Modifier.fillMaxSize().background(SurfaceColor))
+            Box(Modifier.fillMaxSize().background(if (fit) Color.Black else SurfaceColor))
         }
         if (stream != null) {
             AndroidView(
@@ -176,7 +178,10 @@ internal fun TrailerHero(
                     onSurface(v.videoSurfaceView as? TextureView)
                     v
                 },
-                update = { v -> v.player = exo },
+                update = { v ->
+                    v.player = exo
+                    v.resizeMode = if (fit) AspectRatioFrameLayout.RESIZE_MODE_FIT else AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                },
                 modifier = Modifier.fillMaxSize().alpha(fade),
             )
         }
