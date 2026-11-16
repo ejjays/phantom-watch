@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -405,6 +406,7 @@ fun LiquidBottomTabs(
     accentColor: Color = Color(0xFF0091FF),
     containerColor: Color = Color(0xFF121212).copy(0.4f),
     showGlass: Boolean = true,
+    borderColor: Color = Color.Transparent,
     content: @Composable RowScope.() -> Unit
 ) {
     val density = LocalDensity.current
@@ -534,6 +536,7 @@ fun LiquidBottomTabs(
                             Modifier
                                 .clip(Capsule())
                                 .background(containerColor)
+                                .border(1.dp, borderColor, Capsule())
                         }
                     )
                     .then(interactiveHighlight.modifier)

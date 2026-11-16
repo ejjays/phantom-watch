@@ -1,12 +1,9 @@
 package dev.phantomwatch.core
 
 import dev.phantomwatch.json.JSONObject
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 data class PlaySource(val url: String, val label: String, val h: Int, val hls: Boolean)
 
@@ -16,21 +13,51 @@ data class Resolved(val formats: List<PlaySource>, val subs: List<SubSource>)
 
 private var lastCfg = -1
 
-// web only: a browser cannot send the Referer/UA the provider CDNs demand, so a server
-// resolves and relays. Android keeps its native resolver
+// POST through fetch and not the ktor client: a resolver that is down makes fetch reject and js
+// engine parks the coroutine on that promise for good, which left player spinning with no way
+// out. AbortController also gives the call a deadline that actually fires
+@OptIn(ExperimentalWasmJsInterop::class)
+@JsFun(
+    """(url, key, body, ms, cb) => {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), ms);
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-pw-key': key },
+        body: body,
+        signal: c.signal,
+      })
+        .then(r => r.text().then(text => cb(JSON.stringify({ s: r.status, b: text }))))
+        .catch(e => cb(JSON.stringify({ s: 0, b: '', e: String((e && e.message) || e) })))
+        .finally(() => clearTimeout(t));
+    }""",
+)
+private external fun postJson(url: String, key: String, body: String, ms: Int, cb: (String) -> Unit)
+
+private suspend fun post(url: String, key: String, body: String): String =
+    suspendCancellableCoroutine { cont ->
+        postJson(url, key, body, 20_000) { res ->
+            val o = JSONObject(res)
+            val status = o.optInt("s")
+            val text = o.optString("b")
+            val err = o.optString("e")
+            if (status == 200) {
+                cont.resume(text)
+            } else {
+                cont.resumeWithException(RuntimeException(if (err.isNotEmpty()) err else "resolve http $status"))
+            }
+        }
+    }
+
+// web only: browser cannot send the Referer/UA provider cdns demand, so a server resolves and
+// relays. android keeps its native resolver
 suspend fun resolveSources(
     server: String, key: String,
     kind: String, id: String, season: String = "", episode: String = "",
 ): Resolved {
     val req = JSONObject()
         .put("kind", kind).put("id", id).put("season", season).put("episode", episode)
-    val res = client.post("$server/resolve") {
-        header("x-pw-key", key)
-        contentType(ContentType.Application.Json)
-        setBody(req.toString())
-    }
-    if (res.status.value != 200) throw RuntimeException("resolve http ${res.status.value}")
-    val body = JSONObject(res.bodyAsText())
+    val body = JSONObject(post("$server/resolve", key, req.toString()))
 
     val fa = body.optJSONArray("formats")
     val formats = (0 until (fa?.length() ?: 0)).mapNotNull { i ->

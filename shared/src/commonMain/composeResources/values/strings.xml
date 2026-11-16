@@ -59,6 +59,8 @@
     <string name="player_all_episodes">All episodes</string>
     <string name="player_no_episodes">No episodes available</string>
     <string name="player_episodes_full">Full</string>
+    <string name="player_episode_no">EP %1$d</string>
+    <string name="player_season">Season %1$d</string>
     <string name="player_info">Info</string>
     <string name="player_settings_quality">Quality</string>
     <string name="player_settings_auto">Auto</string>

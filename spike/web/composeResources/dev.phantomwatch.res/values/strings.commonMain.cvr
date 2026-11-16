@@ -107,6 +107,7 @@ string|player_download_update|VXBkYXRlIFBoYW50b20=
 string|player_download|RG93bmxvYWQ=
 string|player_engine_down|UHJvdmlkZXIgZW5naW5lIHVuYXZhaWxhYmxl
 string|player_enter_fullscreen|RW50ZXIgZnVsbHNjcmVlbg==
+string|player_episode_no|RVAgJTEkZA==
 string|player_episodes_full|RnVsbA==
 string|player_exit_fullscreen|RXhpdCBmdWxsc2NyZWVu
 string|player_info|SW5mbw==
@@ -121,6 +122,7 @@ string|player_pause|UGF1c2U=
 string|player_playback_failed|UGxheWJhY2sgZmFpbGVk
 string|player_resolve_failed|cmVzb2x2ZSBmYWlsZWQ=
 string|player_rotate_landscape|Um90YXRlIHRvIGxhbmRzY2FwZQ==
+string|player_season|U2Vhc29uICUxJGQ=
 string|player_settings_auto_now|QXV0byDCtyAlMSRz
 string|player_settings_auto|QXV0bw==
 string|player_settings_dubs|RHVicw==

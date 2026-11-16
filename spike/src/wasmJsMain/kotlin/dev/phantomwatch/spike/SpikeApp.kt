@@ -6,65 +6,56 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import dev.phantomwatch.core.PlaySource
-import dev.phantomwatch.core.SubSource
 import dev.phantomwatch.core.pwLog
-import dev.phantomwatch.core.resolveSources
+import dev.phantomwatch.data.Resume
+import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailScreen
 import dev.phantomwatch.ui.HomeLiquidTabs
 import dev.phantomwatch.ui.HomeScreen
+import dev.phantomwatch.ui.SurfaceColor
 import dev.phantomwatch.ui.WebTrailer
 import dev.phantomwatch.ui.WideDetail
 import dev.phantomwatch.ui.settings.SettingsAction
 import dev.phantomwatch.ui.settings.SettingsData
 import dev.phantomwatch.ui.settings.SettingsScreen
 import kotlinx.browser.window
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 
 private const val REPO = "https://github.com/ejjays/phantom-watch"
 private const val PHANTOM = "https://github.com/ejjays/phantom"
 
+// iPhone draws page under status bar and home indicator. inset lands on app content and not on
+// #app: player positions its stage from canvas bounds, so moving canvas moves picture off its
+// chrome. zero on android and desktop
+@OptIn(ExperimentalWasmJsInterop::class)
+@JsFun("() => { var d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'; document.body.appendChild(d); var c = getComputedStyle(d); var r = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].map(function (x) { return parseFloat(x) || 0; }).join(','); d.remove(); return r; }")
+private external fun safeAreaCss(): String
+
 @Composable
 fun SpikeApp() {
     val browse = remember { BrowseState() }
-    val settings = remember { mutableStateMapOf<String, Int>() }
-    val scope = rememberCoroutineScope()
-    var sources by remember { mutableStateOf<List<PlaySource>>(emptyList()) }
-    var subs by remember { mutableStateOf<List<SubSource>>(emptyList()) }
     var playing by remember { mutableStateOf<Title?>(null) }
     var playSeason by remember { mutableStateOf("") }
     var playEpisode by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(playing) {
         pwLog("nav", if (playing == null) "-> Home" else "-> Player(back=Home)")
@@ -79,56 +70,52 @@ fun SpikeApp() {
     }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
-        Box(Modifier.fillMaxSize()) {
-            val tabBackdrop = rememberLayerBackdrop()
+        val inset = remember {
+            val px = safeAreaCss().split(',').map { it.toFloatOrNull() ?: 0f }
+            val d = if (px.size == 4) px else listOf(0f, 0f, 0f, 0f)
+            d
+        }
+        val density = LocalDensity.current.density
+        Box(
+            Modifier.fillMaxSize().padding(
+                start = (inset[3] / density).dp,
+                top = (inset[0] / density).dp,
+                end = (inset[1] / density).dp,
+                bottom = (inset[2] / density).dp,
+            ),
+        ) {
             val now = playing
-            if (now != null && sources.isNotEmpty()) {
+            if (now != null) {
                 PlayerScreen(
                     media = now, season = playSeason, episode = playEpisode,
-                    sources = sources, subs = subs,
-                    onBack = {
-                        playing = null
-                        sources = emptyList()
-                    },
+                    onBack = { playing = null },
                     onOpenTitle = { t ->
                         playing = null
-                        sources = emptyList()
                         browse.openTitle = t
+                    },
+                    // new episode keeps player open, same title, new sources
+                    onEpisode = { s, e ->
+                        playSeason = s
+                        playEpisode = e
                     },
                 )
             } else {
-                Box(Modifier.fillMaxSize().layerBackdrop(tabBackdrop)) {
+                val tabBackdrop = rememberLayerBackdrop()
+                Box(Modifier.fillMaxSize()) {
                     HomeScreen(
                         browse = browse,
                         onWatch = { item, season, episode ->
-                            if (!busy) {
-                                busy = true
-                                error = null
-                                scope.launch {
-                                    pwLog("direct", "${item.kind}/${item.id} s=$season e=$episode \"${item.title}\"")
-                                    try {
-                                        val r = withTimeout(45_000) {
-                                            resolveSources(PW_URL, PW_KEY, item.kind, item.id, season, episode)
-                                        }
-                                        if (r.formats.isEmpty()) {
-                                            pwLog("resolve", "no source for ${item.title}")
-                                            error = "No source for ${item.title}"
-                                        } else {
-                                            playing = item
-                                            playSeason = season
-                                            playEpisode = episode
-                                            sources = r.formats
-                                            subs = r.subs
-                                        }
-                                    } catch (e: Exception) {
-                                        pwLog("resolve", "failed: ${e::class.simpleName}: ${e.message}")
-                                        error = e.message ?: "resolve failed"
-                                    } finally {
-                                        busy = false
-                                    }
-                                }
-                            }
+                            playSeason = season
+                            playEpisode = episode
+                            playing = item
                         },
+                        // same two sources phone reads, one for library tab and one for continue
+                        // rail above feed
+                        loadRecent = { Resume.recent() },
+                        continueWatching = WebSettings.on(SettingsKeys.CONTINUE_WATCHING) != 0,
+                        recentRev = Resume.rev,
+                        onRemoveRecent = { Resume.remove(it.kind, it.id, it.season, it.episode) },
+                        onRestoreRecent = { Resume.restore(it) },
                         detailPane = { item, onClose, onWatch, startEpisodes ->
                             if (item != null) DetailScreen(
                                 item, onClose, onWatch, startEpisodes,
@@ -146,11 +133,14 @@ fun SpikeApp() {
                             SettingsScreen(
                                 SettingsData(
                                     version = "1.0 (web)",
-                                    settings = settings,
-                                    onValue = { key, value -> settings[key] = value },
+                                    settings = WebSettings.values,
+                                    onValue = { key, value -> WebSettings.set(key, value) },
                                     onAction = { action ->
                                         when (action) {
-                                            SettingsAction.ClearHistory -> browse.recent = emptyList()
+                                            SettingsAction.ClearHistory -> {
+                                                Resume.clear()
+                                                browse.recent = emptyList()
+                                            }
                                             SettingsAction.Updates -> window.open("$REPO/releases", "_blank")
                                             SettingsAction.Licences -> window.open("$REPO#licence", "_blank")
                                             SettingsAction.Privacy -> window.open("$REPO#privacy", "_blank")
@@ -171,29 +161,20 @@ fun SpikeApp() {
                         .align(Alignment.BottomCenter)
                         .padding(horizontal = 20.dp)
                         .padding(bottom = 24.dp)
-                        .widthIn(max = 480.dp),
+                        // phone bar stops at 480dp, without it the four tabs spread across whole
+                        // window on desktop and read as a nav strip, not a pill
+                        .widthIn(max = 480.dp)
                 ) {
                     HomeLiquidTabs(
                         backdrop = tabBackdrop,
                         selectedTabIndex = { browse.tab },
                         onSelect = browse::selectTab,
+                        // sampling page into offscreen layer per frame is what stalls safari, flat
+                        // bar costs nothing and border keeps its edge
+                        showGlass = false,
+                        containerColor = SurfaceColor,
+                        borderColor = Color.White.copy(alpha = 0.08f),
                     )
-                }
-            }
-            if (busy || error != null) {
-                Box(
-                    Modifier.fillMaxSize().background(Color(0xCC000000)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (busy) {
-                            CircularProgressIndicator()
-                            Text("Finding a source…", color = Color.White, modifier = Modifier.padding(top = 16.dp))
-                        } else {
-                            Text(error ?: "", color = Color.White, modifier = Modifier.padding(24.dp))
-                            TextButton(onClick = { error = null }) { Text("Dismiss") }
-                        }
-                    }
                 }
             }
         }

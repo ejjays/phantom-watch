@@ -20,11 +20,12 @@ import dev.phantomwatch.core.PlaySource
 import dev.phantomwatch.core.SubSource
 import dev.phantomwatch.core.pwLog
 import kotlinx.browser.document
+import kotlinx.coroutines.delay
 import org.w3c.dom.HTMLVideoElement
 import org.w3c.dom.events.Event
 
-// the phone runs media3 on a SurfaceView; a browser gets a <video> element parked under the
-// same composable rect, with chrome, gestures and keys in spike/web/player.js
+// phone runs media3 on a SurfaceView, browser gets a <video> element parked under same composable
+// rect, with chrome, gestures and keys in spike/web/player.js
 @Composable
 fun WebPlayer(
     sources: List<PlaySource>,
@@ -32,12 +33,27 @@ fun WebPlayer(
     title: String,
     onBack: () -> Unit,
     fullscreen: Boolean = false,
+    startMs: Long = 0L,
+    onProgress: (Long, Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val scale = LocalDensity.current.density.takeIf { it > 0f } ?: 1f
     val video = remember { video() }
     val back by rememberUpdatedState(onBack)
+    val progress by rememberUpdatedState(onProgress)
+
+    // phone saves every ten seconds and on the way out, browser does the same so library tab and
+    // continue rail agree with playhead
+    LaunchedEffect(title) {
+        while (true) {
+            delay(5_000)
+            report(video, progress)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { report(video, progress) }
+    }
 
     DisposableEffect(Unit) {
         document.body?.appendChild(video)
@@ -53,7 +69,7 @@ fun WebPlayer(
     }
     LaunchedEffect(title) { pwTitle(video, title) }
     LaunchedEffect(fullscreen) { pwFullscreen(fullscreen) }
-    LaunchedEffect(bounds, scale) {
+    LaunchedEffect(bounds, scale, sources, subs, title) {
         val s = video.style
         s.left = "${(bounds.left / scale).toInt()}px"
         s.top = "${(bounds.top / scale).toInt()}px"
@@ -61,15 +77,23 @@ fun WebPlayer(
         s.height = "${(bounds.height / scale).toInt()}px"
         val ready = bounds.width > 0f
         s.visibility = if (ready) "visible" else "hidden"
-        if (ready) {
-            attach(video, sources, subs)
-            pwBounds(bounds.left / scale, bounds.top / scale, bounds.width / scale, bounds.height / scale)
+        if (!ready) return@LaunchedEffect
+        // no sources is the resolving screen: chrome goes up stalled, the state PlayerResolving
+        // draws, and attach fills that stage instead of building a second one
+        if (sources.isEmpty()) {
+            attached = null // a retry hands back the same list, and attach() dedupes on it
+            pwStall(video, title)
+        } else {
+            attach(video, sources, subs, startMs)
         }
+        pwBounds(bounds.left / scale, bounds.top / scale, bounds.width / scale, bounds.height / scale)
     }
     Box(modifier.background(Color.Black).onGloballyPositioned { bounds = it.boundsInWindow() })
 }
 
 // provided by spike/web/player.js
+private external fun pwStall(v: HTMLVideoElement, title: String)
+
 private external fun pwAttach(v: HTMLVideoElement, sourcesJson: String)
 
 private external fun pwDetach(v: HTMLVideoElement)
@@ -84,9 +108,9 @@ private var attached: String? = null
 
 private fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
 
-// the list is the fallback chain: player.js moves to the next source on a fatal error, and
-// hls.js only ever sees HLS. one JSON document for both lists
-private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<SubSource>) {
+// list is the fallback chain: player.js moves to next source on a fatal error, and hls.js only
+// ever sees HLS. one JSON document for both lists
+private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<SubSource>, startMs: Long) {
     if (sources.isEmpty()) return
     val json = buildString {
         append("{\"src\":[")
@@ -100,12 +124,19 @@ private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<Su
             if (i > 0) append(',')
             append("{\"l\":\"").append(esc(s.label)).append("\",\"u\":\"").append(esc(s.url)).append("\"}")
         }
-        append("]}")
+        append("],\"start\":").append(startMs).append('}')
     }
     if (attached == json) return
     attached = json
-    pwLog("player", "attach ${sources.size} sources, ${subs.size} subs")
+    pwLog("player", "attach ${sources.size} sources, ${subs.size} subs at ${startMs / 1000}s")
     pwAttach(v, json)
+}
+
+// duration is NaN until first metadata, and a live stream never settles
+private fun report(v: HTMLVideoElement, sink: (Long, Long) -> Unit) {
+    val dur = v.duration
+    if (!dur.isFinite() || dur <= 0.0) return
+    sink((v.currentTime * 1000).toLong(), (dur * 1000).toLong())
 }
 
 private fun detach(v: HTMLVideoElement) {

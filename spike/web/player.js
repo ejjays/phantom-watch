@@ -1,6 +1,6 @@
-// Player chrome for the web build. The phone draws this in Compose over a SurfaceView; a browser
-// gets a <video> element, so the same layout is rebuilt in DOM/CSS from player/PlayerStage.kt.
-// Sizes are dp == CSS px, matching the Compose density of 1 on the rest of the web UI.
+// player chrome for the web build. phone draws this in compose over a SurfaceView, browser gets a
+// <video> element, so same layout is rebuilt in DOM/CSS from player/PlayerStage.kt. sizes are
+// dp == css px, matching density of 1 on rest of web ui
 (function () {
   'use strict';
 
@@ -9,29 +9,16 @@
   var ICON = window.PW_ICONS || {};
   var EASE = 'cubic-bezier(.4,0,.2,1)';
 
-  // Console trail for playback problems; see index.html for the sink.
+  // console trail for playback problems, index.html holds the sink
   function log(t, m) { if (window.pwLog) window.pwLog(t, m); }
 
-  // Same rule as the app's Resume.kt: drop the first 10s and the last 30s, so an episode that
-  // ended does not reopen at the end.
-  var POS_PREFIX = 'pw.pos.';
-  function posKey(v) { return v.__pwTitle ? POS_PREFIX + v.__pwTitle : ''; }
-  function savePos(v) {
-    var k = posKey(v);
-    if (!k || !v.duration || !isFinite(v.duration)) return;
-    try {
-      if (v.currentTime < 10 || v.currentTime >= v.duration - 30) localStorage.removeItem(k);
-      else localStorage.setItem(k, String(Math.floor(v.currentTime)));
-    } catch (e) {}
-  }
-  function restorePos(S) {
-    var v = S.v, k = posKey(v);
-    if (!k) return;
-    var t = 0;
-    try { t = parseInt(localStorage.getItem(k) || '0', 10) || 0; } catch (e) {}
-    if (t > 0 && v.duration > 0 && t < v.duration - 30) {
-      v.currentTime = t;
-      log('play', 'resume at ' + t + 's');
+  // page keeps one recent list for library tab and continue rail, so playhead is saved there
+  // and not in a second store here
+  function seekStart(S) {
+    var v = S.v, t = S.startAt || 0;
+    if (t > 0 && v.duration > 0 && t < v.duration * 1000 - 30000) {
+      try { v.currentTime = t / 1000; } catch (e) {}
+      log('play', 'resume at ' + Math.round(t / 1000) + 's');
     }
   }
 
@@ -46,16 +33,19 @@
     + '.pw-stage{position:fixed;left:0;top:0;right:auto;bottom:auto;width:100%;height:100%;z-index:2;font-family:PWRubik,system-ui,sans-serif;'
     + 'color:#fff;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}'
     + '.pw-stage *{box-sizing:border-box;margin:0;padding:0}'
+    // pinch is ours in landscape, left to browser it zooms page instead
+    + '.pw-stage[data-zoom="1"],.pw-stage[data-zoom="1"] .pw-zones,.pw-stage[data-zoom="1"] video{touch-action:none}'
     + '.pw-zones{position:absolute;inset:0;display:flex}'
     + '.pw-zone{flex:1;height:100%}'
     + '.pw-fade{opacity:0;visibility:hidden;transition:opacity .25s ' + EASE + ',visibility 0s .25s}'
     + '.pw-stage[data-on="1"] .pw-fade{opacity:1;visibility:visible;transition:opacity .25s ' + EASE + ',visibility 0s}'
 
-    // Full-height: the header sits on top of the scrim (z-index 2), so its icons stay legible
-    // while the picture behind it dims with the rest.
+    // header sits above scrim (z-index 2) so icons stay legible while picture dims
     + '.pw-scrim{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(0,0,0,.4)}'
 
     + '.pw-top{position:absolute;left:0;right:0;top:0;padding:8px 8px 0 0;display:flex;align-items:center;min-height:56px;z-index:2}'
+    // page is viewport-fit:cover, so chrome keeps itself off notch
+    + '.pw-top{padding-left:env(safe-area-inset-left);padding-right:calc(8px + env(safe-area-inset-right))}'
     + '.pw-ib{background:none;border:0;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}'
     + '.pw-ib:focus{outline:none}'
     + '.pw-ib:focus-visible{outline:2px solid ' + CYAN + ';outline-offset:-2px;border-radius:50%}'
@@ -64,11 +54,27 @@
     + '.pw-top .pw-ib{width:48px;height:48px}'
     + '.pw-cc[data-off="1"]{opacity:.4}'
     + '.pw-cc[data-on="1"]{color:' + CYAN + '}'
+    + '.pw-gear[data-off="1"]{opacity:.4}'
     + '.pw-gear[data-on="1"]{color:' + CYAN + '}'
     + '.pw-glyph{width:20px;height:20px;display:block}'
 
     + '.pw-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 16px 8px;display:flex;flex-direction:column;z-index:2}'
+    + '.pw-bottom{padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right))}'
+    // as PlayerStage does: row keeps its 48dp targets and bar hit box runs under them
+    + '.pw-stage[data-fs="0"] .pw-bottom{flex-direction:column-reverse;padding-bottom:0}'
+    + '.pw-stage[data-fs="0"] .pw-bottom .pw-row{margin-bottom:-16px}'
+    // portrait keeps title under stage (PlayerPanel), so one beside back repeats it
+    + '@media (orientation:portrait){.pw-stage:not([data-fs="1"]) .pw-title{display:none}'
+    + '.pw-stage:not([data-fs="1"]) .pw-top .pw-cc{margin-left:auto}}'
     + '.pw-seek{position:relative;height:24px;touch-action:none;cursor:pointer}'
+    // PlayerStage keeps slim bar on picture while chrome is away, playhead stays readable
+    // without waking controls
+    + '.pw-slim{position:absolute;left:16px;right:16px;bottom:env(safe-area-inset-bottom,0px);height:16px;z-index:3;'
+    + 'opacity:0;visibility:hidden;cursor:pointer;touch-action:none;'
+    + 'transition:opacity .25s ' + EASE + ',visibility 0s .25s}'
+    + '.pw-stage[data-fs="0"][data-on="0"]:not([data-lock="1"]) .pw-slim{opacity:1;visibility:visible;'
+    + 'transition:opacity .25s ' + EASE + ',visibility 0s}'
+    + '.pw-slim .pw-played{background:#fff}'
     + '.pw-scrubtime{position:absolute;left:0;right:0;bottom:24px;text-align:center;font:12px PWMono,monospace;color:#fff;padding-bottom:4px;display:none}'
     + '.pw-scrubtime[data-on="1"]{display:block}'
     + '.pw-trackwrap{position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:rgba(255,255,255,.25);overflow:hidden}'
@@ -89,14 +95,17 @@
     + '.pw-playbtn:focus-visible{outline:2px solid ' + CYAN + ';outline-offset:2px}'
     + '.pw-playbtn svg{width:26px;height:26px}'
     + '.pw-playbtn[data-paused="1"] svg{width:30px;height:30px}'
-    // The glyph wrapper is 20px elsewhere; here it has to match the icon or the svg overflows
-    // it and the button's flex centring centres the wrapper, not the icon.
+    // glyph wrapper is 20px elsewhere, here it matches icon or svg overflows and flex centres
+    // wrapper not icon
     + '.pw-playbtn .pw-glyph{width:26px;height:26px}'
     + '.pw-playbtn[data-paused="1"] .pw-glyph{width:30px;height:30px}'
     + '.pw-stage[data-stall="1"] .pw-playbtn,.pw-stage[data-stall="1"] .pw-hud{display:none}'
+    // PlayerResolving pins chrome open while resolver runs, stage reads as player waiting
+    + '.pw-stage[data-stall="1"] .pw-fade{opacity:1;visibility:visible;transition:none}'
 
     + '.pw-lock{position:absolute;left:8px;top:50%;width:44px;height:44px;margin-top:-22px;border:0;background:none;'
     + 'color:#fff;display:none;align-items:center;justify-content:center;cursor:pointer}'
+    + '.pw-lock{left:calc(8px + env(safe-area-inset-left))}'
     + '.pw-stage[data-fs="1"] .pw-lock{display:flex}'
     + '.pw-stage[data-lock="1"][data-on="1"] .pw-top,'
     + '.pw-stage[data-lock="1"][data-on="1"] .pw-bottom,'
@@ -143,7 +152,7 @@
     + '.pw-mhead{display:flex;align-items:center;padding:12px 10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer}'
     + '.pw-mhead .pw-glyph{width:16px;height:16px;margin-right:6px;transform:rotate(180deg);opacity:.7}';
 
-  // The stage is sized by the Compose side: on a tablet the video is one pane of a split layout.
+  // compose sizes stage, on tablet video is one pane of split layout
   var STAGE = null;
   window.pwBounds = function (left, top, width, height) {
     if (!STAGE) return;
@@ -151,7 +160,29 @@
     STAGE.style.top = top + 'px';
     STAGE.style.width = width + 'px';
     STAGE.style.height = height + 'px';
+    if (STAGE.__pwS) applyZoom(STAGE.__pwS);
   };
+
+  // stage sized to picture stream has, as phone does, so a 2.39:1 film is not letterboxed in a
+  // 16:9 box. zero until first metadata
+  window.pwAspect = function () {
+    var s = STAGE && STAGE.__pwS;
+    if (!s || !s.v || !s.v.videoWidth || !s.v.videoHeight) return 0;
+    return s.v.videoWidth / s.v.videoHeight;
+  };
+
+  // compose decides whether episodes button belongs on this title and layout, stage may not
+  // exist yet so flag is kept and applied when built
+  var EPS = false;
+  window.pwEpisodes = function (on) {
+    EPS = !!on;
+    applyEps();
+  };
+
+  function applyEps() {
+    var b = STAGE && STAGE.querySelector('.pw-eps');
+    if (b) b.style.display = EPS ? 'flex' : 'none';
+  }
 
   function el(tag, cls) {
     var e = document.createElement(tag);
@@ -186,6 +217,9 @@
     injectCss();
     var st = el('div', 'pw-stage');
     STAGE = st;
+    // WebPlayer calls pwFullscreen before this element exists, it bails on null stage and data-fs
+    // stays off for session, every rule keyed on it misses
+    st.dataset.fs = '0';
     st.innerHTML =
       '<div class="pw-scrim pw-fade"></div>'
       + '<div class="pw-zones"><div class="pw-zone" data-z="l"></div>'
@@ -197,6 +231,8 @@
       + '<div class="pw-trackwrap"><div class="pw-buf"></div><div class="pw-played"></div></div>'
       + '<div class="pw-thumb"></div></div>'
       + '<div class="pw-row"><div class="pw-clock"></div></div></div>'
+      + '<div class="pw-slim"><div class="pw-trackwrap"><div class="pw-buf"></div>'
+      + '<div class="pw-played"></div></div></div>'
       + '<button class="pw-playbtn pw-fade" type="button"></button>'
       + '<button class="pw-lock pw-fade" type="button"></button>'
       + '<div class="pw-hud" data-side="r"><div class="pw-hud-in"></div></div>'
@@ -223,8 +259,12 @@
     top.appendChild(gear);
 
     var row = st.querySelector('.pw-row');
+    var eps = glyph('episodes', 'pw-eps');
+    eps.setAttribute('aria-label', 'Episodes');
+    eps.style.display = 'none';
     var mute = glyph('volume_on', 'pw-mute');
     var fs = glyph('fullscreen', 'pw-fs');
+    row.appendChild(eps);
     row.appendChild(mute);
     row.appendChild(fs);
 
@@ -240,16 +280,20 @@
 
     var clockEl = st.querySelector('.pw-clock');
     var scrubTime = st.querySelector('.pw-scrubtime');
-    var played = st.querySelector('.pw-played');
-    var buf = st.querySelector('.pw-buf');
+    var played = st.querySelector('.pw-bottom .pw-played');
+    var buf = st.querySelector('.pw-bottom .pw-buf');
+    var slim = st.querySelector('.pw-slim');
+    var slimPlayed = st.querySelector('.pw-slim .pw-played');
+    var slimBuf = st.querySelector('.pw-slim .pw-buf');
     var thumb = st.querySelector('.pw-thumb');
     var seek = st.querySelector('.pw-seek');
     var flash = st.querySelector('.pw-flash');
 
     var S = {
-      stage: st, v: v, title: title, cc: cc, gear: gear, mute: mute, fs: fs, back: back,
+      stage: st, v: v, title: title, cc: cc, gear: gear, mute: mute, fs: fs, back: back, eps: eps,
       playBtn: playBtn, lockBtn: lockBtn, clockEl: clockEl, scrubTime: scrubTime,
       played: played, buf: buf, thumb: thumb, seek: seek, flash: flash,
+      slim: slim, slimPlayed: slimPlayed, slimBuf: slimBuf,
       hud: hud, hudN: hudIn.querySelector('.pw-hud-n'),
       hudIcon: hudIn.querySelector('.pw-hud-icon'),
       subsWrap: st.querySelector('.pw-subs'), subsEl: st.querySelector('.pw-subtext'),
@@ -258,6 +302,8 @@
       accSide: '', accTotal: 0, accAt: 0, raf: 0, flashTimer: 0,
       formats: [], idx: 0, tracks: [], cues: [], subOn: true, subCur: '', subKey: '',
       pendingSeek: null, speed: 1, open: false, page: 0, auto: true, qh: 0,
+      mode: 0, pad: 0, safe: false, near: false, zoom: false, cut: { l: 0, r: 0 },
+      barsDone: false, zoomInit: false, pinched: 0,
     };
     st.__pwS = S;
     return S;
@@ -284,6 +330,8 @@
     } catch (e) {}
     S.played.style.width = (shown * 100) + '%';
     S.buf.style.width = (dur > 0 ? Math.min(1, bufEnd / dur) * 100 : 0) + '%';
+    S.slimPlayed.style.width = S.played.style.width;
+    S.slimBuf.style.width = S.buf.style.width;
     S.clockEl.textContent = clock(pos) + ' / ' + clock(dur);
     if (S.scrub != null && dur > 0) {
       S.scrubTime.dataset.on = '1';
@@ -298,8 +346,8 @@
     }
   }
 
-  // SubtitleLayer in player/PlayerVideo.kt: bottom-centre of the video rect, 5.33% of its height,
-  // 14 px up, #080C10 at 80% with a 0.52em radius.
+  // SubtitleLayer in player/PlayerVideo.kt: bottom centre of video rect, 5.33% of its height,
+  // 14 px up, #080C10 at 80% with a 0.52em radius
   function subTime(s) {
     var m = /^(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})$/.exec(s.trim());
     if (!m) return -1;
@@ -331,15 +379,231 @@
     S.subsEl.dataset.on = text ? '1' : '0';
   }
 
-  // The <video> box is not the picture: object-fit:contain letterboxes it, and a portrait phone
-  // gives a 360x800 box around a 360x202 frame. Size and anchor to the picture itself.
+  // ---- zoom: PlayerVideo.kt fit/safe/full and ZoomLayer.kt pinch, landscape phone only ----
+
+  var BAR = null, BAR_CTX = null;
+
+  function barFraction(px, w, h) {
+    var top = -1, bottom = -1;
+    for (var y = 0; y < h; y++) {
+      var lit = 0;
+      for (var x = 0; x < w; x++) {
+        var i = (y * w + x) * 4;
+        if ((px[i] + px[i + 1] + px[i + 2]) / 3 > 12) lit++;
+      }
+      if (lit * 3 >= w) {
+        if (top < 0) top = y;
+        bottom = y;
+      }
+    }
+    if (top < 0) return null;
+    var bars = (top + (h - 1 - bottom)) / h;
+    var skew = Math.abs(top - (h - 1 - bottom)) / h;
+    return bars >= 0.04 && bars <= 0.4 && skew <= 0.05 ? bars : 0;
+  }
+
+  // PixelCopy on phone, canvas here. cross origin media taints canvas and read throws, caller
+  // treats that as geometry only
+  function frameBars(v) {
+    if (!BAR) {
+      BAR = document.createElement('canvas');
+      BAR.width = 48;
+      BAR.height = 48;
+      BAR_CTX = BAR.getContext('2d', { willReadFrequently: true });
+    }
+    BAR_CTX.drawImage(v, 0, 0, 48, 48);
+    return barFraction(BAR_CTX.getImageData(0, 0, 48, 48).data, 48, 48);
+  }
+
+  // PlayerVideo.kt cutL/cutR: strip a fullscreen phone keeps clear of notch
+  function cutout() {
+    var d = el('div');
+    d.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;' +
+      'padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)';
+    document.body.appendChild(d);
+    var cs = getComputedStyle(d);
+    var out = { l: parseFloat(cs.paddingLeft) || 0, r: parseFloat(cs.paddingRight) || 0 };
+    document.body.removeChild(d);
+    return out;
+  }
+
+  function zoomAspect(S) {
+    var v = S.v;
+    if (!v.videoWidth || !v.videoHeight) return 0;
+    // baked in bars are picture user should not see: a 2.39 film in a 16:9 encode
+    return (v.videoWidth / v.videoHeight) / (1 - S.pad);
+  }
+
+  // stage box is video box with picture object-fit:contain inside, so a mode is one scale factor
+  // over contain plus a clip for bars and overflow. full runs under notch strip and takes whole
+  // box, other two stay inside cutL/cutR as app safe width does
+  function applyZoom(S) {
+    var v = S.v, r = S.stage.getBoundingClientRect();
+    var aspect = zoomAspect(S);
+    if (!aspect || r.width <= 0 || r.height <= 0) return;
+    var vw = v.videoWidth, vh = v.videoHeight;
+    var fs = S.stage.dataset.fs === '1';
+    var cut = fs ? S.cut : { l: 0, r: 0 };
+    var W = r.width, H = r.height;
+    var safeW = Math.max(W - cut.l - cut.r, W * 0.5);
+    S.safe = safeW / aspect >= H;
+    S.near = !S.safe && safeW / aspect >= H * 0.9;
+    var picH = S.mode === 0 ? Math.min(safeW / aspect, H)
+      : Math.max(H, (S.mode === 1 ? safeW : W) / aspect);
+    var f = Math.min(W / vw, H / vh);
+    var t = picH / (vh * (1 - S.pad)) / f;
+    // picture centred on box, notch strip makes safe area off centre
+    var dx = S.mode === 2 ? 0 : (cut.l - cut.r) / 2;
+    v.style.transformOrigin = '50% 50%';
+    v.style.transform = t > 1.001 || dx
+      ? 'translate(' + dx + 'px,0px) scale(' + t + ')' : '';
+    var x0 = (W - vw * f) / 2, y0 = (H - vh * f) / 2, bar = S.pad * vh * f / 2;
+    var kx = fs ? 0 : (W - W / t) / 2, ky = (H - H / t) / 2;
+    var top = Math.max(0, y0 + bar, ky);
+    var bot = Math.max(0, H - Math.min(y0 + vh * f - bar, H - ky));
+    var left = Math.max(0, x0, kx);
+    var right = Math.max(0, W - Math.min(x0 + vw * f, W - kx));
+    v.style.clipPath = (t > 1.001 || S.pad > 0) && (top || bot || left || right)
+      ? 'inset(' + top + 'px ' + right + 'px ' + bot + 'px ' + left + 'px)' : '';
+    S.subKey = '';
+  }
+
+  // PlayerScreen.kt: picture that nearly fills stage opens filled, a 4% bar needs no pinch
+  function autoFill(S) {
+    if (!S.zoom || S.zoomInit || !S.v.videoWidth) return;
+    S.zoomInit = true;
+    if (S.near) {
+      S.mode = 2;
+      applyZoom(S);
+    }
+  }
+
+  // smallest side under 600dp is rule app uses for zoomable
+  function updateZoom(S) {
+    var was = S.zoom;
+    S.cut = cutout();
+    S.zoom = window.innerWidth > window.innerHeight && Math.min(window.innerWidth, window.innerHeight) < 600;
+    S.stage.dataset.zoom = S.zoom ? '1' : '0';
+    if (S.zoom !== was) {
+      S.mode = 0;
+      S.zoomInit = false;
+    }
+    applyZoom(S);
+    autoFill(S);
+  }
+
+  // PlayerVideo.kt samples five times and keeps smallest honest reading, one frame lies,
+  // a fade or dark shot reads as bars
+  function startBars(S) {
+    if (S.barsDone) return;
+    S.barsDone = true;
+    var seen = [], tries = 0;
+    function sample() {
+      if (!S.v.__pw) return;
+      if (++tries > 100) {
+        log('zoom', 'pad none');
+        return;
+      }
+      var b;
+      try {
+        b = frameBars(S.v);
+      } catch (e) {
+        log('zoom', 'pad unreadable ' + (e && e.name));
+        return;
+      }
+      if (b == null) {
+        setTimeout(sample, 400);
+        return;
+      }
+      seen.push(b);
+      var lit = seen.filter(function (x) { return x > 0; });
+      S.pad = lit.length ? Math.min.apply(null, lit) : 0;
+      applyZoom(S);
+      if (seen.length < 5) {
+        setTimeout(sample, 400);
+        return;
+      }
+      log('zoom', 'pad ' + Math.round(S.pad * 100) + '%');
+    }
+    setTimeout(sample, 400);
+  }
+
+  // ZoomLayer.kt: fit -> safe -> full on way in, back on way out
+  function stepMode(S, acc) {
+    var m = S.mode;
+    var next = acc > 1
+      ? (m === 0 && S.safe ? 1 : 2)
+      : (m === 2 && S.safe ? 1 : 0);
+    if (next === m) return;
+    S.mode = next;
+    log('zoom', next === 0 ? 'fit' : next === 1 ? 'safe' : 'full');
+    applyZoom(S);
+  }
+
+  function pinch(S) {
+    var pts = {}, base = 0, acc = 1, done = false;
+    function dist() {
+      var id = Object.keys(pts);
+      if (id.length < 2) return 0;
+      var a = pts[id[0]], b = pts[id[1]];
+      return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+    }
+    S.stage.addEventListener('pointerdown', function (e) {
+      if (!S.zoom || S.stage.dataset.lock === '1') return;
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (Object.keys(pts).length === 2) {
+        base = dist();
+        acc = 1;
+        done = false;
+      }
+    });
+    S.stage.addEventListener('pointermove', function (e) {
+      var p = pts[e.pointerId];
+      if (!p) return;
+      p.x = e.clientX;
+      p.y = e.clientY;
+      var d = dist();
+      if (!base || !d) return;
+      if (done) {
+        base = d;
+        return;
+      }
+      acc *= d / base;
+      base = d;
+      if (acc > 1.06 || acc < 0.94) {
+        done = true;
+        S.pinched = Date.now();
+        stepMode(S, acc);
+      }
+    });
+    function up(e) {
+      delete pts[e.pointerId];
+      if (Object.keys(pts).length < 2) {
+        base = 0;
+        acc = 1;
+        done = false;
+      }
+    }
+    S.stage.addEventListener('pointerup', up);
+    S.stage.addEventListener('pointercancel', up);
+  }
+
+  // <video> box is not picture, object-fit:contain letterboxes it, portrait phone gives a 360x800
+  // box around a 360x202 frame. size and anchor to picture
   function pictureRect(S) {
     var r = S.v.getBoundingClientRect();
     var vw = S.v.videoWidth, vh = S.v.videoHeight;
     if (!vw || !vh || !r.width || !r.height) return r;
     var k = Math.min(r.width / vw, r.height / vh);
     var w = vw * k, h = vh * k;
-    return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h };
+    // baked in rows are not picture, caption anchored under them lands on clip
+    var bars = S.pad || 0;
+    return {
+      left: r.left + (r.width - w) / 2,
+      top: r.top + (r.height - h) / 2 + bars * h / 2,
+      width: w,
+      height: h * (1 - bars),
+    };
   }
 
   function renderSubs(S) {
@@ -349,9 +613,9 @@
     var key = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height);
     if (key !== S.subKey) {
       S.subKey = key;
-      // The app sizes captions off min(shortSide / aspect, drawn height), not the drawn height
-      // alone (PlayerScreen.kt:1242), so a wide window does not inflate them. Fraction 0.0533,
-      // floored at 13dp (15dp in fullscreen).
+      // app sizes captions off min(shortSide / aspect, drawn height), not drawn height alone
+      // (PlayerScreen.kt:1242), so wide window does not inflate them. fraction 0.0533, floored
+      // at 13dp, 15dp in fullscreen
       var aspect = r.width / r.height;
       var shortSide = Math.min(window.innerWidth, window.innerHeight);
       var basis = Math.min(shortSide / aspect, r.height);
@@ -383,8 +647,8 @@
     S.cc.setAttribute('aria-label', on ? 'Turn subtitles off' : 'Turn subtitles on');
   }
 
-  // First track that parses wins. Providers ship one track per language and media3's selector
-  // defaults to English, so English goes first; everything else stays as a fallback.
+  // first track that parses wins. providers ship one track per language and media3 selector
+  // defaults to english, so english goes first, rest stay as fallback
   function loadSubs(S) {
     S.cues = [];
     S.subCur = '';
@@ -453,7 +717,6 @@
     S.hud.dataset.side = side === 'l' ? 'l' : 'r';
     S.hudN.textContent = seconds;
     S.hud.dataset.on = '1';
-    // replay the nudge on every tap
     S.hud.dataset.nudge = '0';
     void S.hud.offsetWidth;
     S.hud.dataset.nudge = '1';
@@ -485,6 +748,7 @@
   }
 
   function zone(S, z) {
+    if (S.pinched && Date.now() - S.pinched < 400) return;
     if (S.stage.dataset.lock === '1') { poke(S); return; }
     if (S.open) { closeMenu(S); return; }
     var now = Date.now();
@@ -511,9 +775,8 @@
     }, 330);
   }
 
-  // Real fullscreen: the browser only paints the fullscreen element's subtree, and the <video>
-  // is a body child, so it has to be the whole document that goes fullscreen — Compose then
-  // drops to the stage-only layout, which is what the user actually sees.
+  // browser only paints fullscreen subtree and <video> is a body child, so whole document goes
+  // fullscreen, compose then drops to stage only layout
   var INAPP = false;
   function setFullscreen() {
     if (INAPP) { INAPP = false; document.dispatchEvent(new Event('pwfs')); return; }
@@ -534,14 +797,29 @@
     document.dispatchEvent(new Event('pwfs'));
   });
 
-  // Called by WebPlayer.kt once it has flipped its own fullscreen flag: the video takes the whole
-  // window, so the chrome only has to redraw its icons and unlock itself on the way out.
+  // app opens fullscreen as landscape on phone (SCREEN_ORIENTATION_SENSOR_LANDSCAPE in
+  // PlayerScreen.kt), browser only allows same through lock api and only inside fullscreen element
+  function orient(on) {
+    try {
+      if (!screen.orientation || !screen.orientation.lock) return;
+      if (!on) {
+        screen.orientation.unlock();
+        return;
+      }
+      var p = screen.orientation.lock('landscape');
+      if (p && p.catch) p.catch(function () {});
+    } catch (e) {}
+  }
+
+  // WebPlayer.kt calls this after flipping its own fullscreen flag, video takes whole window so
+  // chrome only redraws its icons and unlocks on way out
   window.pwFullscreen = function (on) {
     if (!STAGE) return;
     if (!on && (document.fullscreenElement || INAPP)) {
       INAPP = false;
       if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
     }
+    orient(on);
     STAGE.dataset.fs = on ? '1' : '0';
     if (!on) STAGE.dataset.lock = '0';
     var fsBtn = STAGE.querySelector('.pw-fs');
@@ -554,12 +832,13 @@
       backBtn.innerHTML = '<span class="pw-glyph">' + (on ? ICON.chevron_down : ICON.back) + '</span>';
       backBtn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Close player');
     }
-    // The caption size is keyed to the picture rect, so force a re-measure.
-    if (STAGE.__pwS) STAGE.__pwS.subKey = '';
+    // caption size is keyed to picture rect, force a remeasure
+    if (STAGE.__pwS) updateZoom(STAGE.__pwS);
   };
 
   function wire(S) {
     var v = S.v;
+    pinch(S);
     S.stage.querySelectorAll('.pw-zone').forEach(function (z) {
       z.addEventListener('click', function () { zone(S, z.dataset.z); });
     });
@@ -604,28 +883,13 @@
       if (locked) poke(S); else hide(S);
     });
 
-    S.seek.addEventListener('pointerdown', function (e) {
-      if (duration(S) <= 0) return;
-      S.drag = true;
-      S.seek.setPointerCapture(e.pointerId);
-      setScrub(S, e);
-      poke(S);
+    S.eps.addEventListener('click', function (e) {
+      e.stopPropagation();
+      document.dispatchEvent(new Event('pweplist'));
     });
-    S.seek.addEventListener('pointermove', function (e) {
-      if (S.drag) setScrub(S, e);
-    });
-    S.seek.addEventListener('pointerup', function (e) {
-      if (!S.drag) return;
-      S.drag = false;
-      setScrub(S, e);
-      seekTo(S, S.scrub);
-    });
-    S.seek.addEventListener('pointercancel', function () {
-      if (!S.drag) return;
-      S.drag = false;
-      S.scrub = null;
-      render(S);
-    });
+
+    bindSeek(S, S.seek);
+    bindSeek(S, S.slim);
 
     v.addEventListener('play', function () { setPlayIcon(S); startLoop(S); });
     v.addEventListener('pause', function () { setPlayIcon(S); render(S); });
@@ -635,19 +899,20 @@
         try { v.currentTime = S.pendingSeek; } catch (e) {}
         S.pendingSeek = null;
       }
+      updateZoom(S);
       render(S);
     });
+    v.addEventListener('loadeddata', function () { startBars(S); });
     v.addEventListener('loadedmetadata', function () {
       if (S.restored) return;
       S.restored = true;
-      restorePos(S);
+      seekStart(S);
     });
     v.addEventListener('timeupdate', function () {
       var dur = duration(S);
       if (!S.drag && S.scrub != null && dur > 0 && Math.abs(v.currentTime * 1000 - S.scrub * dur) < 1500) {
         S.scrub = null;
       }
-      if (Date.now() - (S.savedAt || 0) > 5000) { S.savedAt = Date.now(); savePos(v); }
       if (S.raf === 0) render(S);
     });
     v.addEventListener('progress', function () { render(S); });
@@ -670,13 +935,43 @@
     v.addEventListener('error', function () { S.stage.dataset.stall = '0'; });
 
     S.onKey = onKey(S);
-    S.onResize = function () { S.subKey = ''; render(S); };
+    S.onResize = function () { updateZoom(S); render(S); };
     window.addEventListener('keydown', S.onKey);
     window.addEventListener('resize', S.onResize);
+    applyEps();
   }
 
-  function setScrub(S, e) {
-    var r = S.seek.getBoundingClientRect();
+  // two bars, one gesture, chrome bar and slim bar on picture. whichever took pointer keeps it,
+  // scrub measured against its own box
+  function bindSeek(S, el) {
+    el.addEventListener('pointerdown', function (e) {
+      if (duration(S) <= 0) return;
+      S.drag = true;
+      S.dragEl = el;
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+      setScrub(S, e, el);
+      // slim bar does not wake chrome, hides bar under finger mid drag
+      if (el !== S.slim) poke(S);
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (S.drag) setScrub(S, e, S.dragEl);
+    });
+    el.addEventListener('pointerup', function (e) {
+      if (!S.drag) return;
+      S.drag = false;
+      setScrub(S, e, S.dragEl);
+      seekTo(S, S.scrub);
+    });
+    el.addEventListener('pointercancel', function () {
+      if (!S.drag) return;
+      S.drag = false;
+      S.scrub = null;
+      render(S);
+    });
+  }
+
+  function setScrub(S, e, el) {
+    var r = (el || S.seek).getBoundingClientRect();
     if (r.width <= 0) return;
     S.scrub = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     render(S);
@@ -704,7 +999,7 @@
     S.flash.dataset.tap = tap ? '1' : '0';
   }
 
-  // ---- settings menu: PlayerSettings.kt, minus the dub page (the proxy resolves one cut) ----
+  // ---- settings menu: PlayerSettings.kt, minus dub page (proxy resolves one cut) ----
 
   var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -786,8 +1081,8 @@
     } else {
       var q = qualities(S);
       if (q.length > 1) {
-        // Android hides the auto resolution on the root row (phone layout); it only shows
-        // inside the quality list, which keeps the row short enough never to ellipsize.
+        // android hides auto resolution on root row (phone layout), it only shows inside quality
+        // list, which keeps row short enough never to ellipsize
         var qv = S.auto ? 'Auto' : S.qh + 'p';
         m.appendChild(menuRow('Quality', qv, 'quality', true, false, null,
           function () { S.page = 1; menuRender(S); }));
@@ -821,7 +1116,7 @@
     S.gear.dataset.on = '0';
   }
 
-  // Switching rung reloads the source, so keep the playhead and let loadedmetadata restore it.
+  // switching rung reloads source, so playhead is kept and loadedmetadata restores it
   function pickQuality(S, h) {
     var idx = 0, qh = h;
     if (h > 0) {
@@ -848,8 +1143,8 @@
     S.flashTimer = setTimeout(function () { flash(S, ''); }, 1200);
   }
 
-  // Autoplay: play() runs seconds after the tap that started the resolve, so the browser's
-  // transient activation is gone and an unmuted play() is rejected. Muted is always allowed.
+  // autoplay: play() runs seconds after tap that started resolve, transient activation is gone
+  // and unmuted play() is rejected. muted always allowed
   function start(S) {
     var v = S.v;
     var p = v.play();
@@ -909,8 +1204,49 @@
     } else {
       log('play', 'player error no source left after ' + st.list.length);
       S.stage.dataset.stall = '0';
+      // PlayerScreen flips netErr on same event and offers a way out (PlayerFailedOverlay)
+      document.dispatchEvent(new Event('pwfail'));
     }
   }
+
+  // builds stage around v and puts it on page, resolving screen and direct attach both start
+  // here, caller decides whether source follows
+  function mount(v) {
+    var S = build(v);
+    wire(S);
+    v.__pw = { S: S, list: [], i: 0 };
+    document.body.appendChild(S.stage);
+    S.stage.insertBefore(v, S.stage.firstChild);
+    v.style.zIndex = '0';
+    updateZoom(S);
+    S.fs.innerHTML = '<span class="pw-glyph">' + ICON.fullscreen + '</span>';
+    S.mute.innerHTML = '<span class="pw-glyph">' + (v.muted ? ICON.volume_off : ICON.volume_on) + '</span>';
+    S.lockBtn.setAttribute('aria-label', 'Lock controls');
+    S.title.textContent = v.__pwTitle || '';
+    S.flash.addEventListener('click', function () {
+      if (S.flash.dataset.tap !== '1') return;
+      v.muted = false;
+      flash(S, '');
+    });
+    return S;
+  }
+
+  // phone opens player before resolver answers and draws chrome stalled, so stream landing never
+  // swaps layout. same here: stage goes up empty and pwAttach fills it later
+  window.pwStall = function (v, title) {
+    var S = v.__pw ? v.__pw.S : mount(v);
+    // PlayerResolving passes canSubs/canSettings false, nothing to pick from yet so both read
+    // dimmed rather than opening an empty menu
+    S.cc.disabled = true;
+    S.cc.dataset.off = '1';
+    S.gear.disabled = true;
+    S.gear.dataset.off = '1';
+    S.title.textContent = title || '';
+    S.stage.dataset.stall = '1';
+    S.stage.dataset.on = '1';
+    clearTimeout(S.hideTimer);
+    render(S);
+  };
 
   window.pwAttach = function (v, sourcesJson) {
     var doc;
@@ -918,33 +1254,31 @@
     var list = (doc && doc.src) || [];
     if (!list.length) return;
 
-    var S = v.__pw ? v.__pw.S : null;
-    if (!S) {
-      S = build(v);
-      wire(S);
-      v.__pw = { S: S, list: list, i: 0 };
-      document.body.appendChild(S.stage);
-      S.stage.insertBefore(v, S.stage.firstChild);
-      v.style.zIndex = '0';
-      S.fs.innerHTML = '<span class="pw-glyph">' + ICON.fullscreen + '</span>';
-      S.mute.innerHTML = '<span class="pw-glyph">' + (v.muted ? ICON.volume_off : ICON.volume_on) + '</span>';
-      S.lockBtn.setAttribute('aria-label', 'Lock controls');
-      S.title.textContent = v.__pwTitle || '';
-      S.flash.addEventListener('click', function () {
-        if (S.flash.dataset.tap !== '1') return;
-        v.muted = false;
-        flash(S, '');
-      });
-      poke(S);
-    }
+    var S = v.__pw ? v.__pw.S : mount(v);
+    // outside a branch: pwStall may have built the stage already, its chrome still has to start
+    // auto hiding now there is something to watch
+    poke(S);
     v.__pw.list = list;
     v.__pw.i = 0;
+    S.gear.disabled = false;
+    S.gear.dataset.off = '0';
     S.formats = list;
     S.tracks = (doc && doc.subs) || [];
     S.qh = heightOf(list[0].l);
     S.auto = true;
     S.subKey = '';
     S.scrub = null;
+    // new title starts fitted, own bars measured again
+    S.mode = 0;
+    S.pad = 0;
+    S.barsDone = false;
+    S.zoomInit = false;
+    S.pinched = 0;
+    // fresh title seeks to own saved position once, not on every rung switch
+    S.restored = false;
+    S.startAt = (doc && doc.start) || 0;
+    // element still carries last title size, so only undo zoom here, loadedmetadata measures
+    applyZoom(S);
     setPlayIcon(S);
     load(S, list[0], 0);
     loadSubs(S);
@@ -953,7 +1287,6 @@
   window.pwDetach = function (v) {
     var st = v.__pw;
     if (!st) return;
-    savePos(v);
     v.__pw = null;
     var S = st.S;
     if (v.__pwHls) { v.__pwHls.destroy(); v.__pwHls = null; }
@@ -971,13 +1304,13 @@
     if (S.stage.parentNode) S.stage.parentNode.removeChild(S.stage);
   };
 
-  // The title effect can run before the stage exists, so keep it on the element.
+  // title effect can run before stage exists, so it is kept on the element
   window.pwTitle = function (v, text) {
     if (!v) return;
     v.__pwTitle = text || '';
     if (v.__pw) v.__pw.S.title.textContent = v.__pwTitle;
   };
 
-  // expose for the boot overlay / debugging
+  // expose for boot overlay / debugging
   window.pwPlayerMounted = function () { return !!document.querySelector('.pw-stage'); };
 })();

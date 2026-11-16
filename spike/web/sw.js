@@ -1,6 +1,9 @@
-// network first, cache only as the offline copy: the bundle updates as one unit, and a per file
-// cache would serve the old strings file next to the new wasm and blank every label
-const V = 'pw-v1'
+// network first, cache only as offline copy: bundle updates as one unit, a per file cache would
+// serve old strings file next to new wasm and blank every label
+// bump this whenever shell changes, a new value makes browser install worker again which fetches
+// every file in SHELL again and drops old cache, otherwise a worker whose code did not change is
+// never reinstalled
+const V = 'pw-v2'
 
 const SHELL = [
   './',
@@ -12,6 +15,7 @@ const SHELL = [
   './apple-touch-icon.png',
   './icons.js',
   './player.js',
+  './vendor/js-joda.esm.js',
   './kotlin/PhantomWatch-spike.mjs',
   './kotlin/PhantomWatch-spike.import-object.mjs',
   './kotlin/PhantomWatch-spike.js-builtins.mjs',
@@ -37,7 +41,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
-  // tmdb, posters, streams and the chart stay out of the way
+  // tmdb, posters, streams and chart stay out of the way
   if (url.origin !== location.origin) return
   if (url.pathname.endsWith('/geo') || url.pathname.endsWith('/top10')) return
   e.respondWith(

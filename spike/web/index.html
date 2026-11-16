@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Phantom Watch</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#121011">
@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Phantom">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-  <!-- No favicon: an empty data URI stops the console 404 without adding a file. -->
+  <!-- no favicon, an empty data uri stops the console 404 without adding a file -->
   <link rel="icon" href="data:,">
   <style>
     html,body{margin:0;height:100%;background:#000;color:#ddd}#app{height:100%}
@@ -23,10 +23,10 @@
     @media (prefers-reduced-motion:reduce){#boot img{animation:none;opacity:.8}}
   </style>
   <script type="importmap">
-  { "imports": { "@js-joda/core": "./node_modules/@js-joda/core/dist/js-joda.esm.js" } }
+  { "imports": { "@js-joda/core": "./vendor/js-joda.esm.js" } }
   </script>
   <script>
-    // A 24 MB wasm leaves the page black for a while; the logo pulses instead of looking broken.
+    // a 24 mb wasm leaves page black for a while, logo pulses instead of looking broken
     (function () {
       function boot() { return document.getElementById('boot'); }
       var iv = setInterval(function () {
@@ -37,7 +37,7 @@
       }, 250);
       var seen = [];
       // console.error is a diagnostic channel (Kotlin/Wasm prints deprecation notices there),
-      // so only an uncaught throw gets to rewrite the tab title.
+      // only an uncaught throw rewrites tab title
       function note(kind, args, fatal) {
         var parts = [];
         for (var i = 0; i < args.length; i++) {
@@ -46,7 +46,6 @@
           catch (e) { parts.push('?'); }
         }
         seen.push(kind + ': ' + parts.join(' | '));
-        // Only a fatal throw replaces the logo; console.error is too noisy to paint over it.
         var m = fatal && document.getElementById('boot-msg');
         if (m) m.textContent = seen.join(' // ').slice(0, 400);
         if (fatal) document.title = 'PWERR ' + seen.join(' // ').slice(0, 500);
@@ -58,8 +57,8 @@
     })();
   </script>
   <script>
-    // The web counterpart of the phone's AppLog FAB. Every step lands in the console as
-    // "[PW] tag message"; `copy(pwDump())` in DevTools hands back the whole session as text.
+    // web counterpart of phone AppLog FAB. every step lands in console as "[PW] tag message",
+    // copy(pwDump()) in devtools hands back whole session as text
     (function () {
       var buf = window.__pwLog = [];
       window.pwLog = function (tag, msg) {
@@ -72,8 +71,8 @@
     })();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
-  <!-- The <video> is a DOM element, so the player chrome the phone draws in Compose is
-       rebuilt in player.js from player/PlayerStage.kt. -->
+  <!-- <video> is a dom element, so player chrome the phone draws in compose is rebuilt in
+       player.js from player/PlayerStage.kt -->
   <script src="./icons.js"></script>
   <script src="./player.js"></script>
 </head>
@@ -82,7 +81,7 @@
 <div id="boot"><img src="./phantom.svg" alt="Phantom Watch"><div id="boot-msg"></div></div>
 <script type="module" src="./kotlin/PhantomWatch-spike.mjs"></script>
 <script>
-  // localhost is a secure origin, so the same file registers on the dev server and on a real host
+  // localhost is a secure origin, so same file registers on dev server and on a real host
   if ('serviceWorker' in navigator) {
     addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
   }

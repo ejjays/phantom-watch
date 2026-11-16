@@ -54,6 +54,9 @@ fun HomeLiquidTabs(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     updateBadge: Boolean = false,
+    showGlass: Boolean = true,
+    containerColor: Color = TabContainer,
+    borderColor: Color = Color.Transparent,
 ) {
     // local state so bubble slides in same snapshot not after route recompose
     var tab by remember { mutableIntStateOf(selectedTabIndex()) }
@@ -79,23 +82,28 @@ fun HomeLiquidTabs(
             backdrop = backdrop,
             tabsCount = 4,
             accentColor = TabAccent,
-            containerColor = TabContainer,
+            containerColor = containerColor,
+            showGlass = showGlass,
+            borderColor = borderColor,
         ) {
+            // glass bar paints accent with a tinted copy of whole row, flat bar has no copy so
+            // selected tab colours its own icon and label
+            fun tint(index: Int) = if (!showGlass && tab == index) TabAccent else TabDim
             LiquidBottomTab(onClick = { tab = 0; onSelect(0) }) {
-                TabIcon(Res.drawable.ic_tab_home)
-                TabLabel(Res.string.tab_home)
+                TabIcon(Res.drawable.ic_tab_home, tint(0))
+                TabLabel(Res.string.tab_home, tint(0))
             }
             LiquidBottomTab(onClick = { tab = 1; onSelect(1) }) {
-                TabIcon(Res.drawable.ic_clips)
-                TabLabel(Res.string.tab_clips)
+                TabIcon(Res.drawable.ic_clips, tint(1))
+                TabLabel(Res.string.tab_clips, tint(1))
             }
             LiquidBottomTab(onClick = { tab = 2; onSelect(2) }) {
-                TabIcon(Res.drawable.ic_tab_library)
-                TabLabel(Res.string.tab_library)
+                TabIcon(Res.drawable.ic_tab_library, tint(2))
+                TabLabel(Res.string.tab_library, tint(2))
             }
             LiquidBottomTab(onClick = { tab = 3; onSelect(3) }) {
-                TabIcon(Res.drawable.ic_tab_you, onBounds = { youIcon = it })
-                TabLabel(Res.string.tab_you)
+                TabIcon(Res.drawable.ic_tab_you, tint(3), onBounds = { youIcon = it })
+                TabLabel(Res.string.tab_you, tint(3))
             }
         }
         val origin = barOrigin
@@ -117,13 +125,13 @@ fun HomeLiquidTabs(
 }
 
 @Composable
-private fun TabIcon(icon: DrawableResource, onBounds: ((Rect) -> Unit)? = null) {
+private fun TabIcon(icon: DrawableResource, tint: Color, onBounds: ((Rect) -> Unit)? = null) {
     // tinted copy sits 4dp higher so only real row reports where icon landed
     val report = if (LocalLiquidBottomTabTinted.current) null else onBounds
     Icon(
         painterResource(icon),
         null,
-        tint = TabDim,
+        tint = tint,
         modifier = Modifier
             .size(22.dp)
             .then(
@@ -137,10 +145,10 @@ private fun TabIcon(icon: DrawableResource, onBounds: ((Rect) -> Unit)? = null) 
 }
 
 @Composable
-private fun TabLabel(label: StringResource) {
+private fun TabLabel(label: StringResource, tint: Color) {
     Text(
         stringResource(label),
-        color = TabDim,
+        color = tint,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         lineHeight = 14.sp,
