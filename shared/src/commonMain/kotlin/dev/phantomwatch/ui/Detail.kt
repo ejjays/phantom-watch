@@ -71,6 +71,7 @@ import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.core.ioDispatcher
 import dev.phantomwatch.core.nowMs
 import dev.phantomwatch.res.*
+import kotlin.math.abs
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import dev.phantomwatch.data.DetailCache
@@ -362,17 +363,34 @@ private fun SeasonPreview(detail: TitleDetail, start: Boolean, onEpisode: (Strin
     }
 }
 
-// lenient on purpose: bad input falls back to the raw ISO. en-US shape because java.time's
-// localized formatter has no multiplatform twin
-private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+// days since 1970-01-01 for a civil date, no timezone involved
+private fun civilDays(y: Int, m: Int, d: Int): Long {
+    val yy = if (m <= 2) y - 1 else y
+    val era = (if (yy >= 0) yy else yy - 399) / 400
+    val yoe = yy - era * 400
+    val doy = (153 * (if (m > 2) m - 3 else m + 9) + 2) / 5 + d - 1
+    val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    return era.toLong() * 146097L + doe - 719468L
+}
 
+// lenient on purpose: bad input falls back to the raw ISO
 fun airLabel(iso: String): String {
     val p = iso.split('-')
     val y = p.getOrNull(0)?.toIntOrNull() ?: return iso
     val m = p.getOrNull(1)?.toIntOrNull() ?: return iso
     val d = p.getOrNull(2)?.toIntOrNull() ?: return iso
-    if (m !in 1..12) return iso
-    return "${MONTHS[m - 1]} $d, $y"
+    if (m !in 1..12 || d !in 1..31) return iso
+    val days = (nowMs() / 86_400_000L - civilDays(y, m, d)).toInt()
+    val n = abs(days)
+    if (n == 0) return "today"
+    val (count, unit) = when {
+        n < 7 -> n to "day"
+        n < 30 -> (n / 7) to "week"
+        n < 360 -> (n / 30) to "month"
+        else -> maxOf(1, n / 365) to "year"
+    }
+    val label = if (count == 1) "1 $unit" else "$count ${unit}s"
+    return if (days > 0) "$label ago" else "in $label"
 }
 
 @Composable
@@ -515,7 +533,7 @@ fun EpisodesScreen(
         val thumbW = (maxWidth * 0.46f).coerceAtMost(200.dp)
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(top = topInset).padding(horizontal = 12.dp),
+                Modifier.fillMaxWidth().padding(top = topInset).padding(start = 4.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose, modifier = Modifier.size(38.dp)) {
