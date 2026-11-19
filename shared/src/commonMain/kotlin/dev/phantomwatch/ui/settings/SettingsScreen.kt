@@ -41,6 +41,11 @@ data class SettingsData(
     val accountBusy: Boolean = false,
     val accountError: String? = null,
     val googleReady: Boolean = false,
+    val badgeAbout: Boolean = false,
+    val badgeUpdate: Boolean = false,
+    val openCategory: String? = null,
+    val phantomInstalled: Boolean = false,
+    val onOpenCategory: (String) -> Unit = {},
     val onValue: (String, Int) -> Unit,
     val onAction: (SettingsAction) -> Unit,
     val onSignIn: () -> Unit = {},
@@ -51,8 +56,8 @@ data class SettingsData(
 fun SettingsScreen(data: SettingsData) {
     SettingsTheme {
         val pane = settingsPane(screenWidthDp())
-        val categories = remember(data.version, data.updateVersion) {
-            settingsCatalog(data.version, data.updateVersion)
+        val categories = remember(data.version, data.updateVersion, data.badgeAbout, data.badgeUpdate, data.phantomInstalled) {
+            settingsCatalog(data.version, data.updateVersion, data.badgeAbout, data.badgeUpdate, data.phantomInstalled)
         }
         val state = rememberSaveable(saver = SettingsStateSaver) {
             defaultSettings(categories).apply { putAll(data.settings) }
@@ -63,6 +68,13 @@ fun SettingsScreen(data: SettingsData) {
         }
         LaunchedEffect(pane) {
             if (isTwoPane(pane) && open == OverviewIndex) open = 0
+        }
+        LaunchedEffect(data.openCategory, categories) {
+            val id = data.openCategory ?: return@LaunchedEffect
+            val index = categories.indexOfFirst { it.id == id }
+            if (index < 0) return@LaunchedEffect
+            open = index
+            data.onOpenCategory(id)
         }
         val onValue: (String, Int) -> Unit = { key, value ->
             state[key] = value
@@ -79,7 +91,10 @@ fun SettingsScreen(data: SettingsData) {
                             version = data.version,
                             width = settingsRailWidth(pane),
                             account = data.account,
-                            onSelect = { open = it },
+                            onSelect = { index ->
+                                categories.getOrNull(index)?.let { data.onOpenCategory(it.id) }
+                                open = index
+                            },
                         )
                         Box(Modifier.width(1.dp).fillMaxHeight().background(SettingsHairline))
                         Box(Modifier.weight(1f).fillMaxHeight()) {

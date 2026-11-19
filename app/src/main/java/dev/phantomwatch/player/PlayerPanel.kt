@@ -55,6 +55,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -109,6 +111,8 @@ import dev.phantomwatch.ui.Bg
 import dev.phantomwatch.ui.ChevronRightIcon
 import dev.phantomwatch.ui.CloseIcon
 import dev.phantomwatch.ui.CommentIcon
+import dev.phantomwatch.ui.DownloadMenuIcon
+import dev.phantomwatch.ui.MoreIcon
 import dev.phantomwatch.ui.CommentsSheet
 import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.ui.EpisodesScreen
@@ -130,15 +134,14 @@ import kotlinx.coroutines.withContext
 
 private val RailColor = Color(0xFF0A0A0B)
 
-// the strip width is derived from these, so the cut always lands mid-chip
+// strip width derived from these, cut always lands mid chip
 private val EpisodeChip = 46.dp
 private val EpisodeGap = 8.dp
 private val EpisodePad = 20.dp
 private val EpisodePeek = 12.dp
 private const val EpisodesVisible = 10
 
-// AppRoot swaps in a fresh Screen.Player per episode, so nothing remembered inside it survives
-// this keeps the strip parked where the user left it
+// AppRoot swaps in fresh Screen.Player per episode, nothing remembered survives, strip stays where user left it
 private object EpisodeStripScroll {
     var key: String? = null
     var index = 0
@@ -158,6 +161,7 @@ fun PlayerPanel(
     video: (@Composable (Modifier) -> Unit)? = null,
     videoAspect: Float = 16f / 9f,
     fullscreen: Boolean = false,
+    onDownload: (() -> Unit)? = null,
 ) {
     val key = RemoteConfig.tmdbKey()
     var detail by remember(media.id) { mutableStateOf(DetailCache.detail(media.kind, media.id)) }
@@ -264,7 +268,7 @@ fun PlayerPanel(
                             season = playingSeason.toString(), episode = episode,
                             onVote = cast, onComments = { showComments = true },
                             onOpenPlot = { showSheet = true }, onAllEpisodes = { showEpisodes = true },
-                            onEpisode = onEpisode,
+                            onEpisode = onEpisode, onDownload = onDownload,
                             modifier = Modifier.weight(1f).padding(top = 16.dp)
                                 .graphicsLayer { alpha = 1f - fs }
                                 .verticalScroll(rememberScrollState(), overscrollEffect = null)
@@ -303,7 +307,7 @@ fun PlayerPanel(
                     season = playingSeason.toString(), episode = episode,
                     onVote = cast, onComments = { showComments = true },
                     onOpenPlot = { showSheet = true }, onAllEpisodes = { showEpisodes = true },
-                    onEpisode = onEpisode, onHeaderBottom = onHeaderBottom,
+                    onEpisode = onEpisode, onDownload = onDownload, onHeaderBottom = onHeaderBottom,
                 )
                 if (similar.isNotEmpty() && onOpenTitle != null) {
                     Spacer(Modifier.height(22.dp))
@@ -480,11 +484,13 @@ private fun PlayerInfo(
     onOpenPlot: () -> Unit,
     onAllEpisodes: () -> Unit,
     onEpisode: ((String, String) -> Unit)?,
+    onDownload: (() -> Unit)? = null,
     onHeaderBottom: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    // hoisted above the episode branch: a fetch toggling it would flash the chip cyan again
+    var moreExpanded by remember { mutableStateOf(false) }
+    // hoisted above episode branch, fetch toggling it would flash chip cyan again
     var freshChip by remember { mutableStateOf(true) }
     LaunchedEffect(episode) {
         freshChip = true
@@ -552,8 +558,64 @@ private fun PlayerInfo(
                             CommentIcon(contentDescription = stringResource(R.string.comments_title), tint = Slate300, size = 24.dp)
                         }
                         Spacer(Modifier.weight(1f))
-                        ActionIcon(onClick = { shareLink(context) }) {
-                            ShareIcon(contentDescription = stringResource(R.string.common_share), tint = Slate300, size = 24.dp)
+                        Box {
+                            ActionIcon(onClick = { moreExpanded = true }) {
+                                MoreIcon(
+                                    contentDescription = stringResource(R.string.player_more_options),
+                                    tint = Slate300,
+                                    size = 24.dp,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = moreExpanded,
+                                onDismissRequest = { moreExpanded = false },
+                                shape = RoundedCornerShape(18.dp),
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(R.string.common_share),
+                                            color = Color.White,
+                                            fontFamily = WorkSans,
+                                            fontSize = 15.sp,
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        ShareIcon(
+                                            contentDescription = null,
+                                            tint = Slate300,
+                                            size = 20.dp,
+                                        )
+                                    },
+                                    onClick = {
+                                        moreExpanded = false
+                                        shareLink(context)
+                                    },
+                                )
+                                // shown while stream still fetching, disabled/gray until download job can be built
+                                DropdownMenuItem(
+                                    enabled = onDownload != null,
+                                    text = {
+                                        Text(
+                                            stringResource(R.string.player_download),
+                                            color = if (onDownload != null) Color.White else Slate500,
+                                            fontFamily = WorkSans,
+                                            fontSize = 15.sp,
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        DownloadMenuIcon(
+                                            contentDescription = null,
+                                            tint = if (onDownload != null) Slate300 else Slate500,
+                                            size = 20.dp,
+                                        )
+                                    },
+                                    onClick = {
+                                        moreExpanded = false
+                                        onDownload?.invoke()
+                                    },
+                                )
+                            }
                         }
                     }
                 }

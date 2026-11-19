@@ -25,12 +25,15 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -52,6 +55,11 @@ import dev.phantomwatch.ui.AmbientGlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
+
+// the horizontal seek swipe is driven by the stage, but the scrubbed frame has to land on the
+// video rect and only the video knows what pinch zoom and fill mode did to it
+internal val LocalSeekSwipe = compositionLocalOf<Float?> { null }
+internal val LocalVideoPreview = staticCompositionLocalOf<(@Composable (Modifier) -> Unit)?> { null }
 
 @Composable
 fun PlayerVideo(
@@ -183,6 +191,21 @@ fun PlayerVideo(
                 onRelease = { it.player = null },
                 modifier = Modifier.requiredSize(vw, vh).offset(x = shift),
             )
+        }
+        // scrubbed frame sits exactly where the picture sits, so zoom and fill mode still read true
+        val swipeAt = LocalSeekSwipe.current
+        val swipePreview = LocalVideoPreview.current
+        if (swipeAt != null && swipePreview != null) {
+            // a texture view stretches the frame it is given, bars and all, while the picture above
+            // crops them. hold the frame at its own aspect at cover size and cut the overflow, so
+            // the scrubbed picture has the same height as the one it replaces
+            val coverW = maxOf(vw, vh * videoAspect)
+            Box(
+                Modifier.requiredSize(vw, vh).offset(x = shift).clipToBounds(),
+                contentAlignment = Alignment.Center,
+            ) {
+                swipePreview(Modifier.requiredSize(coverW, coverW / videoAspect))
+            }
         }
         val ai = subCues.ifEmpty { AiSubtitles.text }
         SubtitleLayer(ai, subStyle, subTopPx, subBgAlpha)

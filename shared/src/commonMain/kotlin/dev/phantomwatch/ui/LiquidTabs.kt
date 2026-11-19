@@ -133,7 +133,7 @@ private suspend inline fun AwaitPointerEventScope.drag(
             return change
         }
         onDrag(change)
-        // compose web preventDefaults touchmove only when consumed, else the drag pans the page
+        // compose web preventDefaults touchmove only when consumed, else drag pans page
         change.consume()
         pointer = change.id
     }
@@ -363,8 +363,7 @@ class InteractiveHighlight(
 internal val LocalLiquidBottomTabScale =
     staticCompositionLocalOf { { 1f } }
 
-// selected tab painted by accent tinted row copy so anything keeping its
-// own colour (the update badge) is skipped and left to the plain row underneath
+// selected tab painted by accent tinted row copy so anything keeping own colour (update badge) is skipped left to plain row underneath
 internal val LocalLiquidBottomTabTinted = staticCompositionLocalOf { false }
 
 @Composable
@@ -494,7 +493,7 @@ fun LiquidBottomTabs(
 
         val tabsBackdrop = rememberLayerBackdrop()
         val noLens = !isRuntimeShaderSupported()
-        // no RuntimeShader means lens() is a noop so a slight scale keeps bubble readable
+        // no RuntimeShader means lens() is noop so slight scale keeps bubble readable
         val glassBackdrop = rememberBackdrop(backdrop) { drawBackdrop ->
             if (noLens) scale(1.05f, 1.05f) { drawBackdrop() } else drawBackdrop()
         }
@@ -621,7 +620,7 @@ fun LiquidBottomTabs(
                                 },
                                 highlight = {
                                     val progress = dampedDragAnimation.pressProgress
-                                    // lens() is dead without RuntimeShader so the rim carries the glass look at rest
+                                    // lens() is dead without RuntimeShader so rim carries glass look at rest
                                     Highlight.Default.copy(
                                         alpha = if (noLens) progress.coerceAtLeast(0.35f) else progress
                                     )

@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,9 +52,13 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import dev.phantomwatch.ui.PhantomInstallDialog
 import dev.phantomwatch.ui.WorkSans
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.activity.ComponentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieAnimatable
@@ -63,6 +68,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import dev.phantomwatch.agent.PlayRequest
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.CrashReport
+import dev.phantomwatch.core.PushOpen
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
 import dev.phantomwatch.core.UpdateChecker
@@ -70,6 +76,8 @@ import dev.phantomwatch.data.Aliases
 import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Resume
+import dev.phantomwatch.data.Downloads
+import dev.phantomwatch.data.Stream
 import dev.phantomwatch.player.PhantomDownload
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.PlayerUi
@@ -82,10 +90,13 @@ import dev.phantomwatch.social.GoogleAuth
 import dev.phantomwatch.social.Social
 import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
+import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.ClipsScreen
 import dev.phantomwatch.ui.Route
 import dev.phantomwatch.ui.DetailPane
+import dev.phantomwatch.ui.Geo
+import dev.phantomwatch.ui.countryChoiceCode
 import dev.phantomwatch.ui.HomeLiquidTabs
 import dev.phantomwatch.ui.settings.SettingsAction
 import dev.phantomwatch.ui.settings.SettingsData
@@ -110,6 +121,15 @@ internal fun AppRoot() {
     var instant by remember { mutableStateOf(false) }
     var autoRelease by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    var phantomInstalled by remember { mutableStateOf(PhantomDownload.isInstalled(context)) }
+    DisposableEffect(context) {
+        val lc = (context as? ComponentActivity)?.lifecycle ?: return@DisposableEffect onDispose { }
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) phantomInstalled = PhantomDownload.isInstalled(context)
+        }
+        lc.addObserver(obs)
+        onDispose { lc.removeObserver(obs) }
+    }
     val feedFile = remember { java.io.File(context.cacheDir, "home-feed.json") }
     var youRev by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
@@ -140,9 +160,21 @@ internal fun AppRoot() {
     }
     var crash by remember { mutableStateOf(CrashReport.pending(context)) }
     var update by remember { mutableStateOf(UpdateChecker.available(context)) }
+    var updateStage by remember { mutableStateOf(0) }
+    var settingsCategory by remember { mutableStateOf<String?>(null) }
+    var showInstallDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val fresh = withContext(Dispatchers.IO) { UpdateChecker.refresh(context) }
         update = fresh?.takeIf { it.code > UpdateChecker.installedCode(context) }
+    }
+    LaunchedEffect(browse.tab, update) {
+        if (browse.tab == 3 && update != null && updateStage == 0) updateStage = 1
+    }
+    LaunchedEffect(PushOpen.about) {
+        if (!PushOpen.about) return@LaunchedEffect
+        PushOpen.consume()
+        browse.selectTab(3)
+        settingsCategory = "about"
     }
     LaunchedEffect(screen, Pip.playing) {
         (context as? MainActivity)?.armPip(screen is Screen.Player, Pip.playing)
@@ -204,6 +236,29 @@ internal fun AppRoot() {
                     recentRev = Resume.rev,
                     onRemoveRecent = { Resume.remove(context, it.kind, it.id, it.season, it.episode) },
                     onRestoreRecent = { Resume.restore(context, it) },
+                    loadDownloads = { Downloads.all(context) },
+                    // Resume rev matters too, old downloads borrow progress from matching local playback entry in Downloads.all()
+                    downloadsRev = Downloads.rev + Resume.rev,
+                    onRemoveDownload = { Downloads.remove(context, it.id) },
+                    onRestoreDownload = { r, at -> Downloads.restoreAt(context, r, at) },
+                    onPlayDownloaded = { r ->
+                        val uri = r.localUri ?: return@HomeScreen
+                        forward = true
+                        instant = true
+                        autoRelease = false
+                        val media = Title(id = r.id, kind = r.kind, title = r.title, poster = r.poster)
+                        // local URI is already initial Stream: PlayerScreen skips provider resolution
+                        val local = Stream(
+                            url = uri, isHls = false, subs = emptyList(),
+                            referer = "", sampleMp4 = null, complete = true,
+                        )
+                        // downloads open straight into landscape fullscreen, other sources keep portrait first entry
+                        (context as? MainActivity)?.forceLandscape()
+                        screen = Screen.Player(
+                            r.title, local, media, r.season, r.episode,
+                            Screen.Home, fullscreen = true,
+                        )
+                    },
                     onExitApp = { (context as? android.app.Activity)?.finish() },
                     searchGhost = { ghost, run ->
                         val comp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lottie_search))
@@ -235,6 +290,7 @@ internal fun AppRoot() {
                     writeFeed = { feedFile.writeText(it) },
                     youScreen = {
                         val settings = remember(youRev) { liveSettings(context) }
+                        Geo.overrideCode = countryChoiceCode(settings[SettingsKeys.COUNTRY] ?: 0)
                         val clipboard = LocalClipboardManager.current
                         SettingsScreen(
                             SettingsData(
@@ -245,6 +301,14 @@ internal fun AppRoot() {
                                 accountBusy = accountBusy,
                                 accountError = accountError,
                                 googleReady = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank(),
+                                badgeAbout = update != null && updateStage == 1,
+                                badgeUpdate = update != null && updateStage == 2,
+                                openCategory = settingsCategory,
+                                phantomInstalled = phantomInstalled,
+                                onOpenCategory = { id ->
+                                    settingsCategory = null
+                                    if (id == "about") updateStage = 2
+                                },
                                 onValue = { key, value -> applySetting(context, key, value); youRev++ },
                                 onAction = { action ->
                                     when (action) {
@@ -258,7 +322,7 @@ internal fun AppRoot() {
                                                 UpdateChecker.refresh(context, force = true)
                                             }?.takeIf { it.code > UpdateChecker.installedCode(context) }?.also { update = it }
                                             if (known != null) installRelease(context, known)
-                                            else openUrl(context, RELEASE_URL + "/releases")
+                                            else toast(context, R.string.you_about_up_to_date)
                                         }
                                         SettingsAction.Licences -> openUrl(context, RELEASE_URL + "#licence")
                                         SettingsAction.Privacy -> openUrl(context, RELEASE_URL + "#privacy")
@@ -267,7 +331,9 @@ internal fun AppRoot() {
                                             openUrl(context, RELEASE_URL + "/issues/new?body=" + android.net.Uri.encode(deviceLine()))
                                             toast(context, R.string.you_report_copied)
                                         }
-                                        SettingsAction.GetPhantom -> PhantomDownload.open(context)
+                                        SettingsAction.GetPhantom ->
+                                            if (PhantomDownload.isInstalled(context)) PhantomDownload.open(context)
+                                            else showInstallDialog = true
                                     }
                                 },
                                 onSignIn = signIn,
@@ -290,6 +356,7 @@ internal fun AppRoot() {
                         episode = s.episode,
                         startFullscreen = s.fullscreen,
                         onBack = {
+                            (context as? MainActivity)?.restoreOrientation()
                             forward = false
                             screen = s.back
                         },
@@ -355,10 +422,19 @@ internal fun AppRoot() {
                 backdrop = tabBackdrop,
                 selectedTabIndex = { browse.tab },
                 onSelect = browse::selectTab,
-                updateBadge = update != null,
+                updateBadge = update != null && updateStage == 0,
             )
         }
         if ((BuildConfig.DEBUG || BuildConfig.LOGUI) && !PlayerUi.hidesChrome) LogFab()
+        if (showInstallDialog) {
+            PhantomInstallDialog(
+                onInstall = {
+                    showInstallDialog = false
+                    PhantomDownload.install(context, job = null)
+                },
+                onDismiss = { showInstallDialog = false },
+            )
+        }
     }
     crash?.let { text ->
         AlertDialog(
@@ -466,11 +542,13 @@ private fun liveSettings(ctx: android.content.Context): Map<String, Int> = mapOf
     Settings.AUTOPLAY to if (Settings.on(ctx, Settings.AUTOPLAY, true)) 1 else 0,
     Settings.SKIP_INTRO to if (Settings.on(ctx, Settings.SKIP_INTRO, true)) 1 else 0,
     Settings.SHARE_USAGE to if (Telemetry.enabled(ctx)) 1 else 0,
+    SettingsKeys.COUNTRY to Settings.choice(ctx, SettingsKeys.COUNTRY, 0),
 )
 
 private fun applySetting(ctx: android.content.Context, key: String, value: Int) {
     when (key) {
-        Settings.SUBS_SIZE, Settings.SUBS_BG, Settings.SEEK_STEP, Settings.NEXT_COUNT -> Settings.setChoice(ctx, key, value)
+        Settings.SUBS_SIZE, Settings.SUBS_BG, Settings.SEEK_STEP, Settings.NEXT_COUNT,
+        SettingsKeys.COUNTRY -> Settings.setChoice(ctx, key, value)
         Settings.SHARE_USAGE -> Telemetry.setEnabled(ctx, value != 0)
         else -> Settings.setOn(ctx, key, value != 0)
     }

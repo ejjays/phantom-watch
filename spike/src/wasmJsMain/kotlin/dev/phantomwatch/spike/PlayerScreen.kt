@@ -126,10 +126,11 @@ private enum class Fail { Generic, NoStreams, Playback }
 
 private external fun pwFsState(): Boolean
 
-// player.js holds the flag, stage can be built after this call
+// player.js holds flag, stage can be built after this call
 private external fun pwEpisodes(on: Boolean)
 
 private external fun pwAspect(): Float
+
 
 @Composable
 fun PlayerScreen(
@@ -148,7 +149,7 @@ fun PlayerScreen(
     var fail by remember(media.id, season, episode) { mutableStateOf<Fail?>(null) }
     var errText by remember(media.id, season, episode) { mutableStateOf("") }
     var retry by remember(media.id, season, episode) { mutableStateOf(0) }
-    // player draws its own stall, resolving here never leaves a scrim over feed
+    // player draws own stall, resolving here never leaves scrim over feed
     LaunchedEffect(media.kind, media.id, season, episode, retry) {
         if (sources.isNotEmpty()) return@LaunchedEffect
         fail = null
@@ -186,7 +187,8 @@ fun PlayerScreen(
     }
     val back = { if (fs) fs = false else onBack() }
     PlatformBackHandler(enabled = true) { back() }
-
+    // wide pane scroll, video is fixed dom layer so needs scroll offset to move up with compose content instead of sitting on top
+    val leftScroll = rememberScrollState()
     var aspect by remember(media.id) { mutableFloatStateOf(0f) }
     LaunchedEffect(media.id, season, episode) {
         var waited = 0
@@ -271,20 +273,20 @@ fun PlayerScreen(
     // moving between shells disposes WebPlayer and restarts video at 0:00, so stage moves instead
     val feed by rememberUpdatedState(StageFeed(sources, subs, label, media, season, episode))
     val stage = remember(media.id) {
-        movableContentOf<Boolean, Modifier, () -> Unit> { isFs, mod, onBack2 ->
+        movableContentOf<Boolean, Modifier, Float, () -> Unit> { isFs, mod, scrollOffset, onBack2 ->
             val f = feed
-            Stage(f.sources, f.subs, f.label, onBack2, isFs, mod, f.media, f.season, f.episode)
+            Stage(f.sources, f.subs, f.label, onBack2, isFs, mod, f.media, f.season, f.episode, scrollOffset)
         }
     }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {
         val windowW = maxWidth
-        // landscapePhone in PlayerScreen.kt, short edge under 600dp is a phone on its side
+        // landscapePhone in PlayerScreen.kt, short edge under 600dp is phone on its side
         val landscape = maxWidth > maxHeight
         val phone = minOf(maxWidth, maxHeight) < 600.dp
         val sidePanel = landscape && phone
         val panelW = minOf(340.dp, windowW * 0.42f)
-        // picture is a dom layer above this canvas, anything drawn in its rect is hidden
+        // picture is dom layer above this canvas, anything drawn in its rect is hidden
         val generic = stringResource(Res.string.player_resolve_failed)
         val failed = when (fail) {
             null -> null
@@ -319,32 +321,38 @@ fun PlayerScreen(
         LaunchedEffect(isTv, landscape) { pwEpisodes(isTv && landscape) }
         if (fs) {
             Row(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f).fillMaxHeight()) { stage(true, Modifier.fillMaxSize(), back) }
+                Box(Modifier.weight(1f).fillMaxHeight()) { stage(true, Modifier.fillMaxSize(), 0f, back) }
                 if (railOpen > 0.dp) rail(Modifier.width(railOpen))
             }
         } else if (sidePanel) {
             Row(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    Box(Modifier.weight(1f).fillMaxWidth()) { stage(false, Modifier.fillMaxSize(), back) }
+                    Box(Modifier.weight(1f).fillMaxWidth()) { stage(false, Modifier.fillMaxSize(), 0f, back) }
                     if (failed != null) ResolveError(failed, again, back)
                 }
                 if (railOpen > 0.dp) rail(Modifier.width(railOpen))
             }
         } else if (isExpanded(windowW)) {
             val railW = (windowW * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(windowW * 0.45f)
+            val leftW = windowW - railW
+            // full width 16:9 like YouTube default view, height pinned so scrolling cannot remeasure into letterboxing, short window scrolls video up
+            val stageH = leftW * 9f / 16f
             Row(Modifier.fillMaxSize()) {
-                Column(Modifier.width(windowW - railW).fillMaxHeight()) {
-                    stage(false, Modifier.fillMaxWidth().aspectRatio(16f / 9f), back)
+                // one scroll container for whole left pane including video, before only info below scrolled so tall video covered content
+                Column(
+                    Modifier.width(leftW).fillMaxHeight()
+                        .verticalScroll(leftScroll),
+                ) {
+                    stage(false, Modifier.fillMaxWidth().height(stageH), leftScroll.value.toFloat(), back)
                     if (failed != null) ResolveError(failed, again, back)
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        Spacer(Modifier.height(16.dp))
-                        Info(
-                            media, detail, synopsis, isTv, episodes, loadingEpisodes, seasonSel, episode,
-                            onEpisode = onEpisode, onOpenPlot = { panel = PlayerPanel.Plot },
-                            onAllEpisodes = { panel = PlayerPanel.Episodes },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                    Spacer(Modifier.height(16.dp))
+                    Info(
+                        media, detail, synopsis, isTv, episodes, loadingEpisodes, seasonSel, episode,
+                        onEpisode = onEpisode, onOpenPlot = { panel = PlayerPanel.Plot },
+                        onAllEpisodes = { panel = PlayerPanel.Episodes },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(24.dp))
                 }
                 Box(Modifier.width(railW).fillMaxHeight().background(RailColor)) {
                     Box(Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.07f)))
@@ -397,7 +405,7 @@ fun PlayerScreen(
             PlatformBackHandler(enabled = progress > 0.5f) { glide(0f) }
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxWidth().height(stageH + (fullH - stageH) * progress)) {
-                    stage(false, Modifier.fillMaxSize(), back)
+                    stage(false, Modifier.fillMaxSize(), 0f, back)
                 }
                 Box(
                     Modifier.offset { IntOffset(0, (restPx + sheet).roundToInt()) }
@@ -465,6 +473,7 @@ private fun Stage(
     media: Title,
     season: String,
     episode: String,
+    scrollOffset: Float = 0f,
 ) {
     val start = remember(media.kind, media.id, season, episode) {
         Resume.startAt(Resume.position(media.kind, media.id, season, episode), 0L)
@@ -474,6 +483,7 @@ private fun Stage(
         WebPlayer(
             sources, subs, label, onBack, fullscreen = fs,
             startMs = start,
+            scrollOffset = scrollOffset,
             onProgress = { pos, dur -> if (keep) Resume.save(media, season, episode, pos, dur) },
             modifier = Modifier.fillMaxSize(),
         )
@@ -694,7 +704,7 @@ private fun PanelBody(
     onClose: () -> Unit,
     modifier: Modifier = Modifier.fillMaxSize(),
 ) {
-    // panel sliding away keeps content until it has left the screen
+    // panel sliding away keeps content until it left screen
     var shown by remember { mutableStateOf(panel) }
     if (panel != PlayerPanel.None) shown = panel
     PlatformBackHandler(enabled = true) { onClose() }

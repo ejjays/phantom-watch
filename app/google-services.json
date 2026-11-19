@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1082001470621",
+    "project_id": "phantom-watch-cf75a",
+    "storage_bucket": "phantom-watch-cf75a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1082001470621:android:e23bf00943c61f74d75074",
+        "android_client_info": {
+          "package_name": "dev.phantomwatch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtq5iCJ5AioJaYmMzazgNSf_h3f1G6uyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1082001470621:android:5485d74b4f0955ead75074",
+        "android_client_info": {
+          "package_name": "dev.phantomwatch.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtq5iCJ5AioJaYmMzazgNSf_h3f1G6uyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

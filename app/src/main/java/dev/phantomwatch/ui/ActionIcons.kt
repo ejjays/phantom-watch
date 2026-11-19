@@ -41,6 +41,26 @@ internal fun ShareIcon(contentDescription: String?, tint: Color, size: Dp) {
 }
 
 @Composable
+internal fun MoreIcon(contentDescription: String?, tint: Color, size: Dp) {
+    Icon(
+        painter = painterResource(R.drawable.ic_more_vert),
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = Modifier.size(size),
+    )
+}
+
+@Composable
+internal fun DownloadMenuIcon(contentDescription: String?, tint: Color, size: Dp) {
+    Icon(
+        painter = painterResource(R.drawable.ic_download_menu),
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = Modifier.size(size),
+    )
+}
+
+@Composable
 internal fun AddIcon(contentDescription: String?, tint: Color, size: Dp) {
     Icon(
         painter = painterResource(R.drawable.ic_add),

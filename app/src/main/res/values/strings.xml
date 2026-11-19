@@ -28,7 +28,26 @@
     <string name="approot_logs_clear">Clear</string>
     <string name="approot_logs_copy">Copy all</string>
 
-    <string name="update_allow_install">Allow Phantom Watch to install apps, then run install.sh again</string>
+    <string name="update_allow_install">Allow Phantom Watch to install apps to continue</string>
+    <string name="update_progress_title">Updating Phantom Watch</string>
+    <string name="update_progress_downloading">Downloading %1$d%%</string>
+    <string name="update_progress_installing">Installing…</string>
+    <string name="update_cancelled">Update cancelled</string>
+    <string name="update_failed">Update failed. Try again.</string>
+    <string name="update_no_space">Not enough space to update</string>
+    <string name="update_will_close">Confirm on the next screen, then reopen Phantom Watch.</string>
+    <string name="update_ready">Ready to install</string>
+    <string name="update_install">Install</string>
+    <string name="update_applied">Updated to %1$s</string>
+    <string name="phantom_progress_title">Getting Phantom</string>
+    <string name="phantom_installed">Phantom installed, opening…</string>
+    <string name="phantom_downloader_installed">Phantom downloader installed</string>
+
+    <string name="push_channel_releases">App updates</string>
+    <string name="push_channel_releases_note">New versions of Phantom Watch</string>
+    <string name="push_release_title">New update available ✨</string>
+    <string name="push_release_body">A new version is ready to install. Tap to update.</string>
+    <string name="push_open">Open</string>
 
     <string name="next_up_title">UP NEXT</string>
     <string name="next_up_playing_in">Up next in %1$ds</string>
@@ -44,7 +63,7 @@
     <string name="player_enter_fullscreen">Enter fullscreen</string>
     <string name="player_exit_fullscreen">Exit fullscreen</string>
     <string name="player_episodes">Episodes</string>
-    <string name="player_episodes_short">EP</string>
+    <string name="player_episodes_short">EPISODES</string>
     <string name="player_episode_no">EP %1$d</string>
     <string name="player_season">Season %1$d</string>
     <string name="player_pause">Pause</string>
@@ -59,8 +78,21 @@
     <string name="player_skip_recap">Skip recap</string>
     <string name="player_skip_intro">Skip intro</string>
     <string name="player_next_episode">Next episode</string>
+    <string name="player_seek_back">Undo</string>
     <string name="player_more_like_this">More Like This</string>
     <string name="player_story_plot">Story plot</string>
+    <string name="player_download">Download</string>
+    <string name="player_more_options">More options</string>
+    <string name="player_download_opening">Opening Phantom…</string>
+    <string name="player_download_needs_update">Phantom needs an update. Install the latest version and try again.</string>
+    <string name="player_download_install">Install Phantom</string>
+    <string name="player_local_failed">This download can\'t be played — the file may have been moved or deleted.</string>
+    <string name="phantom_install_title">Phantom</string>
+    <string name="phantom_install_subtitle">Download from the apps you already use.</string>
+    <string name="phantom_install_sites">WORKS WITH</string>
+    <string name="phantom_install_more">+11</string>
+    <string name="phantom_install_cta">Get Phantom</string>
+    <string name="phantom_install_later">Not now</string>
     <string name="player_like">Like</string>
     <string name="player_dislike">Dislike</string>
     <string name="player_all_episodes">All episodes</string>
@@ -181,5 +213,6 @@
     <string name="you_history_cleared">Watch history cleared</string>
     <string name="you_report_copied">Logs copied to clipboard</string>
     <string name="you_sign_in_failed">Sign-in failed. Try again.</string>
+    <string name="you_about_up_to_date">Phantom Watch is up to date</string>
     <string name="clips_empty">No clips to show right now.</string>
 </resources>

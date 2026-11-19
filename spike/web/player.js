@@ -1,6 +1,4 @@
-// player chrome for the web build. phone draws this in compose over a SurfaceView, browser gets a
-// <video> element, so same layout is rebuilt in DOM/CSS from player/PlayerStage.kt. sizes are
-// dp == css px, matching density of 1 on rest of web ui
+// web player chrome, phone draws in compose over SurfaceView, browser uses <video>, same layout rebuilt in DOM/CSS from PlayerStage.kt, dp == css px
 (function () {
   'use strict';
 
@@ -9,11 +7,10 @@
   var ICON = window.PW_ICONS || {};
   var EASE = 'cubic-bezier(.4,0,.2,1)';
 
-  // console trail for playback problems, index.html holds the sink
+  // console trail for playback problems, index.html holds sink
   function log(t, m) { if (window.pwLog) window.pwLog(t, m); }
 
-  // page keeps one recent list for library tab and continue rail, so playhead is saved there
-  // and not in a second store here
+  // page keeps one recent list for library tab and continue rail so playhead saved there not second store
   function seekStart(S) {
     var v = S.v, t = S.startAt || 0;
     if (t > 0 && v.duration > 0 && t < v.duration * 1000 - 30000) {
@@ -154,6 +151,28 @@
 
   // compose sizes stage, on tablet video is one pane of split layout
   var STAGE = null;
+  // compose canvas under dom overlays so wheel never reaches it, replay only those with original deltas, browser handles canvas natively, replay doubles scroll
+  function composeCanvas() {
+    var hosts = document.querySelectorAll('#app div');
+    for (var i = 0; i < hosts.length; i++) {
+      if (hosts[i].shadowRoot) {
+        var c = hosts[i].shadowRoot.querySelector('canvas');
+        if (c) return c;
+      }
+    }
+    return document.querySelector('canvas');
+  }
+  document.addEventListener('wheel', function (e) {
+    // only player chrome sits above compose, elsewhere browser delivers wheel to canvas natively and replay doubles scroll
+    if (!STAGE || !STAGE.contains(e.target)) return;
+    var c = composeCanvas();
+    if (!c) return;
+    c.dispatchEvent(new WheelEvent('wheel', {
+      deltaX: e.deltaX, deltaY: e.deltaY,
+      clientX: e.clientX, clientY: e.clientY,
+      bubbles: true, cancelable: true, composed: true,
+    }));
+  }, { passive: true });
   window.pwBounds = function (left, top, width, height) {
     if (!STAGE) return;
     STAGE.style.left = left + 'px';
@@ -163,8 +182,7 @@
     if (STAGE.__pwS) applyZoom(STAGE.__pwS);
   };
 
-  // stage sized to picture stream has, as phone does, so a 2.39:1 film is not letterboxed in a
-  // 16:9 box. zero until first metadata
+  // stage sized to picture stream has as phone does, so 2.39:1 film not letterboxed in 16:9 box, zero until first metadata
   window.pwAspect = function () {
     var s = STAGE && STAGE.__pwS;
     if (!s || !s.v || !s.v.videoWidth || !s.v.videoHeight) return 0;
@@ -346,8 +364,7 @@
     }
   }
 
-  // SubtitleLayer in player/PlayerVideo.kt: bottom centre of video rect, 5.33% of its height,
-  // 14 px up, #080C10 at 80% with a 0.52em radius
+  // SubtitleLayer in PlayerVideo.kt: bottom centre of video rect, 5.33% of height, 14 px up, #080C10 at 80%, 0.52em radius
   function subTime(s) {
     var m = /^(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})$/.exec(s.trim());
     if (!m) return -1;
@@ -415,7 +432,7 @@
     return barFraction(BAR_CTX.getImageData(0, 0, 48, 48).data, 48, 48);
   }
 
-  // PlayerVideo.kt cutL/cutR: strip a fullscreen phone keeps clear of notch
+  // PlayerVideo.kt cutL/cutR: strip fullscreen phone keeps clear of notch
   function cutout() {
     var d = el('div');
     d.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;' +
@@ -430,13 +447,11 @@
   function zoomAspect(S) {
     var v = S.v;
     if (!v.videoWidth || !v.videoHeight) return 0;
-    // baked in bars are picture user should not see: a 2.39 film in a 16:9 encode
+    // baked in bars are picture user should not see, 2.39 film in 16:9 encode
     return (v.videoWidth / v.videoHeight) / (1 - S.pad);
   }
 
-  // stage box is video box with picture object-fit:contain inside, so a mode is one scale factor
-  // over contain plus a clip for bars and overflow. full runs under notch strip and takes whole
-  // box, other two stay inside cutL/cutR as app safe width does
+  // stage box is video box with object-fit:contain picture, mode is scale over contain plus clip for bars, full under notch strip, others inside cutL/cutR
   function applyZoom(S) {
     var v = S.v, r = S.stage.getBoundingClientRect();
     var aspect = zoomAspect(S);
@@ -468,7 +483,7 @@
     S.subKey = '';
   }
 
-  // PlayerScreen.kt: picture that nearly fills stage opens filled, a 4% bar needs no pinch
+  // PlayerScreen.kt: picture that nearly fills stage opens filled, 4% bar needs no pinch
   function autoFill(S) {
     if (!S.zoom || S.zoomInit || !S.v.videoWidth) return;
     S.zoomInit = true;
@@ -588,8 +603,7 @@
     S.stage.addEventListener('pointercancel', up);
   }
 
-  // <video> box is not picture, object-fit:contain letterboxes it, portrait phone gives a 360x800
-  // box around a 360x202 frame. size and anchor to picture
+  // <video> box is not picture, object-fit:contain letterboxes it, portrait phone gives 360x800 box around 360x202 frame, size and anchor to picture
   function pictureRect(S) {
     var r = S.v.getBoundingClientRect();
     var vw = S.v.videoWidth, vh = S.v.videoHeight;
@@ -775,8 +789,7 @@
     }, 330);
   }
 
-  // browser only paints fullscreen subtree and <video> is a body child, so whole document goes
-  // fullscreen, compose then drops to stage only layout
+  // browser only paints fullscreen subtree and <video> is body child, so whole document goes fullscreen, compose then drops to stage only layout
   var INAPP = false;
   function setFullscreen() {
     if (INAPP) { INAPP = false; document.dispatchEvent(new Event('pwfs')); return; }
@@ -832,7 +845,7 @@
       backBtn.innerHTML = '<span class="pw-glyph">' + (on ? ICON.chevron_down : ICON.back) + '</span>';
       backBtn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Close player');
     }
-    // caption size is keyed to picture rect, force a remeasure
+    // caption size is keyed to picture rect, force remeasure
     if (STAGE.__pwS) updateZoom(STAGE.__pwS);
   };
 
@@ -1204,7 +1217,7 @@
     } else {
       log('play', 'player error no source left after ' + st.list.length);
       S.stage.dataset.stall = '0';
-      // PlayerScreen flips netErr on same event and offers a way out (PlayerFailedOverlay)
+      // PlayerScreen flips netErr on same event and offers way out (PlayerFailedOverlay)
       document.dispatchEvent(new Event('pwfail'));
     }
   }
@@ -1235,8 +1248,7 @@
   // swaps layout. same here: stage goes up empty and pwAttach fills it later
   window.pwStall = function (v, title) {
     var S = v.__pw ? v.__pw.S : mount(v);
-    // PlayerResolving passes canSubs/canSettings false, nothing to pick from yet so both read
-    // dimmed rather than opening an empty menu
+    // PlayerResolving passes canSubs/canSettings false, nothing to pick yet so both read dimmed rather than empty menu
     S.cc.disabled = true;
     S.cc.dataset.off = '1';
     S.gear.disabled = true;
@@ -1255,8 +1267,7 @@
     if (!list.length) return;
 
     var S = v.__pw ? v.__pw.S : mount(v);
-    // outside a branch: pwStall may have built the stage already, its chrome still has to start
-    // auto hiding now there is something to watch
+    // outside branch, pwStall may have built stage already, its chrome still has to start auto hiding now something to watch
     poke(S);
     v.__pw.list = list;
     v.__pw.i = 0;
@@ -1304,13 +1315,12 @@
     if (S.stage.parentNode) S.stage.parentNode.removeChild(S.stage);
   };
 
-  // title effect can run before stage exists, so it is kept on the element
+  // title effect can run before stage exists, so kept on element
   window.pwTitle = function (v, text) {
     if (!v) return;
     v.__pwTitle = text || '';
     if (v.__pw) v.__pw.S.title.textContent = v.__pwTitle;
   };
 
-  // expose for boot overlay / debugging
   window.pwPlayerMounted = function () { return !!document.querySelector('.pw-stage'); };
 })();

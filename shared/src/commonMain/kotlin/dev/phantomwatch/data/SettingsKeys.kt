@@ -13,9 +13,10 @@ object SettingsKeys {
     const val SHARE_USAGE = "share_usage"
     const val SEEK_STEP = "seek_step"
     const val NEXT_COUNT = "next_count"
+    const val COUNTRY = "country"
 
     val ALL = setOf(
         SUBS_ON, SUBS_SIZE, SUBS_BG, SAVE_HISTORY, CONTINUE_WATCHING,
-        AUTOPLAY, SKIP_INTRO, SHARE_USAGE, SEEK_STEP, NEXT_COUNT,
+        AUTOPLAY, SKIP_INTRO, SHARE_USAGE, SEEK_STEP, NEXT_COUNT, COUNTRY,
     )
 }

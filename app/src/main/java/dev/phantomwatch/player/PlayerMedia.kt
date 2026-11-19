@@ -279,10 +279,14 @@ internal fun sourceFor(
 internal fun buildPreviewPlayer(context: android.content.Context, stream: Stream): ExoPlayer {
     val headers = mediaHeaders(stream)
     val selector = DefaultTrackSelector(context).apply {
-        parameters = buildUponParameters()
+        val params = buildUponParameters()
             .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-            .build()
+        // adaptive streams can serve a small rendition, a scrub only needs a frame to look at
+        // and a 1080p seek costs more than the picture is worth. single file sources keep their
+        // only track, capping there would leave the preview with nothing to show
+        if (stream.isHls) params.setMaxVideoSizeSd()
+        parameters = params.build()
     }
     val loadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(2000, 5000, 1000, 1000)

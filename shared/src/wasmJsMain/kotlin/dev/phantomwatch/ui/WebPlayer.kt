@@ -24,8 +24,7 @@ import kotlinx.coroutines.delay
 import org.w3c.dom.HTMLVideoElement
 import org.w3c.dom.events.Event
 
-// phone runs media3 on a SurfaceView, browser gets a <video> element parked under same composable
-// rect, with chrome, gestures and keys in spike/web/player.js
+// phone runs media3 on SurfaceView, browser gets <video> element parked under same composable rect, chrome gestures keys in spike/web/player.js
 @Composable
 fun WebPlayer(
     sources: List<PlaySource>,
@@ -34,6 +33,7 @@ fun WebPlayer(
     onBack: () -> Unit,
     fullscreen: Boolean = false,
     startMs: Long = 0L,
+    scrollOffset: Float = 0f,
     onProgress: (Long, Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
@@ -43,8 +43,7 @@ fun WebPlayer(
     val back by rememberUpdatedState(onBack)
     val progress by rememberUpdatedState(onProgress)
 
-    // phone saves every ten seconds and on the way out, browser does the same so library tab and
-    // continue rail agree with playhead
+    // phone saves every ten seconds and on way out, browser same so library tab and continue rail agree with playhead
     LaunchedEffect(title) {
         while (true) {
             delay(5_000)
@@ -69,26 +68,36 @@ fun WebPlayer(
     }
     LaunchedEffect(title) { pwTitle(video, title) }
     LaunchedEffect(fullscreen) { pwFullscreen(fullscreen) }
-    LaunchedEffect(bounds, scale, sources, subs, title) {
+    LaunchedEffect(bounds, scale, sources, subs, title, scrollOffset) {
         val s = video.style
         s.left = "${(bounds.left / scale).toInt()}px"
-        s.top = "${(bounds.top / scale).toInt()}px"
+        // video fixed to window, move it up by pane scroll so it travels with compose content instead of covering it
+        s.top = "${(bounds.top / scale - scrollOffset).toInt()}px"
         s.width = "${(bounds.width / scale).toInt()}px"
         s.height = "${(bounds.height / scale).toInt()}px"
         val ready = bounds.width > 0f
         s.visibility = if (ready) "visible" else "hidden"
         if (!ready) return@LaunchedEffect
-        // no sources is the resolving screen: chrome goes up stalled, the state PlayerResolving
-        // draws, and attach fills that stage instead of building a second one
+        // no sources is resolving screen, chrome goes up stalled, PlayerResolving draws and attach fills that stage instead of building second one
         if (sources.isEmpty()) {
-            attached = null // a retry hands back the same list, and attach() dedupes on it
+            attached = null // retry hands back same list, attach() dedupes on it
             pwStall(video, title)
         } else {
             attach(video, sources, subs, startMs)
         }
-        pwBounds(bounds.left / scale, bounds.top / scale, bounds.width / scale, bounds.height / scale)
+        pwBounds(
+            bounds.left / scale,
+            bounds.top / scale - scrollOffset,
+            bounds.width / scale,
+            bounds.height / scale,
+        )
     }
-    Box(modifier.background(Color.Black).onGloballyPositioned { bounds = it.boundsInWindow() })
+    Box(modifier.background(Color.Black).onGloballyPositioned { coords ->
+        // boundsInWindow() clipped by pane shrinks video and letterboxes it, keep layout full size and real window position so video moves up intact
+        val p = coords.boundsInWindow().topLeft
+        val s = coords.size
+        bounds = Rect(p.x, p.y, p.x + s.width, p.y + s.height)
+    })
 }
 
 // provided by spike/web/player.js
@@ -108,8 +117,7 @@ private var attached: String? = null
 
 private fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
 
-// list is the fallback chain: player.js moves to next source on a fatal error, and hls.js only
-// ever sees HLS. one JSON document for both lists
+// list is fallback chain, player.js moves to next source on fatal error, hls.js only sees HLS, one JSON document for both lists
 private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<SubSource>, startMs: Long) {
     if (sources.isEmpty()) return
     val json = buildString {
@@ -132,7 +140,7 @@ private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<Su
     pwAttach(v, json)
 }
 
-// duration is NaN until first metadata, and a live stream never settles
+// duration is NaN until first metadata, live stream never settles
 private fun report(v: HTMLVideoElement, sink: (Long, Long) -> Unit) {
     val dur = v.duration
     if (!dur.isFinite() || dur <= 0.0) return

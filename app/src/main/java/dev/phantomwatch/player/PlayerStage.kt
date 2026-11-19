@@ -3,6 +3,7 @@ package dev.phantomwatch.player
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -39,6 +41,7 @@ import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
@@ -46,7 +49,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -72,6 +78,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
@@ -94,10 +101,16 @@ import dev.phantomwatch.ui.Cyan
 import dev.phantomwatch.ui.Lilita
 import dev.phantomwatch.ui.WorkSans
 import dev.phantomwatch.ui.Slate200
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class ZoneTap { Left, Center, Right }
+
+// one full stage width of horizontal swipe covers this much runtime
+private const val SEEK_SWIPE_MS = 90_000f
 
 enum class SeekSide { Left, Right }
 
@@ -199,22 +212,84 @@ fun PlayerStage(
         cfg.smallestScreenWidthDp < 600
     val portrait = cfg.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     val atEdge = fullscreen || landscapePhone
+    val ctrlIcon = if (landscapePhone) 24.dp else 20.dp
+    val ctrlBox = if (landscapePhone) 56.dp else 48.dp
+    val ctrlGap = if (landscapePhone) 6.dp else 0.dp
+    val clockSize = if (landscapePhone) 13.sp else 11.sp
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val edgePx = with(LocalDensity.current) { (if (atEdge) topInset else 0.dp).toPx() }
     // one bottom inset, never two: the caller's own lift and atEdge must not stack
-    val navPad = if (atEdge) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() else 0.dp
+    val navPad = if (atEdge) WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding() else 0.dp
     val bottomPad = if (sidebarOpen) 0.dp else navPad
-    val edgeSides = (if (atEdge) WindowInsets.navigationBars else WindowInsets(0))
+    val edgeSides = (if (atEdge) WindowInsets.navigationBarsIgnoringVisibility else WindowInsets(0))
         .union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal)
     val liveMode = rememberUpdatedState(mode)
     val liveSafe = rememberUpdatedState(safe)
+    val livePos = rememberUpdatedState(positionMs)
+    val liveDur = rememberUpdatedState(durationMs)
+    // fraction swipe is previewing, null when finger is off picture
+    var seekSwipe by remember { mutableStateOf<Float?>(null) }
+    // held after release so readout fades on frame finger left it on
+    var swipeShown by remember { mutableStateOf(0f) }
+    // frame kept up until picture lands on new position, seek moves clock at once but decoder
+    // takes a beat and old frame flashes in that gap
+    var seekHold by remember { mutableStateOf<Float?>(null) }
+    LaunchedEffect(seekHold) {
+        val h = seekHold ?: return@LaunchedEffect
+        val target = (h * liveDur.value).toLong()
+        delay(200)
+        repeat(20) { if (abs(livePos.value - target) > 900) delay(60) }
+        if (seekHold == h) seekHold = null
+    }
+    var seekBack by remember { mutableStateOf<Long?>(null) }
+    var seekBackJob by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
+    fun seekBarTo(f: Float) {
+        if (durationMs > 0) seekBack = positionMs
+        seekBackJob?.cancel()
+        seekBackJob = scope.launch {
+            delay(4000)
+            seekBack = null
+        }
+        onSeek(f)
+    }
+    fun endSeekSwipe() {
+        val f = seekSwipe
+        seekSwipe = null
+        onScrub(null)
+        if (f != null) {
+            seekHold = f
+            onSeek(f)
+        }
+    }
+    // second finger makes pinch, first finger drag would seek under it or change brightness
+    val pinch = remember { intArrayOf(0) }
+    fun dropSeekSwipe() {
+        seekSwipe = null
+        onScrub(null)
+    }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.Black)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val down = awaitPointerEvent(PointerEventPass.Initial).changes.count { it.pressed }
+                        if (down > 1) {
+                            pinch[0] = 1
+                            if (seekSwipe != null) dropSeekSwipe()
+                        } else if (down == 0) {
+                            pinch[0] = 0
+                        }
+                    }
+                }
+            }
             .pointerInput(locked) {
                 var startSide = 0
                 var accX = 0f
                 var accY = 0f
                 var vertical = false
+                var horizontal = false
+                var seekFrom = 0f
                 var sheetZone = false
                 var fromEdge = false
                 val vel = VelocityTracker()
@@ -232,15 +307,29 @@ fun PlayerStage(
                         accX = 0f
                         accY = 0f
                         vertical = false
+                        horizontal = false
+                        seekFrom = if (liveDur.value > 0) {
+                            (livePos.value.toFloat() / liveDur.value).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
                         sheetZone = !fromEdge && it.y >= zone.value()
                         vel.resetTracking()
                     },
                     onDragEnd = {
-                        if (sheetZone) onSheetDragEnd(vel.calculateVelocity().y)
+                        if (pinch[0] != 0) {
+                            dropSeekSwipe()
+                            onSwipeEnd()
+                        } else if (sheetZone) onSheetDragEnd(vel.calculateVelocity().y)
+                        else if (horizontal) endSeekSwipe()
                         else if (vertical) onSwipeEnd()
                     },
                     onDragCancel = {
-                        if (sheetZone) onSheetDragEnd(0f)
+                        if (pinch[0] != 0) {
+                            dropSeekSwipe()
+                            onSwipeEnd()
+                        } else if (sheetZone) onSheetDragEnd(0f)
+                        else if (horizontal) endSeekSwipe()
                         else if (vertical) onSwipeEnd()
                     },
                     onDrag = { change, drag ->
@@ -249,13 +338,30 @@ fun PlayerStage(
                                 vel.addPointerInputChange(change)
                                 change.consume()
                                 onSheetDrag(drag.y)
-                            } else if (!locked) {
+                            } else if (!locked && pinch[0] == 0) {
                                 accX += drag.x
                                 accY += drag.y
-                                if (!vertical && abs(accY) > abs(accX) * 1.5f && abs(accY) > 24f) vertical = true
+                                if (!vertical && !horizontal) {
+                                    if (abs(accY) > abs(accX) * 1.5f && abs(accY) > 24f) {
+                                        vertical = true
+                                    } else if (abs(accX) > abs(accY) * 1.5f && abs(accX) > 24f) {
+                                        horizontal = true
+                                    }
+                                }
                                 if (vertical && startSide != 0) {
                                     change.consume()
                                     onSwipe(startSide == 1, drag.y)
+                                } else if (horizontal) {
+                                    change.consume()
+                                    val dur = liveDur.value
+                                    if (dur > 0) {
+                                        // full stage width is fixed span, predictable at any length
+                                        val span = size.width.toFloat().coerceAtLeast(1f)
+                                        val f = (seekFrom + accX / span * SEEK_SWIPE_MS / dur).coerceIn(0f, 1f)
+                                        seekSwipe = f
+                                        swipeShown = f
+                                        onScrub(f)
+                                    }
                                 }
                             }
                         }
@@ -313,7 +419,58 @@ fun PlayerStage(
                 }
             },
     ) {
-        video(Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) })
+        CompositionLocalProvider(LocalSeekSwipe provides (seekSwipe ?: seekHold)) {
+            video(Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) })
+        }
+        // frame painted by video, only place that knows where pinch zoom put picture,
+        // this layer is bar and clock
+        AnimatedVisibility(
+            visible = seekSwipe != null,
+            enter = fadeIn(tween(120, easing = FastOutSlowInEasing)),
+            exit = fadeOut(tween(220, easing = FastOutSlowInEasing)),
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(),
+        ) {
+            val at = (swipeShown * liveDur.value).toLong()
+            // bar keeps shape its mode rests on, chrome bar above button row in fullscreen,
+            // slim edge bar everywhere else
+            Column(
+                Modifier.fillMaxWidth()
+                    .offset { IntOffset(0, -shiftPx().roundToInt()) }
+                    .then(
+                        if (fullscreen) {
+                            Modifier.padding(horizontal = 16.dp)
+                                .padding(bottom = 8.dp + maxOf(seekInset, bottomPad))
+                        } else {
+                            Modifier.padding(bottom = maxOf(seekInset, bottomPad))
+                        },
+                    )
+                    .windowInsetsPadding(edgeSides),
+            ) {
+                Text(
+                    playerClock(at),
+                    color = Color.White, fontSize = 16.sp, fontFamily = WorkSans, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 10.dp)
+                        .clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = 0.6f))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                )
+                PlayerSeekBar(
+                    positionMs = at,
+                    durationMs = liveDur.value,
+                    bufferedMs = bufferedMs,
+                    slim = !fullscreen,
+                    // the stage owns the finger, the bar here is a readout and must not take it
+                    locked = true,
+                    thumb = fullscreen,
+                    onSeek = {},
+                    onInteract = {},
+                    onScrub = {},
+                    preview = null,
+                )
+                // the button row sits under the bar in the chrome, its height keeps the bar on
+                // the line it always sits on rather than dropping to the edge
+                if (fullscreen) Spacer(Modifier.height(ctrlBox))
+            }
+        }
         Row(Modifier.fillMaxSize()) {
             ZoneTap.entries.forEach { side ->
                 Box(
@@ -327,7 +484,7 @@ fun PlayerStage(
                 )
             }
         }
-        val chrome = controlsVisible && !locked && swipeHud == null
+        val chrome = controlsVisible && !locked && swipeHud == null && seekSwipe == null
         AnimatedVisibility(
             visible = chrome,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
@@ -352,7 +509,7 @@ fun PlayerStage(
                         slim = false,
                         locked = locked,
                         thumb = true,
-                        onSeek = onSeek,
+                        onSeek = ::seekBarTo,
                         onInteract = onInteract,
                         onScrub = onScrub,
                         preview = preview,
@@ -360,61 +517,63 @@ fun PlayerStage(
                 }
                 Row(
                     Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ctrlGap),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         "${playerClock(positionMs)} / ${playerClock(durationMs)}",
-                        color = Slate200, fontSize = 11.sp, fontFamily = WorkSans,
+                        color = Slate200, fontSize = clockSize, fontFamily = WorkSans,
                         modifier = Modifier.weight(1f),
                     )
                     if (fullscreen && landscapePhone && canEpisodes) {
                         Row(
-                            Modifier.height(48.dp).widthIn(min = 48.dp)
-                                .focusRing(RoundedCornerShape(24.dp)).clickable(
+                            Modifier.height(ctrlBox).widthIn(min = ctrlBox)
+                                .clip(RoundedCornerShape(28.dp))
+                                .focusRing(RoundedCornerShape(28.dp)).clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
+                                indication = ripple(color = Color.White.copy(alpha = 0.22f)),
                             ) { onEpisodes() }
-                                .padding(horizontal = 8.dp),
+                                .padding(horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center,
                         ) {
                             Text(
                                 stringResource(R.string.player_episodes_short),
-                                color = Color.White, fontSize = 11.sp, fontFamily = WorkSans,
+                                color = Color.White, fontSize = 12.sp, fontFamily = WorkSans,
                                 fontWeight = FontWeight.SemiBold,
                             )
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(6.dp))
                             Icon(
                                 painterResource(R.drawable.ic_episodes),
                                 contentDescription = stringResource(R.string.player_episodes),
-                                tint = Color.White, modifier = Modifier.size(20.dp),
+                                tint = Color.White, modifier = Modifier.size(ctrlIcon),
                             )
                         }
                     }
                     Box(
-                        Modifier.size(48.dp).focusRing().clickable(
+                        Modifier.size(ctrlBox).clip(CircleShape).focusRing().clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
+                            indication = ripple(color = Color.White.copy(alpha = 0.22f)),
                         ) { onToggleMute() },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on),
                             contentDescription = if (muted) stringResource(R.string.player_unmute) else stringResource(R.string.player_mute),
-                            tint = Color.White, modifier = Modifier.size(20.dp),
+                            tint = Color.White, modifier = Modifier.size(ctrlIcon),
                         )
                     }
                     Box(
-                        Modifier.size(48.dp).focusRing().clickable(
+                        Modifier.size(ctrlBox).clip(CircleShape).focusRing().clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
+                        indication = ripple(color = Color.White.copy(alpha = 0.22f)),
                     ) { onFullscreen() },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             painterResource(if (fullscreen) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen),
                             contentDescription = if (fullscreen) stringResource(R.string.player_exit_fullscreen) else stringResource(R.string.player_enter_fullscreen),
-                            tint = Color.White, modifier = Modifier.size(20.dp),
+                            tint = Color.White, modifier = Modifier.size(ctrlIcon),
                         )
                     }
                 }
@@ -598,13 +757,37 @@ fun PlayerStage(
             }
         }
         LaunchedEffect(at.inOutro) { if (at.inOutro) AppLog.d("outro pill on ${positionMs / 1000}s") }
+        val pillLift by animateDpAsState(
+            targetValue = if (controlsVisible) 16.dp + ctrlBox + if (seekBar) 24.dp else 0.dp else 16.dp,
+            animationSpec = tween(220, easing = FastOutSlowInEasing),
+            label = "skipPillLift",
+        )
         if (at.inIntro || at.inOutro) {
             PlayerPill(
                 text = stringResource(pillText(at.inRecap, at.inIntro)),
                 modifier = Modifier.align(Alignment.BottomEnd)
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
-                    .padding(end = 16.dp, bottom = maxOf(seekInset, bottomPad) + if (controlsVisible) 64.dp else 16.dp),
+                    .padding(end = 16.dp, bottom = maxOf(seekInset, bottomPad) + pillLift)
+                    .windowInsetsPadding(edgeSides),
             ) { if (at.inIntro || at.inRecap) onSkipIntro() else onNextEpisode?.invoke() }
+        }
+        seekBack?.let { back ->
+            if (durationMs > 0) {
+                PlayerPill(
+                    text = stringResource(R.string.player_seek_back),
+                    icon = R.drawable.ic_revert,
+                    iconBefore = true,
+                    iconSize = 16.dp,
+                    modifier = Modifier.align(Alignment.BottomEnd)
+                        .offset { IntOffset(0, -shiftPx().roundToInt()) }
+                        .padding(end = 16.dp, bottom = maxOf(seekInset, bottomPad) + pillLift)
+                        .windowInsetsPadding(edgeSides),
+                ) {
+                    seekBackJob?.cancel()
+                    seekBack = null
+                    onSeek(back.toFloat() / durationMs)
+                }
+            }
         }
         if (stalled && showSpinner) {
             Box(
@@ -652,7 +835,11 @@ private fun PlayerTopBar(
 ) {
     val subsActive = subsOn && canSubs
     // 48dp boxes: a 20dp glyph with padding around it only taps inside the glyph itself
-    val iconBox = Modifier.size(48.dp)
+    val iconBox = Modifier.size(48.dp).clip(CircleShape)
+    val cfg = LocalConfiguration.current
+    val phone = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+        cfg.smallestScreenWidthDp < 600
+    val glyphSize = if (large || phone) 24.dp else 20.dp
     Column(
         Modifier.fillMaxWidth()
             .padding(top = if (titleBelow) 4.dp else topGap).padding(end = if (large) 16.dp else 8.dp),
@@ -664,14 +851,14 @@ private fun PlayerTopBar(
             Box(
                 Modifier.padding(start = 4.dp).then(iconBox).focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
+                    indication = ripple(color = Color.White.copy(alpha = 0.22f)),
                 ) { if (fullscreen) onFullscreen() else onBack() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     painterResource(if (fullscreen) R.drawable.ic_chevron_down else R.drawable.ic_back),
                     contentDescription = if (fullscreen) stringResource(R.string.player_exit_fullscreen) else stringResource(R.string.player_close),
-                    tint = Color.White, modifier = Modifier.size(if (large) 24.dp else 20.dp),
+                    tint = Color.White, modifier = Modifier.size(glyphSize),
                 )
             }
             if (fullscreen && !titleBelow) {
@@ -686,7 +873,7 @@ private fun PlayerTopBar(
             Box(
                 iconBox.focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
+                    indication = ripple(color = Color.White.copy(alpha = 0.22f)),
                 ) { onToggleSubs() },
                 contentAlignment = Alignment.Center,
             ) {
@@ -694,13 +881,13 @@ private fun PlayerTopBar(
                     painterResource(if (subsActive) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
                     contentDescription = if (subsActive) stringResource(R.string.player_subs_off) else stringResource(R.string.player_subs_on),
                     tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
-                    modifier = Modifier.size(if (large) 24.dp else 20.dp),
+                    modifier = Modifier.size(glyphSize),
                 )
             }
             Box(
                 iconBox.focusRing().clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
+                    indication = ripple(color = Color.White.copy(alpha = 0.22f)),
                     enabled = canSettings,
                 ) { onSettings() },
                 contentAlignment = Alignment.Center,
@@ -709,7 +896,7 @@ private fun PlayerTopBar(
                     painterResource(R.drawable.ic_settings),
                     contentDescription = stringResource(R.string.player_settings),
                     tint = if (settingsOn) Cyan else Color.White.copy(alpha = if (canSettings) 1f else 0.4f),
-                    modifier = Modifier.size(if (large) 24.dp else 20.dp),
+                    modifier = Modifier.size(glyphSize),
                 )
             }
         }
@@ -824,11 +1011,10 @@ private fun PlayerSeekBar(
                         .background(playedColor),
                 )
             }
-            if (!slim && thumb && scrub != null && trackW > 0) {
+            if (!slim && thumb && trackW > 0) {
                 val thumbOff = with(LocalDensity.current) {
                     val r = 7.dp.roundToPx()
-                    if (trackW <= 0) 0
-                    else (shown * trackW).roundToInt().coerceIn(r, (trackW - r).coerceAtLeast(r)) - r
+                    (shown * trackW).roundToInt().coerceIn(r, (trackW - r).coerceAtLeast(r)) - r
                 }
                 Box(
                     Modifier.align(Alignment.BottomStart)
@@ -847,27 +1033,34 @@ private fun ScrubPreview(
     trackW: Int,
     preview: @Composable (Modifier) -> Unit,
 ) {
-    val width = 176.dp
-    val widthPx = with(LocalDensity.current) { width.roundToPx() }
-    val x = if (trackW > widthPx) {
-        ((shown * trackW).roundToInt() - widthPx / 2).coerceIn(0, trackW - widthPx)
-    } else {
-        0
-    }
-    Box(Modifier.fillMaxWidth().offset(y = 12.dp).padding(bottom = 2.dp)) {
+    // rides the bar width so the thumbnail grows with the stage, a phone sized 176dp
+    // card reads as a stamp once the bar spans a landscape screen
+    BoxWithConstraints(Modifier.fillMaxWidth().offset(y = 12.dp).padding(bottom = 2.dp)) {
+        // never taller than half the stage, a 1.1 aspect card would otherwise climb past the picture
+        val budget = maxHeight * 0.5f
+        val bar = with(LocalDensity.current) { trackW.toDp() }
+        val cap = minOf(280.dp, budget * 16f / 9f, bar)
+        val width = with(LocalDensity.current) { (trackW * 0.6f).toDp() }
+            .coerceIn(minOf(176.dp, cap), cap)
+        val widthPx = with(LocalDensity.current) { width.roundToPx() }
+        val x = if (trackW > widthPx) {
+            ((shown * trackW).roundToInt() - widthPx / 2).coerceIn(0, trackW - widthPx)
+        } else {
+            0
+        }
         Column(
             Modifier.offset { IntOffset(x, 0) }.width(width),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                Modifier.fillMaxWidth().heightIn(max = budget).clip(RoundedCornerShape(8.dp))
                     .border(1.dp, Cyan, RoundedCornerShape(8.dp))
                     .background(Color.Black),
             ) {
                 preview(Modifier.fillMaxWidth())
                 Text(
                     playerClock(positionMs),
-                    color = Color.White, fontSize = 10.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold,
+                    color = Color.White, fontSize = 11.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
                         .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(3.dp))
                         .padding(horizontal = 3.dp, vertical = 1.dp),
@@ -887,32 +1080,6 @@ private fun ScrubPreview(
                 Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(Cyan),
             )
         }
-    }
-}
-
-@Composable
-private fun PlayerPill(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Row(
-        modifier.height(32.dp).clip(RoundedCornerShape(16.dp))
-            .background(Color.Black.copy(alpha = 0.55f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-            .focusRing(RoundedCornerShape(16.dp)).clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(start = 12.dp, end = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text, color = Color.White, fontSize = 12.sp,
-            fontFamily = WorkSans, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
-        )
-        Spacer(Modifier.width(1.dp))
-        Icon(
-            painterResource(R.drawable.ic_chevron_right),
-            contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp),
-        )
     }
 }
 

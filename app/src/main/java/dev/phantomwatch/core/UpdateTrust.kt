@@ -10,8 +10,7 @@ internal object UpdateTrust {
         "release-assets.githubusercontent.com",
     )
 
-    // scripts/install.sh serves a build on loopback, only a debug app takes that
-    // path and a release app answers false here whatever it is handed
+    // scripts/install.sh serves build on loopback, only debug app takes that path and release app answers false whatever handed
     fun localEntry(url: String, token: String, allowLocal: Boolean): Boolean =
         allowLocal && token.matches(Regex("[a-f0-9]{64}")) && runCatching {
             val uri = URI(url)
@@ -20,12 +19,17 @@ internal object UpdateTrust {
                 uri.rawPath in setOf("/app-debug.apk", "/app-release.apk")
         }.getOrDefault(false)
 
+    private val RELEASE_PATHS = setOf(
+        "/ejjays/phantom-watch/releases/download/",
+        "/ejjays/phantom/releases/download/",
+    )
+
     fun releaseEntry(value: String): Boolean = runCatching {
         val uri = URI(value)
         uri.scheme == "https" && uri.host == "github.com" && uri.rawUserInfo == null &&
             uri.rawQuery == null && uri.rawFragment == null &&
-            uri.path.startsWith("/ejjays/phantom-watch/releases/download/") &&
-            uri.path.endsWith(".apk")
+            uri.path.endsWith(".apk") &&
+            RELEASE_PATHS.any { uri.path.startsWith(it) }
     }.getOrDefault(false)
 
     // redirects land on signed cdn url with no file name in path, only host checked

@@ -137,7 +137,7 @@ internal fun PlayerSettingsMenu(
         val corner = if (floating) 16.dp else 12.dp
         val shell = if (floating) {
             Modifier.align(Alignment.BottomCenter)
-                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp + bottomPad)
+                .padding(start = 20.dp, end = 20.dp, bottom = 12.dp + bottomPad)
                 .fillMaxWidth()
                 .heightIn(max = (maxHeight - bottomPad).coerceAtLeast(96.dp))
         } else {

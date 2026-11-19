@@ -52,6 +52,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("io.gitlab.arturbosch.detekt")
+    id("com.google.gms.google-services")
 }
 
 detekt {
@@ -177,6 +178,8 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta09")
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
+    implementation("com.google.firebase:firebase-messaging")
     implementation("com.airbnb.android:lottie-compose:6.7.1")
     implementation("io.github.kyant0:backdrop:2.0.1")
     implementation("io.github.kyant0:shapes:1.2.1")

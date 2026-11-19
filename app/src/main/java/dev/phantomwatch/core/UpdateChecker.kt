@@ -66,7 +66,7 @@ object UpdateChecker {
         return best
     }
 
-    private fun releaseOf(entry: JSONObject): Release? {
+    internal fun releaseOf(entry: JSONObject): Release? {
         if (entry.optBoolean("draft")) return null
         val assets = entry.optJSONArray("assets") ?: return null
         for (j in 0 until assets.length()) {

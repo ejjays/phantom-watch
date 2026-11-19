@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- downloaded media lives in MediaStore (inserted by Phantom); a URI grant
+         alone does not survive, so reading the Library files needs this -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
@@ -31,6 +37,7 @@
             android:hardwareAccelerated="true"
             android:supportsPictureInPicture="true"
             android:screenOrientation="@integer/main_orientation"
+            tools:ignore="ManifestResource"
             android:theme="@style/Theme.PhantomWatch.Splash"
             android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden">
@@ -47,6 +54,29 @@
         <receiver
             android:name=".UpdateResultReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".DownloadReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.phantomwatch.action.DOWNLOAD_DONE" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".core.PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="releases" />
+        <meta-data
+            android:name="firebase_messaging_installation_id_enabled"
+            android:value="true" />
         <service
             android:name=".agent.AgentService"
             android:exported="true"

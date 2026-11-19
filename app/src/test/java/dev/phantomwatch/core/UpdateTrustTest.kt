@@ -17,6 +17,13 @@ class UpdateTrustTest {
     }
 
     @Test
+    fun acceptsPhantomDownloaderReleaseApkUrls() {
+        assertTrue(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom/releases/download/v1.2.23/app-release.apk"))
+        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom/releases/download/v1.2.23/notes.txt"))
+        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom/releases/download/v1.2.23/app-release.apk?x=1"))
+    }
+
+    @Test
     fun acceptsLoopbackOnlyForDebugBuilds() {
         val url = "http://127.0.0.1:8123/app-debug.apk"
         val token = "a".repeat(64)

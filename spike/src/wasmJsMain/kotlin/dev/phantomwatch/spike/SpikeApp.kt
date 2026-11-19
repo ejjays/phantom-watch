@@ -30,11 +30,13 @@ import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailScreen
+import dev.phantomwatch.ui.Geo
 import dev.phantomwatch.ui.HomeLiquidTabs
 import dev.phantomwatch.ui.HomeScreen
 import dev.phantomwatch.ui.SurfaceColor
 import dev.phantomwatch.ui.WebTrailer
 import dev.phantomwatch.ui.WideDetail
+import dev.phantomwatch.ui.countryChoiceCode
 import dev.phantomwatch.ui.settings.SettingsAction
 import dev.phantomwatch.ui.settings.SettingsData
 import dev.phantomwatch.ui.settings.SettingsScreen
@@ -52,6 +54,7 @@ private external fun safeAreaCss(): String
 
 @Composable
 fun SpikeApp() {
+    Geo.overrideCode = countryChoiceCode(WebSettings.on(SettingsKeys.COUNTRY, 0))
     val browse = remember { BrowseState() }
     var playing by remember { mutableStateOf<Title?>(null) }
     var playSeason by remember { mutableStateOf("") }

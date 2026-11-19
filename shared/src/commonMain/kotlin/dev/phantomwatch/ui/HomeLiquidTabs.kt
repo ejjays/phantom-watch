@@ -44,7 +44,7 @@ import org.jetbrains.compose.resources.stringResource
 
 private val TabAccent = Color(0xFF00BCD4)
 private val TabDim = Color(0xFFB4BCC5)
-private val TabBadge = Color(0xFFFF453A)
+
 private val TabContainer = Color(0xFF17212B).copy(alpha = 0.34f)
 
 @Composable
@@ -66,9 +66,7 @@ fun HomeLiquidTabs(
         }
     }
 
-    // bubble paints accent tinted row copy over selected tab, badge drawn in
-    // row would be recoloured then covered, so it draws last on top at the
-    // spot the you icon reported
+    // bubble paints accent tinted row copy over selected tab, badge drawn in row would be covered so it draws last at spot you icon reported
     var barOrigin by remember { mutableStateOf<Offset?>(null) }
     var youIcon by remember { mutableStateOf<Rect?>(null) }
 
@@ -86,8 +84,7 @@ fun HomeLiquidTabs(
             showGlass = showGlass,
             borderColor = borderColor,
         ) {
-            // glass bar paints accent with a tinted copy of whole row, flat bar has no copy so
-            // selected tab colours its own icon and label
+            // glass bar paints accent with tinted copy of whole row, flat bar has no copy so selected tab colours own icon and label
             fun tint(index: Int) = if (!showGlass && tab == index) TabAccent else TabDim
             LiquidBottomTab(onClick = { tab = 0; onSelect(0) }) {
                 TabIcon(Res.drawable.ic_tab_home, tint(0))
@@ -118,7 +115,7 @@ fun HomeLiquidTabs(
                         )
                     }
                     .size(7.dp)
-                    .background(TabBadge, CircleShape),
+                    .background(Badge, CircleShape),
             )
         }
     }

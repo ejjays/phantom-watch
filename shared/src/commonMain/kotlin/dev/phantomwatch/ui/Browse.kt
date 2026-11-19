@@ -218,6 +218,7 @@ class BrowseState {
     var trending by mutableStateOf<List<Title>>(emptyList())
     var rails by mutableStateOf<List<RailState>>(emptyList())
     var recent by mutableStateOf<List<Recent>>(emptyList())
+    var downloaded by mutableStateOf<List<Recent>>(emptyList())
     val explore = ExploreFeed()
     var loading by mutableStateOf(true)
     var failed by mutableStateOf(false)
@@ -304,6 +305,11 @@ fun HomeScreen(
     recentRev: Int = 0,
     onRemoveRecent: (Recent) -> Unit = {},
     onRestoreRecent: (List<Recent>) -> Unit = {},
+    loadDownloads: () -> List<Recent> = { emptyList() },
+    downloadsRev: Int = 0,
+    onRemoveDownload: (Recent) -> Unit = {},
+    onRestoreDownload: (Recent, Int) -> Unit = { _, _ -> },
+    onPlayDownloaded: (Recent) -> Unit = {},
     onExitApp: (() -> Unit)? = null,
     searchGhost: @Composable (Dp, Int) -> Unit = { _, _ -> },
     detailPane: @Composable (Title?, () -> Unit, (Title, String, String) -> Unit, Boolean) -> Unit = { _, _, _, _ -> },
@@ -412,6 +418,7 @@ fun HomeScreen(
     }
 
     LaunchedEffect(continueWatching, recentRev) { browse.recent = withContext(ioDispatcher) { loadRecent() } }
+    LaunchedEffect(downloadsRev) { browse.downloaded = withContext(ioDispatcher) { loadDownloads() } }
     LaunchedEffect(browse.recent) {
         val missing = browse.recent.filter { it.poster.isNullOrBlank() }
         if (missing.isEmpty()) return@LaunchedEffect
@@ -565,6 +572,18 @@ fun HomeScreen(
                                 list.add(at.coerceIn(0, list.size), r)
                                 browse.recent = list
                                 scope.launch(ioDispatcher) { onRestoreRecent(list) }
+                            },
+                            downloaded = browse.downloaded,
+                            onPlayDownloaded = { r -> onPlayDownloaded(r) },
+                            onDeleteDownloaded = { r ->
+                                browse.downloaded = browse.downloaded.filterNot { it.id == r.id }
+                                scope.launch(ioDispatcher) { onRemoveDownload(r) }
+                            },
+                            onRestoreDownloaded = { r, at ->
+                                val list = browse.downloaded.toMutableList()
+                                list.add(at.coerceIn(0, list.size), r)
+                                browse.downloaded = list
+                                scope.launch(ioDispatcher) { onRestoreDownload(r, at) }
                             },
                         )
                         4 -> youScreen()
@@ -896,6 +915,7 @@ private fun RailSection(
                 contentPadding = PaddingValues(start = side, end = tail),
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
                 flingBehavior = snap,
+                modifier = Modifier.mouseDragScroll(rowState),
                 content = cells,
             )
         } else {
@@ -903,6 +923,7 @@ private fun RailSection(
                 state = rowState,
                 contentPadding = PaddingValues(start = 16.dp, end = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.mouseDragScroll(rowState),
                 content = cells,
             )
         }

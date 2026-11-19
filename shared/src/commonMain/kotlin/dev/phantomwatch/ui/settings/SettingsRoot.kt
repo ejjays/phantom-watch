@@ -91,14 +91,14 @@ internal fun SettingsRoot(
                         stringResource(Res.string.you_section_playback),
                         Modifier.padding(start = gutter, end = gutter, top = 32.dp, bottom = 8.dp),
                     )
-                    CategoryList(playback, categories, gutter, onOpen)
+                    CategoryList(playback, categories, gutter, data.onOpenCategory, onOpen)
                 }
                 item("app") {
                     SettingsSectionLabel(
                         stringResource(Res.string.you_section_app),
                         Modifier.padding(start = gutter, end = gutter, top = 24.dp, bottom = 8.dp),
                     )
-                    CategoryList(app, categories, gutter, onOpen)
+                    CategoryList(app, categories, gutter, data.onOpenCategory, onOpen)
                 }
                 if (data.googleReady && data.account != null) {
                     item("signout") {
@@ -115,10 +115,19 @@ internal fun SettingsRoot(
 }
 
 @Composable
-private fun CategoryList(rows: List<SettingCategory>, all: List<SettingCategory>, gutter: Dp, onOpen: (Int) -> Unit) {
+private fun CategoryList(
+    rows: List<SettingCategory>,
+    all: List<SettingCategory>,
+    gutter: Dp,
+    onOpenCategory: (String) -> Unit,
+    onOpen: (Int) -> Unit,
+) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         rows.forEach { category ->
-            CategoryRow(category, gutter) { onOpen(all.indexOf(category)) }
+            CategoryRow(category, gutter) {
+                onOpenCategory(category.id)
+                onOpen(all.indexOf(category))
+            }
         }
     }
 }
@@ -139,11 +148,14 @@ private fun CategoryRow(category: SettingCategory, gutter: Dp, onClick: () -> Un
             modifier = Modifier.size(22.dp).scale(category.iconScale),
         )
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp)) {
-            Text(
-                stringResource(category.title),
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
-                color = SettingsText,
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    stringResource(category.title),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+                    color = SettingsText,
+                )
+                if (category.badge) BadgeDot()
+            }
             Text(
                 stringResource(category.blurb),
                 style = MaterialTheme.typography.bodyMedium,

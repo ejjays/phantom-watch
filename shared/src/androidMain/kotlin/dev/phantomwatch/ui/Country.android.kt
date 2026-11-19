@@ -7,6 +7,10 @@ import java.util.Locale
 
 @Composable
 actual fun deviceCountry(): Country {
+    Geo.overrideCode.takeIf { it.length == 2 }?.let { code ->
+        val name = Locale.Builder().setRegion(code).build().getDisplayCountry(Locale.ENGLISH).ifBlank { code }
+        return Country(code, countryName(code, name))
+    }
     val tm = LocalContext.current.getSystemService(TelephonyManager::class.java)
     // a roaming or unprovisioned sim reports no country, but the carrier id still names it
     val code = sequenceOf(

@@ -1,6 +1,8 @@
 package dev.phantomwatch.ui.settings
 
 import androidx.compose.foundation.Image
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -53,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.phantomwatch.res.*
+import dev.phantomwatch.ui.Badge
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -185,24 +188,50 @@ private fun RowShell(
     modifier: Modifier = Modifier,
     titleColor: Color = SettingsText,
     noteText: String? = null,
+    badge: Boolean = false,
+    animate: Boolean = false,
     trailing: @Composable RowScope.() -> Unit,
 ) {
     Row(
         modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = gutter, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            tint = titleColor,
-            modifier = Modifier.size(22.dp),
-        )
-        Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp)) {
-            Text(
-                stringResource(title),
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
-                color = titleColor,
+        if (animate) {
+            Crossfade(icon, animationSpec = tween(180), label = "settingsIcon") { res ->
+                Icon(
+                    painter = painterResource(res),
+                    contentDescription = null,
+                    tint = titleColor,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        } else {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = null,
+                tint = titleColor,
+                modifier = Modifier.size(22.dp),
             )
+        }
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                if (animate) {
+                    Crossfade(title, animationSpec = tween(180), label = "settingsTitle") { res ->
+                        Text(
+                            stringResource(res),
+                            style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+                            color = titleColor,
+                        )
+                    }
+                } else {
+                    Text(
+                        stringResource(title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+                        color = titleColor,
+                    )
+                }
+                if (badge) BadgeDot()
+            }
             val line = noteText ?: note?.let { stringResource(it) }
             if (line != null) {
                 Text(
@@ -324,9 +353,16 @@ private fun ActionRow(item: SettingItem.Action, gutter: Dp, onClick: () -> Unit)
         modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
         titleColor = if (item.destructive) SettingsError else SettingsText,
         noteText = item.noteText,
+        badge = item.badge,
+        animate = item.animate,
     ) {
         if (!item.destructive) SettingsChevron()
     }
+}
+
+@Composable
+internal fun BadgeDot() {
+    Box(Modifier.padding(start = 6.dp, top = 4.dp).size(7.dp).background(Badge, CircleShape))
 }
 
 @Composable

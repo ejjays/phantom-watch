@@ -42,6 +42,8 @@ sealed interface SettingItem {
         override val note: StringResource? = null,
         val destructive: Boolean = false,
         val noteText: String? = null,
+        val badge: Boolean = false,
+        val animate: Boolean = false,
     ) : SettingItem
 }
 
@@ -54,9 +56,16 @@ data class SettingCategory(
     val blurb: StringResource,
     val items: List<SettingItem>,
     val iconScale: Float = 1f,
+    val badge: Boolean = false,
 )
 
-fun settingsCatalog(version: String, update: String? = null): List<SettingCategory> = listOf(
+fun settingsCatalog(
+    version: String,
+    update: String? = null,
+    badgeAbout: Boolean = false,
+    badgeUpdate: Boolean = false,
+    phantomInstalled: Boolean = false,
+): List<SettingCategory> = listOf(
     SettingCategory(
         id = "playback",
         icon = Res.drawable.ic_cat_playback,
@@ -158,6 +167,18 @@ fun settingsCatalog(version: String, update: String? = null): List<SettingCatego
                 Res.drawable.ic_history,
                 Res.string.you_library_history_note,
             ),
+            SettingItem.Choice(
+                SettingsKeys.COUNTRY,
+                Res.string.you_library_country,
+                Res.drawable.ic_row_globe,
+                Res.string.you_library_country_note,
+                options = listOf(
+                    Res.string.country_auto, Res.string.country_ph, Res.string.country_us,
+                    Res.string.country_gb, Res.string.country_jp, Res.string.country_kr,
+                    Res.string.country_au, Res.string.country_ca, Res.string.country_in,
+                    Res.string.country_id, Res.string.country_sg, Res.string.country_my,
+                ),
+            ),
             SettingItem.Action(
                 SettingsAction.ClearHistory,
                 Res.string.you_library_clear,
@@ -192,9 +213,10 @@ fun settingsCatalog(version: String, update: String? = null): List<SettingCatego
             ),
             SettingItem.Action(
                 SettingsAction.GetPhantom,
-                Res.string.you_support_get_phantom,
-                Res.drawable.ic_row_download,
+                if (phantomInstalled) Res.string.you_support_open_phantom else Res.string.you_support_get_phantom,
+                if (phantomInstalled) Res.drawable.ic_row_open else Res.drawable.ic_row_download,
                 Res.string.you_support_get_phantom_note,
+                animate = true,
             ),
         ),
         iconScale = 1.1f,
@@ -204,6 +226,7 @@ fun settingsCatalog(version: String, update: String? = null): List<SettingCatego
         icon = Res.drawable.ic_cat_about,
         title = Res.string.you_section_about,
         blurb = Res.string.you_section_about_blurb,
+        badge = badgeAbout,
         items = listOf(
             SettingItem.Value(
                 Res.string.you_about_version,
@@ -216,6 +239,7 @@ fun settingsCatalog(version: String, update: String? = null): List<SettingCatego
                 Res.drawable.ic_row_refresh,
                 if (update != null) null else Res.string.you_about_updates_note,
                 noteText = update?.let { "Version $it is available" },
+                badge = badgeUpdate,
             ),
             SettingItem.Action(
                 SettingsAction.Licences,

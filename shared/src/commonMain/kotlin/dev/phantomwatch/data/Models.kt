@@ -52,7 +52,7 @@ data class Episode(
 
 data class Sub(val label: String, val url: String, val src: String = "")
 
-// a dub is a separate cut, not an audio track: switching means a new stream at the same position
+// dub is separate cut, not audio track, switching means new stream at same position
 data class Dub(
     val label: String,
     val url: String,
@@ -84,7 +84,7 @@ data class Stream(
     val outro: LongRange? = null,
 )
 
-// a dub plays only its own captions: the sub cut's timing drifts against dub audio
+// dub plays only own captions, sub cut timing drifts against dub audio
 fun Stream.withDub(d: Dub): Stream = copy(
     url = d.url, isHls = d.isHls, referer = d.referer, headers = d.headers,
     dub = if (d.base) null else d.label, subs = d.subs, enSubs = d.enSubs,
@@ -110,4 +110,6 @@ data class Recent(
     val episode: String,
     val positionMs: Long,
     val durationMs: Long,
+    // set only for library entries backed by locally downloaded file
+    val localUri: String? = null,
 )

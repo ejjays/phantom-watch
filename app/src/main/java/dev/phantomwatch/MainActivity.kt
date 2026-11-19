@@ -14,16 +14,21 @@ import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import dev.phantomwatch.agent.PlayRequest
 import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.core.Push
+import dev.phantomwatch.core.PushOpen
 import dev.phantomwatch.core.SplashGate
+import dev.phantomwatch.core.UpdateNotice
+import dev.phantomwatch.player.PhantomDownload
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.ui.PhantomTypography
 
 class MainActivity : ComponentActivity() {
-    // Android 13+ blocks every notification until the user grants this, which would silently
-    // kill the media card while the foreground service keeps running
-    private val notifPerm =
-        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
+    // android 13+ blocks notification until granted, killing media card while service runs, media read for MediaStore downloads as uri grants die on restart
+    private val appPerms =
+        registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+        ) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
@@ -41,12 +46,22 @@ class MainActivity : ComponentActivity() {
         }
         Pip.inPip = false
         PlayRequest.take(intent)
-        if (android.os.Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+        PushOpen.take(intent)
+        Push.init(this)
+        val needed = mutableListOf<String>()
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) needed += android.Manifest.permission.POST_NOTIFICATIONS
+            if (checkSelfPermission(android.Manifest.permission.READ_MEDIA_VIDEO) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) needed += android.Manifest.permission.READ_MEDIA_VIDEO
+        } else if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) !=
             android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
-            notifPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            needed += android.Manifest.permission.READ_EXTERNAL_STORAGE
         }
+        if (needed.isNotEmpty()) appPerms.launch(needed.toTypedArray())
         runCatching {
             val am = getSystemService(android.view.accessibility.AccessibilityManager::class.java)
             AppLog.d(
@@ -67,6 +82,7 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) { AppRoot() }
             }
         }
+        UpdateNotice.show(this)
     }
 
     override fun onDestroy() {
@@ -77,10 +93,16 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    override fun onResume() {
+        super.onResume()
+        PhantomDownload.resume(this)
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         PlayRequest.take(intent)
+        PushOpen.take(intent)
     }
 
     override fun onPictureInPictureModeChanged(
@@ -116,6 +138,19 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 AppLog.d("pip fail ${e.message}")
             }
+        }
+    }
+
+    // called before navigating to local download so phone is already rotating when player composes, doing it in LaunchedEffect leaves portrait frame first
+    fun forceLandscape() {
+        if (resources.configuration.smallestScreenWidthDp < 600) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+
+    fun restoreOrientation() {
+        if (resources.configuration.smallestScreenWidthDp < 600) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
     }
 

@@ -14,6 +14,8 @@
     <string name="title_season_episode">%1$s · S%2$s E%3$s</string>
     <string name="episodes_title">Episodes</string>
     <string name="history_title">History</string>
+    <string name="library_title">Library</string>
+    <string name="library_downloaded">Downloaded</string>
     <string name="stat_rating">Rating</string>
     <string name="stat_runtime">Runtime</string>
     <string name="stat_released">Released</string>
@@ -29,6 +31,16 @@
     <string name="approot_logs_copy">Copy all</string>
 
     <string name="update_allow_install">Allow Phantom Watch to install apps, then run install.sh again</string>
+    <string name="update_progress_title">Updating Phantom Watch</string>
+    <string name="update_progress_downloading">Downloading %1$d%%</string>
+    <string name="update_progress_installing">Installing…</string>
+    <string name="update_cancelled">Update cancelled</string>
+    <string name="update_failed">Update failed. Try again.</string>
+    <string name="update_no_space">Not enough space to update</string>
+    <string name="update_will_close">Confirm on the next screen, then reopen Phantom Watch.</string>
+    <string name="update_ready">Ready to install</string>
+    <string name="update_install">Install</string>
+    <string name="update_applied">Updated to %1$s</string>
 
     <string name="next_up_title">UP NEXT</string>
     <string name="next_up_playing_in">Playing in %1$ds</string>
@@ -247,6 +259,20 @@
     <string name="you_library_history">Save watch history</string>
     <string name="you_library_history_note">Keep watched titles in History</string>
     <string name="you_library_clear">Clear watch history</string>
+    <string name="you_library_country">Top 10 country</string>
+    <string name="you_library_country_note">Override the country used for the Top 10 chart</string>
+    <string name="country_auto">Detect automatically</string>
+    <string name="country_ph">Philippines</string>
+    <string name="country_us">United States</string>
+    <string name="country_gb">United Kingdom</string>
+    <string name="country_jp">Japan</string>
+    <string name="country_kr">South Korea</string>
+    <string name="country_au">Australia</string>
+    <string name="country_ca">Canada</string>
+    <string name="country_in">India</string>
+    <string name="country_id">Indonesia</string>
+    <string name="country_sg">Singapore</string>
+    <string name="country_my">Malaysia</string>
     <string name="you_clear_title">Clear your watch history?</string>
     <string name="you_clear_body">Your Continue watching and Recently watched will be emptied. This cannot be undone.</string>
     <string name="you_clear_confirm">Clear</string>
@@ -254,7 +280,8 @@
     <string name="you_about_version">Version</string>
     <string name="you_about_updates">Check for updates</string>
     <string name="you_about_update_now">Update now</string>
-    <string name="you_about_updates_note">Open the latest release page</string>
+    <string name="you_about_up_to_date">Phantom Watch is up to date</string>
+    <string name="you_about_updates_note">Check for a newer version</string>
     <string name="you_about_licences">Licences</string>
     <string name="you_about_licences_note">Open source notices</string>
     <string name="you_support_privacy">Privacy policy</string>
@@ -264,5 +291,6 @@
     <string name="you_support_report">Report a problem</string>
     <string name="you_support_report_note">Opens an issue with device info</string>
     <string name="you_support_get_phantom">Get Phantom</string>
+    <string name="you_support_open_phantom">Open Phantom</string>
     <string name="you_support_get_phantom_note">Companion app for downloads</string>
 </resources>

@@ -16,7 +16,15 @@ internal fun countryName(code: String, name: String): String = if (code in Artic
 @Composable
 expect fun deviceCountry(): Country
 
-// where a host without its own geo route asks for visitor country, blank means this origin
+// where host without own geo route asks for visitor country, blank means this origin
 object Geo {
     var url: String = ""
+    // manual override from settings; set by each platform at startup
+    var overrideCode: String = ""
 }
+
+// index of country Choice in settings catalog -> ISO code
+private val CountryChoices = listOf(
+    "", "PH", "US", "GB", "JP", "KR", "AU", "CA", "IN", "ID", "SG", "MY",
+)
+fun countryChoiceCode(index: Int): String = CountryChoices.getOrNull(index).orEmpty()

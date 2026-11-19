@@ -52,6 +52,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -111,6 +112,7 @@ import dev.phantomwatch.Enhance
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
+import dev.phantomwatch.data.Downloads
 import dev.phantomwatch.data.Dub
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Stream
@@ -127,6 +129,7 @@ import dev.phantomwatch.subs.MkvSubs
 import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.data.DetailCache
 import dev.phantomwatch.data.DubPref
+import dev.phantomwatch.ui.PhantomInstallDialog
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -136,9 +139,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-// long enough to swallow double tap burst, short enough a single tap feels direct
+// long enough to swallow double tap burst, short enough single tap feels direct
 private const val SEEK_SETTLE_MS = 250L
-// 30s lead so an instant tap on pill still hits warm cache
+// 30s lead so instant tap on pill still hits warm cache
 private const val PREFETCH_LEAD_MS = 30_000L
 // dead provider stack bans every host, past this many swaps loop is not recovering
 private const val MAX_SWAPS = 3
@@ -170,6 +173,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         epMeta?.overview?.ifBlank { null } ?: DetailCache.detail(media.kind, media.id)?.overview?.ifBlank { null }
     }
     var resolved by remember { mutableStateOf(initial) }
+    // all resolved qualities, kept for phantom download handoff so picker can offer every format not just playing one
+    var resolvedFormats by remember { mutableStateOf<List<dev.phantomwatch.provider.VideoFormat>>(emptyList()) }
     var resolveErr by remember { mutableStateOf<String?>(null) }
     var retryN by remember { mutableStateOf(0) }
     LaunchedEffect(media.id, media.kind, season, episode, retryN) {
@@ -181,6 +186,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             // resolve ranks banned host last never drops it, filtering it out is
             // how one false positive erased provider from picker and dub menu
             val live = bundle.formats.filter { it.url !in DeadReleases.urls }
+            resolvedFormats = live
             AppLog.d("direct ${live.size} formats subs=${bundle.subs.size}")
             if (live.isEmpty()) {
                 resolveErr = context.getString(if (JsProviders.engineDown) R.string.player_engine_down else R.string.player_no_streams)
@@ -248,13 +254,24 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         return
     }
     val stream = rs
+    // offline downloads are content:// or file://, never relink to online provider if playback fails or broken local file could stream something else
+    val localFile = stream.url.startsWith("content://") || stream.url.startsWith("file://")
+    fun saveProgress(positionMs: Long, durationMs: Long) {
+        if (Settings.on(context, Settings.SAVE_HISTORY, true)) {
+            Resume.save(context, media, season, episode, positionMs, durationMs)
+        }
+        // downloaded files live in own store, keep library thumbnail progress in sync with what player recorded
+        if (localFile) {
+            Downloads.updateProgress(context, media.id, season, episode, positionMs, durationMs)
+        }
+    }
     var live by remember { mutableStateOf(rs) }
     val exo = player
     val stats = remember { PlayStats() }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var swipeHud by remember { mutableStateOf<SwipeHud?>(null) }
     var swipeActive by remember { mutableStateOf(false) }
-    var volAcc by remember { mutableStateOf(0f) }
+    var volFrac by remember { mutableStateOf(-1f) }
     LaunchedEffect(swipeActive) {
         if (!swipeActive && swipeHud != null) {
             delay(500)
@@ -293,10 +310,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                         .put("err", stats.err),
                 )
             }
-            if (mine && stats.startup > 0 && Settings.on(context, Settings.SAVE_HISTORY, true)) {
-                Resume.save(context, media, season, episode, exo.currentPosition, exo.duration)
+            if (mine && stats.startup > 0) {
+                saveProgress(exo.currentPosition, exo.duration)
             }
-            if (mine) exo.pause() // leaving the screen silences it but keeps the media card
+            if (mine) exo.pause() // leaving screen silences it but keeps media card
         }
     }
     fun attachSubs(
@@ -348,7 +365,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         val dnames = (0 until dg.length).map { i -> trackName(dg.getFormat(i)) }
         embedGroup = dg
         if (dnames != embedNames) embedNames = dnames
-        // media3 drops an override when its group rebuilds so re-apply till track sticks
+        // media3 drops override when group rebuilds so reapply till track sticks
         val anySel = texts.any { it.isSelected }
         if (stream.subs.isEmpty() && !anySel && !subs.subsOff) {
             if (names != forcedNames) {
@@ -471,6 +488,13 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
 
             override fun onPlayerError(error: PlaybackException) {
                 if (exo.currentMediaItem?.localConfiguration?.uri?.toString() != live.url) return
+                if (localFile) {
+                    AppLog.d("local download failed ${error.errorCodeName}")
+                    netErr = true
+                    Toast.makeText(context, R.string.player_local_failed, Toast.LENGTH_SHORT).show()
+                    onBack()
+                    return
+                }
                 val cause = error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
                 stats.err = "${error.errorCodeName} http=${cause?.responseCode ?: 0}".take(80)
                 val chain = generateSequence<Throwable>(error) { it.cause }.take(3).joinToString(" <- ") {
@@ -642,7 +666,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         controls = true
         hideJob?.cancel()
         hideJob = resumeScope.launch {
-            delay(3000)
+            delay(4000)
             controls = false
         }
     }
@@ -654,7 +678,10 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     fun seekTo(f: Float) {
         val d = exo.duration
         if (d > 0) exo.seekTo((f * d).toLong())
-        poke()
+        // a bar seek happens with the chrome up and only restarts its timer. a swipe seek
+        // happens with the chrome down and the finger still on the picture, waking the whole
+        // player over the frame the user just picked is the one thing that ruins it
+        if (controls) poke()
     }
     fun skipIntro() { live.intro?.last?.let { exo.seekTo(it) } }
     fun playDub(d: Dub) {
@@ -742,6 +769,8 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     var keepTheater by remember { mutableStateOf(false) }
     var sheetLocked by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    // only Download failure path raises this (phantom not installed)
+    var showInstallDialog by remember { mutableStateOf(false) }
     val smallScreen = cfg.smallestScreenWidthDp < 600
     val zoomable = smallScreen && cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     LaunchedEffect(media.id, season, episode, zoomable) { fillMode = 0 }
@@ -777,7 +806,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                     else -> -1
                 }
                 if (zone == -1 || zone == lastZone) return
-                // enable() reports the angle at once so acting on it flips fullscreen on open
+                // enable() reports angle at once so acting on it flips fullscreen on open
                 val first = lastZone == -1
                 lastZone = zone
                 if (first) return
@@ -826,19 +855,22 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             stalled = exo.playbackState == Player.STATE_BUFFERING
             if (stats.startup > 0 && SystemClock.elapsedRealtime() - lastSaveAt > 10000) {
                 lastSaveAt = SystemClock.elapsedRealtime()
-                if (Settings.on(context, Settings.SAVE_HISTORY, true)) {
-                    Resume.save(context, media, season, episode, positionMs, durationMs)
-                }
+                saveProgress(positionMs, durationMs)
             }
             delay(250)
         }
     }
     PlaybackWatchdog(exo, stalled, stats.startup > 0, live) {
+        if (localFile) {
+            AppLog.d("watchdog: local download stalled, not relinking online")
+            onBack()
+            return@PlaybackWatchdog
+        }
         // hang at 14:00 restarted at 0:00, carry position into swap
         val at = exo.currentPosition
         val s = if (swaps < MAX_SWAPS) Providers.nextStream(media, season, episode, live.url, Providers.Fallback.Hang) else null
         if (s == null) {
-            // all hosts banned, each retry bans the same two, loop never ends
+            // all hosts banned, each retry bans same two, loop never ends
             AppLog.d("watchdog: gave up after $swaps swaps")
             onGiveUp(live.url)
             return@PlaybackWatchdog
@@ -942,7 +974,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                 return
             }
             val now = SystemClock.uptimeMillis()
-            if (now - previewAt < 120) return
+            if (now - previewAt < 80) return
             previewAt = now
             p.setScrubbingModeEnabled(true)
             if (durationMs > 0) p.seekTo((f * durationMs).toLong())
@@ -951,8 +983,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     }
     val next = rememberNextUp(media, season, episode)
     val outro = outroWindow(live.outro, durationMs, next != null)
-    // ahead of pill since a scrape takes a few seconds, not before first frame or it
-    // competes with the segment this episode loads
+    // ahead of pill since scrape takes few seconds, not before first frame or it competes with segment this episode loads
     val warmNext = stats.startup > 0 && outro != null && positionMs >= outro.first - PREFETCH_LEAD_MS
     LaunchedEffect(warmNext, next?.season, next?.episode) {
         val up = next ?: return@LaunchedEffect
@@ -984,6 +1015,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     ) {
         val canSubs = AiSubtitles.enabled || live.subs.isNotEmpty() || subs.osTrack != null ||
             subs.aiSubUrl != null || embedNames.any { it != "und" }
+        // one texture view source, the seek card sizes it by aspect and the swipe hands it an exact rect
+        val previewSlot: @Composable (Modifier) -> Unit = { mod ->
+            AndroidView(
+                factory = { ctx -> TextureView(ctx).also { previewPlayer?.setVideoTextureView(it) } },
+                onRelease = { previewPlayer?.clearVideoTextureView(it) },
+                modifier = mod,
+            )
+        }
         PlayerStage(
             title = if (season.isNotEmpty() && episode.isNotEmpty()) "$title · S$season E$episode" else title,
         fullscreen = fsUi, seekBar = seekBar,
@@ -1023,13 +1062,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         canSubs = canSubs,
         muted = muted,
         onScrub = ::scrubTo,
-        preview = { mod ->
-            AndroidView(
-                factory = { ctx -> TextureView(ctx).also { previewPlayer?.setVideoTextureView(it) } },
-                onRelease = { previewPlayer?.clearVideoTextureView(it) },
-                modifier = mod.aspectRatio(videoAspect.coerceIn(1.1f, 2.4f)),
-            )
-        },
+        preview = { mod -> previewSlot(mod.aspectRatio(videoAspect.coerceIn(1.1f, 2.4f))) },
         onBack = onBack,
         onToggleMute = {
             muted = !muted
@@ -1080,47 +1113,48 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                     swipeHud = SwipeHud(true, nb)
                 }
             } else if (audio != null) {
-                volAcc -= dy
                 val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
                 val min = if (android.os.Build.VERSION.SDK_INT >= 28) {
                     audio.getStreamMinVolume(AudioManager.STREAM_MUSIC)
                 } else {
                     0
                 }
-                var v = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-                val unit = 10f * d
-                while (volAcc > unit) {
-                    volAcc -= unit
-                    v += 1
+                val span = (max - min).coerceAtLeast(1)
+                // the stream only moves in whole steps, so drag a float and round it for the stream
+                // while the readout follows the float, otherwise the bar and percent jump several at a time
+                if (volFrac < 0f) {
+                    volFrac = ((audio.getStreamVolume(AudioManager.STREAM_MUSIC) - min).toFloat() / span)
+                        .coerceIn(0f, 1f)
                 }
-                while (volAcc < -unit) {
-                    volAcc += unit
-                    v -= 1
+                volFrac = (volFrac - dy / (10f * d * span)).coerceIn(0f, 1f)
+                val v = (min + volFrac * span).roundToInt().coerceIn(min, max)
+                if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) != v) {
+                    audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
                 }
-                v = v.coerceIn(min, max)
-                audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
-                swipeHud = SwipeHud(false, (v - min).toFloat() / (max - min).coerceAtLeast(1))
+                swipeHud = SwipeHud(false, volFrac)
             }
         },
         onSwipeEnd = {
             swipeActive = false
-            volAcc = 0f
+            volFrac = -1f
         },
         video = { mod ->
-            PlayerVideo(
-                exo = exo, enhSession = enhSession, videoAspect = videoAspect, maxVideoH = maxVideoH,
-                mode = if (zoomable) fillMode else 0,
-                cutL = cutL, cutR = cutR,
-                onSafe = { hasSafe = it },
-                onNear = { nearFill = it },
-                subCues = subCues,
-                subStyle = subStyle,
-                subTopPx = subTopPx,
-                subBgAlpha = subBg,
-                glow = !episodesOpen,
-                onEnhSurface = { enhOut = it; if (it == null) enhBound = null },
-                modifier = mod,
-            )
+            CompositionLocalProvider(LocalVideoPreview provides previewSlot) {
+                PlayerVideo(
+                    exo = exo, enhSession = enhSession, videoAspect = videoAspect, maxVideoH = maxVideoH,
+                    mode = if (zoomable) fillMode else 0,
+                    cutL = cutL, cutR = cutR,
+                    onSafe = { hasSafe = it },
+                    onNear = { nearFill = it },
+                    subCues = subCues,
+                    subStyle = subStyle,
+                    subTopPx = subTopPx,
+                    subBgAlpha = subBg,
+                    glow = !episodesOpen,
+                    onEnhSurface = { enhOut = it; if (it == null) enhBound = null },
+                    modifier = mod,
+                )
+            }
         },
         )
     }
@@ -1334,6 +1368,35 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                             overview = overview, onEpisode = onEpisode, onOpenTitle = onOpenTitle,
                             onHeaderBottom = { headerBottom[0] = it },
                             onSheetLock = { sheetLocked = it },
+                            onDownload = {
+                                val job = PhantomDownload.build(
+                                    media = media,
+                                    season = season,
+                                    episode = episode,
+                                    stream = live,
+                                    headers = mediaHeaders(live),
+                                    height = q.current,
+                                    durationMs = durationMs,
+                                    formats = resolvedFormats,
+                                )
+                                if (job == null || !PhantomDownload.send(context, job)) {
+                                    if (!PhantomDownload.isInstalled(context)) {
+                                        showInstallDialog = true
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            R.string.player_download_needs_update,
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.player_download_opening),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            },
                         )
                     }
                     if (settingsOpen) {
@@ -1357,5 +1420,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         }
     }
         if (!Pip.inPip) PlayerFailedOverlay(netErr, onPickList, onBack)
+    }
+    if (showInstallDialog) {
+        PhantomInstallDialog(
+            onInstall = {
+                showInstallDialog = false
+                PhantomDownload.install(context)
+            },
+            onDismiss = { showInstallDialog = false },
+        )
     }
 }
