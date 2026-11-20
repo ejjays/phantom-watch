@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -36,8 +36,6 @@
             android:exported="true"
             android:hardwareAccelerated="true"
             android:supportsPictureInPicture="true"
-            android:screenOrientation="@integer/main_orientation"
-            tools:ignore="ManifestResource"
             android:theme="@style/Theme.PhantomWatch.Splash"
             android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden">
