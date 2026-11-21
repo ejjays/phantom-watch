@@ -1,12 +1,18 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
 
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) FileInputStream(f).use { load(it) }
 }
 
-// CI builds against the last published platform; the phone uses the hand-made 37
+// CI builds against last published platform, phone uses hand made 37
 val compileSdkVersion = (project.findProperty("compileSdk")?.toString()?.toIntOrNull() ?: 37)
 val targetSdkVersion = (project.findProperty("targetSdk")?.toString()?.toIntOrNull() ?: 37)
 val releaseStorePath = System.getenv("PW_RELEASE_KEYSTORE").orEmpty()
@@ -48,11 +54,11 @@ fun gitCommitCount(): Int = try {
 }
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
-    id("io.gitlab.arturbosch.detekt")
-    id("com.google.gms.google-services")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.google.services)
 }
 
 detekt {
@@ -135,6 +141,31 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+// shared owns every string both shells render, android gets generated copy instead of
+// second hand maintained definition, app res keeps platform only text
+abstract class SyncSharedStrings : DefaultTask() {
+    @get:InputFile abstract val source: RegularFileProperty
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun sync() {
+        val blocks = Regex("""<(string|plurals)\b[^>]*>.*?</\1>""", RegexOption.DOT_MATCHES_ALL)
+            .findAll(source.get().asFile.readText())
+            .map { it.value }
+            .filter { Regex("""\bname="[^"]+""").containsMatchIn(it) }
+            .joinToString("\n")
+        val out = outputDir.get().file("values/strings.xml").asFile
+        out.parentFile.mkdirs()
+        // compose accepts bare apostrophe, aapt2 reads it as quote
+        out.writeText("<resources>\n${blocks.replace("'", "\\'")}\n</resources>\n")
+    }
+}
+val syncSharedStrings = tasks.register<SyncSharedStrings>("syncSharedStrings") {
+    source.set(rootProject.file("shared/src/commonMain/composeResources/values/strings.xml"))
+    outputDir.set(layout.buildDirectory.dir("generated/sharedStrings/res"))
+}
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
 }
@@ -147,47 +178,49 @@ tasks.configureEach {
 }
 
 androidComponents {
+    onVariants { variant ->
+        variant.sources.res?.addGeneratedSourceDirectory(syncSharedStrings) { it.outputDir }
+    }
     onVariants(selector().withBuildType("debug")) { variant ->
         variant.packaging.jniLibs.excludes.add("lib/armeabi-v7a/**")
     }
 }
 
 ksp {
-    // API 36 reads the v1 metadata, API 37 the v2 one
+    // api 36 reads v1 metadata, api 37 reads v2
     arg("appfunctions:generateV1Xml", "true")
 }
 
 dependencies {
     implementation(project(":shared"))
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
-    implementation(composeBom)
-    implementation("androidx.core:core-ktx:1.19.1")
-    implementation("androidx.core:core-splashscreen:1.2.0")
-    implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("androidx.credentials:credentials:1.6.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.media3:media3-exoplayer:1.11.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
-    implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
-    implementation("androidx.media3:media3-ui:1.11.1")
-    implementation("androidx.media3:media3-session:1.11.1")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
-    implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta09")
-    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
-    implementation("com.google.firebase:firebase-messaging")
-    implementation("com.airbnb.android:lottie-compose:6.7.1")
-    implementation("io.github.kyant0:backdrop:2.0.1")
-    implementation("io.github.kyant0:shapes:1.2.1")
-    implementation("androidx.appfunctions:appfunctions:1.0.0-rc01")
-    ksp("androidx.appfunctions:appfunctions-compiler:1.0.0-rc01")
-    testImplementation("junit:junit:4.13.2")
-    // a real server on loopback, so the subtitle cache is tested through its own network path
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-    // real org.json on the unit-test classpath; android.jar only ships stubs
-    testImplementation("org.json:json:20260814")
+    implementation(platform(libs.compose.bom))
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.datasource.okhttp)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.session)
+    implementation(libs.okhttp)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.media.effect.enhancement)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation(libs.lottie.compose)
+    implementation(libs.kyant.backdrop)
+    implementation(libs.kyant.shapes)
+    implementation(libs.appfunctions)
+    ksp(libs.appfunctions.compiler)
+    testImplementation(libs.junit)
+    // real server on loopback so subtitle cache is tested through its own network path
+    testImplementation(libs.mockwebserver)
+    // real org.json on unit test classpath, android.jar only ships stubs
+    testImplementation(libs.json)
 }

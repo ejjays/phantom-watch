@@ -1,10 +1,10 @@
 val compileSdkVersion = project.findProperty("compileSdk")?.toString()?.toIntOrNull() ?: 37
 
 plugins {
-    id("org.jetbrains.kotlin.multiplatform")
-    id("com.android.kotlin.multiplatform.library")
-    id("org.jetbrains.compose")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kmp.library)
+    alias(libs.plugins.compose)
+    alias(libs.plugins.kotlin.compose)
 }
 
 kotlin {
@@ -12,11 +12,12 @@ kotlin {
         namespace = "dev.phantomwatch.shared"
         compileSdk = compileSdkVersion
         minSdk = 26
-        // compose resources ship as assets; AGP 9's KMP library drops them without this
+        // compose resources ship as assets, AGP 9 KMP library drops them without this
         androidResources.enable = true
     }
     wasmJs {
         browser()
+        binaries.executable()
     }
     sourceSets {
         commonMain.dependencies {
@@ -25,20 +26,23 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
             implementation(compose.components.resources)
-            implementation("io.coil-kt.coil3:coil-compose:3.6.3")
-            implementation("io.github.kyant0:backdrop:2.0.1")
-            implementation("io.github.kyant0:shapes:1.2.1")
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+            implementation(libs.coil.compose)
+            implementation(libs.kyant.backdrop)
+            implementation(libs.kyant.shapes)
+            implementation(libs.kotlinx.serialization.json)
+        }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
         }
         wasmJsMain.dependencies {
-            implementation("io.coil-kt.coil3:coil-network-ktor3:3.6.3")
-            implementation("io.ktor:ktor-client-js:3.1.0")
+            implementation(libs.coil.network.ktor3)
+            implementation(libs.ktor.client.js)
         }
         androidMain.dependencies {
-            implementation("com.squareup.okhttp3:okhttp:4.12.0")
-            implementation("androidx.activity:activity-compose:1.13.0")
-            implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
-            implementation("com.airbnb.android:lottie-compose:6.7.1")
+            implementation(libs.okhttp)
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.lifecycle.runtime.compose)
+            implementation(libs.lottie.compose)
         }
     }
 }
