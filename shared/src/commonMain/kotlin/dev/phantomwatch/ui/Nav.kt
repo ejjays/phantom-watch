@@ -3,8 +3,10 @@ package dev.phantomwatch.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.phantomwatch.data.Stream
+import dev.phantomwatch.data.Title
 
-// one place that knows where the user is: screens push and pop, back is just pop()
+// one place that knows where user is: screens push and pop, back is just pop()
 sealed interface Route {
     val path: String
 
@@ -32,9 +34,25 @@ sealed interface Route {
         override val path = "/you"
     }
 
+    data class Player(
+        val title: String,
+        val stream: Stream?,
+        val media: Title,
+        val season: String,
+        val episode: String,
+        val back: Route = Home,
+        val fullscreen: Boolean = false,
+    ) : Route {
+        override val path get() = "/player/${media.kind}/${media.id}/$season/$episode"
+    }
+
+    data class Sources(val title: Title, val season: String, val episode: String) : Route {
+        override val path get() = "/sources/${title.kind}/${title.id}/$season/$episode"
+    }
+
     companion object {
-        // only routes whose data is already on hand survive a cold start: a rail or title needs
-        // a fetch first, so those land back on home
+        // only routes whose data is already on hand survive cold start: rail or title needs
+        // fetch first, so those land back on home
         fun fromPath(path: String?): Route = when (path) {
             Search.path -> Search
             History.path -> History
@@ -58,6 +76,11 @@ internal fun Route.tabIndex(): Int = when (this) {
     else -> 0
 }
 
+fun Route.navLabel(): String = when (this) {
+    is Route.Player -> "Player(back=${back.navLabel()})"
+    else -> this::class.simpleName ?: "?"
+}
+
 class NavStack(start: Route = Route.Home) {
     var routes by mutableStateOf(listOf(start))
         private set
@@ -75,7 +98,7 @@ class NavStack(start: Route = Route.Home) {
         return true
     }
 
-    // tabs are siblings, not a stack: switching one discards whatever was pushed on top
+    // tabs are siblings, not stack: switching one discards whatever was pushed on top
     fun select(route: Route) {
         routes = if (route == Route.Home) listOf(route) else listOf(Route.Home, route)
     }

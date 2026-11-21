@@ -113,188 +113,13 @@ import kotlinx.coroutines.withContext
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 
-data class RailState(
-    val key: String,
-    val title: StringResource,
-    val path: String,
-    val items: List<Title> = emptyList(),
-    val page: Int = 1,
-    val totalPages: Int = 1,
-    val loadingMore: Boolean = false,
-    val arg: String? = null,
-    val ranked: Boolean = false,
-    val ranks: List<Int> = emptyList(),
-    val landscape: Boolean = false,
-)
-
-private data class RailDef(
-    val key: String,
-    val title: StringResource,
-    val path: String,
-    val arg: String? = null,
-    val ranked: Boolean = false,
-    val chart: String? = null,
-    val landscape: Boolean = false,
-)
-
-private fun railDefs(country: Country): List<RailDef> = listOfNotNull(
-    localRail(country),
-    RailDef("top", Res.string.rail_top, "movie/top_rated"),
-    RailDef("tv-popular", Res.string.rail_tv_popular, "tv/popular"),
-    RailDef("tv-top", Res.string.rail_tv_top, "tv/top_rated"),
-    RailDef("popular", Res.string.rail_popular, "movie/popular", ranked = true),
-    RailDef("anime", Res.string.rail_anime, "discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc"),
-    RailDef("action", Res.string.rail_action, "discover/movie?with_genres=28&sort_by=popularity.desc"),
-)
-
-private fun localRail(country: Country): RailDef? {
-    if (country.code.length != 2) return null
-    return RailDef(
-        "local",
-        Res.string.rail_local,
-        "discover/tv?with_origin_country=${country.code}&sort_by=popularity.desc",
-        arg = country.name,
-        ranked = true,
-        chart = "tv",
-        landscape = true,
-    )
-}
-
-private suspend fun railOf(def: RailDef, key: String, country: Country): RailState {
-    val chart = def.chart?.let { Chart.top(key, country.code, it) }
-    if (!chart.isNullOrEmpty()) {
-        return RailState(
-            def.key, Res.string.rail_chart, def.path, chart.map { it.title }, 1, 1,
-            arg = country.name, ranked = true, ranks = chart.map { it.rank },
-            landscape = def.landscape,
-        )
-    }
-    val r = Tmdb.rail(key, def.path, 1)
-        ?: return RailState(def.key, def.title, def.path, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
-    return RailState(def.key, def.title, def.path, r.items, 1, r.totalPages, arg = def.arg, ranked = def.ranked, landscape = def.landscape)
-}
 
 @Composable
 private fun railTitle(title: StringResource, arg: String?): String =
     if (arg != null) stringResource(title, arg) else stringResource(title)
 
-private const val FEED_CACHE_VERSION = 4
-
-private fun feedTitle(e: JSONObject): Title? {
-    val id = e.optString("id")
-    val kind = e.optString("kind")
-    val name = e.optString("title")
-    if (id.isEmpty() || name.isEmpty() || (kind != "movie" && kind != "tv")) return null
-    return Title(
-        id, kind, name,
-        e.optString("poster").ifEmpty { null },
-        e.optString("backdrop").ifEmpty { null },
-        e.optDouble("rating").takeIf { !it.isNaN() },
-        e.optString("year").ifEmpty { null },
-        e.optString("overview").ifEmpty { null },
-    )
-}
-
-private fun feedTitles(arr: JSONArray?): List<Title> =
-    arr?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let(::feedTitle) } }.orEmpty()
-
-private fun titleJson(t: Title): JSONObject = JSONObject()
-    .put("id", t.id).put("kind", t.kind).put("title", t.title)
-    .put("poster", t.poster).put("backdrop", t.backdrop)
-    .put("rating", t.rating).put("year", t.year).put("overview", t.overview)
-
 private val RuleEdge = Color.White.copy(alpha = 0.16f)
 
-class BrowseState {
-    val nav = NavStack(Route.fromPath(initialPath()))
-    val historyOpen: Boolean get() = nav.top is Route.History
-    val railKey: String? get() = (nav.top as? Route.Rail)?.key
-    val tab: Int get() = nav.top.tabIndex()
-    var openTitle by mutableStateOf<Title?>(null)
-    var backToEpisodes by mutableStateOf(false)
-    var query by mutableStateOf("")
-    var results by mutableStateOf<List<Title>>(emptyList())
-    var resultsFor by mutableStateOf("")
-    var trending by mutableStateOf<List<Title>>(emptyList())
-    var rails by mutableStateOf<List<RailState>>(emptyList())
-    var recent by mutableStateOf<List<Recent>>(emptyList())
-    var downloaded by mutableStateOf<List<Recent>>(emptyList())
-    val explore = ExploreFeed()
-    var loading by mutableStateOf(true)
-    var failed by mutableStateOf(false)
-    var loaded by mutableStateOf(false)
-    var loadedAt by mutableStateOf(0L)
-    var hydrated by mutableStateOf(false)
-    val homeScroll = LazyListState()
-
-    fun selectTab(index: Int) {
-        nav.select(tabRoute(index))
-    }
-
-    fun back(): Boolean {
-        val leaving = nav.top
-        if (!nav.pop()) return false
-        if (leaving is Route.Search) query = ""
-        return true
-    }
-
-    // last feed painted before network answers, cold start is not a spinner
-    fun restoreFeed(raw: String, country: Country) {
-        if (rails.isNotEmpty() || trending.isNotEmpty()) return
-        val o = runCatching { JSONObject(raw) }.getOrNull() ?: return
-        if (o.optInt("v") != FEED_CACHE_VERSION) return
-        val arr = o.optJSONArray("rails") ?: return
-        val defs = railDefs(country).associateBy { it.key }
-        val restored = (0 until arr.length()).mapNotNull { i ->
-            val e = arr.optJSONObject(i) ?: return@mapNotNull null
-            val def = defs[e.optString("key")] ?: return@mapNotNull null
-            val items = feedTitles(e.optJSONArray("items"))
-            if (items.isEmpty()) return@mapNotNull null
-            // chart row swapped rail title and ranks for live chart's
-            val ranks = e.optJSONArray("ranks")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty()
-            val chart = ranks.isNotEmpty()
-            RailState(
-                def.key, if (chart) Res.string.rail_chart else def.title, def.path, items,
-                e.optInt("page", 1), e.optInt("pages", 1),
-                arg = if (chart) country.name else def.arg, ranked = def.ranked,
-                ranks = ranks, landscape = def.landscape,
-            )
-        }
-        val trend = feedTitles(o.optJSONArray("trending")).take(12)
-        if (restored.isEmpty() && trend.isEmpty()) return
-        trending = trend
-        rails = restored
-        failed = false
-        val at = o.optLong("at", 0L)
-        if (at > 0) {
-            loaded = true
-            loadedAt = at
-        }
-        Log.d("feed restore ${restored.size} rails")
-    }
-
-    fun feedJson(country: Country): String? {
-        val defs = railDefs(country).map { it.key }.toSet()
-        val keep = rails.filter { it.items.isNotEmpty() && it.key in defs }
-        if (trending.isEmpty() && keep.isEmpty()) return null
-        val o = JSONObject().put("v", FEED_CACHE_VERSION)
-        o.put("at", nowMs())
-        o.put("trending", JSONArray().also { a -> trending.forEach { a.put(titleJson(it)) } })
-        o.put(
-            "rails",
-            JSONArray().also { a ->
-                keep.forEach { r ->
-                    a.put(
-                        JSONObject().put("key", r.key).put("page", r.page).put("pages", r.totalPages)
-                            .put("ranks", JSONArray().also { ra -> r.ranks.forEach { ra.put(it) } })
-                            .put("items", JSONArray().also { ia -> r.items.forEach { ia.put(titleJson(it)) } }),
-                    )
-                }
-            },
-        )
-        return o.toString()
-    }
-}
 
 @Composable
 fun HomeScreen(
@@ -333,7 +158,7 @@ fun HomeScreen(
         if (feedLoading) return
         feedLoading = true
         scope.launch {
-            // failed refresh must not replace feed the user is looking at
+            // failed refresh must not replace feed user is looking at
             browse.loading = true
             try {
                 val foundTrending = withContext(ioDispatcher) { Tmdb.trending(key) }
@@ -432,7 +257,7 @@ fun HomeScreen(
         withContext(ioDispatcher) { onRestoreRecent(fixed) }
     }
     LaunchedEffect(browse.nav.top) { syncRoute(browse.nav.top.path) }
-    // tmdb popular drifts daily, a process alive for days keeps day one rows
+    // tmdb popular drifts daily, process alive for days keeps day one rows
     OnResumeEffect {
         if (!browse.hydrated) return@OnResumeEffect
         val onHomeTop = browse.nav.top is Route.Home && browse.homeScroll.firstVisibleItemIndex == 0
@@ -473,16 +298,16 @@ fun HomeScreen(
         selected = t
         recents.removeAll { it.kind == t.kind && it.id == t.id }
         recents.add(0, t)
-        // removeLast() is the java 21 list member, missing before api 35
+        // removeLast() is java 21 list member, missing before api 35
         if (recents.size > 6) recents.removeAt(recents.lastIndex)
     }
 
     val inSearch = browse.query.trim().length >= 2
     val openRail = browse.rails.firstOrNull { it.key == browse.railKey }
     var exitAsk by remember { mutableStateOf(false) }
-    // registered first so the specific handler below wins, last callback wins
+    // registered first so specific handler below wins, last callback wins
     if (onExitApp != null) PlatformBackHandler(enabled = true) { exitAsk = true }
-    // only while a screen view is up, back at home falls to the host
+    // only while screen view is up, back at home falls to host
     PlatformBackHandler(enabled = browse.nav.canPop) { browse.back() }
     val screenW = screenWidthDp()
     val expanded = isExpanded(screenW)
@@ -758,11 +583,11 @@ private fun BrowseBody(
     val cols = exploreColumns(width)
     val gridW = gridCell(width, cols)
     val exploreRows = remember(explore.items, cols) { explore.items.chunked(cols) }
-    // outside composition, a state read here reruns every poster card in content lambda
+    // outside composition, state read here reruns every poster card in content lambda
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
-            // index not boolean, snapshotFlow drops repeats so a latched boolean never retries
+            // index not boolean, snapshotFlow drops repeats so latched boolean never retries
             info.visibleItemsInfo.lastOrNull()?.index?.let { it to info.totalItemsCount } ?: (-1 to 0)
         }.collect { (last, total) -> if (last >= total - 2) onGridEnd() }
     }

@@ -83,9 +83,9 @@ import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.PlayerUi
 import dev.phantomwatch.player.Playback
 import dev.phantomwatch.player.PlayerScreen
-import dev.phantomwatch.player.Screen
+import dev.phantomwatch.ui.Route
 import dev.phantomwatch.player.SourcesScreen
-import dev.phantomwatch.player.navLabel
+import dev.phantomwatch.ui.navLabel
 import dev.phantomwatch.social.GoogleAuth
 import dev.phantomwatch.social.Social
 import dev.phantomwatch.provider.DeadHosts
@@ -93,7 +93,6 @@ import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.ClipsScreen
-import dev.phantomwatch.ui.Route
 import dev.phantomwatch.ui.DetailPane
 import dev.phantomwatch.ui.Geo
 import dev.phantomwatch.ui.countryChoiceCode
@@ -112,8 +111,8 @@ import kotlinx.coroutines.withContext
 internal fun AppRoot() {
     // not playing is dead screen, restoring there resolves forever
     var screen by remember {
-        mutableStateOf<Screen>(
-            Playback.lastScreen?.takeIf { Playback.player?.isPlaying == true } ?: Screen.Home,
+        mutableStateOf<Route>(
+            Playback.lastScreen?.takeIf { Playback.player?.isPlaying == true } ?: Route.Home,
         )
     }
     val browse = remember { BrowseState() }
@@ -177,7 +176,7 @@ internal fun AppRoot() {
         settingsCategory = "about"
     }
     LaunchedEffect(screen, Pip.playing) {
-        (context as? MainActivity)?.armPip(screen is Screen.Player, Pip.playing)
+        (context as? MainActivity)?.armPip(screen is Route.Player, Pip.playing)
     }
     LaunchedEffect(Unit) {
         Telemetry.appContext = context.applicationContext
@@ -193,7 +192,7 @@ internal fun AppRoot() {
         autoRelease = true
         browse.backToEpisodes = ask.kind == "tv"
         if (ask.kind != "tv") browse.openTitle = null
-        screen = Screen.Player(t.title, null, t, ask.season, ask.episode, Screen.Home)
+        screen = Route.Player(t.title, null, t, ask.season, ask.episode, Route.Home)
     }
     Box(Modifier.fillMaxSize()) {
         val tabBackdrop = rememberLayerBackdrop()
@@ -218,7 +217,7 @@ internal fun AppRoot() {
             label = "screen",
         ) { s ->
             when (s) {
-                is Screen.Home -> HomeScreen(
+                is Route.Home -> HomeScreen(
                     browse = browse,
                     onWatch = { t, seas, ep ->
                         val m = Aliases.resolve(t)
@@ -227,7 +226,7 @@ internal fun AppRoot() {
                         autoRelease = true
                         browse.backToEpisodes = m.kind == "tv"
                         if (m.kind != "tv") browse.openTitle = null
-                        screen = Screen.Player(m.title, null, m, seas, ep, Screen.Home)
+                        screen = Route.Player(m.title, null, m, seas, ep, Route.Home)
                     },
                     loadRecent = { Resume.recent(context) },
                     continueWatching = remember(youRev) {
@@ -254,9 +253,9 @@ internal fun AppRoot() {
                         )
                         // downloads open straight into landscape fullscreen, other sources keep portrait first entry
                         (context as? MainActivity)?.forceLandscape()
-                        screen = Screen.Player(
+                        screen = Route.Player(
                             r.title, local, media, r.season, r.episode,
-                            Screen.Home, fullscreen = true,
+                            Route.Home, fullscreen = true,
                         )
                     },
                     onExitApp = { (context as? android.app.Activity)?.finish() },
@@ -346,7 +345,7 @@ internal fun AppRoot() {
                         )
                     },
                 )
-                is Screen.Player -> {
+                is Route.Player -> {
                     Playback.lastScreen = s
                     PlayerScreen(
                         title = s.title,
@@ -364,12 +363,12 @@ internal fun AppRoot() {
                             deadUrl?.let { DeadReleases.urls.add(it) }
                             forward = false
                             autoRelease = false
-                            screen = Screen.Sources(s.media, s.season, s.episode)
+                            screen = Route.Sources(s.media, s.season, s.episode)
                         },
                         onPickList = {
                             forward = false
                             autoRelease = false
-                            screen = Screen.Sources(s.media, s.season, s.episode)
+                            screen = Route.Sources(s.media, s.season, s.episode)
                         },
                         onEpisode = { seas, ep ->
                             forward = true
@@ -377,17 +376,17 @@ internal fun AppRoot() {
                             autoRelease = true
                             browse.backToEpisodes = s.media.kind == "tv"
                             PlayerUi.token++
-                            screen = Screen.Player(s.media.title, null, s.media, seas, ep, s.back, fullscreen = PlayerUi.fullscreen)
+                            screen = Route.Player(s.media.title, null, s.media, seas, ep, s.back, fullscreen = PlayerUi.fullscreen)
                         },
                         onOpenTitle = { t ->
                             forward = false
                             browse.openTitle = t
                             browse.backToEpisodes = false
-                            screen = Screen.Home
+                            screen = Route.Home
                         },
                     )
                 }
-                is Screen.Sources -> SourcesScreen(
+                is Route.Sources -> SourcesScreen(
                     title = s.title,
                     season = s.season,
                     episode = s.episode,
@@ -395,20 +394,21 @@ internal fun AppRoot() {
                     onStreamReady = { stream ->
                         forward = true
                         instant = true
-                        screen = Screen.Player(
+                        screen = Route.Player(
                             s.title.title, stream, s.title, s.season, s.episode,
-                            Screen.Sources(s.title, s.season, s.episode),
+                            Route.Sources(s.title, s.season, s.episode),
                         )
                     },
                     onBack = {
                         forward = false
-                        screen = Screen.Home
+                        screen = Route.Home
                     },
                 )
+                else -> Box(Modifier.fillMaxSize())
             }
         }
         AnimatedVisibility(
-            visible = screen is Screen.Home && browse.openTitle == null,
+            visible = screen is Route.Home && browse.openTitle == null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(150)),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(150)),
             modifier = Modifier

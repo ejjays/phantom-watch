@@ -28,6 +28,7 @@ import dev.phantomwatch.core.pwLog
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.data.Title
+import dev.phantomwatch.ui.Route
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.DetailScreen
 import dev.phantomwatch.ui.Geo
@@ -45,9 +46,9 @@ import kotlinx.browser.window
 private const val REPO = "https://github.com/ejjays/phantom-watch"
 private const val PHANTOM = "https://github.com/ejjays/phantom"
 
-// iPhone draws page under status bar and home indicator. inset lands on app content and not on
-// #app: player positions its stage from canvas bounds, so moving canvas moves picture off its
-// chrome. zero on android and desktop
+// iPhone draws page under status bar and home indicator, inset lands on app content not #app
+// player positions stage from canvas bounds so moving canvas moves picture off chrome, zero on
+// android and desktop
 @OptIn(ExperimentalWasmJsInterop::class)
 @JsFun("() => { var d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'; document.body.appendChild(d); var c = getComputedStyle(d); var r = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].map(function (x) { return parseFloat(x) || 0; }).join(','); d.remove(); return r; }")
 private external fun safeAreaCss(): String
@@ -56,9 +57,7 @@ private external fun safeAreaCss(): String
 fun SpikeApp() {
     Geo.overrideCode = countryChoiceCode(WebSettings.on(SettingsKeys.COUNTRY, 0))
     val browse = remember { BrowseState() }
-    var playing by remember { mutableStateOf<Title?>(null) }
-    var playSeason by remember { mutableStateOf("") }
-    var playEpisode by remember { mutableStateOf("") }
+    var playing by remember { mutableStateOf<Route.Player?>(null) }
 
     LaunchedEffect(playing) {
         pwLog("nav", if (playing == null) "-> Home" else "-> Player(back=Home)")
@@ -90,17 +89,14 @@ fun SpikeApp() {
             val now = playing
             if (now != null) {
                 PlayerScreen(
-                    media = now, season = playSeason, episode = playEpisode,
+                    media = now.media, season = now.season, episode = now.episode,
                     onBack = { playing = null },
                     onOpenTitle = { t ->
                         playing = null
                         browse.openTitle = t
                     },
                     // new episode keeps player open, same title, new sources
-                    onEpisode = { s, e ->
-                        playSeason = s
-                        playEpisode = e
-                    },
+                    onEpisode = { s, e -> playing = now.copy(season = s, episode = e) },
                 )
             } else {
                 val tabBackdrop = rememberLayerBackdrop()
@@ -108,9 +104,7 @@ fun SpikeApp() {
                     HomeScreen(
                         browse = browse,
                         onWatch = { item, season, episode ->
-                            playSeason = season
-                            playEpisode = episode
-                            playing = item
+                            playing = Route.Player(item.title, null, item, season, episode)
                         },
                         // same two sources phone reads, one for library tab and one for continue
                         // rail above feed
@@ -164,8 +158,8 @@ fun SpikeApp() {
                         .align(Alignment.BottomCenter)
                         .padding(horizontal = 20.dp)
                         .padding(bottom = 24.dp)
-                        // phone bar stops at 480dp, without it the four tabs spread across whole
-                        // window on desktop and read as a nav strip, not a pill
+                        // phone bar stops at 480dp, without it four tabs spread across whole
+                        // window on desktop and read as nav strip, not pill
                         .widthIn(max = 480.dp)
                 ) {
                     HomeLiquidTabs(
