@@ -18,10 +18,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 LINE_CAPS = {
     "app/src/main/java": 910,
     "app/src/test/java": 400,
-    # providers.js is the single home for every leg's extractor and the bridge loads this
-    # one asset (no split without an APK), so the cap moves with the leg count: ~30/leg.
-    # allanime is the exception, its resolver is gated so the leg carries a client
-    # that reads the mask out of the site chunk, derives the AES key and signs each call
+    "shared/src": 900,
+    "spike/src": 900,
+    # providers.js is single home for every leg extractor and bridge loads this one asset
+    # (no split without apk), cap moves with leg count ~30/leg
+    # allanime resolver is gated so leg carries client that reads mask out of site chunk,
+    # derives AES key and signs each call
     "app/src/main/assets/providers.js": 1520,
     "app/src/main/assets": 700,
     "worker": 700,
@@ -29,13 +31,19 @@ LINE_CAPS = {
     "scripts": 300,
 }
 
-# still too big; they must not grow until they are split
+# still too big, must not grow until split
 LARGE_BASELINES = {
     "app/src/main/java/dev/phantomwatch/player/PlayerPanel.kt": 914,
     "app/src/main/java/dev/phantomwatch/player/PlayerScreen.kt": 1433,
-    "app/src/main/java/dev/phantomwatch/player/PlayerStage.kt": 1092,
     "scripts/probe.js": 392,
 }
+
+# baseline outliving its file makes next reader hunt for rename
+
+def check_baselines():
+    for f in LARGE_BASELINES:
+        if not (ROOT / f).is_file():
+            fail(f"{f}: baseline for a file that no longer exists")
 
 ALLOWED_PERMISSIONS = {
     "android.permission.INTERNET",
@@ -43,11 +51,11 @@ ALLOWED_PERMISSIONS = {
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
     "android.permission.POST_NOTIFICATIONS",
-    # downloaded media lives in MediaStore, reading the Library shelf needs both
+    # downloaded media lives in MediaStore, reading Library shelf needs both
     "android.permission.READ_MEDIA_VIDEO",
     "android.permission.READ_EXTERNAL_STORAGE",
     "android.permission.REQUEST_INSTALL_PACKAGES",
-    # required on the AppFunctionService, the system is the only binder
+    # required on AppFunctionService, system is only binder
     "android.permission.BIND_APP_FUNCTION_SERVICE",
 }
 
@@ -177,8 +185,8 @@ def check_manifest_components(files):
         want = "dev.phantomwatch" + ("." + name.rsplit(".", 1)[0] if "." in name else "")
         hits = [f for f, body in sources.items() if re.search(rf"\bclass\s+{simple}\b", body)]
         if not hits:
-            # AppFunctionService subclasses are emitted by the appfunctions KSP processor,
-            # so the entry point is the only source-side declaration to match on
+            # AppFunctionService subclasses emitted by appfunctions KSP processor, entry point
+            # is only source declaration to match on
             generated = {
                 re.search(r"^package\s+([\w.]+)", body, re.M).group(1)
                 for body in sources.values()
@@ -197,19 +205,45 @@ def check_manifest_components(files):
             )
 
 
+SOURCE_FILE = re.compile(r"^(?:app|shared|spike)/src/[^/]+/(?:java|kotlin)/(.+\.kt)$")
+
+
 def check_package_dirs(files):
     for f in files:
-        if not f.startswith(("app/src/main/java", "app/src/test/java")) or not f.endswith(".kt"):
+        rel = SOURCE_FILE.match(f)
+        if not rel:
             continue
         p = ROOT / f
         if not p.is_file():
             continue
         m = re.search(r"^package\s+([\w.]+)", p.read_text(errors="replace"), re.M)
-        want = f.split("/java/", 1)[1].rpartition("/")[0].replace("/", ".")
+        want = rel.group(1).rpartition("/")[0].replace("/", ".")
         if not m:
             fail(f"{f}: no package declaration (expected {want})")
         elif m.group(1) != want:
             fail(f"{f}: package {m.group(1)} != directory {want}")
+
+
+DECLARATION = re.compile(
+    r"^(?:@\w+(?:\([^\n]*\))?\s*)*"
+    r"((?:(?:public|internal|private|protected|abstract|final|data|sealed|open|inline|value|expect|actual|annotation|enum|fun)\s+)*)"
+    r"(class|object|interface|typealias|fun|val|var)\s+([A-Za-z_]\w*)"
+)
+
+
+def check_file_names(files):
+    for f in files:
+        p = ROOT / f
+        if not re.match(r"^(?:app|shared|spike)/src/.*\.kt$", f) or not p.is_file():
+            continue
+        visible = []
+        for line in p.read_text(errors="replace").splitlines():
+            m = DECLARATION.match(line)
+            if m and "private" not in m.group(1).split():
+                visible.append((m.group(2), m.group(3)))
+        if len(visible) == 1 and visible[0][0] in ("class", "object", "interface", "typealias"):
+            if visible[0][1] != p.stem:
+                fail(f"{f}: file name should be {visible[0][1]}.kt")
 
 
 def check_no_committed_secrets(files):
@@ -231,6 +265,7 @@ def check_no_committed_secrets(files):
 def main():
     files = tracked_files()
     check_line_caps(files)
+    check_baselines()
     check_no_todos(files)
     check_no_build_output(files)
     check_no_dynamic_deps()
@@ -240,6 +275,7 @@ def main():
     check_media_notification()
     check_manifest_components(files)
     check_package_dirs(files)
+    check_file_names(files)
     check_no_committed_secrets(files)
     if failures:
         for f in failures:

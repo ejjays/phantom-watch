@@ -1,34 +1,53 @@
 # Architecture
 
+Three Gradle modules. `:app` is the Android shell and the engine; `:shared` is
+the multiplatform UI and catalog; `:spike` is the wasm shell.
+
+| Module | Source root | Owns |
+|---|---|---|
+| `:app` | `app/src/main/java/dev/phantomwatch` | Android entry points, player engine, resolver, subtitles, downloads, auth, updates |
+| `:shared` | `shared/src/commonMain/kotlin/dev/phantomwatch` | screens, navigation state, TMDB/catalog, settings, transport seams |
+| `:spike` | `spike/src/wasmJsMain/kotlin/dev/phantomwatch/spike` | wasm entry point, web player, web settings |
+
+Dependencies point one way: `:app` and `:spike` depend on `:shared`; `:shared`
+depends on neither.
+
 ## Runtime flow
 
 ```
 TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
                             │
-                            ├─► providers.js in a WebView  (8 legs, parallel)
+                            ├─► providers.js in a WebView  (every enabled leg, parallel)
                             │     └─ formats + subs, already ranked
                             │
                             └─► pick order (__pwRank)  ──► ExoPlayer + MediaSessionService
                                                         └─► telemetry (one event per resolve)
 ```
 
-## Layers
+## Packages
 
-| Layer | Files | Rule |
-|---|---|---|
-| app shell | `MainActivity.kt`, `AppRoot.kt`, `PhantomApp.kt` | navigation state, PiP, crash dialog |
-| screens | `ui/Browse.kt`, `ui/Detail.kt`, `ui/History.kt`, `player/PlayerStage.kt`, `player/PlayerPanel.kt` | rendering only |
-| player | `player/PlayerScreen.kt`, `PlayerMedia.kt`, `PlayerLoading.kt`, `PlayerDownload.kt`, `PlayerLayout.kt`, `PlayerVideo.kt` | playback state machine |
-| resolver | `provider/Resolve.kt`, `Providers.kt`, `JsProviders.kt`, `FormatOrder.kt` | formats, ordering, cache |
-| providers | `assets/providers.js`, `assets/providers.json` | the only provider implementation |
-| subs | `subs/Subtitles.kt`, `OsSubs.kt`, `SubsApi.kt`, `AiSubs.kt`, `MkvSubs.kt` | subtitle sources |
-| data | `data/Models.kt`, `Tmdb.kt`, `Search.kt`, `Resume.kt`, `DetailCache.kt` | catalog and watch state |
-| infra | `core/RemoteConfig.kt`, `core/Telemetry.kt`, `core/CrashReport.kt`, `core/Http.kt`, `provider/DeadHosts.kt` | config, telemetry, transport, host health |
-
-Dependencies point down only. Screens do not talk to providers, the resolver
-does not touch Compose, and `providers.js` knows nothing about the app.
+| Package | Files |
+|---|---|
+| app shell (root) | `MainActivity.kt`, `AppRoot.kt`, `PhantomApp.kt`, `Enhance.kt`, `UpdateInstallActivity.kt`, `DownloadReceiver.kt` |
+| `app/ui` | `TabletDetail.kt`, `DetailPane.kt`, `DetailAmbient.kt`, `CommentsSheet.kt`, `ClipsScreen.kt`, `TrailerChrome.kt`, `TrailerHero.kt`, `PhantomInstallDialog.kt`, `ActionIcons.kt`, `AmbientGlow.kt` |
+| `app/player` | `PlayerScreen.kt` (state machine), `PlayerStage.kt`, `PlayerControls.kt`, `PlayerPanel.kt`, `PlayerWide.kt`, `PlayerPill.kt`, `PlayerMedia.kt`, `PlayerLoading.kt`, `PlayerVideo.kt`, `PlayerLayout.kt`, `PlayerSettings.kt`, `Playback.kt`, `Pip.kt`, `SubsController.kt`, `SubCache.kt` |
+| `app/provider` | `Resolve.kt`, `Providers.kt`, `JsProviders.kt`, `FormatOrder.kt`, `DeadHosts.kt`, `VoeExtract.kt` |
+| `app/subs` | `Subtitles.kt`, `OsSubs.kt`, `AiSubs.kt`, `MkvSubs.kt`, `PreRecorded.kt`, `DeepgramLive.kt` |
+| `app/data` | `Resume.kt`, `Settings.kt`, `Downloads.kt`, `DubPref.kt` |
+| `app/core` | `RemoteConfig.kt`, `Telemetry.kt`, `CrashReport.kt`, `AppLog.kt`, `UpdateChecker.kt`, `UpdateNotice.kt`, `UpdateTrust.kt`, `Push.kt`, `PushArt.kt`, `Connectivity.kt` |
+| `app/social` | `Social.kt`, `GoogleAuth.kt` |
+| `app/lan` | `LanServer.kt`, `LanShare.kt`, `LanPlaylist.kt` |
+| `app/agent` | `AgentFunctions.kt`, `PlayRequest.kt` |
+| `shared/ui` | `Browse.kt`, `BrowseState.kt`, `Nav.kt`, `Detail.kt`, `WideDetail.kt`, `History.kt`, `HomeLiquidTabs.kt`, `LiquidTabs.kt`, `Theme.kt`, `WindowLayout.kt`, `ScreenMetrics.kt`, `settings/*` |
+| `shared/data` | `Tmdb.kt`, `Models.kt`, `Search.kt`, `Chart.kt`, `Aliases.kt`, `DetailCache.kt`, `SettingsKeys.kt`, `TmdbHost.kt` |
+| `shared/core` | `Http.kt` (android), `Net.kt` (common + wasm), `Log.kt`, `SplashGate.kt` |
 
 ## Decisions
+
+Root keeps `server/`, `worker/` and `supabase/` beside the Gradle modules: each
+is deployed or run from its own directory, so folding them under a backend
+directory would churn CI, wrangler and probe paths without changing ownership. Root
+`assets/` is branding source; the provider bundle stays in `app/src/main/assets`.
 
 **One provider implementation.** Every leg lives in `assets/providers.js` and
 runs in a WebView behind the `pw` bridge. The Kotlin copies were deleted; they
@@ -44,15 +63,20 @@ sides are pinned by `app/src/test/resources/pick_order.txt`.
 **Skip rules live in JavaScript too.** A leg that cannot serve the title
 returns `{ formats: [], subs: [], skipped: true }` instead of an empty result.
 The app leaves skipped legs out of the telemetry, and `scripts/probe.js` skips them
-too, so a live-action title no longer looks like a paradise outage.
+too, so a live-action title no longer looks like an outage.
 
 **State stays on the screen.** The activity handles `configChanges`, so a
 rotation does not recreate it and Compose state survives. Screen-local state
 lives in the composable; only what must outlive the screen (resume position,
-crash report, cached config) goes to storage. Subtitle state and the
-OS/AI pipelines live in `player/SubsController.kt`; `player/PlayerScreen.kt`
-is still the biggest file in the repo because it is the player state machine;
-`checks/quality.py` caps it at its current size until it is split.
+crash report, cached config) goes to storage. Subtitle state and the OS/AI
+pipelines live in `player/SubsController.kt`. `player/PlayerScreen.kt` is still
+the biggest file in the repo; `checks/quality.py` caps it at its current size
+until it is split, and that baseline may only go down.
+
+**One route model.** `shared/ui/Nav.kt` holds `Route`/`NavStack` and is driven
+by `BrowseState`. Both shells navigate with the same types: Android maps a
+title or source pick to `Route.Player`/`Route.Sources`, and wasm keeps a
+`Route.Player?` in `SpikeApp`. `Route.navLabel()` is the one back-stack label.
 
 **Signing uses a private keystore.** Release builds read `PW_RELEASE_*` and
 pin the release certificate in `UPDATE_CERT_SHA256`; the update helper only
@@ -62,11 +86,11 @@ APK. See [release.md](release.md).
 
 ## Testing seams
 
-Pure logic is unit tested in the package of the code it covers
-(`app/src/test/java/dev/phantomwatch/{core,data,player,provider,subs,ui}`):
-the resolver cache, subtitle parsing and ranking, the oshash vector, the MKV
-cue conversion, the config acceptance rules, the pick order and the
-OpenSubtitles response parsing.
+Pure logic is unit tested in the package of the code it covers (under
+`app/src/test/java/dev/phantomwatch/`): the resolver cache, subtitle parsing
+and ranking, the oshash vector, the MKV cue conversion, the config acceptance
+rules, the pick order and the OpenSubtitles response parsing. Tests that cover `shared` code still live in
+`app`; `shared/src/commonTest` covers `Route`/`NavStack`.
 `org.json` is a stub in `android.jar`, so the unit tests depend on the real
 `org.json` artifact (test-only, not shipped).
 

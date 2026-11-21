@@ -20,6 +20,10 @@ jobs:
           python-version: "3.12"
       - name: Repo quality
         run: python3 checks/quality.py
+      - name: String ownership
+        run: python3 checks/strings.py
+      - name: Doc paths
+        run: python3 checks/docs.py
       - name: Web bundle resources
         run: python3 checks/web_resources.py
       - uses: actions/setup-node@v4
@@ -36,6 +40,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Detekt
         run: ./gradlew :app:detekt -PcompileSdk=36 -PtargetSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
+      - name: Wasm shell
+        run: ./gradlew :spike:compileKotlinWasmJs -PcompileSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
+      - name: Shared tests
+        run: ./gradlew :shared:wasmJsBrowserTest -PcompileSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
       - name: Debug keystore
         run: |
           mkdir -p ~/.android
@@ -44,7 +52,7 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
       - name: Test release keystore
-        # CI smoke-builds release with a throwaway key; these APKs are not distributable.
+        # CI smoke builds release with throwaway key, apks not distributable
         run: |
           mkdir -p app/build
           keytool -genkeypair -v -keystore app/build/test-release.jks \
