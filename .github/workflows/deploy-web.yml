@@ -1,0 +1,50 @@
+name: deploy-web
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'relay-worker/**'
+      - 'spike/web/**'
+      - '.github/workflows/deploy-web.yml'
+permissions:
+  contents: read
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: test
+        run: node --test relay-worker/test.mjs
+      - name: deploy
+        working-directory: relay-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.154.0 deploy
+
+  pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.154.0 pages deploy spike/web --project-name phantomwatch-web --branch main --commit-dirty=true
+
+  verify:
+    needs: [relay, pages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: smoke
+        run: |
+          curl -fsS https://phantomwatch-relay.christsonalloso021.workers.dev/health
+          curl -fsS -o /dev/null https://phantomwatch-web.pages.dev/
