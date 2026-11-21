@@ -5,7 +5,13 @@ on:
     branches: [main]
     paths:
       - 'relay-worker/**'
-      - 'spike/web/**'
+      - 'spike/**'
+      - 'shared/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/libs.versions.toml'
       - '.github/workflows/deploy-web.yml'
 permissions:
   contents: read
@@ -34,11 +40,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: build wasm
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          PW_KEY: ${{ secrets.PW_KEY }}
+        run: |
+          umask 077
+          printf 'TMDB_API_KEY=%s\nPW_KEY=%s\n' "$TMDB_API_KEY" "$PW_KEY" > local.properties
+          ./gradlew :spike:compileProductionExecutableKotlinWasmJs \
+            -PcompileSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
+      - name: stage
+        run: |
+          site="$RUNNER_TEMP/site"
+          cp -a spike/web "$site"
+          cp -a spike/build/compileSync/wasmJs/main/productionExecutable/kotlin/. "$site/kotlin/"
+          for f in "$site"/kotlin/*; do
+            case "$f" in *.gz) continue;; esac
+            gzip -9 -c "$f" > "$f.gz"
+          done
       - name: deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4.154.0 pages deploy spike/web --project-name phantomwatch-web --branch main --commit-dirty=true
+        run: npx --yes wrangler@4.154.0 pages deploy "$RUNNER_TEMP/site" --project-name phantomwatch-web --branch main --commit-dirty=true
 
   verify:
     needs: [relay, pages]
@@ -48,3 +77,5 @@ jobs:
         run: |
           curl -fsS https://phantomwatch-relay.christsonalloso021.workers.dev/health
           curl -fsS -o /dev/null https://phantomwatch-web.pages.dev/
+          curl -fsS -o "$RUNNER_TEMP/live.wasm" https://phantomwatch-web.pages.dev/kotlin/PhantomWatch-spike.wasm
+          grep -aq 'phantomwatch-relay' "$RUNNER_TEMP/live.wasm"
