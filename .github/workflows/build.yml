@@ -31,6 +31,8 @@ jobs:
           node-version: "22"
       - name: Worker tests
         run: node worker/test.mjs
+      - name: Proxy playlist tests
+        run: node --test server/pw/playlist.test.mjs
       - name: Provider tests
         run: node --test tests/*.test.mjs
       - uses: actions/setup-java@v6
