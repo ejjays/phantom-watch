@@ -25,6 +25,7 @@ import com.kyant.shapes.Capsule
 import dev.phantomwatch.R
 import dev.phantomwatch.ui.WorkSans
 
+@Suppress("LongParameterList")
 @Composable
 internal fun PlayerPill(
     text: String,
