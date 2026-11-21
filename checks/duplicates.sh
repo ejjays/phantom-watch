@@ -4,8 +4,11 @@ cd "$(dirname "$0")/.."
 
 # threshold is baseline, lower it as clones are removed
 JSCPD="${JSCPD:-$HOME/tools/jscpd4/node_modules/jscpd/bin/jscpd}"
+if [ ! -f "$JSCPD" ] && command -v jscpd >/dev/null 2>&1; then
+  JSCPD="$(command -v jscpd)"
+fi
 if [ ! -f "$JSCPD" ]; then
-  echo "install jscpd 4.3.0 and set JSCPD to its bin/jscpd path" >&2
+  echo "npm install -g jscpd@4.3.0, or set JSCPD to its bin/jscpd path" >&2
   exit 2
 fi
 

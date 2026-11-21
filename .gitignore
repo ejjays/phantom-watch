@@ -7,12 +7,12 @@ __pycache__/
 .kotlin/
 .wrangler/
 /vr-landing/
-server/pw/assets/
+backend/server/pw/assets/
 /kotlin-js-store/
 node_modules/
 probe_history.jsonl
 .tmp/
-spike/web/kotlin/*.gz
+web/web/kotlin/*.gz
 .idea/
 .codebuddy/
 gradle/gradle-daemon-jvm.properties

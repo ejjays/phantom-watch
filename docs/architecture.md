@@ -1,15 +1,15 @@
 # Architecture
 
 Three Gradle modules. `:app` is the Android shell and the engine; `:shared` is
-the multiplatform UI and catalog; `:spike` is the wasm shell.
+the multiplatform UI and catalog; `:web` is the wasm shell.
 
 | Module | Source root | Owns |
 |---|---|---|
 | `:app` | `app/src/main/java/dev/phantomwatch` | Android entry points, player engine, resolver, subtitles, downloads, auth, updates |
 | `:shared` | `shared/src/commonMain/kotlin/dev/phantomwatch` | screens, navigation state, TMDB/catalog, settings, transport seams |
-| `:spike` | `spike/src/wasmJsMain/kotlin/dev/phantomwatch/spike` | wasm entry point, web player, web settings |
+| `:web` | `web/src/wasmJsMain/kotlin/dev/phantomwatch/web` | wasm entry point, web player, web settings |
 
-Dependencies point one way: `:app` and `:spike` depend on `:shared`; `:shared`
+Dependencies point one way: `:app` and `:web` depend on `:shared`; `:shared`
 depends on neither.
 
 ## Runtime flow
@@ -28,11 +28,11 @@ TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
 
 | Package | Files |
 |---|---|
-| app shell (root) | `MainActivity.kt`, `AppRoot.kt`, `PhantomApp.kt`, `Enhance.kt`, `UpdateInstallActivity.kt`, `DownloadReceiver.kt` |
+| app shell (root) | `MainActivity.kt`, `AppRoot.kt`, `PhantomApp.kt`, `MediaEnhance.kt`, `UpdateInstallActivity.kt`, `DownloadReceiver.kt` |
 | `app/ui` | `TabletDetail.kt`, `DetailPane.kt`, `DetailAmbient.kt`, `CommentsSheet.kt`, `ClipsScreen.kt`, `TrailerChrome.kt`, `TrailerHero.kt`, `PhantomInstallDialog.kt`, `ActionIcons.kt`, `AmbientGlow.kt` |
 | `app/player` | `PlayerScreen.kt` (state machine), `PlayerStage.kt`, `PlayerControls.kt`, `PlayerPanel.kt`, `PlayerWide.kt`, `PlayerPill.kt`, `PlayerMedia.kt`, `PlayerLoading.kt`, `PlayerVideo.kt`, `PlayerLayout.kt`, `PlayerSettings.kt`, `Playback.kt`, `Pip.kt`, `SubsController.kt`, `SubCache.kt` |
 | `app/provider` | `Resolve.kt`, `Providers.kt`, `JsProviders.kt`, `FormatOrder.kt`, `DeadHosts.kt`, `VoeExtract.kt` |
-| `app/subs` | `Subtitles.kt`, `OsSubs.kt`, `AiSubs.kt`, `MkvSubs.kt`, `PreRecorded.kt`, `DeepgramLive.kt` |
+| `app/subs` | `Subtitles.kt`, `OsSubs.kt`, `TranslateSubs.kt`, `MkvSubs.kt`, `PreRecorded.kt`, `DeepgramLive.kt` |
 | `app/data` | `Resume.kt`, `Settings.kt`, `Downloads.kt`, `DubPref.kt` |
 | `app/core` | `RemoteConfig.kt`, `Telemetry.kt`, `CrashReport.kt`, `AppLog.kt`, `UpdateChecker.kt`, `UpdateNotice.kt`, `UpdateTrust.kt`, `Push.kt`, `PushArt.kt`, `Connectivity.kt` |
 | `app/social` | `Social.kt`, `GoogleAuth.kt` |
@@ -41,14 +41,16 @@ TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
 | `shared/ui` | `Browse.kt`, `BrowseState.kt`, `Nav.kt`, `Detail.kt`, `WideDetail.kt`, `History.kt`, `HomeLiquidTabs.kt`, `LiquidTabs.kt`, `Theme.kt`, `WindowLayout.kt`, `ScreenMetrics.kt`, `settings/*` |
 | `shared/data` | `Tmdb.kt`, `Models.kt`, `Search.kt`, `Chart.kt`, `Aliases.kt`, `DetailCache.kt`, `SettingsKeys.kt`, `TmdbHost.kt` |
 | `shared/core` | `Http.kt` (android), `Net.kt` (common + wasm), `Log.kt`, `SplashGate.kt` |
-| `spike/*` | `SpikeApp.kt`, `PlayerScreen.kt`, `PlayerPanels.kt` |
+| `web/*` | `WebApp.kt`, `PlayerScreen.kt`, `PlayerPanels.kt` |
 
 ## Decisions
 
-Root keeps `server/`, `worker/` and `supabase/` beside the Gradle modules: each
-is deployed or run from its own directory, so folding them under a backend
-directory would churn CI, wrangler and probe paths without changing ownership. Root
-`assets/` is branding source; the provider bundle stays in `app/src/main/assets`.
+Deployable services live together under `backend/`: `backend/server/` (resolver
+and proxy), `backend/worker/` (telemetry D1 Worker), `backend/relay-worker/`
+(relay in front of the box) and `backend/supabase/` (migrations). Each is
+deployed from its own directory; the grouping is only a tree change and does not
+move any deploy root. Root `assets/` is branding source; the provider bundle
+stays in `app/src/main/assets`.
 
 **One provider implementation.** Every leg lives in `assets/providers.js` and
 runs in a WebView behind the `pw` bridge. The Kotlin copies were deleted; they
@@ -77,7 +79,7 @@ until it is split, and that baseline may only go down.
 **One route model.** `shared/ui/Nav.kt` holds `Route`/`NavStack` and is driven
 by `BrowseState`. Both shells navigate with the same types: Android maps a
 title or source pick to `Route.Player`/`Route.Sources`, and wasm keeps a
-`Route.Player?` in `SpikeApp`. `Route.navLabel()` is the one back-stack label.
+`Route.Player?` in `WebApp`. `Route.navLabel()` is the one back-stack label.
 
 **Signing uses a private keystore.** Release builds read `PW_RELEASE_*` and
 pin the release certificate in `UPDATE_CERT_SHA256`; the update helper only
@@ -96,7 +98,7 @@ rules, the pick order and the OpenSubtitles response parsing. Tests that cover `
 `org.json` artifact (test-only, not shipped).
 
 Provider logic is tested in Node (`tests/`) against the same fixture, because
-the providers are JavaScript. The Worker has its own suite (`worker/test.mjs`)
+the providers are JavaScript. The Worker has its own suite (`backend/worker/test.mjs`)
 with a stubbed D1 and Telegram.
 
 Network and UI are covered by hand on the device: there is no emulator in the

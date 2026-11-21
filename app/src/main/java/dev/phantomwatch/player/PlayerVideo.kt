@@ -207,7 +207,7 @@ fun PlayerVideo(
                 swipePreview(Modifier.requiredSize(coverW, coverW / videoAspect))
             }
         }
-        val ai = subCues.ifEmpty { AiSubtitles.text }
+        val ai = subCues.ifEmpty { LiveSubs.text }
         SubtitleLayer(ai, subStyle, subTopPx, subBgAlpha)
     }
 }

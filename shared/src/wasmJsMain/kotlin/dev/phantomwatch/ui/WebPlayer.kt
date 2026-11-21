@@ -24,7 +24,7 @@ import kotlinx.coroutines.delay
 import org.w3c.dom.HTMLVideoElement
 import org.w3c.dom.events.Event
 
-// phone runs media3 on SurfaceView, browser gets <video> element parked under same composable rect, chrome gestures keys in spike/web/player.js
+// phone runs media3 on SurfaceView, browser gets <video> element parked under same composable rect, chrome gestures keys in web/web/player.js
 @Composable
 fun WebPlayer(
     sources: List<PlaySource>,
@@ -100,7 +100,7 @@ fun WebPlayer(
     })
 }
 
-// provided by spike/web/player.js
+// provided by web/web/player.js
 private external fun pwStall(v: HTMLVideoElement, title: String)
 
 private external fun pwAttach(v: HTMLVideoElement, sourcesJson: String)

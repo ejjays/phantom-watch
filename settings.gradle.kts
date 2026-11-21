@@ -20,5 +20,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "PhantomWatch"
 include(":app")
-include(":spike")
+include(":web")
 include(":shared")

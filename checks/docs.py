@@ -13,7 +13,7 @@ ALIASES = (
     ("shared/", "shared/src/commonMain/kotlin/dev/phantomwatch/"),
     ("settings/", "shared/src/commonMain/kotlin/dev/phantomwatch/ui/settings/"),
     ("player/", "app/src/main/java/dev/phantomwatch/player/"),
-    ("spike/", "spike/src/wasmJsMain/kotlin/dev/phantomwatch/spike/"),
+    ("web/", "web/src/wasmJsMain/kotlin/dev/phantomwatch/web/"),
     ("assets/", "app/src/main/assets/"),
     ("res/", "app/src/main/res/"),
 )
@@ -21,17 +21,17 @@ EXTRA = (
     "app/src/main/",
     "app/src/main/java/dev/phantomwatch/",
     "shared/src/commonMain/kotlin/dev/phantomwatch/",
-    "spike/src/wasmJsMain/kotlin/dev/phantomwatch/spike/",
+    "web/src/wasmJsMain/kotlin/dev/phantomwatch/web/",
 )
 BY_NAME = (
     "app/src",
     "shared/src",
-    "spike/src",
+    "web/src",
     "app/src/main/assets",
     "app/src/main/res",
     "scripts",
     "checks",
-    "worker",
+    "backend/worker",
     "docs",
 )
 SKIP = re.compile(r"^(https?:|\./gradlew|node |python3 |curl |adb |am |\. |org\.)")

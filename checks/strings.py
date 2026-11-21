@@ -39,11 +39,11 @@ def main():
     for key in sorted(app_plurals - app_keys - shared_keys):
         problems.append(f"{key}: plural used by app code but defined nowhere")
 
-    shared_used = used(r"Res\.string\.(\w+)", [ROOT / "shared/src", ROOT / "spike/src"])
+    shared_used = used(r"Res\.string\.(\w+)", [ROOT / "shared/src", ROOT / "web/src"])
     for key in sorted(shared_used - shared_keys):
         problems.append(f"{key}: used by shared code but missing from shared resources")
 
-    shared_plurals = used(r"Res\.plurals\.(\w+)", [ROOT / "shared/src", ROOT / "spike/src"])
+    shared_plurals = used(r"Res\.plurals\.(\w+)", [ROOT / "shared/src", ROOT / "web/src"])
     for key in sorted(shared_plurals - shared_keys):
         problems.append(f"{key}: plural used by shared code but missing from shared resources")
 

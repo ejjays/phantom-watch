@@ -9,10 +9,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: test
-        working-directory: worker
+        working-directory: backend/worker
         run: node test.mjs
       - name: deploy
-        working-directory: worker
+        working-directory: backend/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

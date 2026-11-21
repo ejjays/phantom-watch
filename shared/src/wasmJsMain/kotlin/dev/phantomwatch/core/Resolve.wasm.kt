@@ -16,7 +16,7 @@ private var primaryDownUntil = 0.0
 
 @OptIn(ExperimentalWasmJsInterop::class)
 @JsFun("() => Date.now()")
-private external fun nowMs(): Double
+private external fun jsNowMs(): Double
 
 // POST through fetch and not the ktor client: a resolver that is down makes fetch reject and js
 // engine parks the coroutine on that promise for good, which left player spinning with no way
@@ -65,7 +65,7 @@ suspend fun resolveSources(
     val endpoints = if (fallback.isEmpty() || fallback == server) listOf(server) else listOf(server, fallback)
     var last: Exception? = null
     for (s in endpoints) {
-        if (s == server && nowMs() < primaryDownUntil) continue
+        if (s == server && jsNowMs() < primaryDownUntil) continue
         try {
             val body = JSONObject(post("$s/resolve", key, req.toString()))
 
@@ -113,7 +113,7 @@ suspend fun resolveSources(
             return Resolved(formats, subs)
         } catch (e: Exception) {
             last = e
-            if (s == server) primaryDownUntil = nowMs() + 15 * 60_000
+            if (s == server) primaryDownUntil = jsNowMs() + 15 * 60_000
         }
     }
     throw last ?: RuntimeException("no resolver")

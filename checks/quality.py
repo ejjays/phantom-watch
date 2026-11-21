@@ -19,14 +19,14 @@ LINE_CAPS = {
     "app/src/main/java": 910,
     "app/src/test/java": 400,
     "shared/src": 900,
-    "spike/src": 900,
+    "web/src": 900,
     # providers.js is single home for every leg extractor and bridge loads this one asset
     # (no split without apk), cap moves with leg count ~30/leg
     # allanime resolver is gated so leg carries client that reads mask out of site chunk,
     # derives AES key and signs each call
     "app/src/main/assets/providers.js": 1520,
     "app/src/main/assets": 700,
-    "worker": 700,
+    "backend/worker": 700,
     "checks": 400,
     "scripts": 300,
 }
@@ -205,7 +205,7 @@ def check_manifest_components(files):
             )
 
 
-SOURCE_FILE = re.compile(r"^(?:app|shared|spike)/src/[^/]+/(?:java|kotlin)/(.+\.kt)$")
+SOURCE_FILE = re.compile(r"^(?:app|shared|web)/src/[^/]+/(?:java|kotlin)/(.+\.kt)$")
 
 
 def check_package_dirs(files):
@@ -234,7 +234,7 @@ DECLARATION = re.compile(
 def check_file_names(files):
     for f in files:
         p = ROOT / f
-        if not re.match(r"^(?:app|shared|spike)/src/.*\.kt$", f) or not p.is_file():
+        if not re.match(r"^(?:app|shared|web)/src/.*\.kt$", f) or not p.is_file():
             continue
         visible = []
         for line in p.read_text(errors="replace").splitlines():

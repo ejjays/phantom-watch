@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate spike/web/icons.js from app/src/main/res/drawable so the web player
+"""Regenerate web/web/icons.js from app/src/main/res/drawable so the web player
 uses the exact same glyphs as the phone. Run from the repo root."""
 import re, pathlib
 
@@ -8,7 +8,7 @@ WANT = ["ic_back", "ic_chevron_down", "ic_cc_on", "ic_cc_off", "ic_settings",
         "ic_play", "ic_pause", "ic_lock", "ic_unlock", "ic_seek_chevron",
         "ic_quality", "ic_speed", "ic_check", "ic_chevron_right", "ic_episodes"]
 SRC = pathlib.Path("app/src/main/res/drawable")
-OUT = pathlib.Path("spike/web/icons.js")
+OUT = pathlib.Path("web/web/icons.js")
 
 def attrs(block, name):
     m = re.search(r'android:%s="([^"]*)"' % name, block)

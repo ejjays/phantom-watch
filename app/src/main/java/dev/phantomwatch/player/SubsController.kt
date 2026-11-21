@@ -16,7 +16,7 @@ import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Settings
 import dev.phantomwatch.data.Sub
-import dev.phantomwatch.subs.AiSubs
+import dev.phantomwatch.subs.TranslateSubs
 import dev.phantomwatch.subs.MkvSubs
 import dev.phantomwatch.subs.OsSubs
 import dev.phantomwatch.subs.SubtitleCue
@@ -57,7 +57,7 @@ internal class SubsController(
 
     fun toggle() {
         subsOff = !subsOff
-        AiSubtitles.setSubsOff(subsOff)
+        LiveSubs.setSubsOff(subsOff)
         applySubs()
     }
 
@@ -108,7 +108,7 @@ internal class SubsController(
                     AppLog.d("os skipped, stream never started")
                     return@launch
                 }
-                if (AiSubtitles.enabled) {
+                if (LiveSubs.enabled) {
                     AppLog.d("os skipped, ai subs on")
                     return@launch
                 }
@@ -185,7 +185,7 @@ internal class SubsController(
         aiRunning = true
         scope.launch {
             try {
-                val keys = withContext(Dispatchers.IO) { AiSubs.keys() }
+                val keys = withContext(Dispatchers.IO) { TranslateSubs.keys() }
                 if (keys.isEmpty()) {
                     AppLog.d("ai qwen no groq keys, set GROQ_API_KEY")
                     return@launch
@@ -211,7 +211,7 @@ internal class SubsController(
                     }
                     var added = 0
                     for (chunk in fresh.chunked(40)) {
-                        val tr = withContext(Dispatchers.IO) { AiSubs.translateLines(chunk.map { it.text }, keys, from) }
+                        val tr = withContext(Dispatchers.IO) { TranslateSubs.translateLines(chunk.map { it.text }, keys, from) }
                         if (tr == null || tr.size != chunk.size) break
                         val en = chunk.mapIndexed { j, c -> c.copy(text = tr[j]) }
                         aiCues = (aiCues + en).sortedBy { it.start }
@@ -247,7 +247,7 @@ internal class SubsController(
 
     suspend fun sync() {
         val s = stream
-        AiSubtitles.attach(context, exo, s, scope, season, episode)
+        LiveSubs.attach(context, exo, s, scope, season, episode)
         try {
             if (s.inSync) {
                 AppLog.d("sync skipped, same-release subs")

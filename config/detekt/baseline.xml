@@ -2,7 +2,7 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ComplexCondition:AiSubtitles.kt$AiSubtitles$!enabled || !available || cacheFile?.isFile == true || batch?.isActive == true</ID>
+    <ID>ComplexCondition:LiveSubs.kt$LiveSubs$!enabled || !available || cacheFile?.isFile == true || batch?.isActive == true</ID>
     <ID>ComplexCondition:MkvSubs.kt$MkvSubs$chunk[i] == 0x1F.toByte() &amp;&amp; chunk[i + 1] == 0x43.toByte() &amp;&amp; chunk[i + 2] == 0xB6.toByte() &amp;&amp; chunk[i + 3] == 0x75.toByte()</ID>
     <ID>ComplexCondition:MkvSubs.kt$MkvSubs$num &gt;= 0 &amp;&amp; type == 0x11L &amp;&amp; (codec.startsWith("S_TEXT/ASS") || codec.startsWith("S_TEXT/SSA") || codec.startsWith("S_TEXT/UTF8"))</ID>
     <ID>ComplexCondition:OsSubs.kt$OsSubs$c1 != 206 || c2 != 206 || head.size &lt; BLOCK || tail.size &lt; BLOCK</ID>
@@ -12,9 +12,9 @@
     <ID>ComplexCondition:PlayerStage.kt$keys == null || settings || locked || e.type != KeyEventType.KeyDown</ID>
     <ID>ComplexCondition:PreRecorded.kt$PreRecorded$next == null || closes || gap || line.length &gt;= MAX_CHARS || count &gt;= MAX_WORDS</ID>
     <ID>ComplexCondition:SourcesScreen.kt$(autoplay &amp;&amp; loading || gone) &amp;&amp; err == null</ID>
-    <ID>CyclomaticComplexMethod:AiSubs.kt$AiSubs$suspend fun translateLines(texts: List&lt;String&gt;, keys: List&lt;String&gt;, from: String = "ja"): List&lt;String&gt;?</ID>
-    <ID>CyclomaticComplexMethod:AiSubtitles.kt$AiSubtitles$private fun overlay()</ID>
-    <ID>CyclomaticComplexMethod:AiSubtitles.kt$AiSubtitles$private suspend fun stream()</ID>
+    <ID>CyclomaticComplexMethod:TranslateSubs.kt$TranslateSubs$suspend fun translateLines(texts: List&lt;String&gt;, keys: List&lt;String&gt;, from: String = "ja"): List&lt;String&gt;?</ID>
+    <ID>CyclomaticComplexMethod:LiveSubs.kt$LiveSubs$private fun overlay()</ID>
+    <ID>CyclomaticComplexMethod:LiveSubs.kt$LiveSubs$private suspend fun stream()</ID>
     <ID>CyclomaticComplexMethod:AppRoot.kt$@Composable internal fun AppRoot()</ID>
     <ID>CyclomaticComplexMethod:CommentsSheet.kt$@Composable internal fun CommentsSheet(media: Title, scrim: Boolean = true, onDismiss: () -&gt; Unit)</ID>
     <ID>CyclomaticComplexMethod:DeepgramLive.kt$DeepgramLive.Companion$internal fun languageOf(tag: String?): String</ID>
@@ -41,7 +41,7 @@
     <ID>CyclomaticComplexMethod:ZoomLayer.kt$internal fun Modifier.pinchZoom(mode: () -&gt; Int, safe: () -&gt; Boolean, onMode: (Int) -&gt; Unit): Modifier</ID>
     <ID>DestructuringDeclarationWithTooManyEntries:DetailAmbient.kt$val (bx, by, nx, ny) = when { u &lt; uCorner -&gt; { val a = u / uCorner val phi = pi - a * (0.5f * pi) val cosP = cos(phi) val sinP = sin(phi) val x = card.left + cornerR + cornerR * cosP val y = card.top + cornerR - cornerR * sinP FloatArray(4).apply { this[0] = x; this[1] = y; this[2] = cosP; this[3] = -sinP } } u &lt;= uStraight -&gt; { val a = (u - uCorner) / (uStraight - uCorner) val x = card.left + cornerR + a * straightW val y = card.top FloatArray(4).apply { this[0] = x; this[1] = y; this[2] = 0f; this[3] = -1f } } else -&gt; { val a = (u - uStraight) / (1f - uStraight) val phi = (1f - a) * (0.5f * pi) val cosP = cos(phi) val sinP = sin(phi) val x = card.right - cornerR + cornerR * cosP val y = card.top + cornerR - cornerR * sinP FloatArray(4).apply { this[0] = x; this[1] = y; this[2] = cosP; this[3] = -sinP } } }</ID>
     <ID>DestructuringDeclarationWithTooManyEntries:DetailAmbient.kt$val (bxBot, byBot, nxBot, nyBot) = when { u &lt; uCorner -&gt; { val a = u / uCorner val phi = pi - a * (0.5f * pi) val cosP = cos(phi) val sinP = sin(phi) val x = card.left + cornerR + cornerR * cosP val y = card.bottom - cornerR + cornerR * sinP FloatArray(4).apply { this[0] = x; this[1] = y; this[2] = cosP; this[3] = sinP } } u &lt;= uStraight -&gt; { val a = (u - uCorner) / (uStraight - uCorner) val x = card.left + cornerR + a * straightW val y = card.bottom FloatArray(4).apply { this[0] = x; this[1] = y; this[2] = 0f; this[3] = 1f } } else -&gt; { val a = (u - uStraight) / (1f - uStraight) val phi = (1f - a) * (0.5f * pi) val cosP = cos(phi) val sinP = sin(phi) val x = card.right - cornerR + cornerR * cosP val y = card.bottom - cornerR + cornerR * sinP FloatArray(4).apply { this[0] = x; this[1] = y; this[2] = cosP; this[3] = sinP } } }</ID>
-    <ID>EmptyFunctionBlock:Enhance.kt$Enhance.&lt;no name provided&gt;${}</ID>
+    <ID>EmptyFunctionBlock:MediaEnhance.kt$MediaEnhance.&lt;no name provided&gt;${}</ID>
     <ID>EmptyFunctionBlock:PlayerVideo.kt$&lt;no name provided&gt;${}</ID>
     <ID>ImplicitDefaultLocale:PlayerPanel.kt$String.format("%.1f", it)</ID>
     <ID>LongMethod:AmbientGlow.kt$@Composable fun AmbientGlow( surface: SurfaceView?, aspect: Float, modifier: Modifier = Modifier, )</ID>
@@ -67,7 +67,7 @@
     <ID>LongMethod:SubsController.kt$SubsController$fun runOsSubs()</ID>
     <ID>LongMethod:TrailerHero.kt$@Composable internal fun TrailerHero( videoId: String, poster: String?, modifier: Modifier = Modifier, onSurface: (TextureView?) -&gt; Unit = {}, audio: TrailerAudio? = null, fit: Boolean = false, )</ID>
     <ID>LongMethod:UpdateInstallActivity.kt$@Composable private fun UpdateProgress(progress: Float, ready: Boolean, installing: Boolean, selfUpdate: Boolean, onInstall: () -&gt; Unit)</ID>
-    <ID>LongParameterList:AiSubtitles.kt$AiSubtitles$( context: Context, player: ExoPlayer, stream: Stream, scope: CoroutineScope, season: String, episode: String, )</ID>
+    <ID>LongParameterList:LiveSubs.kt$LiveSubs$( context: Context, player: ExoPlayer, stream: Stream, scope: CoroutineScope, season: String, episode: String, )</ID>
     <ID>LongParameterList:CommentsSheet.kt$( c: Social.Comment, hasReplies: Boolean, open: Boolean, onReply: (Social.Comment) -&gt; Unit, onDelete: (Social.Comment) -&gt; Unit, onReport: (Social.Comment) -&gt; Unit, )</ID>
     <ID>LongParameterList:CommentsSheet.kt$( input: String, onInput: (String) -&gt; Unit, sending: Boolean, error: String?, focus: FocusRequester, onSubmit: () -&gt; Unit, )</ID>
     <ID>LongParameterList:CommentsSheet.kt$( root: Social.Comment, replies: List&lt;Social.Comment&gt;, open: Boolean, onToggle: () -&gt; Unit, onReply: (Social.Comment) -&gt; Unit, onDelete: (Social.Comment) -&gt; Unit, onReport: (Social.Comment) -&gt; Unit, )</ID>
@@ -112,7 +112,7 @@
     <ID>MaxLineLength:ProvidersTest.kt$ProvidersTest$"""{"url":"https://a/d.m3u8","label":"hianime-dub-auto","dub":"English","subs":[{"label":"English","url":"$shared","src":"hianime"}]}"""</ID>
     <ID>MaxLineLength:ProvidersTest.kt$ProvidersTest$"""{"url":"https://a/x.m3u8","isHls":true,"label":"vix-auto","height":1080,"english":true,"referer":"https://vixsrc.to/","enSubs":true,"enAudio":false}"""</ID>
     <ID>MaxLineLength:SourcesScreen.kt$title = if (season.isNotEmpty() &amp;&amp; episode.isNotEmpty()) stringResource(R.string.title_season_episode, title.title, season, episode) else title.title</ID>
-    <ID>NestedBlockDepth:AiSubtitles.kt$AiSubtitles$private suspend fun stream()</ID>
+    <ID>NestedBlockDepth:LiveSubs.kt$LiveSubs$private suspend fun stream()</ID>
     <ID>NestedBlockDepth:MkvSubs.kt$MkvSubs$fun extract(path: String): List&lt;Track&gt;</ID>
     <ID>NestedBlockDepth:MkvSubs.kt$MkvSubs$private fun readBlock( f: java.io.RandomAccessFile, pos: Long, end: Long, clusterTc: Long, scale: Long, dur: Long, codecs: Map&lt;Long, String&gt;, bufs: MutableMap&lt;Long, MutableList&lt;Raw&gt;&gt;, )</ID>
     <ID>NestedBlockDepth:MkvSubs.kt$MkvSubs$private fun resync(f: java.io.RandomAccessFile, from: Long, limit: Long): Long?</ID>

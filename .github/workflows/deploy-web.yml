@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'relay-worker/**'
-      - 'spike/**'
+      - 'backend/relay-worker/**'
+      - 'web/**'
       - 'shared/**'
       - 'gradle/**'
       - 'build.gradle.kts'
@@ -29,9 +29,9 @@ jobs:
         with:
           node-version: '22'
       - name: test
-        run: node --test relay-worker/test.mjs
+        run: node --test relay-backend/worker/test.mjs
       - name: deploy
-        working-directory: relay-worker
+        working-directory: backend/relay-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -54,13 +54,13 @@ jobs:
         run: |
           umask 077
           printf 'TMDB_API_KEY=%s\nPW_KEY=%s\n' "$TMDB_API_KEY" "$PW_KEY" > local.properties
-          ./gradlew :spike:compileProductionExecutableKotlinWasmJs \
+          ./gradlew :web:compileProductionExecutableKotlinWasmJs \
             -PcompileSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
       - name: stage
         run: |
           site="$RUNNER_TEMP/site"
-          cp -a spike/web "$site"
-          cp -a spike/build/compileSync/wasmJs/main/productionExecutable/kotlin/. "$site/kotlin/"
+          cp -a web/web "$site"
+          cp -a web/build/compileSync/wasmJs/main/productionExecutable/kotlin/. "$site/kotlin/"
           for f in "$site"/kotlin/*; do
             case "$f" in *.gz) continue;; esac
             gzip -9 -c "$f" > "$f.gz"
@@ -80,5 +80,5 @@ jobs:
         run: |
           curl -fsS https://phantomwatch-relay.christsonalloso021.workers.dev/health
           curl -fsS -o /dev/null https://phantomwatch-web.pages.dev/
-          curl -fsS -o "$RUNNER_TEMP/live.wasm" https://phantomwatch-web.pages.dev/kotlin/PhantomWatch-spike.wasm
+          curl -fsS -o "$RUNNER_TEMP/live.wasm" https://phantomwatch-web.pages.dev/kotlin/PhantomWatch-web.wasm
           grep -aq 'phantomwatch-relay' "$RUNNER_TEMP/live.wasm"

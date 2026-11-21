@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The wasm bundle ships a copy of the resource tree, and nothing puts it there.
 
-`spike/web/composeResources/` is a hand-run `cp` of what the compiler generates. Compose
+`web/web/composeResources/` is a hand-run `cp` of what the compiler generates. Compose
 addresses every string by byte offset inside `strings.commonMain.cvr`, so a copy that lags
 `strings.xml` by even one key does not fail to build or throw at runtime: each accessor
 decodes the neighbouring record and the text comes out blank or wrong. That is how every
@@ -9,7 +9,7 @@ settings label, tab title and the Top 10 heading went missing on the live site.
 
 This compares the shipped tree against the sources it mirrors, without Gradle:
 - every file under shared/src/commonMain/composeResources must have a byte-identical
-  counterpart under spike/web/composeResources/dev.phantomwatch.res, and nothing extra
+  counterpart under web/web/composeResources/dev.phantomwatch.res, and nothing extra
 - strings.commonMain.cvr must hold exactly the keys of values/strings.xml, same values
 
 Run: python3 checks/web_resources.py
@@ -21,10 +21,10 @@ import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "shared/src/commonMain/composeResources"
-SHIPPED = ROOT / "spike/web/composeResources/dev.phantomwatch.res"
+SHIPPED = ROOT / "web/web/composeResources/dev.phantomwatch.res"
 CVR = pathlib.Path("values/strings.commonMain.cvr")
-SYNC = ("cp -a spike/build/kotlin-multiplatform-resources/resources-from-dependencies/"
-        "wasmJs/composeResources/. spike/web/composeResources/")
+SYNC = ("cp -a web/build/kotlin-multiplatform-resources/resources-from-dependencies/"
+        "wasmJs/composeResources/. web/web/composeResources/")
 
 problems = []
 

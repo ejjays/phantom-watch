@@ -14,7 +14,7 @@
   on OpenSubtitles. Dubs still never borrow.
 - subs: an English dub no longer shows the sub cut's captions.
 - subs: Deepgram Nova-3 for a dub with no captions, off by default
-  (`AiSubtitles.EXPERIMENTAL`).
+  (`LiveSubs.EXPERIMENTAL`).
 - providers: a fixed rung outranks an adaptive `auto` master. One title's master
   settled at 640x268 while its own 1080p rung served 1920x804.
 - providers: `providers.js` is the only implementation now.

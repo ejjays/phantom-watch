@@ -35,7 +35,7 @@ maintained.
 python3 checks/quality.py             # repo invariants (file caps, config schema, secrets)
 python3 checks/web_resources.py       # shipped wasm resources match their sources
 node --test tests/*.test.mjs          # provider pick-order tests
-node worker/test.mjs                  # telemetry worker tests
+node backend/worker/test.mjs                  # telemetry worker tests
 ```
 
 `compileSdk`/`targetSdk` are 37. If you do not have platform 37 installed,

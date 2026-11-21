@@ -108,7 +108,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
-import dev.phantomwatch.Enhance
+import dev.phantomwatch.MediaEnhance
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.core.RemoteConfig
 import dev.phantomwatch.core.Telemetry
@@ -288,7 +288,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     var fillMode by remember { mutableIntStateOf(0) }
     var hasSafe by remember { mutableStateOf(false) }
     var nearFill by remember { mutableStateOf(false) }
-    LaunchedEffect(stream.url) { Enhance.probe(context) { enhReady = it } }
+    LaunchedEffect(stream.url) { MediaEnhance.probe(context) { enhReady = it } }
     DisposableEffect(exo) {
         Pip.active = true
         Pip.player = exo
@@ -891,7 +891,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         if (cur != null && enhSize.first == videoW && enhSize.second == videoH) {
             if (enhBound !== out) {
                 try {
-                    cur.setOutputSurface(out, Enhance.options(videoW, videoH), Enhance.frames())
+                    cur.setOutputSurface(out, MediaEnhance.options(videoW, videoH), MediaEnhance.frames())
                     enhBound = out
                 } catch (e: Exception) {
                     AppLog.d("enh rebind fail ${e.message}")
@@ -901,7 +901,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         }
         enhSession = null
         enhBound = null
-        Enhance.open(context, videoW, videoH) { s ->
+        MediaEnhance.open(context, videoW, videoH) { s ->
             if (s == null || !out.isValid) {
                 try {
                     s?.release()
@@ -917,7 +917,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             enhSize = videoW to videoH
             try {
                 exo.setVideoSurface(s.getInputSurface())
-                s.setOutputSurface(out, Enhance.options(videoW, videoH), Enhance.frames())
+                s.setOutputSurface(out, MediaEnhance.options(videoW, videoH), MediaEnhance.frames())
                 enhBound = out
                 AppLog.d("enh on ${videoW}x$videoH")
             } catch (e: Exception) {
@@ -1007,7 +1007,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         settingsBottom: androidx.compose.ui.unit.Dp = 0.dp,
         hostedSettings: Boolean = false,
     ) {
-        val canSubs = AiSubtitles.enabled || live.subs.isNotEmpty() || subs.osTrack != null ||
+        val canSubs = LiveSubs.enabled || live.subs.isNotEmpty() || subs.osTrack != null ||
             subs.aiSubUrl != null || embedNames.any { it != "und" }
         // one texture view source, the seek card sizes it by aspect and the swipe hands it an exact rect
         val previewSlot: @Composable (Modifier) -> Unit = { mod ->

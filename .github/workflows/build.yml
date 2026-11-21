@@ -30,11 +30,15 @@ jobs:
         with:
           node-version: "22"
       - name: Worker tests
-        run: node worker/test.mjs
+        run: node backend/worker/test.mjs
       - name: Proxy playlist tests
-        run: node --test server/pw/playlist.test.mjs
+        run: node --test backend/server/pw/playlist.test.mjs
       - name: Provider tests
         run: node --test tests/*.test.mjs
+      - name: Duplicate code
+        run: |
+          npm install -g jscpd@4.3.0
+          bash checks/duplicates.sh
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -43,7 +47,7 @@ jobs:
       - name: Detekt
         run: ./gradlew :app:detekt -PcompileSdk=36 -PtargetSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
       - name: Wasm shell
-        run: ./gradlew :spike:compileKotlinWasmJs -PcompileSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
+        run: ./gradlew :web:compileKotlinWasmJs -PcompileSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
       - name: Shared tests
         run: ./gradlew :shared:wasmJsBrowserTest -PcompileSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
       - name: Debug keystore

@@ -29,7 +29,7 @@ jobs:
           sshopt=(-i "$key" -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20)
           host="ubuntu@158.178.228.161"
           ssh "${sshopt[@]}" "$host" 'test -d /opt/pw'
-          scp "${sshopt[@]}" server/pw/index.js server/pw/bridge.js server/pw/playlist.js "$host:/opt/pw/"
+          scp "${sshopt[@]}" backend/server/pw/index.js backend/server/pw/bridge.js backend/server/pw/playlist.js "$host:/opt/pw/"
           if [ "${{ inputs.assets }}" = "true" ]; then
             scp "${sshopt[@]}" app/src/main/assets/providers.js app/src/main/assets/providers.json "$host:/opt/pw/assets/"
           fi

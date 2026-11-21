@@ -11,7 +11,7 @@ One signed APK. Debug and release install side by side
 python3 checks/quality.py
 ./gradlew :app:testDebugUnitTest
 node --test tests/*.test.mjs
-node worker/test.mjs
+node backend/worker/test.mjs
 ./gradlew :app:assembleRelease
 ```
 
