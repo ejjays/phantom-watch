@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   relay:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +38,7 @@ jobs:
         run: npx --yes wrangler@4.154.0 deploy
 
   pages:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +72,7 @@ jobs:
         run: npx --yes wrangler@4.154.0 pages deploy "$RUNNER_TEMP/site" --project-name phantomwatch-web --branch main --commit-dirty=true
 
   verify:
+    if: github.ref == 'refs/heads/main'
     needs: [relay, pages]
     runs-on: ubuntu-latest
     steps:
