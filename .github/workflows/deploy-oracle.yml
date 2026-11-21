@@ -23,7 +23,7 @@ jobs:
         run: |
           umask 077
           key="$RUNNER_TEMP/oci_bastion"
-          printf '%s' "$PW_SSH_KEY" > "$key"
+          printf '%s\n' "$PW_SSH_KEY" > "$key"
           chmod 600 "$key"
           sshopt=(-i "$key" -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20)
           host="ubuntu@158.178.228.161"
