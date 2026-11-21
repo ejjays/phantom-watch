@@ -14,6 +14,7 @@ kotlin {
         minSdk = 26
         // compose resources ship as assets, AGP 9 KMP library drops them without this
         androidResources.enable = true
+        withHostTest {}
     }
     wasmJs {
         browser()

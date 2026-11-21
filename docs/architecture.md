@@ -41,6 +41,7 @@ TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
 | `shared/ui` | `Browse.kt`, `BrowseState.kt`, `Nav.kt`, `Detail.kt`, `WideDetail.kt`, `History.kt`, `HomeLiquidTabs.kt`, `LiquidTabs.kt`, `Theme.kt`, `WindowLayout.kt`, `ScreenMetrics.kt`, `settings/*` |
 | `shared/data` | `Tmdb.kt`, `Models.kt`, `Search.kt`, `Chart.kt`, `Aliases.kt`, `DetailCache.kt`, `SettingsKeys.kt`, `TmdbHost.kt` |
 | `shared/core` | `Http.kt` (android), `Net.kt` (common + wasm), `Log.kt`, `SplashGate.kt` |
+| `spike/*` | `SpikeApp.kt`, `PlayerScreen.kt`, `PlayerPanels.kt` |
 
 ## Decisions
 
@@ -90,7 +91,7 @@ Pure logic is unit tested in the package of the code it covers (under
 `app/src/test/java/dev/phantomwatch/`): the resolver cache, subtitle parsing
 and ranking, the oshash vector, the MKV cue conversion, the config acceptance
 rules, the pick order and the OpenSubtitles response parsing. Tests that cover `shared` code still live in
-`app`; `shared/src/commonTest` covers `Route`/`NavStack`.
+`app`; `shared/src/commonTest` covers `Route`/`NavStack` on the android host and wasm targets.
 `org.json` is a stub in `android.jar`, so the unit tests depend on the real
 `org.json` artifact (test-only, not shipped).
 
