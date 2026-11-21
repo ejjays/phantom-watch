@@ -218,7 +218,7 @@ fun PlayerStage(
     val clockSize = if (landscapePhone) 13.sp else 11.sp
     val topInset = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val edgePx = with(LocalDensity.current) { (if (atEdge) topInset else 0.dp).toPx() }
-    // one bottom inset, never two: the caller's own lift and atEdge must not stack
+    // one bottom inset, never two: caller lift and atEdge must not stack
     val navPad = if (atEdge) WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding() else 0.dp
     val bottomPad = if (sidebarOpen) 0.dp else navPad
     val edgeSides = (if (atEdge) WindowInsets.navigationBarsIgnoringVisibility else WindowInsets(0))
@@ -231,8 +231,8 @@ fun PlayerStage(
     var seekSwipe by remember { mutableStateOf<Float?>(null) }
     // held after release so readout fades on frame finger left it on
     var swipeShown by remember { mutableStateOf(0f) }
-    // frame kept up until picture lands on new position, seek moves clock at once but decoder
-    // takes a beat and old frame flashes in that gap
+    // frame kept up until picture lands on new position, seek moves clock at once but
+    // decoder lags and old frame flashes in gap
     var seekHold by remember { mutableStateOf<Float?>(null) }
     LaunchedEffect(seekHold) {
         val h = seekHold ?: return@LaunchedEffect
@@ -458,7 +458,7 @@ fun PlayerStage(
                     durationMs = liveDur.value,
                     bufferedMs = bufferedMs,
                     slim = !fullscreen,
-                    // the stage owns the finger, the bar here is a readout and must not take it
+                    // stage owns finger, bar here is readout and must not take it
                     locked = true,
                     thumb = fullscreen,
                     onSeek = {},
@@ -466,8 +466,8 @@ fun PlayerStage(
                     onScrub = {},
                     preview = null,
                 )
-                // the button row sits under the bar in the chrome, its height keeps the bar on
-                // the line it always sits on rather than dropping to the edge
+                // button row sits under bar in chrome, its height keeps bar on line it always
+                // sits on rather than dropping to edge
                 if (fullscreen) Spacer(Modifier.height(ctrlBox))
             }
         }
@@ -651,7 +651,7 @@ fun PlayerStage(
                 )
             }
         }
-        // first in child order would sit under the scrim Box, so it is drawn last and zIndexed up
+        // first in child order would sit under scrim Box
         AnimatedVisibility(
             visible = chrome,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
@@ -815,278 +815,4 @@ fun PlayerStage(
             )
         }
     }
-}
-
-@Composable
-private fun PlayerTopBar(
-    title: String,
-    fullscreen: Boolean,
-    titleBelow: Boolean,
-    canSettings: Boolean,
-    topGap: Dp,
-    large: Boolean,
-    subsOn: Boolean,
-    canSubs: Boolean,
-    settingsOn: Boolean = false,
-    onSettings: () -> Unit = {},
-    onBack: () -> Unit,
-    onFullscreen: () -> Unit,
-    onToggleSubs: () -> Unit,
-) {
-    val subsActive = subsOn && canSubs
-    // 48dp boxes: a 20dp glyph with padding around it only taps inside the glyph itself
-    val iconBox = Modifier.size(48.dp).clip(CircleShape)
-    val cfg = LocalConfiguration.current
-    val phone = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
-        cfg.smallestScreenWidthDp < 600
-    val glyphSize = if (large || phone) 24.dp else 20.dp
-    Column(
-        Modifier.fillMaxWidth()
-            .padding(top = if (titleBelow) 4.dp else topGap).padding(end = if (large) 16.dp else 8.dp),
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier.padding(start = 4.dp).then(iconBox).focusRing().clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(color = Color.White.copy(alpha = 0.22f)),
-                ) { if (fullscreen) onFullscreen() else onBack() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painterResource(if (fullscreen) R.drawable.ic_chevron_down else R.drawable.ic_back),
-                    contentDescription = if (fullscreen) stringResource(R.string.player_exit_fullscreen) else stringResource(R.string.player_close),
-                    tint = Color.White, modifier = Modifier.size(glyphSize),
-                )
-            }
-            if (fullscreen && !titleBelow) {
-                Text(
-                    title, color = Color.White,
-                    fontSize = if (large) 17.sp else 15.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal,
-                    maxLines = 1, modifier = Modifier.weight(1f),
-                )
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-            Box(
-                iconBox.focusRing().clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(color = Color.White.copy(alpha = 0.22f)),
-                ) { onToggleSubs() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painterResource(if (subsActive) R.drawable.ic_cc_on else R.drawable.ic_cc_off),
-                    contentDescription = if (subsActive) stringResource(R.string.player_subs_off) else stringResource(R.string.player_subs_on),
-                    tint = Color.White.copy(alpha = if (canSubs) 1f else 0.4f),
-                    modifier = Modifier.size(glyphSize),
-                )
-            }
-            Box(
-                iconBox.focusRing().clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(color = Color.White.copy(alpha = 0.22f)),
-                    enabled = canSettings,
-                ) { onSettings() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painterResource(R.drawable.ic_settings),
-                    contentDescription = stringResource(R.string.player_settings),
-                    tint = if (settingsOn) Cyan else Color.White.copy(alpha = if (canSettings) 1f else 0.4f),
-                    modifier = Modifier.size(glyphSize),
-                )
-            }
-        }
-        if (titleBelow) {
-            Text(
-                title, color = Color.White, fontSize = 15.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 16.dp, top = 2.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun PlayerSeekBar(
-    positionMs: Long,
-    durationMs: Long,
-    bufferedMs: Long,
-    slim: Boolean,
-    locked: Boolean,
-    thumb: Boolean,
-    onSeek: (Float) -> Unit,
-    onInteract: () -> Unit,
-    onScrub: (Float?) -> Unit,
-    preview: (@Composable (Modifier) -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    var scrub by remember { mutableStateOf<Float?>(null) }
-    var dragging by remember { mutableStateOf(false) }
-    var trackW by remember { mutableStateOf(0) }
-    val frac = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-    val shown = (scrub ?: frac).coerceIn(0f, 1f)
-    val bufFrac = if (durationMs > 0) (bufferedMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-    LaunchedEffect(positionMs) {
-        if (dragging) return@LaunchedEffect
-        scrub?.let { s ->
-            if (durationMs > 0 && abs(positionMs - s * durationMs) < 1500) scrub = null
-        }
-    }
-    fun seekAt(xPx: Float, live: Boolean): Float? {
-        if (trackW <= 0 || durationMs <= 0) return null
-        val f = (xPx / trackW).coerceIn(0f, 1f)
-        scrub = f
-        onInteract()
-        if (live) onSeek(f)
-        return f
-    }
-    val playedColor by animateColorAsState(
-        if (slim) Color.White else Cyan, tween(300), label = "seekPlayed",
-    )
-    Column(modifier.fillMaxWidth()) {
-        val at = scrub
-        if (!slim && at != null && durationMs > 0) {
-            if (preview != null) {
-                ScrubPreview(
-                    positionMs = (at * durationMs).toLong(),
-                    shown = shown,
-                    trackW = trackW,
-                    preview = preview,
-                )
-            } else {
-                Text(
-                    playerClock((at * durationMs).toLong()),
-                    color = Color.White, fontSize = 12.sp, fontFamily = WorkSans,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                )
-            }
-        }
-        Box(
-            Modifier.fillMaxWidth().height(if (slim) 12.dp else 24.dp)
-                .onGloballyPositioned { trackW = it.size.width }
-                .then(
-                    if (locked) Modifier
-                    else Modifier.pointerInput(trackW, durationMs) {
-                        detectTapGestures { offset -> seekAt(offset.x, true) }
-                    }.pointerInput(trackW, durationMs) {
-                        detectHorizontalDragGestures(
-                            onDragStart = { offset ->
-                                dragging = true
-                                onScrub(seekAt(offset.x, false))
-                            },
-                            onDragEnd = {
-                                dragging = false
-                                onScrub(null)
-                                scrub?.let { onSeek(it) }
-                                onInteract()
-                            },
-                            onDragCancel = {
-                                dragging = false
-                                onScrub(null)
-                                scrub?.let { onSeek(it) }
-                                onInteract()
-                            },
-                            onHorizontalDrag = { change, _ -> onScrub(seekAt(change.position.x, false)) },
-                        )
-                    },
-                ),
-        ) {
-            val trackH = if (slim) 2.dp else 3.dp
-            Box(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(trackH)
-                    .clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.25f)),
-            ) {
-                Box(
-                    Modifier.align(Alignment.CenterStart).fillMaxWidth(bufFrac).height(trackH)
-                        .background(Color.White.copy(alpha = 0.4f)),
-                )
-                Box(
-                    Modifier.align(Alignment.CenterStart).fillMaxWidth(shown).height(trackH)
-                        .clip(RoundedCornerShape(topEnd = 1.5.dp, bottomEnd = 1.5.dp))
-                        .background(playedColor),
-                )
-            }
-            if (!slim && thumb && trackW > 0) {
-                val thumbOff = with(LocalDensity.current) {
-                    val r = 7.dp.roundToPx()
-                    (shown * trackW).roundToInt().coerceIn(r, (trackW - r).coerceAtLeast(r)) - r
-                }
-                Box(
-                    Modifier.align(Alignment.BottomStart)
-                        .offset { IntOffset(thumbOff, 5.dp.roundToPx()) }
-                        .size(14.dp).clip(CircleShape).background(Cyan),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScrubPreview(
-    positionMs: Long,
-    shown: Float,
-    trackW: Int,
-    preview: @Composable (Modifier) -> Unit,
-) {
-    // rides the bar width so the thumbnail grows with the stage, a phone sized 176dp
-    // card reads as a stamp once the bar spans a landscape screen
-    BoxWithConstraints(Modifier.fillMaxWidth().offset(y = 12.dp).padding(bottom = 2.dp)) {
-        // never taller than half the stage, a 1.1 aspect card would otherwise climb past the picture
-        val budget = maxHeight * 0.5f
-        val bar = with(LocalDensity.current) { trackW.toDp() }
-        val cap = minOf(280.dp, budget * 16f / 9f, bar)
-        val width = with(LocalDensity.current) { (trackW * 0.6f).toDp() }
-            .coerceIn(minOf(176.dp, cap), cap)
-        val widthPx = with(LocalDensity.current) { width.roundToPx() }
-        val x = if (trackW > widthPx) {
-            ((shown * trackW).roundToInt() - widthPx / 2).coerceIn(0, trackW - widthPx)
-        } else {
-            0
-        }
-        Column(
-            Modifier.offset { IntOffset(x, 0) }.width(width),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                Modifier.fillMaxWidth().heightIn(max = budget).clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, Cyan, RoundedCornerShape(8.dp))
-                    .background(Color.Black),
-            ) {
-                preview(Modifier.fillMaxWidth())
-                Text(
-                    playerClock(positionMs),
-                    color = Color.White, fontSize = 11.sp, fontFamily = WorkSans, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
-                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(3.dp))
-                        .padding(horizontal = 3.dp, vertical = 1.dp),
-                )
-            }
-            Canvas(Modifier.size(16.dp, 7.dp)) {
-                drawArc(
-                    color = Cyan,
-                    startAngle = 0f,
-                    sweepAngle = 180f,
-                    useCenter = true,
-                    topLeft = Offset(0f, -size.height),
-                    size = Size(size.width, size.height * 2f),
-                )
-            }
-            Box(
-                Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(Cyan),
-            )
-        }
-    }
-}
-
-// taps never move focus in Compose, so this ring only ever shows for a keyboard or D-pad
-@Composable
-internal fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
-    var on by remember { mutableStateOf(false) }
-    return onFocusChanged { on = it.isFocused }
-        .then(if (on) Modifier.border(2.dp, Cyan, shape) else Modifier)
 }

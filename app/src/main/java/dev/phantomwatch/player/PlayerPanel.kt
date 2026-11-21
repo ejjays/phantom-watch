@@ -141,7 +141,7 @@ private val EpisodePad = 20.dp
 private val EpisodePeek = 12.dp
 private const val EpisodesVisible = 10
 
-// AppRoot swaps in fresh Screen.Player per episode, nothing remembered survives, strip stays where user left it
+// AppRoot swaps in fresh Route.Player per episode, nothing remembered survives, strip stays where user left it
 private object EpisodeStripScroll {
     var key: String? = null
     var index = 0
