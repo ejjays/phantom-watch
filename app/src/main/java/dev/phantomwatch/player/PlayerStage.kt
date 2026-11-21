@@ -765,6 +765,7 @@ fun PlayerStage(
         if (at.inIntro || at.inOutro) {
             PlayerPill(
                 text = stringResource(pillText(at.inRecap, at.inIntro)),
+                compact = portrait && !fullscreen,
                 modifier = Modifier.align(Alignment.BottomEnd)
                     .offset { IntOffset(0, -shiftPx().roundToInt()) }
                     .padding(end = 16.dp, bottom = maxOf(seekInset, bottomPad) + pillLift)
@@ -778,6 +779,7 @@ fun PlayerStage(
                     icon = R.drawable.ic_revert,
                     iconBefore = true,
                     iconSize = 16.dp,
+                    compact = portrait && !fullscreen,
                     modifier = Modifier.align(Alignment.BottomEnd)
                         .offset { IntOffset(0, -shiftPx().roundToInt()) }
                         .padding(end = 16.dp, bottom = maxOf(seekInset, bottomPad) + pillLift)

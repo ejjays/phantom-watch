@@ -152,6 +152,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     val token = remember { PlayerUi.token }
+    LaunchedEffect(Unit) { PlayerUi.brightness?.let { PlayerUi.applyBrightness(activity, it) } }
     val resumeScope = rememberCoroutineScope()
     LaunchedEffect(startFullscreen) {
         PlayerUi.fullscreen = startFullscreen
@@ -546,13 +547,6 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
         exo.addListener(listener)
         onDispose {
             exo.removeListener(listener)
-            (context as? android.app.Activity)?.window?.let { w ->
-                val lp = w.attributes
-                if (lp.screenBrightness >= 0f) {
-                    lp.screenBrightness = -1f
-                    w.attributes = lp
-                }
-            }
             try {
                 enhSession?.release()
             } catch (_: Exception) {
@@ -1100,18 +1094,14 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
             swipeActive = true
             val d = context.resources.displayMetrics.density
             if (bright) {
-                val w = (context as? android.app.Activity)?.window
-                if (w != null) {
-                    val lp = w.attributes
-                    val cur = lp.screenBrightness.takeIf { it >= 0f }
-                        ?: (android.provider.Settings.System.getInt(
-                            context.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, 128,
-                        ) / 255f)
-                    val nb = (cur - dy / (100f * d)).coerceIn(0.05f, 1f)
-                    lp.screenBrightness = nb
-                    w.attributes = lp
-                    swipeHud = SwipeHud(true, nb)
-                }
+                val cur = PlayerUi.brightness
+                    ?: (android.provider.Settings.System.getInt(
+                        context.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, 128,
+                    ) / 255f)
+                val nb = (cur - dy / (100f * d)).coerceIn(0.05f, 1f)
+                PlayerUi.brightness = nb
+                PlayerUi.applyBrightness(activity, nb)
+                swipeHud = SwipeHud(true, nb)
             } else if (audio != null) {
                 val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
                 val min = if (android.os.Build.VERSION.SDK_INT >= 28) {

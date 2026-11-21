@@ -178,6 +178,12 @@ internal fun AppRoot() {
     LaunchedEffect(screen, Pip.playing) {
         (context as? MainActivity)?.armPip(screen is Route.Player, Pip.playing)
     }
+    LaunchedEffect(screen) {
+        if (screen !is Route.Player && PlayerUi.brightness != null) {
+            PlayerUi.brightness = null
+            PlayerUi.applyBrightness(context as? MainActivity, null)
+        }
+    }
     LaunchedEffect(Unit) {
         Telemetry.appContext = context.applicationContext
         DeadHosts.init(context)

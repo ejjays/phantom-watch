@@ -31,11 +31,12 @@ internal fun PlayerPill(
     modifier: Modifier = Modifier,
     icon: Int = R.drawable.ic_skip_next_filled,
     iconBefore: Boolean = false,
-    iconSize: androidx.compose.ui.unit.Dp = 12.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 14.dp,
+    compact: Boolean = false,
     onClick: () -> Unit,
 ) {
     Row(
-        modifier.height(32.dp).clip(Capsule())
+        modifier.height(if (compact) 36.dp else 44.dp).clip(Capsule())
             .background(Color.Black.copy(alpha = 0.6f))
             .focusRing(Capsule())
             .clickable(
@@ -43,12 +44,12 @@ internal fun PlayerPill(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(start = 12.dp, end = 9.dp),
+            .padding(start = 16.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val label = @Composable {
             Text(
-                text, color = Color.White, fontSize = 12.sp,
+                text, color = Color.White, fontSize = 13.sp,
                 fontFamily = WorkSans, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp,
             )
         }

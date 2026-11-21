@@ -154,7 +154,7 @@ internal fun PlayerTopBar(
             if (fullscreen && !titleBelow) {
                 Text(
                     title, color = Color.White,
-                    fontSize = if (large) 17.sp else 15.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal,
+                    fontSize = 17.sp, fontFamily = Lilita, fontWeight = FontWeight.Normal,
                     maxLines = 1, modifier = Modifier.weight(1f),
                 )
             } else {
