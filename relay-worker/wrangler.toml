@@ -1,0 +1,7 @@
+name = "phantomwatch-relay"
+main = "index.js"
+compatibility_date = "2026-11-21"
+workers_dev = true
+
+[vars]
+ORACLE_URL = "https://158-178-228-161.sslip.io"

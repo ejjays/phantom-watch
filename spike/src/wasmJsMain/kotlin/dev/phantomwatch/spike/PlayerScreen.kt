@@ -156,7 +156,9 @@ fun PlayerScreen(
         pwLog("direct", "${media.kind}/${media.id} s=$season e=$episode \"${media.title}\"")
         val mark = TimeSource.Monotonic.markNow()
         try {
-            val r = withTimeout(45_000) { resolveSources(PW_URL, PW_KEY, media.kind, media.id, season, episode) }
+            val r = withTimeout(45_000) {
+                resolveSources(PW_URL, PW_KEY, media.kind, media.id, season, episode, fallback = PW_FALLBACK)
+            }
             pwLog(
                 "resolve",
                 "+${mark.elapsedNow().inWholeMilliseconds}ms formats=${r.formats.size} subs=${r.subs.size}",
@@ -335,7 +337,7 @@ fun PlayerScreen(
         } else if (isExpanded(windowW)) {
             val railW = (windowW * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(windowW * 0.45f)
             val leftW = windowW - railW
-            // full width 16:9 like YouTube default view, height pinned so scrolling cannot remeasure into letterboxing, short window scrolls video up
+            // full width 16:9 like youtube default view, height pinned so scrolling cannot remeasure into letterboxing, short window scrolls video up
             val stageH = leftW * 9f / 16f
             Row(Modifier.fillMaxSize()) {
                 // one scroll container for whole left pane including video, before only info below scrolled so tall video covered content

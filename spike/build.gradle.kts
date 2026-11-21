@@ -13,16 +13,17 @@ val props: Properties = run {
     if (!f.exists()) Properties() else Properties().apply { f.inputStream().use { load(it) } }
 }
 val tmdbKey: String = props.getProperty("TMDB_API_KEY", "")
-// PW_URL in local.properties is resolver on this device, published bundle needs public one so
-// it reads own key and never picks up dev host by accident
+// PW_RELAY_URL here is the dev resolver, published bundles must not pick it up
 // oracle box public name is dns name resolving to box address so caddy can hold real
 // certificate, phantom.work.gd has no dns record so was never reachable
-val pwUrl: String = props.getProperty("PW_URL_WEB", "https://158-178-228-161.sslip.io")
+val pwUrl: String = props.getProperty("PW_RELAY_URL", "https://phantomwatch-relay.christsonalloso021.workers.dev")
+val pwFallback: String = props.getProperty("PW_URL_WEB", "https://158-178-228-161.sslip.io")
 val pwKey: String = props.getProperty("PW_KEY", "")
 val genKeyDir = layout.buildDirectory.dir("generated/key")
 val genKey = tasks.register("genKey") {
     val key = tmdbKey
     val url = pwUrl
+    val fallback = pwFallback
     val pw = pwKey
     val out = genKeyDir.get().file("dev/phantomwatch/spike/Key.kt").asFile
     outputs.file(out)
@@ -32,6 +33,7 @@ val genKey = tasks.register("genKey") {
             "package dev.phantomwatch.spike\n\n" +
                 "const val TMDB_KEY = \"$key\"\n" +
                 "const val PW_URL = \"$url\"\n" +
+                "const val PW_FALLBACK = \"$fallback\"\n" +
                 "const val PW_KEY = \"$pw\"\n"
         )
     }

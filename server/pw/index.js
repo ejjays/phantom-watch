@@ -43,7 +43,8 @@ function proxyUrl(base, url, headers) {
 
 function baseOf(req) {
   const proto = req.headers['x-forwarded-proto'] || 'http';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  // caddy overwrites x-forwarded-host
+  const host = req.headers['x-pw-public-host'] || req.headers['x-forwarded-host'] || req.headers.host;
   return `${proto}://${host}`;
 }
 
@@ -333,7 +334,7 @@ function warmCharts() {
 }
 
 // page served from a static host cannot see visitor country, and navigator.language is a poor
-// stand in: an en-US phone in manila asks for the US chart. resolver does see client address, so
+// stand in: an en us phone in manila asks for the US chart. resolver does see client address, so
 // it answers for the page
 const GEOS = new Map();
 const GEO_TTL = 6 * 3600 * 1000;

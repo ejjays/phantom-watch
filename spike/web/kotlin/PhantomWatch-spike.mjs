@@ -1,5 +1,5 @@
 
-import "./custom-formatters.js"
+
 import { importObject, setWasmExports } from './PhantomWatch-spike.import-object.mjs'
 
 let wasmInstance;

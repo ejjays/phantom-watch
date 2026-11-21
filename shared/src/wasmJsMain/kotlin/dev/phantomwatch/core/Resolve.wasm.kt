@@ -12,6 +12,11 @@ data class SubSource(val label: String, val url: String)
 data class Resolved(val formats: List<PlaySource>, val subs: List<SubSource>)
 
 private var lastCfg = -1
+private var primaryDownUntil = 0.0
+
+@OptIn(ExperimentalWasmJsInterop::class)
+@JsFun("() => Date.now()")
+private external fun nowMs(): Double
 
 // POST through fetch and not the ktor client: a resolver that is down makes fetch reject and js
 // engine parks the coroutine on that promise for good, which left player spinning with no way
@@ -49,56 +54,67 @@ private suspend fun post(url: String, key: String, body: String): String =
         }
     }
 
-// web only: browser cannot send the Referer/UA provider cdns demand, so a server resolves and
-// relays. android keeps its native resolver
+// web only: browser cannot send the Referer/UA provider cdns demand
 suspend fun resolveSources(
     server: String, key: String,
     kind: String, id: String, season: String = "", episode: String = "",
+    fallback: String = "",
 ): Resolved {
     val req = JSONObject()
         .put("kind", kind).put("id", id).put("season", season).put("episode", episode)
-    val body = JSONObject(post("$server/resolve", key, req.toString()))
+    val endpoints = if (fallback.isEmpty() || fallback == server) listOf(server) else listOf(server, fallback)
+    var last: Exception? = null
+    for (s in endpoints) {
+        if (s == server && nowMs() < primaryDownUntil) continue
+        try {
+            val body = JSONObject(post("$s/resolve", key, req.toString()))
 
-    val fa = body.optJSONArray("formats")
-    val formats = (0 until (fa?.length() ?: 0)).mapNotNull { i ->
-        val f = fa!!.optJSONObject(i) ?: return@mapNotNull null
-        val url = f.optString("url")
-        if (url.isEmpty()) null
-        else PlaySource(url, f.optString("label"), f.optInt("h"), f.optString("hls") == "true")
-    }
-    val sa = body.optJSONArray("subs")
-    val subs = (0 until (sa?.length() ?: 0)).mapNotNull { i ->
-        val s = sa!!.optJSONObject(i) ?: return@mapNotNull null
-        val url = s.optString("url")
-        if (url.isEmpty()) null
-        else SubSource(s.optString("label").ifEmpty { "Subtitles" }, url)
-    }
-
-    val legs = body.optJSONObject("legs")
-    if (legs != null) {
-        val it = legs.keys()
-        while (it.hasNext()) {
-            val name = it.next()
-            val l = legs.optJSONObject(name) ?: continue
-            val state = when {
-                l.optBoolean("skip") -> "skip"
-                l.optBoolean("ok") -> "ok ${l.optInt("formats")}"
-                else -> "none"
+            val fa = body.optJSONArray("formats")
+            val formats = (0 until (fa?.length() ?: 0)).mapNotNull { i ->
+                val f = fa!!.optJSONObject(i) ?: return@mapNotNull null
+                val url = f.optString("url")
+                if (url.isEmpty()) null
+                else PlaySource(url, f.optString("label"), f.optInt("h"), f.optString("hls") == "true")
             }
-            val err = l.optString("err")
-            pwLog("leg", "$name $state ${l.optInt("ms")}ms" + if (err.isEmpty()) "" else " $err")
+            val sa = body.optJSONArray("subs")
+            val subs = (0 until (sa?.length() ?: 0)).mapNotNull { i ->
+                val s2 = sa!!.optJSONObject(i) ?: return@mapNotNull null
+                val url = s2.optString("url")
+                if (url.isEmpty()) null
+                else SubSource(s2.optString("label").ifEmpty { "Subtitles" }, url)
+            }
+
+            val legs = body.optJSONObject("legs")
+            if (legs != null) {
+                val it = legs.keys()
+                while (it.hasNext()) {
+                    val name = it.next()
+                    val l = legs.optJSONObject(name) ?: continue
+                    val state = when {
+                        l.optBoolean("skip") -> "skip"
+                        l.optBoolean("ok") -> "ok ${l.optInt("formats")}"
+                        else -> "none"
+                    }
+                    val err = l.optString("err")
+                    pwLog("leg", "$name $state ${l.optInt("ms")}ms" + if (err.isEmpty()) "" else " $err")
+                }
+            }
+            val pick = body.optJSONObject("pick")
+            val cfgVersion = body.optInt("cfg")
+            if (cfgVersion != lastCfg) {
+                lastCfg = cfgVersion
+                pwLog("cfg", "v$cfgVersion")
+            }
+            pwLog(
+                "resolve",
+                "via $s $kind/$id -> ${formats.size} formats, ${subs.size} subs, ${body.optInt("ms")}ms, pick " +
+                    (pick?.let { "${it.optString("src")} ${it.optInt("h")}p" } ?: "none"),
+            )
+            return Resolved(formats, subs)
+        } catch (e: Exception) {
+            last = e
+            if (s == server) primaryDownUntil = nowMs() + 15 * 60_000
         }
     }
-    val pick = body.optJSONObject("pick")
-    val cfgVersion = body.optInt("cfg")
-    if (cfgVersion != lastCfg) {
-        lastCfg = cfgVersion
-        pwLog("cfg", "v$cfgVersion")
-    }
-    pwLog(
-        "resolve",
-        "$kind/$id -> ${formats.size} formats, ${subs.size} subs, ${body.optInt("ms")}ms, pick " +
-            (pick?.let { "${it.optString("src")} ${it.optInt("h")}p" } ?: "none"),
-    )
-    return Resolved(formats, subs)
+    throw last ?: RuntimeException("no resolver")
 }
