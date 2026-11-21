@@ -35,6 +35,7 @@ BY_NAME = (
     "docs",
 )
 SKIP = re.compile(r"^(https?:|\./gradlew|node |python3 |curl |adb |am |\. |org\.)")
+GENERATED = re.compile(r"(^|/)build/")
 
 
 def resolve(token):
@@ -65,7 +66,7 @@ def main():
     checked = 0
     for doc in sorted((ROOT / "docs").glob("*.md")):
         for token in re.findall(r"`([^`\s]+)`", doc.read_text()):
-            if token.startswith(("http", "-", "/")) or SKIP.search(token):
+            if token.startswith(("http", "-", "/")) or SKIP.search(token) or GENERATED.search(token):
                 continue
             if not (re.search(r"\.(kt|kts|py|js|mjs|json|md|yml|xml|sh|pem|txt)$", token) or "/" in token):
                 continue
