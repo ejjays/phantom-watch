@@ -1,0 +1,40 @@
+name: deploy-oracle
+on:
+  workflow_dispatch:
+    inputs:
+      assets:
+        description: Also copy providers.js and providers.json into /opt/pw/assets
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: deploy-oracle
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: copy server code
+        env:
+          PW_SSH_KEY: ${{ secrets.PW_SSH_KEY }}
+        run: |
+          umask 077
+          key="$RUNNER_TEMP/oci_bastion"
+          printf '%s' "$PW_SSH_KEY" > "$key"
+          chmod 600 "$key"
+          sshopt=(-i "$key" -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20)
+          host="ubuntu@158.178.228.161"
+          ssh "${sshopt[@]}" "$host" 'test -d /opt/pw'
+          scp "${sshopt[@]}" server/pw/index.js server/pw/bridge.js server/pw/playlist.js "$host:/opt/pw/"
+          if [ "${{ inputs.assets }}" = "true" ]; then
+            scp "${sshopt[@]}" app/src/main/assets/providers.js app/src/main/assets/providers.json "$host:/opt/pw/assets/"
+          fi
+          ssh "${sshopt[@]}" "$host" 'sudo systemctl restart pw-proxy && sleep 2 && curl -fsS http://127.0.0.1:8787/health'
+      - name: verify
+        run: |
+          health=$(curl -fsS https://158-178-228-161.sslip.io/health)
+          echo "$health"
+          echo "$health" | grep -q '"ok":true'
