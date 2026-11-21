@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
@@ -227,8 +228,10 @@ fun PlayerStage(
     val liveSafe = rememberUpdatedState(safe)
     val livePos = rememberUpdatedState(positionMs)
     val liveDur = rememberUpdatedState(durationMs)
+    val liveControls = rememberUpdatedState(controlsVisible)
     // fraction swipe is previewing, null when finger is off picture
     var seekSwipe by remember { mutableStateOf<Float?>(null) }
+    var scrubbing by remember { mutableStateOf(false) }
     // held after release so readout fades on frame finger left it on
     var swipeShown by remember { mutableStateOf(0f) }
     // frame kept up until picture lands on new position, seek moves clock at once but
@@ -291,6 +294,7 @@ fun PlayerStage(
                 var horizontal = false
                 var seekFrom = 0f
                 var sheetZone = false
+                var seekZone = false
                 var fromEdge = false
                 val vel = VelocityTracker()
                 detectDragGestures(
@@ -314,6 +318,12 @@ fun PlayerStage(
                             0f
                         }
                         sheetZone = !fromEdge && it.y >= zone.value()
+                        // seek bar and button row own their own gestures, a horizontal drag
+                        // starting there must not also become a picture seek
+                        seekZone = liveControls.value && !fromEdge && it.y >= size.height - (
+                            8.dp.toPx() + maxOf(seekInset, bottomPad).toPx() +
+                                (if (seekBar) 24.dp.toPx() else 12.dp.toPx()) + ctrlBox.toPx()
+                            )
                         vel.resetTracking()
                     },
                     onDragEnd = {
@@ -338,7 +348,7 @@ fun PlayerStage(
                                 vel.addPointerInputChange(change)
                                 change.consume()
                                 onSheetDrag(drag.y)
-                            } else if (!locked && pinch[0] == 0) {
+                            } else if (!seekZone && !locked && pinch[0] == 0) {
                                 accX += drag.x
                                 accY += drag.y
                                 if (!vertical && !horizontal) {
@@ -419,8 +429,11 @@ fun PlayerStage(
                 }
             },
     ) {
-        CompositionLocalProvider(LocalSeekSwipe provides (seekSwipe ?: seekHold)) {
-            video(Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) })
+        val seeking = seekSwipe != null || seekHold != null
+        Box(Modifier.zIndex(if (seeking) 1f else 0f)) {
+            CompositionLocalProvider(LocalSeekSwipe provides (seekSwipe ?: seekHold)) {
+                video(Modifier.fillMaxSize().offset { IntOffset(0, -(videoShiftPx() / 2f).roundToInt()) })
+            }
         }
         // frame painted by video, only place that knows where pinch zoom put picture,
         // this layer is bar and clock
@@ -428,7 +441,7 @@ fun PlayerStage(
             visible = seekSwipe != null,
             enter = fadeIn(tween(120, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(220, easing = FastOutSlowInEasing)),
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(),
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().zIndex(2f),
         ) {
             val at = (swipeShown * liveDur.value).toLong()
             // bar keeps shape its mode rests on, chrome bar above button row in fullscreen,
@@ -511,8 +524,9 @@ fun PlayerStage(
                         thumb = true,
                         onSeek = ::seekBarTo,
                         onInteract = onInteract,
-                        onScrub = onScrub,
+                        onScrub = { f -> scrubbing = f != null; onScrub(f) },
                         preview = preview,
+                        modifier = Modifier.zIndex(1f),
                     )
                 }
                 Row(
@@ -581,7 +595,7 @@ fun PlayerStage(
             }
         }
         AnimatedVisibility(
-            visible = chrome && !stalled,
+            visible = chrome && !stalled && !scrubbing,
             enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + scaleIn(
                 tween(300, easing = FastOutSlowInEasing), initialScale = 0.85f,
             ),

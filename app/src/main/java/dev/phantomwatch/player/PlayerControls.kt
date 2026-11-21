@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import dev.phantomwatch.R
 import dev.phantomwatch.core.AppLog
 import dev.phantomwatch.data.Dub
@@ -325,7 +326,7 @@ private fun ScrubPreview(
 ) {
     // rides bar width so thumbnail grows with stage, phone sized 176dp card reads as stamp
     // once bar spans landscape screen
-    BoxWithConstraints(Modifier.fillMaxWidth().offset(y = 12.dp).padding(bottom = 2.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().offset(y = 12.dp).padding(bottom = 2.dp).zIndex(2f)) {
         // never taller than half stage, 1.1 aspect card would climb past picture
         val budget = maxHeight * 0.5f
         val bar = with(LocalDensity.current) { trackW.toDp() }
