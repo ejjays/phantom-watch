@@ -10,6 +10,7 @@ import dev.phantomwatch.R
 import dev.phantomwatch.UpdateInstallActivity
 import dev.phantomwatch.core.Http
 import dev.phantomwatch.core.UpdateChecker
+import dev.phantomwatch.data.Downloads
 import dev.phantomwatch.data.Stream
 import dev.phantomwatch.data.Sub
 import dev.phantomwatch.data.Title
@@ -20,8 +21,8 @@ import org.json.JSONObject
 internal object PhantomDownload {
     private const val PHANTOM = "com.phantom.app"
     private const val ACTION = "com.phantom.app.action.DOWNLOAD_JOB"
-    private const val INSTALL_URL = "https://github.com/ejjays/phantom/releases/latest"
-    private const val DOWNLOADER_API = "https://api.github.com/repos/ejjays/phantom/releases/latest"
+    private const val INSTALL_URL = "https://github.com/ejjays/phantom-dl/releases/latest"
+    private const val DOWNLOADER_API = "https://api.github.com/repos/ejjays/phantom-dl/releases/latest"
     private const val SAVE_SUBDIR = "PhantomWatch"
     private const val UA =
         "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36"
@@ -140,6 +141,7 @@ internal object PhantomDownload {
             false
         } else {
             context.startActivity(intent)
+            Downloads.noteHandoff(context, job)
             true
         }
     } catch (_: Exception) {

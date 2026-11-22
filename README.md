@@ -25,7 +25,7 @@ just want to watch. No subscription, no ads, nothing to set up.
 ### Get it
 
 Grab the APK from [GitHub releases](https://github.com/ejjays/phantom-watch/releases)
-or from [phantomwatch-web.pages.dev](https://phantomwatch-web.pages.dev).
+or from [w-phantom.pages.dev](https://w-phantom.pages.dev).
 
 ### Building
 

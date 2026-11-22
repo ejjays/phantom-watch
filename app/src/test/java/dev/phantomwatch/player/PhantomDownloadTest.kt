@@ -1,5 +1,6 @@
 package dev.phantomwatch.player
 
+import dev.phantomwatch.data.Downloads
 import dev.phantomwatch.data.Sub
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -27,6 +28,15 @@ class PhantomDownloadTest {
             "Normal People S01E01",
             PhantomDownload.baseName("Normal/People", "1", "1"),
         )
+    }
+
+    @Test
+    fun parsesPhantomHandoffNames() {
+        val episode = Downloads.phantomDownload("Phantom Watch - Dead-End Job S01E01.mp4")
+        assertEquals("Dead-End Job", episode?.first)
+        assertEquals(1, episode?.second)
+        assertEquals(1, episode?.third)
+        assertNull(Downloads.phantomDownload("some youtube video.mp4"))
     }
 
     @Test

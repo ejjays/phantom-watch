@@ -284,7 +284,8 @@ private fun ChoiceRow(item: SettingItem.Choice, selected: Int, gutter: Dp, onSel
             modifier = Modifier.clickable(role = Role.Button) { expanded = true },
         ) {
             Text(
-                stringResource(item.options[selected]),
+                item.shortLabels?.getOrNull(selected)?.takeIf { it.isNotEmpty() }
+                    ?: stringResource(item.options[selected]),
                 style = MaterialTheme.typography.bodyMedium,
                 color = SettingsText2,
                 maxLines = 1,

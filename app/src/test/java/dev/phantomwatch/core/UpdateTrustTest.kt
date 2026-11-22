@@ -18,9 +18,9 @@ class UpdateTrustTest {
 
     @Test
     fun acceptsPhantomDownloaderReleaseApkUrls() {
-        assertTrue(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom/releases/download/v1.2.23/app-release.apk"))
-        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom/releases/download/v1.2.23/notes.txt"))
-        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom/releases/download/v1.2.23/app-release.apk?x=1"))
+        assertTrue(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom-dl/releases/download/v1.2.23/app-release-v1.2.23.apk"))
+        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom-dl/releases/download/v1.2.23/notes.txt"))
+        assertFalse(UpdateTrust.releaseEntry("https://github.com/ejjays/phantom-dl/releases/download/v1.2.23/app-release.apk?x=1"))
     }
 
     @Test

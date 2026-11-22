@@ -22,6 +22,7 @@ internal object UpdateTrust {
     private val RELEASE_PATHS = setOf(
         "/ejjays/phantom-watch/releases/download/",
         "/ejjays/phantom/releases/download/",
+        "/ejjays/phantom-dl/releases/download/",
     )
 
     fun releaseEntry(value: String): Boolean = runCatching {

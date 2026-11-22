@@ -37,7 +37,7 @@ class SettingsCatalogTest {
     @Test
     fun categoriesKeepTheirOrder() {
         assertEquals(
-            listOf("playback", "subtitles", "library", "support", "about"),
+            listOf("playback", "subtitles", "library", "region", "support", "about"),
             catalog.map { it.id },
         )
     }

@@ -3,6 +3,7 @@ package dev.phantomwatch.ui.settings
 import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.res.Res
 import dev.phantomwatch.res.*
+import dev.phantomwatch.ui.countryChoiceCode
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 
@@ -25,6 +26,7 @@ sealed interface SettingItem {
         override val icon: DrawableResource,
         override val note: StringResource? = null,
         val options: List<StringResource>,
+        val shortLabels: List<String>? = null,
         val default: Int = 0,
     ) : SettingItem
 
@@ -167,23 +169,32 @@ fun settingsCatalog(
                 Res.drawable.ic_history,
                 Res.string.you_library_history_note,
             ),
+            SettingItem.Action(
+                SettingsAction.ClearHistory,
+                Res.string.you_library_clear,
+                Res.drawable.ic_row_trash,
+                destructive = true,
+            ),
+        ),
+    ),
+    SettingCategory(
+        id = "region",
+        icon = Res.drawable.ic_row_globe,
+        title = Res.string.you_section_region,
+        blurb = Res.string.you_section_region_blurb,
+        items = listOf(
             SettingItem.Choice(
                 SettingsKeys.COUNTRY,
-                Res.string.you_library_country,
+                Res.string.you_region_country,
                 Res.drawable.ic_row_globe,
-                Res.string.you_library_country_note,
+                Res.string.you_region_country_note,
                 options = listOf(
                     Res.string.country_auto, Res.string.country_ph, Res.string.country_us,
                     Res.string.country_gb, Res.string.country_jp, Res.string.country_kr,
                     Res.string.country_au, Res.string.country_ca, Res.string.country_in,
                     Res.string.country_id, Res.string.country_sg, Res.string.country_my,
                 ),
-            ),
-            SettingItem.Action(
-                SettingsAction.ClearHistory,
-                Res.string.you_library_clear,
-                Res.drawable.ic_row_trash,
-                destructive = true,
+                shortLabels = (0 until 12).map(::countryChoiceCode),
             ),
         ),
     ),

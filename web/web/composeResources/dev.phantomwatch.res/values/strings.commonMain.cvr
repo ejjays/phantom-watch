@@ -21,7 +21,7 @@ string|common_play|UGxheQ==
 string|common_retry|UmV0cnk=
 string|common_search|U2VhcmNo
 string|common_share|U2hhcmU=
-string|country_auto|RGV0ZWN0IGF1dG9tYXRpY2FsbHk=
+string|country_auto|QXV0bw==
 string|country_au|QXVzdHJhbGlh
 string|country_ca|Q2FuYWRh
 string|country_gb|VW5pdGVkIEtpbmdkb20=
@@ -111,8 +111,6 @@ string|you_clear_title|Q2xlYXIgeW91ciB3YXRjaCBoaXN0b3J5Pw==
 string|you_library_clear|Q2xlYXIgd2F0Y2ggaGlzdG9yeQ==
 string|you_library_continue_note|U2hvdyB3aGF0IHlvdSBoYXZlIG5vdCBmaW5pc2hlZA==
 string|you_library_continue|Q29udGludWUgd2F0Y2hpbmc=
-string|you_library_country_note|T3ZlcnJpZGUgdGhlIGNvdW50cnkgdXNlZCBmb3IgdGhlIFRvcCAxMCBjaGFydA==
-string|you_library_country|VG9wIDEwIGNvdW50cnk=
 string|you_library_history_note|S2VlcCB3YXRjaGVkIHRpdGxlcyBpbiBIaXN0b3J5
 string|you_library_history|U2F2ZSB3YXRjaCBoaXN0b3J5
 string|you_playback_autoplay_note|U3RhcnRzIHRoZSBuZXh0IGVwaXNvZGUgYnkgaXRzZWxm
@@ -132,6 +130,8 @@ string|you_player_seek_note|SnVtcCBsZW5ndGggcGVyIGRvdWJsZSB0YXA=
 string|you_player_seek|RG91YmxlLXRhcCBzZWVr
 string|you_profile_guest|R3Vlc3Q=
 string|you_profile_note|U2F2ZSB5b3VyIHByZWZlcmVuY2VzIGFuZCBqb2luIHRoZSBjb21tdW5pdHk=
+string|you_region_country_note|T3ZlcnJpZGUgdGhlIGRldGVjdGVkIGNvdW50cnk=
+string|you_region_country|VG9wIDEwIGNvdW50cnk=
 string|you_section_about_blurb|VmVyc2lvbiwgdXBkYXRlcyBhbmQgbGljZW5jZXM=
 string|you_section_about|QWJvdXQ=
 string|you_section_app|QXBw
@@ -140,6 +140,8 @@ string|you_section_library|TGlicmFyeQ==
 string|you_section_playback|UGxheWJhY2s=
 string|you_section_player_blurb|QXV0b3BsYXksIHNlZWtpbmcgYW5kIHNraXBwaW5n
 string|you_section_player|UGxheWVy
+string|you_section_region_blurb|Q2hhcnRzIGFuZCB0aXRsZXMgZnJvbSB5b3VyIGNvdW50cnk=
+string|you_section_region|UmVnaW9u
 string|you_section_subtitles_blurb|Q2FwdGlvbnMsIHNpemUgYW5kIGJhY2tncm91bmQ=
 string|you_section_subtitles|U3VidGl0bGVz
 string|you_section_support_blurb|UHJpdmFjeSwgdXNhZ2UgYW5kIGZlZWRiYWNr

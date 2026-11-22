@@ -241,7 +241,10 @@ internal fun AppRoot() {
                     recentRev = Resume.rev,
                     onRemoveRecent = { Resume.remove(context, it.kind, it.id, it.season, it.episode) },
                     onRestoreRecent = { Resume.restore(context, it) },
-                    loadDownloads = { Downloads.all(context) },
+                    loadDownloads = {
+                        Downloads.importPhantomDownloads(context)
+                        Downloads.all(context)
+                    },
                     // Resume rev matters too, old downloads borrow progress from matching local playback entry in Downloads.all()
                     downloadsRev = Downloads.rev + Resume.rev,
                     onRemoveDownload = { Downloads.remove(context, it.id) },

@@ -112,6 +112,8 @@
 <string name="you_section_subtitles_blurb">Captions, size and background</string>
 <string name="you_section_library">Library</string>
 <string name="you_section_library_blurb">History and continue watching</string>
+<string name="you_section_region">Region</string>
+<string name="you_section_region_blurb">Charts and titles from your country</string>
 <string name="you_section_about">About</string>
 <string name="you_section_about_blurb">Version, updates and licences</string>
 <string name="you_section_support">Support</string>
@@ -136,9 +138,9 @@
 <string name="you_library_history">Save watch history</string>
 <string name="you_library_history_note">Keep watched titles in History</string>
 <string name="you_library_clear">Clear watch history</string>
-<string name="you_library_country">Top 10 country</string>
-<string name="you_library_country_note">Override the country used for the Top 10 chart</string>
-<string name="country_auto">Detect automatically</string>
+<string name="you_region_country">Top 10 country</string>
+<string name="you_region_country_note">Override the detected country</string>
+<string name="country_auto">Auto</string>
 <string name="country_ph">Philippines</string>
 <string name="country_us">United States</string>
 <string name="country_gb">United Kingdom</string>
