@@ -783,6 +783,7 @@ const js_code = {
     'dev.phantomwatch.ui.replaceUrl' : (u) => { window.history.replaceState(window.history.state, '', u); },
     'dev.phantomwatch.ui.pwTitle_$external_fun' : (p0, p1) => pwTitle(p0, p1),
     'dev.phantomwatch.ui.pwFullscreen_$external_fun' : (p0) => pwFullscreen(p0),
+    'dev.phantomwatch.ui.pwConfig_$external_fun' : (p0) => pwConfig(p0),
     'dev.phantomwatch.ui.pwStall_$external_fun' : (p0, p1) => pwStall(p0, p1),
     'dev.phantomwatch.ui.pwBounds_$external_fun' : (p0, p1, p2, p3) => pwBounds(p0, p1, p2, p3),
     'dev.phantomwatch.ui.pwDetach_$external_fun' : (p0) => pwDetach(p0),
@@ -790,6 +791,8 @@ const js_code = {
     'dev.phantomwatch.web.pwFsState_$external_fun' : () => pwFsState(),
     'dev.phantomwatch.web.pwEpisodes_$external_fun' : (p0) => pwEpisodes(p0),
     'dev.phantomwatch.web.pwAspect_$external_fun' : () => pwAspect(),
+    'dev.phantomwatch.web.pwSubsTop_$external_fun' : (p0) => pwSubsTop(p0),
+    'dev.phantomwatch.web.pwNext_$external_fun' : (p0) => pwNext(p0),
     'dev.phantomwatch.web.safeAreaCss' : () => { var d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'; document.body.appendChild(d); var c = getComputedStyle(d); var r = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].map(function (x) { return parseFloat(x) || 0; }).join(','); d.remove(); return r; }
 }
 

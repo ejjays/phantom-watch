@@ -35,6 +35,7 @@ fun WebPlayer(
     startMs: Long = 0L,
     scrollOffset: Float = 0f,
     onProgress: (Long, Long) -> Unit = { _, _ -> },
+    config: String = "{}",
     modifier: Modifier = Modifier,
 ) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
@@ -68,6 +69,8 @@ fun WebPlayer(
     }
     LaunchedEffect(title) { pwTitle(video, title) }
     LaunchedEffect(fullscreen) { pwFullscreen(fullscreen) }
+    // runs before the attach effect so resolve/chrome pick up stored toggles on first frame
+    LaunchedEffect(config) { pwConfig(config) }
     LaunchedEffect(bounds, scale, sources, subs, title, scrollOffset) {
         val s = video.style
         s.left = "${(bounds.left / scale).toInt()}px"
@@ -112,6 +115,8 @@ private external fun pwTitle(v: HTMLVideoElement, title: String)
 private external fun pwBounds(left: Float, top: Float, width: Float, height: Float)
 
 private external fun pwFullscreen(on: Boolean)
+
+private external fun pwConfig(json: String)
 
 private var attached: String? = null
 

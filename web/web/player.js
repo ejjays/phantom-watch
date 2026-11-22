@@ -20,12 +20,13 @@
   }
 
   var CSS = ''
-    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/rubik_regular.ttf) format("truetype");font-weight:400}'
-    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/rubik_medium.ttf) format("truetype");font-weight:500}'
-    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/rubik_semibold.ttf) format("truetype");font-weight:600}'
-    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/rubik_bold.ttf) format("truetype");font-weight:700}'
-    + '@font-face{font-family:PWMono;src:url(./composeResources/dev.phantomwatch.res/font/ibmplexmono_regular.ttf) format("truetype");font-weight:400}'
-    + '@font-face{font-family:PWMono;src:url(./composeResources/dev.phantomwatch.res/font/ibmplexmono_semibold.ttf) format("truetype");font-weight:600}'
+    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/work_sans_regular.ttf) format("truetype");font-weight:400}'
+    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/work_sans_medium.ttf) format("truetype");font-weight:500}'
+    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/work_sans_semibold.ttf) format("truetype");font-weight:600}'
+    + '@font-face{font-family:PWRubik;src:url(./composeResources/dev.phantomwatch.res/font/work_sans_bold.ttf) format("truetype");font-weight:700}'
+    + '@font-face{font-family:PWMono;src:url(./composeResources/dev.phantomwatch.res/font/work_sans_medium.ttf) format("truetype");font-weight:400}'
+    + '@font-face{font-family:PWMono;src:url(./composeResources/dev.phantomwatch.res/font/work_sans_semibold.ttf) format("truetype");font-weight:600}'
+    + '@font-face{font-family:PWLilita;src:url(./composeResources/dev.phantomwatch.res/font/lilita_one_regular.ttf) format("truetype");font-weight:400}'
 
     + '.pw-stage{position:fixed;left:0;top:0;right:auto;bottom:auto;width:100%;height:100%;z-index:2;font-family:PWRubik,system-ui,sans-serif;'
     + 'color:#fff;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}'
@@ -47,7 +48,11 @@
     + '.pw-ib:focus{outline:none}'
     + '.pw-ib:focus-visible{outline:2px solid ' + CYAN + ';outline-offset:-2px;border-radius:50%}'
     + '.pw-back{width:48px;height:48px;margin-left:4px}'
-    + '.pw-title{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    + '.pw-title{flex:1;min-width:0;font-family:PWLilita,PWRubik,sans-serif;font-size:15px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    + '.pw-stage[data-fs="1"] .pw-title{font-size:17px}'
+    // title lives in the info panel off fullscreen, top bar keeps only back and controls
+    + '.pw-stage:not([data-fs="1"]) .pw-title{display:none}'
+    + '.pw-stage:not([data-fs="1"]) .pw-top .pw-cc{margin-left:auto}'
     + '.pw-top .pw-ib{width:48px;height:48px}'
     + '.pw-cc[data-off="1"]{opacity:.4}'
     + '.pw-cc[data-on="1"]{color:' + CYAN + '}'
@@ -60,9 +65,6 @@
     // as PlayerStage does: row keeps its 48dp targets and bar hit box runs under them
     + '.pw-stage[data-fs="0"] .pw-bottom{flex-direction:column-reverse;padding-bottom:0}'
     + '.pw-stage[data-fs="0"] .pw-bottom .pw-row{margin-bottom:-16px}'
-    // portrait keeps title under stage (PlayerPanel), so one beside back repeats it
-    + '@media (orientation:portrait){.pw-stage:not([data-fs="1"]) .pw-title{display:none}'
-    + '.pw-stage:not([data-fs="1"]) .pw-top .pw-cc{margin-left:auto}}'
     + '.pw-seek{position:relative;height:24px;touch-action:none;cursor:pointer}'
     // PlayerStage keeps slim bar on picture while chrome is away, playhead stays readable
     // without waking controls
@@ -78,11 +80,19 @@
     + '.pw-buf{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.4)}'
     + '.pw-played{position:absolute;left:0;top:0;bottom:0;width:0;background:' + CYAN + ';border-radius:0 1.5px 1.5px 0}'
     + '.pw-thumb{position:absolute;bottom:-5px;width:14px;height:14px;border-radius:50%;background:' + CYAN + ';display:none;pointer-events:none}'
-    + '.pw-thumb[data-on="1"]{display:block}'
+    // PlayerControls.kt shows the round thumb whenever full chrome is up, not only while scrubbing
+    + '.pw-stage[data-on="1"] .pw-thumb{display:block}'
 
     + '.pw-row{display:flex;align-items:center;width:100%}'
     + '.pw-clock{flex:1;font:11px/1.2 PWMono,monospace;color:' + SLATE200 + '}'
     + '.pw-row .pw-ib{width:48px;height:48px}'
+    // PlayerStage.kt episodes button: "EPISODES" plus glyph in a rounded capsule, fullscreen only
+    + '.pw-row .pw-eps{display:none;width:auto;height:48px;padding:0 10px;border-radius:28px;gap:6px}'
+    + '.pw-eps-text{font:600 12px PWRubik,sans-serif;color:#fff;white-space:nowrap}'
+    // landscape phone uses 56dp controls and 24dp glyphs, PlayerStage.kt ctrlBox/ctrlIcon
+    + '@media (orientation:landscape){.pw-top .pw-ib,.pw-row .pw-ib{width:56px;height:56px}'
+    + '.pw-row .pw-eps{width:auto;height:56px}'
+    + '.pw-top .pw-glyph,.pw-row .pw-glyph{width:24px;height:24px}}'
 
     + '.pw-playbtn{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border:0;'
     + 'border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;'
@@ -130,6 +140,7 @@
     + '.pw-flash[data-tap="1"]{cursor:pointer}'
 
     + '.pw-subs{position:fixed;display:flex;justify-content:center;align-items:flex-end;pointer-events:none;padding:0 8px;z-index:1}'
+    + '.pw-subs[data-top="1"]{align-items:flex-start}'
     + '.pw-subtext{color:#fff;text-align:center;white-space:pre-line;background:rgba(8,12,16,.8);display:none;transform:translateY(-14px)}'
     + '.pw-subtext[data-on="1"]{display:inline-block}'
 
@@ -147,7 +158,63 @@
     + '.pw-mcheck{width:16px;height:16px;margin-left:8px;color:' + CYAN + '}'
     + '.pw-mchev svg,.pw-mcheck svg{display:block}'
     + '.pw-mhead{display:flex;align-items:center;padding:12px 10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer}'
-    + '.pw-mhead .pw-glyph{width:16px;height:16px;margin-right:6px;transform:rotate(180deg);opacity:.7}';
+    + '.pw-mhead .pw-glyph{width:16px;height:16px;margin-right:6px;transform:rotate(180deg);opacity:.7}'
+
+    // Android skip / undo pills: PlayerPill.kt, bottom-end, lifted above the control row
+    + '.pw-pill{position:absolute;right:16px;bottom:88px;display:none;align-items:center;height:44px;padding:0 12px 0 16px;'
+    + 'border:1px solid rgba(34,211,238,.45);border-radius:999px;background:rgba(0,0,0,.6);color:#fff;'
+    + 'font:600 13px/1 PWRubik,sans-serif;letter-spacing:.2px;cursor:pointer;z-index:4;white-space:nowrap}'
+    + '.pw-stage[data-on="0"] .pw-pill{bottom:24px}'
+    + '.pw-pill[data-compact="1"]{height:36px}'
+    + '.pw-pill .pw-glyph{width:14px;height:14px;margin-left:6px;display:block}'
+    + '.pw-pill[data-before="1"] .pw-glyph{margin:0 6px 0 0}'
+    + '.pw-undo .pw-glyph{width:16px;height:16px}'
+
+    // NextUp.kt: centred card, countdown and the two pill buttons
+    + '.pw-next{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(320px,calc(100% - 32px));'
+    + 'border-radius:20px;background:#F21A1A1A;padding:20px;display:none;flex-direction:column;align-items:center;'
+    + 'text-align:center;z-index:7;color:#fff;font-family:PWRubik,sans-serif}'
+    + '.pw-next[data-on="1"]{display:flex}'
+    + '.pw-next-kicker{color:' + CYAN + ';font-size:11px;font-weight:600}'
+    + '.pw-next-se{margin-top:8px;font-size:15px;font-weight:600}'
+    + '.pw-next-name{margin-top:4px;font-size:13px;color:#94A3B8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    + '.pw-next-left{margin-top:8px;font-size:12px;color:#64748B}'
+    + '.pw-next-btns{margin-top:14px;display:flex;gap:10px}'
+    + '.pw-next-btns button{border:0;border-radius:50px;padding:10px 20px;font:500 13px PWRubik,sans-serif;cursor:pointer}'
+    + '.pw-next-play{background:rgba(255,255,255,.12);color:#CBD5E1}'
+    + '.pw-next-stay{background:' + CYAN + ';color:#0B0B0B;font-weight:600}'
+
+    // SwipeHud.kt: top-centre brightness/volume pill
+    + '.pw-swipe{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:min(50%,220px);height:40px;'
+    + 'border-radius:20px;background:rgba(0,0,0,.7);display:none;align-items:center;gap:8px;padding:0 12px;z-index:5;'
+    + 'color:#fff;font:600 12px PWRubik,sans-serif}'
+    + '.pw-stage[data-swipe="1"] .pw-swipe{display:flex}'
+    + '.pw-swipe-track{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}'
+    + '.pw-swipe-fill{height:100%;background:#fff;width:0}'
+    + '.pw-swipe svg{width:18px;height:18px;display:block;flex:0 0 auto}'
+
+    // ScrubPreview in PlayerControls.kt: framed frame card, cyan border and time chip
+    // ScrubPreview.kt sits in the seek bar's own column, 12dp down and 2dp pad, so the dot lands
+    // 10dp below the bar top and the frame ends 5dp above it. Anchoring to the bar keeps the
+    // spacing identical in fullscreen and in the reversed bottom row.
+    + '.pw-preview{position:absolute;bottom:14px;left:0;display:none;flex-direction:column;align-items:center;'
+    + 'z-index:5;pointer-events:none}'
+    + '.pw-preview[data-on="1"]{display:flex}'
+    + '.pw-preview-frame{position:relative;border:1px solid ' + CYAN + ';border-radius:8px;background:#000;overflow:hidden}'
+    + '.pw-preview-frame video{width:100%;height:100%;object-fit:cover;display:block}'
+    + '.pw-preview-time{position:absolute;right:4px;bottom:4px;padding:1px 5px;border-radius:3px;background:rgba(0,0,0,.45);'
+    + 'font:600 11px PWRubik,sans-serif;color:#fff}'
+    // Canvas in ScrubPreview.kt is a filled half ellipse, flat edge up, bulge down
+    + '.pw-preview-caret{width:16px;height:7px;background:' + CYAN + ';border-radius:0 0 50% 50% / 0 0 100% 100%}'
+    + '.pw-preview-dot{width:5px;height:5px;border-radius:50%;background:' + CYAN + ';margin-top:3px}'
+
+    // PlayerFailedOverlay.kt
+    + '.pw-failed{position:absolute;inset:0;background:rgba(0,0,0,.72);display:none;flex-direction:column;'
+    + 'align-items:center;justify-content:center;gap:12px;z-index:8;color:#fff;font-family:PWRubik,sans-serif}'
+    + '.pw-failed[data-on="1"]{display:flex}'
+    + '.pw-failed button{border:0;border-radius:8px;padding:10px 20px;font:500 14px PWRubik,sans-serif;cursor:pointer}'
+    + '.pw-fail-go{background:' + CYAN + ';color:#0B0B0B}'
+    + '.pw-fail-back{background:transparent;color:#fff}';
 
   // compose sizes stage, on tablet video is one pane of split layout
   var STAGE = null;
@@ -196,6 +263,95 @@
     EPS = !!on;
     applyEps();
   };
+
+  // WebSettings.kt / SettingsKeys: the player used to ignore these, now the same keys drive chrome
+  var CONFIG = null;
+  window.pwConfig = function (json) {
+    CONFIG = json;
+    if (STAGE && STAGE.__pwS) applyConfig(STAGE.__pwS, json);
+  };
+
+  // SkipTimes.kt: ani.zip maps tmdb to mal, aniskip supplies op/ed windows, both allow CORS
+  function fetchSkip(S) {
+    var r = S.skipReq;
+    if (!r || S.skipDone || !r.tmdb || !r.episode) return;
+    var sec = S.v.duration;
+    if (!isFinite(sec) || sec < 60) return;
+    S.skipDone = true;
+    var ep = String(r.episode).replace(/^S?\d+E/i, '');
+    fetch('https://api.ani.zip/mappings?themoviedb_id=' + encodeURIComponent(r.tmdb))
+      .then(function (x) { return x.ok ? x.json() : null; })
+      .then(function (m) {
+        var mal = m && m.mappings && m.mappings.mal_id;
+        if (!mal) return null;
+        return fetch('https://api.aniskip.com/v2/skip-times/' + mal + '/' + encodeURIComponent(ep) +
+          '?episodeLength=' + Math.floor(sec) + '&types[]=op&types[]=mixed-op&types[]=ed')
+          .then(function (x) { return x.ok ? x.json() : null; });
+      })
+      .then(function (j) {
+        var list = (j && j.results) || [];
+        function win(types) {
+          for (var i = 0; i < list.length; i++) {
+            var row = list[i], iv = row.interval;
+            if (!iv || types.indexOf(row.skipType) < 0) continue;
+            var a = +iv.startTime * 1000, b = +iv.endTime * 1000;
+            if (b > a && a >= 0 && b <= sec * 1000) return [a, b];
+          }
+          return null;
+        }
+        S.pills.intro = win(['op', 'mixed-op']);
+        S.pills.outro = win(['ed']);
+        updatePills(S);
+        log('skip', 'intro=' + !!S.pills.intro + ' outro=' + !!S.pills.outro);
+      })
+      .catch(function (e) { log('skip', 'fail ' + (e && e.message)); });
+  }
+
+  // PlayerScreen.kt theater: with the info sheet fully up, captions sit just under the picture
+  var SUBSTOP = false;
+  function applySubsTop(S, on) {
+    S.subsTop = on;
+    S.subKey = '';
+    S.subsWrap.dataset.top = on ? '1' : '0';
+    S.subsEl.style.transform = on ? 'translateY(0)' : 'translateY(-14px)';
+    renderSubs(S);
+  }
+  window.pwSubsTop = function (on) {
+    SUBSTOP = !!on;
+    var S = STAGE && STAGE.__pwS;
+    if (S) applySubsTop(S, SUBSTOP);
+  };
+
+  var NEXT = null;
+  window.pwNext = function (json) {
+    NEXT = json;
+    var S = STAGE && STAGE.__pwS;
+    if (!S) return;
+    try { S.next = JSON.parse(json || 'null'); } catch (e) { S.next = null; }
+    updateNext(S);
+  };
+
+  function applyConfig(S, json) {
+    var d;
+    try { d = JSON.parse(json || '{}'); } catch (e) { return; }
+    S.cfg = {
+      seekStep: [5, 10, 15, 30][d.seekStep] || 10,
+      nextCount: [5, 10, 15][d.nextCount] || 10,
+      subsSize: d.subsSize == null ? 1 : d.subsSize,
+      subsBg: d.subsBg == null ? 1 : d.subsBg,
+      skipIntro: d.skipIntro == null ? 1 : d.skipIntro,
+      autoplay: d.autoplay == null ? 1 : d.autoplay,
+    };
+    S.pills = d.pills || { intro: null, recap: null, outro: null };
+    S.next = d.next || null;
+    S.skipReq = { tmdb: d.tmdb || '', episode: d.episode || '' };
+    S.skipDone = false;
+    S.subOn = d.subsOn !== 0;
+    S.subKey = '';
+    subIcon(S);
+    updatePills(S);
+    render(S);
+  }
 
   function applyEps() {
     var b = STAGE && STAGE.querySelector('.pw-eps');
@@ -247,7 +403,9 @@
       + '<div class="pw-bottom pw-fade"><div class="pw-seek">'
       + '<div class="pw-scrubtime"></div>'
       + '<div class="pw-trackwrap"><div class="pw-buf"></div><div class="pw-played"></div></div>'
-      + '<div class="pw-thumb"></div></div>'
+      + '<div class="pw-thumb"></div>'
+      + '<div class="pw-preview"><div class="pw-preview-frame"><span class="pw-preview-time"></span></div>'
+      + '<div class="pw-preview-caret"></div><div class="pw-preview-dot"></div></div></div>'
       + '<div class="pw-row"><div class="pw-clock"></div></div></div>'
       + '<div class="pw-slim"><div class="pw-trackwrap"><div class="pw-buf"></div>'
       + '<div class="pw-played"></div></div></div>'
@@ -256,7 +414,18 @@
       + '<div class="pw-hud" data-side="r"><div class="pw-hud-in"></div></div>'
       + '<svg class="pw-spin" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" '
       + 'stroke="' + CYAN + '" stroke-width="4" stroke-linecap="round" stroke-dasharray="80 200"/></svg>'
-      + '<div class="pw-flash"></div><div class="pw-menu"></div>';
+      + '<div class="pw-flash"></div><div class="pw-menu"></div>'
+      + '<button class="pw-pill" type="button" data-kind="skip"></button>'
+      + '<button class="pw-pill pw-undo" type="button" data-kind="undo"></button>'
+      + '<div class="pw-next"><div class="pw-next-kicker">UP NEXT</div><div class="pw-next-se"></div>'
+      + '<div class="pw-next-name"></div><div class="pw-next-left"></div><div class="pw-next-btns">'
+      + '<button class="pw-next-play" type="button">Autoplay</button>'
+      + '<button class="pw-next-stay" type="button">Stay on this episode</button></div></div>'
+      + '<div class="pw-swipe"><span class="pw-swipe-icon"></span>'
+      + '<div class="pw-swipe-track"><div class="pw-swipe-fill"></div></div><span class="pw-swipe-n"></span></div>'
+      + '<div class="pw-failed"><div>Playback failed</div>'
+      + '<button class="pw-fail-go" type="button">Choose source</button>'
+      + '<button class="pw-fail-back" type="button">Back</button></div>';
 
     var top = st.querySelector('.pw-top');
     var back = glyph('back', 'pw-back');
@@ -277,8 +446,10 @@
     top.appendChild(gear);
 
     var row = st.querySelector('.pw-row');
-    var eps = glyph('episodes', 'pw-eps');
+    var eps = el('button', 'pw-ib pw-eps');
+    eps.type = 'button';
     eps.setAttribute('aria-label', 'Episodes');
+    eps.innerHTML = '<span class="pw-eps-text">EPISODES</span><span class="pw-glyph">' + (ICON.episodes || '') + '</span>';
     eps.style.display = 'none';
     var mute = glyph('volume_on', 'pw-mute');
     var fs = glyph('fullscreen', 'pw-fs');
@@ -316,12 +487,23 @@
       hudIcon: hudIn.querySelector('.pw-hud-icon'),
       subsWrap: st.querySelector('.pw-subs'), subsEl: st.querySelector('.pw-subtext'),
       menu: st.querySelector('.pw-menu'),
+      skipPill: st.querySelector('.pw-pill[data-kind="skip"]'),
+      undoPill: st.querySelector('.pw-pill[data-kind="undo"]'),
+      nextCard: st.querySelector('.pw-next'),
+      swipe: st.querySelector('.pw-swipe'),
+      preview: st.querySelector('.pw-preview'),
+      previewFrame: st.querySelector('.pw-preview-frame'),
+      failed: st.querySelector('.pw-failed'),
       scrub: null, drag: false, hideTimer: 0, hudTimer: 0, lastTap: 0, lastSide: '',
       accSide: '', accTotal: 0, accAt: 0, raf: 0, flashTimer: 0,
       formats: [], idx: 0, tracks: [], cues: [], subOn: true, subCur: '', subKey: '',
       pendingSeek: null, speed: 1, open: false, page: 0, auto: true, qh: 0,
       mode: 0, pad: 0, safe: false, near: false, zoom: false, cut: { l: 0, r: 0 },
       barsDone: false, zoomInit: false, pinched: 0,
+      cfg: { seekStep: 10, subsSize: 1, subsBg: 1, skipIntro: 1, autoplay: 1, nextCount: 10 },
+      pills: { intro: null, recap: null, outro: null },
+      next: null, nextLeft: 0, stay: false, seekBack: null, seekBackTimer: 0,
+      bright: 1, swipeTimer: 0, swipeKind: '',
     };
     st.__pwS = S;
     return S;
@@ -332,8 +514,51 @@
     return isFinite(d) && d > 0 ? d * 1000 : 0;
   }
 
+  var PILL_NEXT = '<span class="pw-glyph">' + (ICON.skip_next_filled || '') + '</span>';
+  var PILL_UNDO = '<span class="pw-glyph">' + (ICON.revert || '') + '</span>';
+
+  function pill(btn, on, text, svg, before) {
+    if (!on) { btn.style.display = 'none'; return; }
+    btn.style.display = 'flex';
+    if (btn.__text !== text) {
+      btn.__text = text;
+      btn.innerHTML = (before ? svg : '') + '<span>' + text + '</span>' + (before ? '' : svg);
+    }
+  }
+
+  // StageAt in SeekHud.kt: recap wins, intro next, outro never shares the screen
+  function updatePills(S) {
+    var t = S.v.currentTime * 1000, dur = duration(S), p = S.pills;
+    var kind = null;
+    if (dur > 0) {
+      if (p.recap && t >= p.recap[0] && t < p.recap[1]) kind = 'recap';
+      else if (S.cfg.skipIntro !== 0 && p.intro && t >= p.intro[0] && t < p.intro[1]) kind = 'intro';
+      else if (p.outro && t >= p.outro[0] && t < p.outro[1]) kind = 'next';
+    }
+    S.skipPill.dataset.kind = kind || '';
+    pill(S.skipPill, !!kind, kind === 'recap' ? 'Skip recap' : kind === 'intro' ? 'Skip intro' : 'Next episode', PILL_NEXT, false);
+    pill(S.undoPill, !!S.seekBack, 'Undo', PILL_UNDO, true);
+  }
+
+  // NextUp.kt: card shows in the countdown window, two pills, autoplay unless stayed
+  function updateNext(S) {
+    var dur = duration(S), n = S.next;
+    if (!n || !S.cfg.autoplay || S.stay || !dur) { S.nextCard.dataset.on = '0'; return; }
+    var win = (S.cfg.nextCount || 10) * 1000;
+    var leftMs = S.v.ended ? 0 : dur - S.v.currentTime * 1000;
+    if (leftMs > win) { S.nextCard.dataset.on = '0'; return; }
+    S.nextCard.dataset.on = '1';
+    S.nextCard.querySelector('.pw-next-se').textContent = n.se || '';
+    S.nextCard.querySelector('.pw-next-name').textContent = n.name || '';
+    var left = S.v.ended ? Math.max(0, (S.cfg.nextCount || 10) - Math.floor((Date.now() - S.endAt) / 1000))
+      : Math.ceil(leftMs / 1000);
+    S.nextCard.querySelector('.pw-next-left').textContent = 'Up next in ' + left + 's';
+  }
+
   function render(S) {
     renderSubs(S);
+    updatePills(S);
+    updateNext(S);
     var dur = duration(S);
     var pos = S.v.currentTime * 1000;
     var frac = dur > 0 ? Math.min(1, pos / dur) : 0;
@@ -351,16 +576,14 @@
     S.slimPlayed.style.width = S.played.style.width;
     S.slimBuf.style.width = S.buf.style.width;
     S.clockEl.textContent = clock(pos) + ' / ' + clock(dur);
+    var w = S.seek.clientWidth;
+    var x = Math.round(shown * w);
+    S.thumb.style.left = (Math.min(Math.max(x, 7), Math.max(w - 7, 7)) - 7) + 'px';
     if (S.scrub != null && dur > 0) {
       S.scrubTime.dataset.on = '1';
       S.scrubTime.textContent = clock(S.scrub * dur);
-      var w = S.seek.clientWidth;
-      var x = Math.round(shown * w);
-      S.thumb.dataset.on = '1';
-      S.thumb.style.left = (Math.min(Math.max(x, 7), Math.max(w - 7, 7)) - 7) + 'px';
     } else {
       S.scrubTime.dataset.on = '0';
-      S.thumb.dataset.on = '0';
     }
   }
 
@@ -633,15 +856,19 @@
       var aspect = r.width / r.height;
       var shortSide = Math.min(window.innerWidth, window.innerHeight);
       var basis = Math.min(shortSide / aspect, r.height);
-      var px = Math.max(basis * 0.0533, STAGE && STAGE.dataset.fs === '1' ? 15 : 13);
+      var scale = [0.82, 1, 1.22][S.cfg.subsSize] || 1;
+      var theater = !!S.subsTop;
+      var floor = STAGE && (STAGE.dataset.fs === '1' || theater) ? 15 : 13;
+      var px = Math.max(basis * 0.0533 * scale, floor);
       S.subsWrap.style.left = r.left + 'px';
-      S.subsWrap.style.top = r.top + 'px';
+      S.subsWrap.style.top = (theater ? r.top + r.height + 6 : r.top) + 'px';
       S.subsWrap.style.width = r.width + 'px';
-      S.subsWrap.style.height = r.height + 'px';
+      S.subsWrap.style.height = (theater ? 90 : r.height) + 'px';
       S.subsEl.style.fontSize = px + 'px';
       S.subsEl.style.lineHeight = (px * 1.2) + 'px';
       S.subsEl.style.borderRadius = (px * 0.52) + 'px';
       S.subsEl.style.padding = (px * 0.33) + 'px ' + (px * 0.59) + 'px';
+      S.subsEl.style.background = 'rgba(8,12,16,' + [0, 0.8, 0.95][S.cfg.subsBg] + ')';
     }
     var t = S.v.currentTime * 1000, cues = S.cues;
     var lo = 0, hi = cues.length;
@@ -712,7 +939,7 @@
   function poke(S) {
     S.stage.dataset.on = '1';
     clearTimeout(S.hideTimer);
-    S.hideTimer = setTimeout(function () { S.stage.dataset.on = '0'; }, 3000);
+    S.hideTimer = setTimeout(function () { S.stage.dataset.on = '0'; }, 4000);
   }
 
   function hide(S) {
@@ -740,10 +967,11 @@
 
   function accSeek(S, side) {
     var now = Date.now();
-    S.accTotal = S.accSide === side && now - S.accAt < 1000 ? S.accTotal + 10 : 10;
+    var step = S.cfg.seekStep || 10;
+    S.accTotal = S.accSide === side && now - S.accAt < 1000 ? S.accTotal + step : step;
     S.accSide = side;
     S.accAt = now;
-    var d = side === 'l' ? -10 : 10;
+    var d = side === 'l' ? -step : step;
     S.v.currentTime = Math.max(0, S.v.currentTime + d);
     showHud(S, side, S.accTotal);
   }
@@ -849,9 +1077,52 @@
     if (STAGE.__pwS) updateZoom(STAGE.__pwS);
   };
 
+  // SwipeHud.kt: left half brightness (CSS filter here, browser cannot set window brightness),
+  // right half real volume, one 40dp top-centre readout, hidden 500ms after the drag
+  function verticalSwipe(S) {
+    var start = null, kind = '', base = 0;
+    function show(val) {
+      S.stage.dataset.swipe = '1';
+      S.swipe.querySelector('.pw-swipe-icon').innerHTML = kind === 'bright'
+        ? (ICON.brightness || '') : (ICON.volume_on || '');
+      S.swipe.querySelector('.pw-swipe-fill').style.width = Math.round(val * 100) + '%';
+      S.swipe.querySelector('.pw-swipe-n').textContent = Math.round(val * 100) + '%';
+      clearTimeout(S.swipeTimer);
+      S.swipeTimer = setTimeout(function () { S.stage.dataset.swipe = '0'; }, 500);
+    }
+    S.stage.querySelectorAll('.pw-zone').forEach(function (z) {
+      z.addEventListener('pointerdown', function (e) {
+        if (S.stage.dataset.lock === '1' || S.open || e.pointerType === 'mouse') return;
+        kind = z.dataset.z === 'l' ? 'bright' : z.dataset.z === 'r' ? 'volume' : '';
+        if (!kind) return;
+        start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+        base = kind === 'bright' ? S.bright : S.v.volume;
+        try { z.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+      z.addEventListener('pointermove', function (e) {
+        if (!start || e.pointerId !== start.id || !kind) return;
+        var dy = start.y - e.clientY, dx = Math.abs(e.clientX - start.x);
+        if (Math.abs(dy) < 24 || Math.abs(dy) < dx * 1.5) return;
+        var val = Math.min(1, Math.max(0.05, base + dy / 200));
+        if (kind === 'bright') {
+          S.bright = val;
+          S.v.style.filter = 'brightness(' + val + ')';
+        } else {
+          S.v.volume = val;
+          S.v.muted = false;
+        }
+        show(val);
+      });
+      function up() { start = null; kind = ''; }
+      z.addEventListener('pointerup', up);
+      z.addEventListener('pointercancel', up);
+    });
+  }
+
   function wire(S) {
     var v = S.v;
     pinch(S);
+    verticalSwipe(S);
     S.stage.querySelectorAll('.pw-zone').forEach(function (z) {
       z.addEventListener('click', function () { zone(S, z.dataset.z); });
     });
@@ -901,18 +1172,71 @@
       document.dispatchEvent(new Event('pweplist'));
     });
 
+    S.skipPill.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var kind = S.skipPill.dataset.kind;
+      if (kind === 'next') document.dispatchEvent(new Event('pwnext'));
+      else {
+        var r = kind === 'recap' ? S.pills.recap : S.pills.intro;
+        if (r) S.v.currentTime = r[1] / 1000;
+      }
+      poke(S);
+    });
+
+    S.undoPill.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (S.seekBack != null) S.v.currentTime = S.seekBack / 1000;
+      S.seekBack = null;
+      pill(S.undoPill, false, '', '', false);
+      poke(S);
+    });
+
+    S.nextCard.querySelector('.pw-next-play').addEventListener('click', function (e) {
+      e.stopPropagation();
+      clearTimeout(S.autoTimer);
+      S.stay = false;
+      document.dispatchEvent(new Event('pwnext'));
+    });
+    S.nextCard.querySelector('.pw-next-stay').addEventListener('click', function (e) {
+      e.stopPropagation();
+      clearTimeout(S.autoTimer);
+      S.stay = true;
+      S.nextCard.dataset.on = '0';
+      poke(S);
+    });
+    S.failed.querySelector('.pw-fail-go').addEventListener('click', function (e) {
+      e.stopPropagation();
+      S.failed.dataset.on = '0';
+      openMenu(S);
+      S.page = 1;
+      menuRender(S);
+    });
+    S.failed.querySelector('.pw-fail-back').addEventListener('click', function (e) {
+      e.stopPropagation();
+      document.dispatchEvent(new Event('pwback'));
+    });
+
     bindSeek(S, S.seek);
     bindSeek(S, S.slim);
 
     v.addEventListener('play', function () { setPlayIcon(S); startLoop(S); });
     v.addEventListener('pause', function () { setPlayIcon(S); render(S); });
-    v.addEventListener('ended', function () { setPlayIcon(S); render(S); });
+    v.addEventListener('ended', function () {
+      setPlayIcon(S);
+      S.endAt = Date.now();
+      render(S);
+      if (S.cfg.autoplay && S.next && !S.stay) {
+        clearTimeout(S.autoTimer);
+        S.autoTimer = setTimeout(function () { document.dispatchEvent(new Event('pwnext')); }, (S.cfg.nextCount || 10) * 1000);
+      }
+    });
     v.addEventListener('loadedmetadata', function () {
       if (S.pendingSeek != null) {
         try { v.currentTime = S.pendingSeek; } catch (e) {}
         S.pendingSeek = null;
       }
       updateZoom(S);
+      fetchSkip(S);
       render(S);
     });
     v.addEventListener('loadeddata', function () { startBars(S); });
@@ -973,12 +1297,20 @@
       if (!S.drag) return;
       S.drag = false;
       setScrub(S, e, S.dragEl);
+      S.preview.dataset.on = '0';
+      // PlayerStage seekBack pill: undo a bar seek for four seconds
+      if (S.scrub != null && duration(S) > 0) {
+        S.seekBack = S.v.currentTime * 1000;
+        clearTimeout(S.seekBackTimer);
+        S.seekBackTimer = setTimeout(function () { S.seekBack = null; updatePills(S); }, 4000);
+      }
       seekTo(S, S.scrub);
     });
     el.addEventListener('pointercancel', function () {
       if (!S.drag) return;
       S.drag = false;
       S.scrub = null;
+      S.preview.dataset.on = '0';
       render(S);
     });
   }
@@ -988,6 +1320,35 @@
     if (r.width <= 0) return;
     S.scrub = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     render(S);
+    var dur = duration(S);
+    if (S.scrub == null || !dur) { S.preview.dataset.on = '0'; return; }
+    S.preview.dataset.on = '1';
+    S.preview.querySelector('.pw-preview-time').textContent = clock(S.scrub * dur);
+    var stageRect = S.stage.getBoundingClientRect();
+    var bar = Math.max(r.width, 1);
+    var budget = Math.max(stageRect.height * 0.5, 1);
+    var aspect = S.v.videoWidth && S.v.videoHeight ? S.v.videoWidth / S.v.videoHeight : 16 / 9;
+    var cap = Math.min(280, budget * aspect, bar);
+    var width = Math.max(Math.min(176, cap), Math.min(bar * 0.6, cap));
+    S.previewFrame.style.width = Math.round(width) + 'px';
+    S.previewFrame.style.height = Math.round(Math.min(width / aspect, budget)) + 'px';
+    var x = bar > width ? Math.min(Math.max(Math.round(S.scrub * bar) - width / 2, 0), bar - width) : 0;
+    S.preview.style.left = Math.round(x) + 'px';
+    // framed scrub frame where the format is a direct file; hls.js blob cannot be shared across elements
+    if (!S.previewV) {
+      var pv = document.createElement('video');
+      pv.muted = true;
+      pv.preload = 'auto';
+      pv.setAttribute('playsinline', '');
+      pv.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+      S.previewFrame.insertBefore(pv, S.previewFrame.firstChild);
+      S.previewV = pv;
+    }
+    var item = S.formats[S.idx];
+    if (item && !item.h && S.previewV.getAttribute('src') !== item.u) S.previewV.setAttribute('src', item.u);
+    if (S.previewV.readyState >= 2) {
+      try { S.previewV.currentTime = S.scrub * dur / 1000; } catch (err) {}
+    }
   }
 
   function onKey(S) {
@@ -1002,6 +1363,16 @@
       if (k === 'ArrowLeft') { e.preventDefault(); accSeek(S, 'l'); poke(S); return; }
       if (k === 'ArrowRight') { e.preventDefault(); accSeek(S, 'r'); poke(S); return; }
       if (k === 'm' || k === 'M') { S.v.muted = !S.v.muted; poke(S); return; }
+      if (k === 'n' || k === 'N') { document.dispatchEvent(new Event('pwnext')); return; }
+      if (k === 's' || k === 'S') {
+        var kind = S.skipPill.dataset.kind;
+        if (kind === 'next') document.dispatchEvent(new Event('pwnext'));
+        else {
+          var r = kind === 'recap' ? S.pills.recap : S.pills.intro;
+          if (r) S.v.currentTime = r[1] / 1000;
+        }
+        return;
+      }
       if (k === 'f' || k === 'F') { setFullscreen(); poke(S); }
     };
   }
@@ -1033,6 +1404,36 @@
       if (h > 0 && !seen[h]) { seen[h] = 1; out.push(h); }
     }
     return out.sort(function (a, b) { return b - a; });
+  }
+
+  // Providers.providerName / dubsOf: dub cuts are labelled by the leg, e.g. hianime-dub-1080p
+  function providerName(label) {
+    var map = {
+      love: 'VidLove', rock: 'VidRock', vix: 'VixSrc', zee: 'VidZee',
+      paradise: 'AnimeParadise', vap: 'VAPlayer', vidlink: 'VidLink',
+      hianime: 'HiAnime', allanime: 'AllAnime', pinoy: 'Pinoy',
+    };
+    var leg = (label || '').split('-')[0];
+    return map[leg] || leg;
+  }
+
+  function dubs(S) {
+    var out = [], seen = {};
+    var base = S.formats[S.idx] || S.formats[0];
+    if (base) {
+      var l0 = 'Sub · ' + providerName(base.l);
+      out.push({ label: l0, shown: l0.split(' · ')[0], i: S.idx });
+    }
+    S.formats.forEach(function (f, i) {
+      var l = f.l || '';
+      if (!/(^|[-_])dub([-_]|$)/i.test(l)) return;
+      // PlayerSettings.kt dubLabel strips the leg name, viewers see only the language
+      var label = 'English · ' + providerName(l);
+      if (seen[label]) return;
+      seen[label] = 1;
+      out.push({ label: label, shown: label.split(' · ')[0], i: i });
+    });
+    return out;
   }
 
   function menuRow(label, value, icon, chevron, selected, note, onClick) {
@@ -1091,17 +1492,32 @@
         m.appendChild(menuRow(speedLabel(x), null, null, false, x === S.speed, x === 1 ? 'Normal' : null,
           function () { pickSpeed(S, x); }));
       });
+    } else if (S.page === 4) {
+      m.appendChild(menuHead(S, 'Dubs'));
+      dubs(S).forEach(function (d) {
+        m.appendChild(menuRow(d.shown, null, null, false, d.i === S.idx, null, function () {
+          var at = S.v.currentTime;
+          closeMenu(S);
+          S.pendingSeek = at;
+          load(S, S.formats[d.i], d.i);
+        }));
+      });
     } else {
       var q = qualities(S);
       if (q.length > 1) {
-        // android hides auto resolution on root row (phone layout), it only shows inside quality
-        // list, which keeps row short enough never to ellipsize
-        var qv = S.auto ? 'Auto' : S.qh + 'p';
+        // PlayerSettings.kt shows the live rung beside Auto off phone, phones keep the short row
+        var qv = S.auto ? (window.innerWidth >= 840 && S.qh ? 'Auto · ' + S.qh + 'p' : 'Auto') : S.qh + 'p';
         m.appendChild(menuRow('Quality', qv, 'quality', true, false, null,
           function () { S.page = 1; menuRender(S); }));
       }
       m.appendChild(menuRow('Speed', speedLabel(S.speed), 'speed', true, false, null,
         function () { S.page = 2; menuRender(S); }));
+      var ds = dubs(S);
+      if (ds.length > 1) {
+        var cur = ds.filter(function (d) { return d.i === S.idx; })[0];
+        m.appendChild(menuRow('Dubs', cur ? cur.shown : 'Sub', 'dubs', true, false, null,
+          function () { S.page = 4; menuRender(S); }));
+      }
     }
   }
 
@@ -1217,6 +1633,8 @@
     } else {
       log('play', 'player error no source left after ' + st.list.length);
       S.stage.dataset.stall = '0';
+      S.failed.dataset.on = '1';
+      poke(S);
       // PlayerScreen flips netErr on same event and offers way out (PlayerFailedOverlay)
       document.dispatchEvent(new Event('pwfail'));
     }
@@ -1235,6 +1653,9 @@
     S.fs.innerHTML = '<span class="pw-glyph">' + ICON.fullscreen + '</span>';
     S.mute.innerHTML = '<span class="pw-glyph">' + (v.muted ? ICON.volume_off : ICON.volume_on) + '</span>';
     S.lockBtn.setAttribute('aria-label', 'Lock controls');
+    if (CONFIG) applyConfig(S, CONFIG);
+    applySubsTop(S, SUBSTOP);
+    if (NEXT) { try { S.next = JSON.parse(NEXT); } catch (e) {} }
     S.title.textContent = v.__pwTitle || '';
     S.flash.addEventListener('click', function () {
       if (S.flash.dataset.tap !== '1') return;
@@ -1287,6 +1708,12 @@
     S.pinched = 0;
     // fresh title seeks to own saved position once, not on every rung switch
     S.restored = false;
+    S.stay = false;
+    S.seekBack = null;
+    clearTimeout(S.autoTimer);
+    clearTimeout(S.seekBackTimer);
+    S.failed.dataset.on = '0';
+    S.nextCard.dataset.on = '0';
     S.startAt = (doc && doc.start) || 0;
     // element still carries last title size, so only undo zoom here, loadedmetadata measures
     applyZoom(S);
@@ -1305,6 +1732,10 @@
     clearTimeout(S.hideTimer);
     clearTimeout(S.hudTimer);
     clearTimeout(S.flashTimer);
+    clearTimeout(S.autoTimer);
+    clearTimeout(S.seekBackTimer);
+    clearTimeout(S.swipeTimer);
+    S.preview.dataset.on = '0';
     S.open = false;
     S.menu.dataset.on = '0';
     window.removeEventListener('keydown', S.onKey);

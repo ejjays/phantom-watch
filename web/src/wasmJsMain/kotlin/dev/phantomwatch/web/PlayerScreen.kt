@@ -83,6 +83,7 @@ import dev.phantomwatch.data.SeasonInfo
 import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.TitleDetail
 import dev.phantomwatch.data.Tmdb
+import dev.phantomwatch.json.JSONObject
 import dev.phantomwatch.data.TmdbHost
 import dev.phantomwatch.res.*
 import dev.phantomwatch.ui.Bg
@@ -130,6 +131,23 @@ private external fun pwFsState(): Boolean
 private external fun pwEpisodes(on: Boolean)
 
 private external fun pwAspect(): Float
+
+private external fun pwSubsTop(on: Boolean)
+
+private external fun pwNext(json: String)
+
+// same keys phone reads in PlayerScreen.kt, browser kept them in localStorage but never used them
+private fun playerConfig(tmdb: String, episode: String): String = JSONObject()
+    .put("tmdb", tmdb)
+    .put("episode", episode)
+    .put("subsOn", WebSettings.on(SettingsKeys.SUBS_ON))
+    .put("subsSize", WebSettings.on(SettingsKeys.SUBS_SIZE, 1))
+    .put("subsBg", WebSettings.on(SettingsKeys.SUBS_BG, 1))
+    .put("seekStep", WebSettings.on(SettingsKeys.SEEK_STEP, 1))
+    .put("skipIntro", WebSettings.on(SettingsKeys.SKIP_INTRO))
+    .put("autoplay", WebSettings.on(SettingsKeys.AUTOPLAY))
+    .put("nextCount", WebSettings.on(SettingsKeys.NEXT_COUNT, 1))
+    .toString()
 
 
 @Composable
@@ -225,6 +243,22 @@ fun PlayerScreen(
         episodes = list
         loadingEpisodes = false
     }
+    val nextEp by remember(episodes, season, episode) {
+        mutableStateOf(episodes.firstOrNull { it.n == (episode.toIntOrNull() ?: -1) + 1 })
+    }
+    LaunchedEffect(nextEp, season) {
+        val up = nextEp
+        pwNext(if (up != null && season.isNotEmpty()) JSONObject()
+            .put("se", "S$season E${up.n}").put("name", up.name).toString() else "null")
+    }
+    DisposableEffect(nextEp, season) {
+        val onNext: (Event) -> Unit = {
+            val up = nextEp
+            if (up != null && season.isNotEmpty()) onEpisode(season, up.n.toString())
+        }
+        document.addEventListener("pwnext", onNext)
+        onDispose { document.removeEventListener("pwnext", onNext) }
+    }
     var panel by remember(media.id) { mutableStateOf(PlayerPanel.None) }
     DisposableEffect(Unit) {
         val onList: (Event) -> Unit = {
@@ -287,7 +321,12 @@ fun PlayerScreen(
         val landscape = maxWidth > maxHeight
         val phone = minOf(maxWidth, maxHeight) < 600.dp
         val sidePanel = landscape && phone
-        val panelW = minOf(340.dp, windowW * 0.42f)
+        // phone slide-in sidebar caps at 320dp, tablet rail uses PlayerPanel.kt's wider formula
+        val panelW = if (isExpanded(windowW)) {
+            (windowW * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(windowW * 0.45f)
+        } else {
+            minOf(320.dp, windowW * 0.36f)
+        }
         // picture is dom layer above this canvas, anything drawn in its rect is hidden
         val generic = stringResource(Res.string.player_resolve_failed)
         val failed = when (fail) {
@@ -320,7 +359,8 @@ fun PlayerScreen(
                 )
             }
         }
-        LaunchedEffect(isTv, landscape) { pwEpisodes(isTv && landscape) }
+        // PlayerStage.kt: episodes control only exists in fullscreen
+        LaunchedEffect(isTv, fs) { pwEpisodes(isTv && fs) }
         if (fs) {
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) { stage(true, Modifier.fillMaxSize(), 0f, back) }
@@ -337,8 +377,8 @@ fun PlayerScreen(
         } else if (isExpanded(windowW)) {
             val railW = (windowW * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(windowW * 0.45f)
             val leftW = windowW - railW
-            // full width 16:9 like youtube default view, height pinned so scrolling cannot remeasure into letterboxing, short window scrolls video up
-            val stageH = leftW * 9f / 16f
+            // PlayerPanel.kt sizes the video to its real aspect, falling back to 16:9 before metadata
+            val stageH = if (aspect > 0f) leftW / aspect else leftW * 9f / 16f
             Row(Modifier.fillMaxSize()) {
                 // one scroll container for whole left pane including video, before only info below scrolled so tall video covered content
                 Column(
@@ -373,6 +413,10 @@ fun PlayerScreen(
             val flingPx = with(density) { 125.dp.toPx() }
             var sheet by remember(media.id) { mutableFloatStateOf(0f) }
             val progress = if (panelPx > 0f) (sheet / panelPx).coerceIn(0f, 1f) else 0f
+            // PlayerScreen.kt theater: fully raised info sheet puts captions under the picture
+            val theater = progress > 0.5f
+            LaunchedEffect(theater) { pwSubsTop(theater) }
+            DisposableEffect(Unit) { onDispose { pwSubsTop(false) } }
             val scroller = rememberScrollState()
             val scope = rememberCoroutineScope()
             val glide: (Float) -> Unit = { to -> scope.launch { animate(sheet, to) { v, _ -> sheet = v } } }
@@ -485,6 +529,7 @@ private fun Stage(
             startMs = start,
             scrollOffset = scrollOffset,
             onProgress = { pos, dur -> if (keep) Resume.save(media, season, episode, pos, dur) },
+            config = playerConfig(media.id, episode),
             modifier = Modifier.fillMaxSize(),
         )
     }

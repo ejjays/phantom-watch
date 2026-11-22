@@ -63,6 +63,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -408,15 +409,27 @@ private fun EpisodesBody(
 
 @Composable
 private fun EpisodeRow(e: Episode, current: Boolean, onClick: () -> Unit) {
+    val density = LocalDensity.current
+    val windowW = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
+    // web dp is one css px, phone dp is a fraction of a much narrower screen. lift the rows on
+    // wide windows so the list reads at the same relative size as the Android sidebar
+    val wide = isExpanded(windowW)
+    val padH = if (wide) 18.dp else 14.dp
+    val padV = if (wide) 14.dp else 10.dp
+    val thumbW = if (wide) 96.dp else 72.dp
+    val gap = if (wide) 13.dp else 10.dp
+    val nameSize = if (wide) 17.sp else 14.sp
+    val lineH = if (wide) 22.sp else 18.sp
+    val epSize = if (wide) 13.sp else 11.sp
     Row(
         Modifier.fillMaxWidth()
             .background(if (current) Color.White.copy(alpha = 0.06f) else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = padH, vertical = padV),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.width(72.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp))
+            Modifier.width(thumbW).aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp))
                 .background(Color.White.copy(alpha = 0.06f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -429,23 +442,23 @@ private fun EpisodeRow(e: Episode, current: Boolean, onClick: () -> Unit) {
             } else {
                 Icon(
                     painterResource(Res.drawable.ic_play_outline), contentDescription = null,
-                    tint = Slate400, modifier = Modifier.size(16.dp),
+                    tint = Slate400, modifier = Modifier.size(if (wide) 20.dp else 16.dp),
                 )
             }
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(gap))
         Column(Modifier.weight(1f)) {
             Text(
-                e.name, color = if (current) Cyan else Slate100, fontSize = 14.sp,
-                lineHeight = 18.sp, fontFamily = WorkSans,
+                e.name, color = if (current) Cyan else Slate100, fontSize = nameSize,
+                lineHeight = lineH, fontFamily = WorkSans,
                 fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(if (wide) 3.dp else 2.dp))
             Text(
                 stringResource(Res.string.player_episode_no, e.n),
                 color = if (current) Cyan.copy(alpha = 0.75f) else Slate500,
-                fontSize = 11.sp, fontFamily = WorkSans,
+                fontSize = epSize, fontFamily = WorkSans,
             )
         }
     }
