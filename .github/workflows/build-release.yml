@@ -37,6 +37,32 @@ jobs:
             *"$code"*) echo "tag $TAG carries build $code" ;;
             *) echo "tag $TAG must contain build $code"; exit 1 ;;
           esac
+      - name: app config
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          OS_API_KEY: ${{ secrets.OS_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+          CFG_URL: ${{ secrets.CFG_URL }}
+          TELEMETRY_URL: ${{ secrets.TELEMETRY_URL }}
+          TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
+        run: |
+          umask 077
+          {
+            echo "TMDB_API_KEY=$TMDB_API_KEY"
+            echo "OS_API_KEY=$OS_API_KEY"
+            echo "SUPABASE_URL=$SUPABASE_URL"
+            echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+            echo "GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID"
+            echo "GROQ_API_KEY=$GROQ_API_KEY"
+            echo "DEEPGRAM_API_KEY=$DEEPGRAM_API_KEY"
+            echo "CFG_URL=$CFG_URL"
+            echo "TELEMETRY_URL=$TELEMETRY_URL"
+            echo "TELEMETRY_KEY=$TELEMETRY_KEY"
+          } > local.properties
       - name: keystore
         env:
           B64: ${{ secrets.PW_RELEASE_KEYSTORE_B64 }}
