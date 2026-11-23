@@ -24,9 +24,11 @@ val genKey = tasks.register("genKey") {
     val fallback = pwFallback
     val pw = pwKey
     val out = genKeyDir.get().file("dev/phantomwatch/web/Key.kt").asFile
-    // else task stays up to date after relay url change and bakes stale url
-    inputs.file(rootProject.file("local.properties")).withPropertyName("localProperties").optional()
+    // value inputs so a relay url change reruns the task, no file input since runners have none
+    inputs.property("tmdbKey", key)
     inputs.property("pwUrl", url)
+    inputs.property("pwFallback", fallback)
+    inputs.property("pwKey", pw)
     outputs.file(out)
     doLast {
         out.parentFile.mkdirs()
