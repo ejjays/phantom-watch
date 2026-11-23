@@ -9,13 +9,10 @@
     return { formats: [], subs: [], skipped: true };
   }
 
-  // pick order: real height first, then 1080p+ with en subs, then a
-  // fixed rung over adaptive master (abr settles low, 268p while
-  // its own 1080p rung served 804), en subs, en subs that also carry a
-  // verified english audio track, english audio, then height
-  // auto rung height is the ladder ceiling not what it serves so it
-  // never claims the 1080p+ bucket, 0 height means the leg never reported one
-  // so it cant outrank a known height (0 height rung once won and sat dead)
+  // pick order: real height, sub over dub, known height, 1080p with en subs on fixed rung,
+  // fixed rung over auto, en subs, subs with verified english audio, english, height
+  // auto height is ladder ceiling not what it serves, 0 height once won and sat dead
+  // 268p auto while its own 1080p rung served 804
   function rankOf(f) {
     var h = typeof f.height === 'number' ? f.height : 0;
     var auto = /-auto$/.test(f.label || '');
@@ -41,6 +38,60 @@
       }
       return 0;
     });
+  }
+
+  // webview and node evaluate this file, ordering and sub binding stay one implementation
+  function pwUnique(list, key) {
+    var seen = {}, out = [];
+    for (var i = 0; i < (list || []).length; i++) {
+      var x = list[i], k = x ? key(x) : '';
+      if (!k || seen[k]) continue;
+      seen[k] = 1;
+      out.push(x);
+    }
+    return out;
+  }
+
+  function pwHost(url) {
+    try { return new URL(url).host; } catch (e) { return ''; }
+  }
+
+  function pwSink(formats, blocked) {
+    var b = {};
+    (blocked || []).forEach(function (h) { if (h) b[h] = 1; });
+    var ok = [], bad = [];
+    (formats || []).forEach(function (f) { (b[pwHost(f.url)] ? bad : ok).push(f); });
+    return ok.concat(bad);
+  }
+
+  function pwTopTier(f) {
+    var h = typeof f.height === 'number' ? f.height : 0;
+    return h >= 1080 && (f.enSubs || f.enAudio || !!f.dub) && !/-auto$/.test(f.label || '');
+  }
+
+  // sub never crosses legs, rock cut has no captions from any leg
+  function pwSubsFor(f, subs) {
+    if (!f || /^rock-/.test(f.label || '')) return [];
+    return (subs || []).filter(function (s) {
+      return !s.src || String(f.label || '').indexOf(s.src) === 0;
+    });
+  }
+
+  function pwPipeline(input) {
+    input = input || {};
+    var dead = {}, subs = input.subs || [];
+    (input.dead || []).forEach(function (u) { if (u) dead[u] = 1; });
+    var live = pwUnique((input.formats || []).filter(function (f) {
+      return f && f.url && !dead[f.url];
+    }), function (f) { return f.url; });
+    var ordered = pwSink(pwRank(live), input.blocked);
+    var pick = ordered[0] || null;
+    return {
+      formats: ordered,
+      subs: pwUnique(subs, function (s) { return s.url; }),
+      pick: pick,
+      usable: pick ? pwSubsFor(pick, subs) : [],
+    };
   }
 
   // legs that cant serve this title at all, app and probe.js share this
@@ -1494,6 +1545,9 @@
   window.__pwBridge = { httpDone: bridgeDone, httpFail: bridgeFail, voeDone: bridgeDone };
   window.__pwRank = pwRank;
   window.__pwSkip = pwSkip;
+  window.__pwPipeline = pwPipeline;
+  window.__pwTopTier = pwTopTier;
+  window.__pwSubsFor = pwSubsFor;
   window.__pwSort = function (id, formatsJson) {
     var list;
     try { list = JSON.parse(formatsJson); } catch (e) { pw.fail(id, 'sort args'); return; }

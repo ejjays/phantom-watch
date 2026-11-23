@@ -1,6 +1,5 @@
 'use strict';
-// phantomwatch web backend: resolves a title to playable formats and relays bytes with the
-// headers a browser is not allowed to send (Referer/UA)
+// phantomwatch web backend: resolves title to formats, relays bytes with headers browser cannot send
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -16,12 +15,10 @@ const TMDB = process.env.TMDB_KEY || '';
 const TELEMETRY = process.env.TELEMETRY_URL || '';
 const TELEMETRY_KEY = process.env.TELEMETRY_KEY || '';
 
-// app keeps this map on device (Torrents.DeadHosts). relay without it retries a cdn that just
-// started 403ing on every resolve
+// app keeps dead hosts on device, relay without map retries cdn that just 403ed
 const DEAD = new Map();
 const BAN_MS = 30 * 60 * 1000;
 const hostOf = (u) => { try { return new URL(u).host; } catch (e) { return ''; } };
-const banned = (f) => { const t = DEAD.get(hostOf(f.url)); return t != null && t > Date.now(); };
 const ban = (f) => { const h = hostOf(f.url); if (h) DEAD.set(h, Date.now() + BAN_MS); };
 const forgive = (f) => { DEAD.delete(hostOf(f.url)); };
 
@@ -43,7 +40,7 @@ function proxyUrl(base, url, headers) {
 
 function baseOf(req) {
   const proto = req.headers['x-forwarded-proto'] || 'http';
-  // caddy overwrites x-forwarded-host
+  // caddy overwrites forwarded host
   const host = req.headers['x-pw-public-host'] || req.headers['x-forwarded-host'] || req.headers.host;
   return `${proto}://${host}`;
 }
@@ -87,7 +84,7 @@ function subHeaders(sub, pick) {
 }
 
 async function runOne(leg, job, info) {
-  if (pw.skip(leg, { kind: job.kind, season: job.season, title: info.title, imdb: info.imdb, isAnim: info.isAnim })) {
+  if (pw.skip(leg, { kind: job.kind, season: job.season, title: info.title, imdb: info.imdb, isAnim: info.isAnim, tmdbKey: TMDB })) {
     return { leg, skipped: true, formats: [], subs: [], ms: 0 };
   }
   const args = {
@@ -152,8 +149,8 @@ async function handleResolve(req, res, base) {
 
   const ranked = pw.rank(all).filter((f) => f && f.url);
 
-  // one probe per host, best ranked first: clears a stale ban or sets a fresh one. app gets this
-  // signal from playback failures, relay has no such feedback so probe is all it has
+  // one probe per host, best ranked first: clears stale ban or sets fresh one
+  // app gets signal from playback failures, relay has no feedback but probe
   const probed = new Set();
   const heads = [];
   for (const f of ranked) {
@@ -169,10 +166,12 @@ async function handleResolve(req, res, base) {
     stats[f.src] = Object.assign({}, stats[f.src], { dead: true });
   }));
 
-  // banned hosts sink to back of fallback chain, like rankLast in app
-  const ordered = ranked.filter((f) => !banned(f)).concat(ranked.filter(banned));
-
-  const pick = ordered[0] || null;
+  // dedup, rank, host sink, pick and sub binding come from shared providers.js pipeline
+  const blocked = [];
+  for (const h of DEAD.keys()) { if (DEAD.get(h) > Date.now()) blocked.push(h); }
+  const result = pw.pipeline({ formats: all, subs: subs, blocked: blocked });
+  const ordered = result.formats;
+  const pick = result.pick;
   const wire = (f) => ({
     url: proxyUrl(base, f.url, headersFor(f)),
     h: Number.isFinite(f.height) ? f.height : 0,
@@ -181,9 +180,9 @@ async function handleResolve(req, res, base) {
     src: f.src,
     enSubs: !!f.enSubs,
   });
-  const usable = pick ? subs.filter((s) => !s.src || String(pick.label || '').startsWith(s.src) || s.src === pick.src) : subs;
+  const usable = result.usable;
 
-  // same event probe.js posts, so /health and alerts see web traffic too
+  // same event probe.js posts, /health and alerts see web traffic
   if (TELEMETRY) {
     const tel = {};
     for (const r of legs) {
@@ -210,7 +209,7 @@ async function handleResolve(req, res, base) {
   return json(res, 200, {
     cfg: cfg.version || 0,
     pick: pick ? wire(pick) : null,
-    formats: ordered.slice(0, 12).map(wire),
+    formats: ordered.map(wire),
     subs: usable.map((s) => ({ label: s.label || 'Subtitles', url: proxyUrl(base, s.url, subHeaders(s, pick)), src: s.src })),
     legs: stats,
     ms: Date.now() - t0,
@@ -299,9 +298,8 @@ function text(res, code, msg) {
   res.end(msg);
 }
 
-// web build runs on a static host and cannot answer /top10 itself. chart worker needs its own
-// key, which has no business in a page source, so it is called from here and cached for the
-// length of a chart update. netflix rescrapes are seconds long and that is the row home leads with
+// static host cannot answer /top10, chart key has no business in page source
+// called here and cached for chart window, netflix rescrape is seconds and home leads with it
 const CHART = TELEMETRY.replace(/\/e$/, '');
 const CHART_TTL = 6 * 3600 * 1000;
 const CHARTS = new Map();
@@ -319,13 +317,13 @@ async function chartBody(params) {
   const r = await fetch(`${CHART}/top10?${qs}`, { signal: AbortSignal.timeout(20000) }).catch(() => null);
   if (!r || !r.ok) return hit ? hit.body : null;
   const body = await r.text();
-  // empty list means netflix does not chart that country, do not pin it
+  // empty list means netflix does not chart country, do not pin it
   if (/"results":\[\]/.test(body)) return body;
   CHARTS.set(id, { at: Date.now(), body });
   return body;
 }
 
-// keeps worker edge copy warm so first visitor of a chart update does not wait
+// keeps worker edge copy warm so first visitor of chart update does not wait
 function warmCharts() {
   if (!CHART || !TMDB) return;
   for (const c of WARM) {
@@ -333,9 +331,8 @@ function warmCharts() {
   }
 }
 
-// page served from a static host cannot see visitor country, and navigator.language is a poor
-// stand in: an en us phone in manila asks for the US chart. resolver does see client address, so
-// it answers for the page
+// static page cannot see visitor country, en us phone in manila asks for us chart
+// resolver sees client address and answers for page
 const GEOS = new Map();
 const GEO_TTL = 6 * 3600 * 1000;
 
@@ -349,7 +346,7 @@ async function countryOf(req) {
   if (!ip) return '';
   const hit = GEOS.get(ip);
   if (hit && Date.now() - hit.at < GEO_TTL) return hit.c;
-  // server to server, so plain http costs nothing and needs no key
+  // server to server, plain http costs nothing and needs no key
   const r = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=countryCode`, {
     signal: AbortSignal.timeout(5000),
   }).catch(() => null);

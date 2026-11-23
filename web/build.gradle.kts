@@ -6,16 +6,14 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// tmdb key lives in local.properties and must never be committed, so baked into generated
-// source at build time instead of written into repo
+// tmdb key lives in local.properties, baked into generated source at build time
 val props: Properties = run {
     val f = rootProject.file("local.properties")
     if (!f.exists()) Properties() else Properties().apply { f.inputStream().use { load(it) } }
 }
 val tmdbKey: String = props.getProperty("TMDB_API_KEY", "")
-// PW_RELAY_URL here is the dev resolver, published bundles must not pick it up
-// oracle box public name is dns name resolving to box address so caddy can hold real
-// certificate, phantom.work.gd has no dns record so was never reachable
+// PW_RELAY_URL is dev resolver, published bundles must not pick it up
+// oracle public name is dns to box address so caddy holds real cert, phantom.work.gd had no dns
 val pwUrl: String = props.getProperty("PW_RELAY_URL", "https://phantomwatch-relay.christsonalloso021.workers.dev")
 val pwFallback: String = props.getProperty("PW_URL_WEB", "https://158-178-228-161.sslip.io")
 val pwKey: String = props.getProperty("PW_KEY", "")
@@ -26,6 +24,9 @@ val genKey = tasks.register("genKey") {
     val fallback = pwFallback
     val pw = pwKey
     val out = genKeyDir.get().file("dev/phantomwatch/web/Key.kt").asFile
+    // else task stays up to date after relay url change and bakes stale url
+    inputs.file(rootProject.file("local.properties")).withPropertyName("localProperties").optional()
+    inputs.property("pwUrl", url)
     outputs.file(out)
     doLast {
         out.parentFile.mkdirs()

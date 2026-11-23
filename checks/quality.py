@@ -20,11 +20,11 @@ LINE_CAPS = {
     "app/src/test/java": 400,
     "shared/src": 900,
     "web/src": 900,
-    # providers.js is single home for every leg extractor and bridge loads this one asset
-    # (no split without apk), cap moves with leg count ~30/leg
-    # allanime resolver is gated so leg carries client that reads mask out of site chunk,
-    # derives AES key and signs each call
-    "app/src/main/assets/providers.js": 1520,
+    # providers.js is single home for leg extractors, bridge loads one asset
+    # cap moves with leg count ~30 per leg
+    # allanime carries client that reads mask out of site chunk, derives aes key and signs calls
+    # +54 for shared resolve pipeline, replaces node relay copy
+    "app/src/main/assets/providers.js": 1580,
     "app/src/main/assets": 700,
     "backend/worker": 700,
     "checks": 400,
@@ -138,9 +138,20 @@ def check_providers_config():
     for err in config_problems(cfg, "", require_script=False):
         fail(f"providers.json: {err}")
     js = (ROOT / "app/src/main/assets/providers.js").read_text()
-    for symbol in ("window.__pwRun", "window.__pwSort"):
+    for symbol in ("window.__pwRun", "window.__pwSort", "window.__pwPipeline", "window.__pwSubsFor"):
         if symbol not in js:
             fail(f"providers.js: missing {symbol}")
+    relay = (ROOT / "backend/server/pw/index.js").read_text()
+    bridge = (ROOT / "backend/server/pw/bridge.js").read_text()
+    if "pw.pipeline(" not in relay or "pipeline:" not in bridge:
+        fail("relay: must call the shared pipeline instead of its own copy")
+    if "tmdbKey: TMDB" not in relay:
+        fail("relay: skip context must carry tmdbKey or allanime is always skipped")
+    if ".slice(0, 12)" in relay:
+        fail("relay: fixed 12 format cap diverges from the phone")
+    deploy = (ROOT / "backend/server/pw/deploy.sh").read_text()
+    if "app/src/main/assets" not in deploy:
+        fail("relay: deploy must copy the app's bundled providers assets")
 
 
 def check_permissions():

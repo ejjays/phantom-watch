@@ -46,6 +46,32 @@ test('pick order matches the shared fixture', () => {
   assert.deepEqual(window.__pwRank(formats).map((f) => f.url), order);
 });
 
+test('shared pipeline ranks, dedups and picks the same as the phone', () => {
+  const { formats, order } = fixture();
+  const dup = Object.assign({}, formats[1], { url: 'duplicate' });
+  const out = window.__pwPipeline({ formats: formats.concat([dup]), subs: [] });
+  const got = out.formats.map((f) => f.url);
+  assert.deepEqual(got.filter((u) => u !== 'duplicate'), order);
+  assert.equal(got.indexOf('duplicate'), got.indexOf(order[0]) + 1);
+  assert.equal(out.pick.url, order[0]);
+});
+
+test('shared pipeline sinks blocked hosts and binds subs per format', () => {
+  const formats = [
+    { url: 'https://good.example/a', label: 'leg-1080p', height: 1080, enSubs: true, isHls: false },
+    { url: 'https://bad.example/b', label: 'leg-720p', height: 720, enSubs: true, isHls: false },
+  ];
+  const subs = [
+    { label: 'English', url: 's1', src: 'leg' },
+    { label: 'Other', url: 's2', src: 'other' },
+  ];
+  const out = window.__pwPipeline({ formats, subs, blocked: ['bad.example'] });
+  assert.deepEqual(out.formats.map((f) => f.url), ['https://good.example/a', 'https://bad.example/b']);
+  assert.equal(out.pick.url, 'https://good.example/a');
+  assert.deepEqual(out.usable.map((s) => s.url), ['s1']);
+  assert.deepEqual(window.__pwSubsFor({ label: 'rock-x' }, subs), []);
+});
+
 test('pick order does not mutate the input', () => {
   const { formats } = fixture();
   const before = formats.map((f) => f.url);
@@ -339,7 +365,7 @@ test('allanime answers empty when the crypto chunk cannot be read', async () => 
           JSON.stringify({ code: 200, body: JSON.stringify({ data: { shows: { edges: [{ _id: 'x1', name: 'Solo Leveling', englishName: 'Solo Leveling', availableEpisodes: { sub: 1, dub: 1 } }] } } }) })
         );
       } else {
-        // the site answers without an app entry, discovery gives up
+        // site answers without app entry, discovery gives up
         window.__pwBridge.httpDone(id, JSON.stringify({ code: 200, body: '<html></html>' }));
       }
     },

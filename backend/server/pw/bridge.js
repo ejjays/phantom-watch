@@ -1,5 +1,5 @@
 'use strict';
-// Runs the shipped providers.js headless: same contract probe.js uses.
+// runs shipped providers.js headless, same contract probe.js uses
 const { AsyncLocalStorage } = require('node:async_hooks');
 
 const UA = process.env.PW_UA ||
@@ -76,6 +76,8 @@ function init(src) {
   return {
     runLeg,
     rank: (formats) => globalThis.__pwRank(formats) || [],
+    pipeline: (input) => globalThis.__pwPipeline(input) || { formats: [], subs: [], pick: null, usable: [] },
+    topTier: (f) => !!globalThis.__pwTopTier(f),
     skip: (leg, ctx) => globalThis.__pwSkip(leg, ctx),
   };
 }

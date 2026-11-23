@@ -5,12 +5,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-data class PlaySource(val url: String, val label: String, val h: Int, val hls: Boolean)
-
-data class SubSource(val label: String, val url: String)
-
-data class Resolved(val formats: List<PlaySource>, val subs: List<SubSource>)
-
 private var lastCfg = -1
 private var primaryDownUntil = 0.0
 
@@ -18,9 +12,8 @@ private var primaryDownUntil = 0.0
 @JsFun("() => Date.now()")
 private external fun jsNowMs(): Double
 
-// POST through fetch and not the ktor client: a resolver that is down makes fetch reject and js
-// engine parks the coroutine on that promise for good, which left player spinning with no way
-// out. AbortController also gives the call a deadline that actually fires
+// fetch not ktor: dead resolver makes fetch reject, js parks coroutine on that promise
+// and player spins forever, AbortController gives deadline that fires
 @OptIn(ExperimentalWasmJsInterop::class)
 @JsFun(
     """(url, key, body, ms, cb) => {
@@ -54,7 +47,7 @@ private suspend fun post(url: String, key: String, body: String): String =
         }
     }
 
-// web only: browser cannot send the Referer/UA provider cdns demand
+// browser cannot send referer and ua provider cdns demand
 suspend fun resolveSources(
     server: String, key: String,
     kind: String, id: String, season: String = "", episode: String = "",
