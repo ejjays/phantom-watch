@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate web/web/icons.js from app/src/main/res/drawable so the web player
-uses the exact same glyphs as the phone. Run from the repo root."""
+"""Regenerate web/web/icons.js from android drawables, same glyphs both platforms."""
 import re, pathlib
 
 WANT = ["ic_back", "ic_chevron_down", "ic_cc_on", "ic_cc_off", "ic_settings",
@@ -41,7 +40,7 @@ def viewport(s):
     return (w.group(1) if w else "24") + " " + (h.group(1) if h else "24")
 
 
-# layer the vector draws inside, when it has one. skipping the shift draws glyph off centre
+# layer vector group shifts, skipping draws glyph off centre
 def shift(s):
     g = re.search(r"<group\b([^>]*)>", s)
     if not g:

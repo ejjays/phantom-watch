@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -18,6 +19,8 @@ actual fun Modifier.mouseDragScroll(state: LazyListState): Modifier {
             val down = awaitPointerEvent()
             if (down.type != PointerEventType.Press) return@awaitEachGesture
             val first = down.changes.firstOrNull() ?: return@awaitEachGesture
+            // touch goes through LazyRow and nested scroll, this is for browser mouse only
+            if (first.type != PointerType.Mouse) return@awaitEachGesture
             val id = first.id
             val startX = first.position.x
             val startIndex = state.firstVisibleItemIndex
@@ -39,8 +42,7 @@ actual fun Modifier.mouseDragScroll(state: LazyListState): Modifier {
                     if (kotlin.math.abs(delta) > 6f) dragged = true
                     if (dragged) {
                         change.consume()
-                        // normalize into item + offset so dragging both ways
-                        // can cross item boundaries instead of sticking at 0
+                        // normalize into item and offset so drags cross boundaries
                         var index = startIndex
                         var offset = startOffset + delta
                         while (offset < 0f && index > 0) {

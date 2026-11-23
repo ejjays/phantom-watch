@@ -411,8 +411,7 @@ private fun EpisodesBody(
 private fun EpisodeRow(e: Episode, current: Boolean, onClick: () -> Unit) {
     val density = LocalDensity.current
     val windowW = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
-    // web dp is one css px, phone dp is a fraction of a much narrower screen. lift the rows on
-    // wide windows so the list reads at the same relative size as the Android sidebar
+    // web dp is one css px, wide windows need bigger rows to match phone size
     val wide = isExpanded(windowW)
     val padH = if (wide) 18.dp else 14.dp
     val padV = if (wide) 14.dp else 10.dp

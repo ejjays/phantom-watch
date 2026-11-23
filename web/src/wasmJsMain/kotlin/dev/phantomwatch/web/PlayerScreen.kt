@@ -136,7 +136,7 @@ private external fun pwSubsTop(on: Boolean)
 
 private external fun pwNext(json: String)
 
-// same keys phone reads in PlayerScreen.kt, browser kept them in localStorage but never used them
+// keys phone reads, browser stored in localStorage but never used
 private fun playerConfig(tmdb: String, episode: String): String = JSONObject()
     .put("tmdb", tmdb)
     .put("episode", episode)
@@ -207,7 +207,7 @@ fun PlayerScreen(
     }
     val back = { if (fs) fs = false else onBack() }
     PlatformBackHandler(enabled = true) { back() }
-    // wide pane scroll, video is fixed dom layer so needs scroll offset to move up with compose content instead of sitting on top
+    // video is fixed dom layer, needs scroll offset to move with content
     val leftScroll = rememberScrollState()
     var aspect by remember(media.id) { mutableFloatStateOf(0f) }
     LaunchedEffect(media.id, season, episode) {
@@ -306,7 +306,7 @@ fun PlayerScreen(
         fail = null
         retry++
     }
-    // moving between shells disposes WebPlayer and restarts video at 0:00, so stage moves instead
+    // shell changes dispose WebPlayer, move stage to keep playback
     val feed by rememberUpdatedState(StageFeed(sources, subs, label, media, season, episode))
     val stage = remember(media.id) {
         movableContentOf<Boolean, Modifier, Float, () -> Unit> { isFs, mod, scrollOffset, onBack2 ->
@@ -317,17 +317,17 @@ fun PlayerScreen(
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {
         val windowW = maxWidth
-        // landscapePhone in PlayerScreen.kt, short edge under 600dp is phone on its side
+        // short edge under 600dp is phone on its side
         val landscape = maxWidth > maxHeight
         val phone = minOf(maxWidth, maxHeight) < 600.dp
         val sidePanel = landscape && phone
-        // phone slide-in sidebar caps at 320dp, tablet rail uses PlayerPanel.kt's wider formula
+        // phone sidebar caps at 320dp, tablet rail uses wider formula
         val panelW = if (isExpanded(windowW)) {
             (windowW * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(windowW * 0.45f)
         } else {
             minOf(320.dp, windowW * 0.36f)
         }
-        // picture is dom layer above this canvas, anything drawn in its rect is hidden
+        // picture is dom layer above canvas, drawing in its rect is hidden
         val generic = stringResource(Res.string.player_resolve_failed)
         val failed = when (fail) {
             null -> null
@@ -359,7 +359,7 @@ fun PlayerScreen(
                 )
             }
         }
-        // PlayerStage.kt: episodes control only exists in fullscreen
+        // episodes control only in fullscreen
         LaunchedEffect(isTv, fs) { pwEpisodes(isTv && fs) }
         if (fs) {
             Row(Modifier.fillMaxSize()) {
@@ -377,10 +377,10 @@ fun PlayerScreen(
         } else if (isExpanded(windowW)) {
             val railW = (windowW * 0.3f).coerceIn(240.dp, 420.dp).coerceAtMost(windowW * 0.45f)
             val leftW = windowW - railW
-            // PlayerPanel.kt sizes the video to its real aspect, falling back to 16:9 before metadata
+            // video follows real aspect, 16:9 until metadata
             val stageH = if (aspect > 0f) leftW / aspect else leftW * 9f / 16f
             Row(Modifier.fillMaxSize()) {
-                // one scroll container for whole left pane including video, before only info below scrolled so tall video covered content
+                // one scroll container for left pane, tall video used to cover content
                 Column(
                     Modifier.width(leftW).fillMaxHeight()
                         .verticalScroll(leftScroll),
@@ -413,7 +413,7 @@ fun PlayerScreen(
             val flingPx = with(density) { 125.dp.toPx() }
             var sheet by remember(media.id) { mutableFloatStateOf(0f) }
             val progress = if (panelPx > 0f) (sheet / panelPx).coerceIn(0f, 1f) else 0f
-            // PlayerScreen.kt theater: fully raised info sheet puts captions under the picture
+            // theater puts captions under picture when sheet fully raised
             val theater = progress > 0.5f
             LaunchedEffect(theater) { pwSubsTop(theater) }
             DisposableEffect(Unit) { onDispose { pwSubsTop(false) } }
