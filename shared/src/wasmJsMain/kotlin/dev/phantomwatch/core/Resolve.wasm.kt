@@ -67,7 +67,7 @@ suspend fun resolveSources(
                 val f = fa!!.optJSONObject(i) ?: return@mapNotNull null
                 val url = f.optString("url")
                 if (url.isEmpty()) null
-                else PlaySource(url, f.optString("label"), f.optInt("h"), f.optString("hls") == "true")
+                else PlaySource(url, f.optString("label"), f.optInt("h"), f.optString("hls") == "true", f.optString("dub"))
             }
             val sa = body.optJSONArray("subs")
             val subs = (0 until (sa?.length() ?: 0)).mapNotNull { i ->

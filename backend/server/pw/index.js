@@ -179,6 +179,7 @@ async function handleResolve(req, res, base) {
     hls: !!f.isHls,
     src: f.src,
     enSubs: !!f.enSubs,
+    dub: f.dub || '',
   });
   const usable = result.usable;
 

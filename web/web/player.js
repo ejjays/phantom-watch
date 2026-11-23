@@ -239,6 +239,10 @@
   };
 
   var CONFIG = null;
+  function langName(code) {
+    if (!code) return '';
+    try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || ''; } catch (e) { return ''; }
+  }
   window.pwConfig = function (json) {
     CONFIG = json;
     if (STAGE && STAGE.__pwS) applyConfig(STAGE.__pwS, json);
@@ -314,6 +318,7 @@
       skipIntro: d.skipIntro == null ? 1 : d.skipIntro,
       autoplay: d.autoplay == null ? 1 : d.autoplay,
     };
+    S.baseLang = langName(d.language) || 'Sub';
     S.pills = d.pills || { intro: null, recap: null, outro: null };
     S.next = d.next || null;
     S.skipReq = { tmdb: d.tmdb || '', episode: d.episode || '' };
@@ -1361,13 +1366,13 @@
     var out = [], seen = {};
     var base = S.formats[S.idx] || S.formats[0];
     if (base) {
-      var l0 = 'Sub · ' + providerName(base.l);
+      var l0 = (S.baseLang || 'Sub') + ' · ' + providerName(base.l);
       out.push({ label: l0, shown: l0.split(' · ')[0], i: S.idx });
     }
     S.formats.forEach(function (f, i) {
       var l = f.l || '';
       if (!/(^|[-_])dub([-_]|$)/i.test(l)) return;
-      var label = 'English · ' + providerName(l);
+      var label = (f.d || 'English') + ' · ' + providerName(l);
       if (seen[label]) return;
       seen[label] = 1;
       out.push({ label: label, shown: label.split(' · ')[0], i: i });

@@ -137,9 +137,10 @@ private external fun pwSubsTop(on: Boolean)
 private external fun pwNext(json: String)
 
 // keys phone reads, browser stored in localStorage but never used
-private fun playerConfig(tmdb: String, episode: String): String = JSONObject()
+private fun playerConfig(tmdb: String, episode: String, language: String?): String = JSONObject()
     .put("tmdb", tmdb)
     .put("episode", episode)
+    .put("language", language.orEmpty())
     .put("subsOn", WebSettings.on(SettingsKeys.SUBS_ON))
     .put("subsSize", WebSettings.on(SettingsKeys.SUBS_SIZE, 1))
     .put("subsBg", WebSettings.on(SettingsKeys.SUBS_BG, 1))
@@ -307,11 +308,11 @@ fun PlayerScreen(
         retry++
     }
     // shell changes dispose WebPlayer, move stage to keep playback
-    val feed by rememberUpdatedState(StageFeed(sources, subs, label, media, season, episode))
+    val feed by rememberUpdatedState(StageFeed(sources, subs, label, media, season, episode, detail?.language))
     val stage = remember(media.id) {
         movableContentOf<Boolean, Modifier, Float, () -> Unit> { isFs, mod, scrollOffset, onBack2 ->
             val f = feed
-            Stage(f.sources, f.subs, f.label, onBack2, isFs, mod, f.media, f.season, f.episode, scrollOffset)
+            Stage(f.sources, f.subs, f.label, onBack2, isFs, mod, f.media, f.season, f.episode, scrollOffset, f.language)
         }
     }
 
@@ -504,6 +505,7 @@ private class StageFeed(
     val media: Title,
     val season: String,
     val episode: String,
+    val language: String? = null,
 )
 
 @Composable
@@ -518,6 +520,7 @@ private fun Stage(
     season: String,
     episode: String,
     scrollOffset: Float = 0f,
+    language: String? = null,
 ) {
     val start = remember(media.kind, media.id, season, episode) {
         Resume.startAt(Resume.position(media.kind, media.id, season, episode), 0L)
@@ -529,7 +532,7 @@ private fun Stage(
             startMs = start,
             scrollOffset = scrollOffset,
             onProgress = { pos, dur -> if (keep) Resume.save(media, season, episode, pos, dur) },
-            config = playerConfig(media.id, episode),
+            config = playerConfig(media.id, episode, language),
             modifier = Modifier.fillMaxSize(),
         )
     }

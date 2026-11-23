@@ -130,7 +130,7 @@ private fun attach(v: HTMLVideoElement, sources: List<PlaySource>, subs: List<Su
         sources.forEachIndexed { i, s ->
             if (i > 0) append(',')
             append("{\"u\":\"").append(esc(s.url)).append("\",\"h\":").append(s.hls)
-                .append(",\"l\":\"").append(esc(s.label)).append("\"}")
+                .append(",\"l\":\"").append(esc(s.label)).append("\",\"d\":\"").append(esc(s.dub)).append("\"}")
         }
         append("],\"subs\":[")
         subs.forEachIndexed { i, s ->
