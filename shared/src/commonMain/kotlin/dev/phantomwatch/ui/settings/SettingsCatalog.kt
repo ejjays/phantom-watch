@@ -49,7 +49,7 @@ sealed interface SettingItem {
     ) : SettingItem
 }
 
-enum class SettingsAction { ClearHistory, Updates, Licences, Privacy, ReportProblem, GetPhantom }
+enum class SettingsAction { ClearHistory, WhatsNew, Updates, Licences, Privacy, ReportProblem, GetPhantom }
 
 data class SettingCategory(
     val id: String,
@@ -243,6 +243,12 @@ fun settingsCatalog(
                 Res.string.you_about_version,
                 Res.drawable.ic_cat_about,
                 value = version,
+            ),
+            SettingItem.Action(
+                SettingsAction.WhatsNew,
+                Res.string.you_about_whats_new,
+                Res.drawable.ic_row_text,
+                Res.string.you_about_whats_new_note,
             ),
             SettingItem.Action(
                 SettingsAction.Updates,

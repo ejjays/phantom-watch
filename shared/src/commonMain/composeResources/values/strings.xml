@@ -156,6 +156,8 @@
 <string name="you_clear_body">Your Continue watching and Recently watched will be emptied. This cannot be undone.</string>
 <string name="you_clear_confirm">Clear</string>
 <string name="you_about_version">Version</string>
+<string name="you_about_whats_new">What’s new</string>
+<string name="you_about_whats_new_note">See what changed in this update</string>
 <string name="you_about_updates">Check for updates</string>
 <string name="you_about_update_now">Update now</string>
 <string name="you_about_updates_note">Check for a newer version</string>

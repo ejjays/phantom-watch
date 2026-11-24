@@ -78,6 +78,8 @@ import dev.phantomwatch.data.Title
 import dev.phantomwatch.data.Resume
 import dev.phantomwatch.data.Downloads
 import dev.phantomwatch.data.Stream
+import dev.phantomwatch.data.WhatsNewEntry
+import dev.phantomwatch.data.WhatsNews
 import dev.phantomwatch.player.PhantomDownload
 import dev.phantomwatch.player.Pip
 import dev.phantomwatch.player.PlayerUi
@@ -101,6 +103,8 @@ import dev.phantomwatch.ui.settings.SettingsAction
 import dev.phantomwatch.ui.settings.SettingsData
 import dev.phantomwatch.ui.settings.SettingsScreen
 import dev.phantomwatch.ui.HomeScreen
+import dev.phantomwatch.ui.WhatsNewDialog
+import dev.phantomwatch.ui.WhatsNewScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -162,6 +166,17 @@ internal fun AppRoot() {
     var updateStage by remember { mutableStateOf(0) }
     var settingsCategory by remember { mutableStateOf<String?>(null) }
     var showInstallDialog by remember { mutableStateOf(false) }
+    var whatsNewEntries by remember { mutableStateOf(emptyList<WhatsNewEntry>()) }
+    var whatsNew by remember { mutableStateOf<WhatsNewEntry?>(null) }
+    var whatsNewList by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val entries = withContext(Dispatchers.IO) { WhatsNews.load(context) }
+        whatsNewEntries = entries
+        if (BuildConfig.DEBUG || WhatsNews.shouldShow(context, entries)) whatsNew = entries.firstOrNull()
+    }
+    LaunchedEffect(whatsNew) {
+        if (whatsNew != null) WhatsNews.markSeen(context)
+    }
     LaunchedEffect(Unit) {
         val fresh = withContext(Dispatchers.IO) { UpdateChecker.refresh(context) }
         update = fresh?.takeIf { it.code > UpdateChecker.installedCode(context) }
@@ -325,6 +340,7 @@ internal fun AppRoot() {
                                             browse.recent = emptyList()
                                             toast(context, R.string.you_history_cleared)
                                         }
+                                        SettingsAction.WhatsNew -> whatsNewList = true
                                         SettingsAction.Updates -> scope.launch {
                                             val known = update ?: withContext(Dispatchers.IO) {
                                                 UpdateChecker.refresh(context, force = true)
@@ -444,6 +460,12 @@ internal fun AppRoot() {
                 onDismiss = { showInstallDialog = false },
             )
         }
+    }
+    whatsNew?.let { entry ->
+        WhatsNewDialog(entry = entry, onDismiss = { whatsNew = null })
+    }
+    if (whatsNewList) {
+        WhatsNewScreen(whatsNewEntries) { whatsNewList = false }
     }
     crash?.let { text ->
         AlertDialog(
