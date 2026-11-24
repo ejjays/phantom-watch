@@ -94,9 +94,39 @@ jobs:
         with:
           name: app-release
           path: app/build/outputs/apk/release/app-release.apk
+      - name: release notes
+        if: ${{ inputs.publish }}
+        run: |
+          prev=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          : > "$RUNNER_TEMP/prev-whatsnew.json"
+          if [ -n "$prev" ]; then
+            git show "$prev:app/src/main/assets/whatsnew.json" > "$RUNNER_TEMP/prev-whatsnew.json" 2>/dev/null || true
+          fi
+          python3 - "$RUNNER_TEMP/prev-whatsnew.json" > "$RUNNER_TEMP/release-notes.md" <<'PY'
+          import json, sys
+
+          def top(path):
+              try:
+                  with open(path, encoding="utf-8") as f:
+                      return json.load(f)["entries"][0]
+              except (OSError, ValueError, KeyError, IndexError):
+                  return None
+
+          entry = top("app/src/main/assets/whatsnew.json")
+          if entry is None:
+              sys.exit("whatsnew.json has no entries")
+          previous = top(sys.argv[1])
+          if previous is not None and previous.get("version") == entry.get("version"):
+              sys.exit("whatsnew.json newest entry unchanged since last release")
+          print(f"{entry.get('title', '')} ({entry.get('version', '')})")
+          print()
+          for bullet in entry.get("bullets", []):
+              print(f"- {bullet}")
+          PY
+          cat "$RUNNER_TEMP/release-notes.md"
       - name: publish
         if: ${{ inputs.publish }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-        run: gh release create "$TAG" app/build/outputs/apk/release/app-release.apk --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+        run: gh release create "$TAG" app/build/outputs/apk/release/app-release.apk --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
