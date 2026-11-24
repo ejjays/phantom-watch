@@ -138,6 +138,7 @@ fun WebApp() {
                                                 Resume.clear()
                                                 browse.recent = emptyList()
                                             }
+                                            SettingsAction.WhatsNew -> Unit
                                             SettingsAction.Updates -> window.open("$REPO/releases", "_blank")
                                             SettingsAction.Licences -> window.open("$REPO#licence", "_blank")
                                             SettingsAction.Privacy -> window.open("$REPO#privacy", "_blank")
