@@ -1,5 +1,14 @@
 package dev.phantomwatch.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -30,11 +40,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +62,28 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.phantomwatch.R
 import dev.phantomwatch.data.WhatsNewEntry
+import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.sin
+import kotlin.random.Random
+
+private data class Star(val x: Float, val y: Float, val r: Float, val phase: Float, val speed: Int, val sparkle: Boolean = false)
+
+private val Stars = listOf(
+    Star(108f, 62f, 1.6f, 0f, 1),
+    Star(140f, 155f, 1.3f, 1.7f, 2),
+    Star(292f, 140f, 1.5f, 0.9f, 1),
+    Star(555f, 122f, 1.4f, 2.4f, 2),
+    Star(712f, 165f, 1.6f, 3.1f, 1),
+    Star(784f, 70f, 1.3f, 4.2f, 2),
+    Star(590f, 282f, 1.4f, 5.0f, 1),
+    Star(365f, 205f, 1.2f, 1.1f, 2),
+    Star(210f, 92f, 1.1f, 3.8f, 1),
+    Star(660f, 235f, 1.2f, 5.6f, 2),
+    Star(68f, 216f, 2.6f, 0.5f, 1, true),
+    Star(722f, 246f, 1.9f, 2.8f, 2, true),
+    Star(628f, 90f, 1.3f, 4.6f, 1, true),
+)
 
 private val Hairline = Color.White.copy(alpha = 0.10f)
 private val Card = Color(0xFF302C46)
@@ -59,17 +99,50 @@ fun WhatsNewDialog(entry: WhatsNewEntry, onDismiss: () -> Unit) {
                 Modifier.width(minOf(maxWidth * 0.86f, 380.dp))
                     .heightIn(max = maxHeight * 0.86f).clip(shape).background(Card),
             ) {
-                Box(Modifier.fillMaxWidth().height(210.dp)) {
+                val floatAnim = rememberInfiniteTransition(label = "float")
+                val f by floatAnim.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                    label = "floatY",
+                )
+                val cloudAnim = rememberInfiniteTransition(label = "clouds")
+                val c by cloudAnim.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(tween(10000, easing = LinearEasing), RepeatMode.Reverse),
+                    label = "drift",
+                )
+                Box(Modifier.fillMaxWidth().height(210.dp).clipToBounds().background(Color(0xFF1B1829))) {
                     Image(
-                        painterResource(R.drawable.whatsnew_sky),
+                        painterResource(R.drawable.cloud_back),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                            scaleX = 1.14f
+                            scaleY = 1.12f
+                            translationX = (-12f + 24f * c).dp.toPx()
+                            translationY = (-3.5f + 7f * c).dp.toPx()
+                        },
+                    )
+                    TwinklingStars(Modifier.fillMaxSize())
+                    Image(
+                        painterResource(R.drawable.cloud_front),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                            scaleX = 1.14f
+                            scaleY = 1.12f
+                            translationY = (3.5f - 7f * c + (-2f + 4f * f)).dp.toPx()
+                        },
                     )
                     Image(
                         painterResource(R.drawable.ic_whatsnew_rocket),
                         contentDescription = null,
-                        modifier = Modifier.align(Alignment.Center).size(120.dp),
+                        modifier = Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
+                    )
+                    GhostEyes(
+                        Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
                     )
                 }
                 val scroll = rememberScrollState()
@@ -185,6 +258,77 @@ fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GhostEyes(modifier: Modifier) {
+    val lid = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        suspend fun blink() {
+            lid.animateTo(1f, tween(Random.nextInt(60, 90)))
+            lid.animateTo(0f, tween(Random.nextInt(80, 120)))
+        }
+        delay(Random.nextLong(1800, 2600))
+        while (true) {
+            val count = Random.nextInt(1, 3)
+            repeat(count) {
+                blink()
+                delay(Random.nextLong(90, 190))
+            }
+            delay(Random.nextLong(2600, 6500))
+        }
+    }
+    Canvas(modifier) {
+        val s = size.width / 512f
+        val brush = Brush.verticalGradient(
+            listOf(Color(0xFFD0D2D9), Color(0xFF97989F)),
+            startY = 262f * s,
+            endY = 292f * s,
+        )
+        listOf(230f, 253f).forEach { cx ->
+            drawOval(
+                brush = brush,
+                topLeft = Offset((cx - 13f) * s, 260f * s),
+                size = Size(26f * s, 32f * s),
+                alpha = lid.value,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TwinklingStars(modifier: Modifier) {
+    val transition = rememberInfiniteTransition(label = "stars")
+    val t by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing), RepeatMode.Reverse),
+        label = "twinkle",
+    )
+    Canvas(modifier) {
+        val scale = size.width / 870f
+        Stars.forEach { star ->
+            val angle = (t * 2f * PI.toFloat() * star.speed + star.phase).toDouble()
+            val wave = 0.5f + 0.5f * sin(angle).toFloat()
+            val alpha = 0.22f + 0.55f * wave
+            val cx = star.x * scale
+            val cy = star.y * scale
+            if (star.sparkle) {
+                val r = star.r * scale
+                val path = Path().apply {
+                    moveTo(cx, cy - r * 2f)
+                    quadraticTo(cx + r * 0.35f, cy - r * 0.35f, cx + r * 2f, cy)
+                    quadraticTo(cx + r * 0.35f, cy + r * 0.35f, cx, cy + r * 2f)
+                    quadraticTo(cx - r * 0.35f, cy + r * 0.35f, cx - r * 2f, cy)
+                    quadraticTo(cx - r * 0.35f, cy - r * 0.35f, cx, cy - r * 2f)
+                    close()
+                }
+                drawPath(path, Color.White.copy(alpha = alpha))
+            } else {
+                drawCircle(Color.White.copy(alpha = alpha), radius = star.r * scale, center = Offset(cx, cy))
             }
         }
     }
