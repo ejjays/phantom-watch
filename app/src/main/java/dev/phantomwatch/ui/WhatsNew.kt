@@ -91,7 +91,6 @@ private val Stars = listOf(
     Star(628f, 90f, 1.3f, 4.6f, 1, true),
 )
 
-private val Hairline = Color.White.copy(alpha = 0.10f)
 private val Card = Color(0xFF302C46)
 private val Accent = Cyan
 private val Cta = Cyan
@@ -105,115 +104,130 @@ fun WhatsNewDialog(entry: WhatsNewEntry, onDismiss: () -> Unit) {
                 Modifier.width(minOf(maxWidth * 0.86f, 380.dp))
                     .heightIn(max = maxHeight * 0.86f).clip(shape).background(Card),
             ) {
-                val floatAnim = rememberInfiniteTransition(label = "float")
-                val f by floatAnim.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-                    label = "floatY",
-                )
-                val cloudAnim = rememberInfiniteTransition(label = "clouds")
-                val c by cloudAnim.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(tween(10000, easing = LinearEasing), RepeatMode.Reverse),
-                    label = "drift",
-                )
-                Box(Modifier.fillMaxWidth().height(210.dp).clipToBounds().background(Color(0xFF1B1829))) {
-                    Image(
-                        painterResource(R.drawable.cloud_back),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().graphicsLayer {
-                            scaleX = 1.14f
-                            scaleY = 1.12f
-                            translationX = (-12f + 24f * c).dp.toPx()
-                            translationY = (-3.5f + 7f * c).dp.toPx()
-                        },
-                    )
-                    TwinklingStars(Modifier.fillMaxSize())
-                    Image(
-                        painterResource(R.drawable.cloud_front),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().graphicsLayer {
-                            scaleX = 1.14f
-                            scaleY = 1.12f
-                            translationY = (3.5f - 7f * c + (-2f + 4f * f)).dp.toPx()
-                        },
-                    )
-                    Image(
-                        painterResource(R.drawable.ic_whatsnew_rocket),
-                        contentDescription = null,
-                        modifier = Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
-                    )
-                    GhostEyes(
-                        Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
-                    )
-                }
-                val scroll = rememberScrollState()
-                Box(Modifier.fillMaxWidth().weight(1f, fill = false)) {
-                    Column(
-                        Modifier.fillMaxSize().verticalScroll(scroll)
-                            .padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 12.dp),
-                    ) {
-                        Text(
-                            "What's new",
-                            color = Accent,
-                            fontFamily = Lilita,
-                            fontSize = 24.sp,
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            entry.title,
-                            color = Slate100,
-                            fontFamily = Lilita,
-                            fontSize = 22.sp,
-                        )
-                        Spacer(Modifier.height(5.dp))
-                        Text(entry.version, color = Slate500, fontFamily = WorkSans, style = MaterialTheme.typography.labelSmall)
-                        Spacer(Modifier.height(22.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            entry.bullets.forEach { WhatsNewBullet(it) }
-                        }
-                    }
-                    if (scroll.value > 0) {
-                        Box(
-                            Modifier.align(Alignment.TopCenter).fillMaxWidth().height(22.dp)
-                                .background(Brush.verticalGradient(listOf(Card, Card.copy(alpha = 0f)))),
-                        )
-                    }
-                    if (scroll.value < scroll.maxValue) {
-                        Box(
-                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(22.dp)
-                                .background(Brush.verticalGradient(listOf(Card.copy(alpha = 0f), Card))),
-                        )
-                    }
-                }
-                val okaySrc = remember { MutableInteractionSource() }
-                val okayPressed by okaySrc.collectIsPressedAsState()
-                val okayScale by animateFloatAsState(if (okayPressed) 0.97f else 1f, label = "okayPress")
-                Box(
-                    Modifier.fillMaxWidth().background(Card)
-                        .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
-                ) {
-                    Box(
-                        Modifier.fillMaxWidth().height(46.dp)
-                            .graphicsLayer { scaleX = okayScale; scaleY = okayScale }
-                            .clip(RoundedCornerShape(50)).background(Cta)
-                            .clickable(interactionSource = okaySrc, indication = null, onClick = onDismiss),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "Okay",
-                            color = Color.Black,
-                            fontFamily = WorkSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
+                WhatsNewHero()
+                WhatsNewBody(entry)
+                WhatsNewOkay(onDismiss)
             }
+        }
+    }
+}
+
+@Composable
+private fun WhatsNewHero() {
+    val floatAnim = rememberInfiniteTransition(label = "float")
+    val f by floatAnim.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "floatY",
+    )
+    val cloudAnim = rememberInfiniteTransition(label = "clouds")
+    val c by cloudAnim.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(10000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "drift",
+    )
+    Box(Modifier.fillMaxWidth().height(210.dp).clipToBounds().background(Color(0xFF1B1829))) {
+        Image(
+            painterResource(R.drawable.cloud_back),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                scaleX = 1.14f
+                scaleY = 1.12f
+                translationX = (-12f + 24f * c).dp.toPx()
+                translationY = (-3.5f + 7f * c).dp.toPx()
+            },
+        )
+        TwinklingStars(Modifier.fillMaxSize())
+        Image(
+            painterResource(R.drawable.cloud_front),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                scaleX = 1.14f
+                scaleY = 1.12f
+                translationY = (3.5f - 7f * c + (-2f + 4f * f)).dp.toPx()
+            },
+        )
+        Image(
+            painterResource(R.drawable.ic_whatsnew_rocket),
+            contentDescription = null,
+            modifier = Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
+        )
+        GhostEyes(
+            Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
+        )
+    }
+}
+
+@Composable
+private fun WhatsNewBody(entry: WhatsNewEntry) {
+    val scroll = rememberScrollState()
+    Box(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(scroll)
+                .padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 12.dp),
+        ) {
+            Text(
+                "What's new",
+                color = Accent,
+                fontFamily = Lilita,
+                fontSize = 24.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                entry.title,
+                color = Slate100,
+                fontFamily = Lilita,
+                fontSize = 22.sp,
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(entry.version, color = Slate500, fontFamily = WorkSans, style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.height(22.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                entry.bullets.forEach { WhatsNewBullet(it) }
+            }
+        }
+        if (scroll.value > 0) {
+            Box(
+                Modifier.align(Alignment.TopCenter).fillMaxWidth().height(22.dp)
+                    .background(Brush.verticalGradient(listOf(Card, Card.copy(alpha = 0f)))),
+            )
+        }
+        if (scroll.value < scroll.maxValue) {
+            Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(22.dp)
+                    .background(Brush.verticalGradient(listOf(Card.copy(alpha = 0f), Card))),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WhatsNewOkay(onDismiss: () -> Unit) {
+    val okaySrc = remember { MutableInteractionSource() }
+    val okayPressed by okaySrc.collectIsPressedAsState()
+    val okayScale by animateFloatAsState(if (okayPressed) 0.97f else 1f, label = "okayPress")
+    Box(
+        Modifier.fillMaxWidth().background(Card)
+            .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+    ) {
+        Box(
+            Modifier.fillMaxWidth().height(46.dp)
+                .graphicsLayer { scaleX = okayScale; scaleY = okayScale }
+                .clip(RoundedCornerShape(50)).background(Cta)
+                .clickable(interactionSource = okaySrc, indication = null, onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Okay",
+                color = Color.Black,
+                fontFamily = WorkSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+            )
         }
     }
 }
