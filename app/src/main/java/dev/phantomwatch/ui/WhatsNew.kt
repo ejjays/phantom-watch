@@ -2,6 +2,7 @@ package dev.phantomwatch.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -11,6 +12,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,7 +42,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +65,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.phantomwatch.R
 import dev.phantomwatch.data.WhatsNewEntry
+import dev.phantomwatch.ui.settings.BackButton
+import dev.phantomwatch.ui.settings.SettingsCanvas
+import dev.phantomwatch.ui.settings.SettingsText
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.sin
@@ -161,9 +167,8 @@ fun WhatsNewDialog(entry: WhatsNewEntry, onDismiss: () -> Unit) {
                         Text(
                             entry.title,
                             color = Slate100,
-                            fontFamily = WorkSans,
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = Lilita,
+                            fontSize = 22.sp,
                         )
                         Spacer(Modifier.height(5.dp))
                         Text(entry.version, color = Slate500, fontFamily = WorkSans, style = MaterialTheme.typography.labelSmall)
@@ -185,13 +190,18 @@ fun WhatsNewDialog(entry: WhatsNewEntry, onDismiss: () -> Unit) {
                         )
                     }
                 }
+                val okaySrc = remember { MutableInteractionSource() }
+                val okayPressed by okaySrc.collectIsPressedAsState()
+                val okayScale by animateFloatAsState(if (okayPressed) 0.97f else 1f, label = "okayPress")
                 Box(
                     Modifier.fillMaxWidth().background(Card)
                         .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
                 ) {
                     Box(
-                        Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(50))
-                            .background(Cta).pressClick(onDismiss),
+                        Modifier.fillMaxWidth().height(46.dp)
+                            .graphicsLayer { scaleX = okayScale; scaleY = okayScale }
+                            .clip(RoundedCornerShape(50)).background(Cta)
+                            .clickable(interactionSource = okaySrc, indication = null, onClick = onDismiss),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -211,28 +221,28 @@ fun WhatsNewDialog(entry: WhatsNewEntry, onDismiss: () -> Unit) {
 @Composable
 fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
     PlatformBackHandler(enabled = true, onBack = onClose)
-    Box(Modifier.fillMaxSize().background(Bg)) {
+    Box(Modifier.fillMaxSize().background(SettingsCanvas)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 18.dp),
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 8.dp, end = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                BackButton(onClose)
+                Spacer(Modifier.width(2.dp))
                 Text(
                     "What's new",
-                    Modifier.weight(1f),
-                    color = Slate100,
-                    fontFamily = Lilita,
-                    fontSize = 26.sp,
+                    color = SettingsText,
+                    fontFamily = WorkSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 30.sp,
+                    lineHeight = 36.sp,
+                    letterSpacing = (-0.5).sp,
                 )
-                TextButton(onClick = onClose) {
-                    Text("Okay", color = Accent, fontFamily = WorkSans, fontWeight = FontWeight.Medium)
-                }
             }
-            HorizontalDivider(color = Hairline)
             LazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(36.dp),
+                Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
             ) {
                 items(entries) { entry ->
                     Column {
@@ -248,9 +258,8 @@ fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
                         Text(
                             entry.title,
                             color = Slate100,
-                            fontFamily = WorkSans,
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = Lilita,
+                            fontSize = 22.sp,
                         )
                         Spacer(Modifier.height(18.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -247,7 +247,7 @@ fun settingsCatalog(
             SettingItem.Action(
                 SettingsAction.WhatsNew,
                 Res.string.you_about_whats_new,
-                Res.drawable.ic_row_text,
+                Res.drawable.ic_whats_new,
                 Res.string.you_about_whats_new_note,
             ),
             SettingItem.Action(
@@ -261,7 +261,7 @@ fun settingsCatalog(
             SettingItem.Action(
                 SettingsAction.Licences,
                 Res.string.you_about_licences,
-                Res.drawable.ic_row_document,
+                Res.drawable.ic_source_code,
                 Res.string.you_about_licences_note,
             ),
         ),

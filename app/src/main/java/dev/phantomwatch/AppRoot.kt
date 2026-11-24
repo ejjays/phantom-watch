@@ -215,6 +215,22 @@ internal fun AppRoot() {
         if (ask.kind != "tv") browse.openTitle = null
         screen = Route.Player(t.title, null, t, ask.season, ask.episode, Route.Home)
     }
+    AnimatedContent(
+        targetState = whatsNewList,
+        transitionSpec = {
+            val forward = targetState > initialState
+            val enter = fadeIn(tween(180)) + slideInHorizontally(tween(220)) { if (forward) it / 20 else -it / 20 }
+            val exit = fadeOut(tween(140)) + slideOutHorizontally(tween(220)) { if (forward) -it / 24 else it / 24 }
+            enter togetherWith exit
+        },
+        label = "whatsnew",
+    ) { showWhatsNew ->
+        if (showWhatsNew) {
+            WhatsNewScreen(whatsNewEntries) {
+                settingsCategory = "about"
+                whatsNewList = false
+            }
+        } else {
     Box(Modifier.fillMaxSize()) {
         val tabBackdrop = rememberLayerBackdrop()
         LaunchedEffect(screen) {
@@ -460,12 +476,11 @@ internal fun AppRoot() {
                 onDismiss = { showInstallDialog = false },
             )
         }
+        }
+    }
     }
     whatsNew?.let { entry ->
         WhatsNewDialog(entry = entry, onDismiss = { whatsNew = null })
-    }
-    if (whatsNewList) {
-        WhatsNewScreen(whatsNewEntries) { whatsNewList = false }
     }
     crash?.let { text ->
         AlertDialog(

@@ -93,7 +93,7 @@ internal fun SettingsDetail(
 }
 
 @Composable
-private fun BackButton(onClick: () -> Unit) {
+fun BackButton(onClick: () -> Unit) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Box(
         Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick),

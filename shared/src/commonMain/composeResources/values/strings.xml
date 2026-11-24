@@ -113,7 +113,7 @@
 <string name="you_section_library">Library</string>
 <string name="you_section_library_blurb">History and continue watching</string>
 <string name="you_section_region">Region</string>
-<string name="you_section_region_blurb">Charts and titles from your country</string>
+<string name="you_section_region_blurb">Regional charts and titles</string>
 <string name="you_section_about">About</string>
 <string name="you_section_about_blurb">Version, updates and licences</string>
 <string name="you_section_support">Support</string>
@@ -157,12 +157,12 @@
 <string name="you_clear_confirm">Clear</string>
 <string name="you_about_version">Version</string>
 <string name="you_about_whats_new">What’s new</string>
-<string name="you_about_whats_new_note">See what changed in this update</string>
+<string name="you_about_whats_new_note">See what changed across releases</string>
 <string name="you_about_updates">Check for updates</string>
 <string name="you_about_update_now">Update now</string>
 <string name="you_about_updates_note">Check for a newer version</string>
-<string name="you_about_licences">Licences</string>
-<string name="you_about_licences_note">Open source notices</string>
+<string name="you_about_licences">Source Code</string>
+<string name="you_about_licences_note">Licensed under AGPLv3</string>
 <string name="you_support_privacy">Privacy policy</string>
 <string name="you_support_privacy_note">What the app stores and sends</string>
 <string name="you_support_share">Share anonymous usage</string>

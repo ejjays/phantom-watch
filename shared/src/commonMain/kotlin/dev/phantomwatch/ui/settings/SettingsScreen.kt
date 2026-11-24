@@ -62,7 +62,12 @@ fun SettingsScreen(data: SettingsData) {
         val state = rememberSaveable(saver = SettingsStateSaver) {
             defaultSettings(categories).apply { putAll(data.settings) }
         }
-        var open by rememberSaveable { mutableIntStateOf(if (isTwoPane(pane)) 0 else OverviewIndex) }
+        var open by rememberSaveable {
+            mutableIntStateOf(
+                data.openCategory?.let { id -> categories.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
+                    ?: if (isTwoPane(pane)) 0 else OverviewIndex
+            )
+        }
         LaunchedEffect(data.settings) {
             data.settings.forEach { (key, value) -> state[key] = value }
         }
