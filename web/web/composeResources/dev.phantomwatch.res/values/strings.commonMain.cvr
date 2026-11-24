@@ -99,12 +99,14 @@ string|tab_home|SG9tZQ==
 string|tab_library|TGlicmFyeQ==
 string|tab_search|U2VhcmNo
 string|tab_you|WW91
-string|you_about_licences_note|T3BlbiBzb3VyY2Ugbm90aWNlcw==
-string|you_about_licences|TGljZW5jZXM=
+string|you_about_licences_note|TGljZW5zZWQgdW5kZXIgQUdQTHYz
+string|you_about_licences|U291cmNlIENvZGU=
 string|you_about_update_now|VXBkYXRlIG5vdw==
 string|you_about_updates_note|Q2hlY2sgZm9yIGEgbmV3ZXIgdmVyc2lvbg==
 string|you_about_updates|Q2hlY2sgZm9yIHVwZGF0ZXM=
 string|you_about_version|VmVyc2lvbg==
+string|you_about_whats_new_note|U2VlIHdoYXQgY2hhbmdlZCBhY3Jvc3MgcmVsZWFzZXM=
+string|you_about_whats_new|V2hhdOKAmXMgbmV3
 string|you_clear_body|WW91ciBDb250aW51ZSB3YXRjaGluZyBhbmQgUmVjZW50bHkgd2F0Y2hlZCB3aWxsIGJlIGVtcHRpZWQuIFRoaXMgY2Fubm90IGJlIHVuZG9uZS4=
 string|you_clear_confirm|Q2xlYXI=
 string|you_clear_title|Q2xlYXIgeW91ciB3YXRjaCBoaXN0b3J5Pw==
@@ -140,7 +142,7 @@ string|you_section_library|TGlicmFyeQ==
 string|you_section_playback|UGxheWJhY2s=
 string|you_section_player_blurb|QXV0b3BsYXksIHNlZWtpbmcgYW5kIHNraXBwaW5n
 string|you_section_player|UGxheWVy
-string|you_section_region_blurb|Q2hhcnRzIGFuZCB0aXRsZXMgZnJvbSB5b3VyIGNvdW50cnk=
+string|you_section_region_blurb|UmVnaW9uYWwgY2hhcnRzIGFuZCB0aXRsZXM=
 string|you_section_region|UmVnaW9u
 string|you_section_subtitles_blurb|Q2FwdGlvbnMsIHNpemUgYW5kIGJhY2tncm91bmQ=
 string|you_section_subtitles|U3VidGl0bGVz
