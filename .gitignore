@@ -14,5 +14,4 @@ probe_history.jsonl
 .tmp/
 web/web/kotlin/*.gz
 .idea/
-.codebuddy/
 gradle/gradle-daemon-jvm.properties

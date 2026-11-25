@@ -18,7 +18,7 @@ depends on neither.
 TMDB browse/detail ──► Resolve (5 min cache, in-flight dedupe)
                             │
                             ├─► providers.js in a WebView  (every enabled leg, parallel)
-                            │     └─ formats + subs, already ranked
+                            │     └─ formats + subs, ranked by the app
                             │
                             └─► pick order (__pwRank)  ──► ExoPlayer + MediaSessionService
                                                         └─► telemetry (one event per resolve)
@@ -52,40 +52,44 @@ deployed from its own directory; the grouping is only a tree change and does not
 move any deploy root. Root `assets/` is branding source; the provider bundle
 stays in `app/src/main/assets`.
 
-**One provider implementation.** Every leg lives in `assets/providers.js` and
-runs in a WebView behind the `pw` bridge. The Kotlin copies were deleted; they
-were a second set of scrapers that had to be fixed twice.
-The bridge is created once, on a background pool of four, with per-leg
-timeouts (`12s`, `28s` for paradise) and a 35 s budget for the whole resolve.
+Every leg lives in `app/src/main/assets/providers.js` and runs in a WebView
+behind the `pw` bridge. The Kotlin copies were deleted because they were a
+second set of scrapers that had to be fixed twice. The bridge is created once.
+`JsProviders` runs requests on an eight-thread pool and uses a separate
+single-thread pool for the `voe` extractor. The four-thread pool belongs to the
+trailer bridge in `TrailerBridge.kt`.
 
-**The pick order lives in JavaScript.** `__pwRank` is the canonical order; the
-app asks the bridge for it (`__pwSort`) and `scripts/probe.js` calls it directly. The
-Kotlin copy in `FormatOrder.kt` only runs if the sort round-trip fails. Both
-sides are pinned by `app/src/test/resources/pick_order.txt`.
+Per-leg timeouts come from `Providers.legBudget`: `paradise` 28 s, `hianime`
+27 s, `allanime` 30 s, `pinoy` 22 s, `videasy` and `net79` 25 s, and 12 s for
+the rest. `Providers.directAll` gives the whole resolve 40 s.
 
-**Skip rules live in JavaScript too.** A leg that cannot serve the title
-returns `{ formats: [], subs: [], skipped: true }` instead of an empty result.
-The app leaves skipped legs out of the telemetry, and `scripts/probe.js` skips them
-too, so a live-action title no longer looks like an outage.
+`__pwRank` is the canonical pick order. The app asks the bridge for it through
+`__pwSort`, and `scripts/probe.js` calls it directly. The Kotlin copy in
+`app/src/main/java/dev/phantomwatch/provider/FormatOrder.kt` only runs if the
+sort round-trip fails. `app/src/test/resources/pick_order.txt` pins both sides.
 
-**State stays on the screen.** The activity handles `configChanges`, so a
-rotation does not recreate it and Compose state survives. Screen-local state
-lives in the composable; only what must outlive the screen (resume position,
-crash report, cached config) goes to storage. Subtitle state and the OS/AI
-pipelines live in `player/SubsController.kt`. `player/PlayerScreen.kt` is still
-the biggest file in the repo; `checks/quality.py` caps it at its current size
-until it is split, and that baseline may only go down.
+Skip rules live in the same script. A leg that cannot serve the title returns
+`{ formats: [], subs: [], skipped: true }`, and the app leaves skipped legs out
+of telemetry. `scripts/probe.js` treats them as skips too. Live-action titles
+used to report paradise as down and set off alerts that were not real.
 
-**One route model.** `shared/ui/Nav.kt` holds `Route`/`NavStack` and is driven
-by `BrowseState`. Both shells navigate with the same types: Android maps a
-title or source pick to `Route.Player`/`Route.Sources`, and wasm keeps a
-`Route.Player?` in `WebApp`. `Route.navLabel()` is the one back-stack label.
+The activity handles `configChanges`, so rotation does not recreate it and
+Compose state survives. Screen-local state lives in the composable; only what
+must outlive the screen (resume position, crash report, cached config) goes to
+storage. Subtitle state and the OS/AI pipelines live in
+`player/SubsController.kt`. `player/PlayerScreen.kt` is still the biggest file
+in the repo; `checks/quality.py` caps it at its current size until it is split,
+and that baseline may only go down.
 
-**Signing uses a private keystore.** Release builds read `PW_RELEASE_*` and
-pin the release certificate in `UPDATE_CERT_SHA256`; the update helper only
-installs an APK signed by the installed app and, on release, by that exact
-certificate. CI smoke-builds with a throwaway key and never distributes its
-APK. See [release.md](release.md).
+`shared/ui/Nav.kt` holds `Route`/`NavStack` and `BrowseState` drives it. Both
+shells navigate with the same types: Android maps a title or source pick to
+`Route.Player`/`Route.Sources`, and wasm keeps a `Route.Player?` in `WebApp`.
+`Route.navLabel()` is the one back-stack label.
+
+Release builds read `PW_RELEASE_*` and pin the release certificate in
+`UPDATE_CERT_SHA256`. The update helper only installs an APK signed by the
+installed app and, on release, by that exact certificate. CI smoke-builds with
+a throwaway key and never distributes its APK. See [release.md](release.md).
 
 ## Testing seams
 

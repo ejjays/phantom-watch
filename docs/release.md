@@ -5,6 +5,24 @@
 One signed APK. Debug and release install side by side
 (`dev.phantomwatch.debug` and `dev.phantomwatch`), each with its own data.
 
+## CI release
+
+The .github/workflows/build-release.yml workflow is the release path. It runs on
+`workflow_dispatch` from `main` and takes a `tag` plus a `publish` flag that
+defaults to false. The tag must contain `git rev-list --count HEAD`, so a stale
+tag fails before the build.
+
+The workflow writes keys into `local.properties`, decodes the keystore from
+`PW_RELEASE_KEYSTORE_B64`, builds with `-PcompileSdk=36 -PtargetSdk=36`, and
+checks the APK certificate against `PW_RELEASE_CERT_SHA256` with apksigner
+before uploading the artifact.
+
+With `publish` set, the workflow builds release notes from the top entry in
+`app/src/main/assets/whatsnew.json` and fails if that version matches the
+previous tag. It then creates the GitHub release and uploads the APK.
+Publishing fires the .github/workflows/notify.yml workflow, which sends the FCM
+release topic message through `scripts/notify.mjs`.
+
 ## Checklist
 
 ```sh
@@ -14,6 +32,9 @@ node --test tests/*.test.mjs
 node backend/worker/test.mjs
 ./gradlew :app:assembleRelease
 ```
+
+`assembleRelease` needs the signing variables listed under Signing below. CI
+supplies them from Actions secrets.
 
 Then:
 

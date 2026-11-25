@@ -32,9 +32,13 @@ window.__pwRun(id, legName, argsJson)
 The leg answers with `{ formats, subs }`:
 
 ```js
-formats: [{ url, isHls, label, height, english, referer, headers?, enSubs, enAudio }]
+formats: [{ url, isHls, label, height, english, referer, headers?, enSubs, enAudio,
+            dub?, subs?, intro?, outro? }]
 subs:    [{ label, url, src }]
 ```
+
+`VideoFormat` also declares a `recap` field. The current script never sets it,
+and `Providers.formatsOf` does not map it.
 
 `label` must start with the leg name (`vidlink-…`), `src` on a subtitle must
 equal the leg name, otherwise the subtitle will not bind to the format.
@@ -43,6 +47,10 @@ A leg that cannot serve the title answers `{ formats: [], subs: [], skipped: tru
 The app leaves skipped legs out of the telemetry; `scripts/probe.js` treats them as
 skips, not failures. This rule exists because live-action titles used to
 report paradise as down and set off outage alerts that were not real.
+
+The `pinoy` leg calls a native `pw.voe(id, code)` extractor for voe.sx embeds.
+`JsProviders.Bridge` implements it on Android. Node probe and CI do not, so
+`pinoy` answers `skipped` there.
 
 ## Helpers the rest of the stack uses
 
@@ -55,15 +63,18 @@ report paradise as down and set off outage alerts that were not real.
 ### Pick order
 
 1. real height before pseudo height (negative height marks the moviebox "auto" entries)
-2. 1080p and up with English subtitles
-3. adaptive masters (`-auto` labels)
-4. English subtitles
-5. English audio
-6. height, descending
+2. sub cut before dub cut
+3. known height (`> 0`) before unknown height
+4. 1080p and up with English subtitles on a fixed rung
+5. fixed rung before adaptive masters (`-auto` labels)
+6. English subtitles
+7. English subtitles with verified English audio
+8. formats with `english === false` rank below the rest
+9. height, descending
 
 The app asks the bridge for this order; `scripts/probe.js` calls `__pwRank` directly.
-The Kotlin fallback in `FormatOrder.kt` must match, and both are pinned by
-`app/src/test/resources/pick_order.txt`.
+The Kotlin fallback in `app/src/main/java/dev/phantomwatch/provider/FormatOrder.kt`
+must match, and both are pinned by `app/src/test/resources/pick_order.txt`.
 
 ### Skip rules
 
@@ -71,7 +82,12 @@ The Kotlin fallback in `FormatOrder.kt` must match, and both are pinned by
 |---|---|
 | `vap` | no IMDb id |
 | `paradise` | not a TV show, or not season 1, or no title |
-| `allanime` | no TMDB key |
+| `allanime` | no TMDB key, or no animation genre in the TMDB genre list |
+| `hianime` | no animation genre in the TMDB genre list |
+
+`vap`, `paradise` and the key check for `allanime` live in `__pwSkip`. The
+animation checks run inside the `hianime` and `allanime` legs and read genre id
+16 from TMDB.
 
 ## Adding a provider
 

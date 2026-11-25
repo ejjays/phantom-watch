@@ -19,8 +19,8 @@ expected to build on modest hardware. Raise it if you have the RAM.
 ## Where this is developed
 
 I develop this on a tablet and a phone, both running Termux. That is why the
-Gradle heap is capped at 2 GB, why CI builds against SDK 36, and why there is
-no emulator in the loop. UI and playback are checked by hand on the device.
+Gradle heap is capped at 2 GB and why CI builds against SDK 36. There is no
+emulator in the loop; UI and playback are checked by hand on the device.
 
 If you suggest tooling, prefer plain CLI tools that run on ARM64. Anything
 that needs x86, or assumes a desktop IDE, cannot run where this repo is
@@ -32,10 +32,18 @@ maintained.
 ./gradlew :app:assembleDebug          # debug APK in app/build/outputs/apk/debug/
 ./gradlew :app:testDebugUnitTest      # JVM unit tests
 ./gradlew :app:detekt                 # lint
+./gradlew :web:compileKotlinWasmJs    # wasm shell
+./gradlew :shared:wasmJsBrowserTest   # shared tests on wasm
+./gradlew :shared:testAndroidHostTest # shared tests on the JVM host
 python3 checks/quality.py             # repo invariants (file caps, config schema, secrets)
+python3 checks/strings.py             # one owner per string
+python3 checks/docs.py                # every source path a doc mentions exists
 python3 checks/web_resources.py       # shipped wasm resources match their sources
+bash checks/duplicates.sh             # jscpd threshold, needs jscpd 4.3.0
 node --test tests/*.test.mjs          # provider pick-order tests
-node backend/worker/test.mjs                  # telemetry worker tests
+node --test backend/server/pw/playlist.test.mjs
+node --test backend/relay-worker/test.mjs
+node backend/worker/test.mjs          # telemetry worker tests
 ```
 
 `compileSdk`/`targetSdk` are 37. If you do not have platform 37 installed,
@@ -45,7 +53,10 @@ build against 36 the way CI does:
 ./gradlew :app:assembleDebug -PcompileSdk=36 -PtargetSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true
 ```
 
-Releases are signed separately; see [release.md](release.md).
+CI runs the Gradle steps with `-PcompileSdk=36 -PtargetSdk=36 -Pandroid.experimental.disableCompileSdkChecks=true`.
+The release smoke build also passes `-PtestReleaseSigning=true` and generates a
+throwaway keystore in the workflow; see [release.md](release.md) for the signing
+setup.
 
 ## Provider work
 
