@@ -50,7 +50,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -358,7 +357,6 @@ private fun SampleCaption(outlined: Boolean, modifier: Modifier = Modifier) {
         fontSize = 13.sp,
         lineHeight = 16.sp,
         textAlign = TextAlign.Center,
-        platformStyle = PlatformTextStyle(includeFontPadding = false),
     )
     Box(modifier) {
         if (outlined) {
