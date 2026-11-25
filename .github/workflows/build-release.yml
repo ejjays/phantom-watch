@@ -120,6 +120,10 @@ jobs:
               sys.exit("whatsnew.json newest entry unchanged since last release")
           print(f"{entry.get('title', '')} ({entry.get('version', '')})")
           print()
+          body = str(entry.get("body", "")).strip()
+          if body:
+              print(body)
+              print()
           for bullet in entry.get("bullets", []):
               print(f"- {bullet}")
           PY

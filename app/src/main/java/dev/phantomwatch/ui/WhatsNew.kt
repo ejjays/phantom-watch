@@ -2,17 +2,22 @@ package dev.phantomwatch.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +51,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,8 +64,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,6 +80,7 @@ import dev.phantomwatch.ui.settings.SettingsCanvas
 import dev.phantomwatch.ui.settings.SettingsText
 import kotlinx.coroutines.delay
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -129,7 +139,45 @@ private fun WhatsNewHero() {
         animationSpec = infiniteRepeatable(tween(10000, easing = LinearEasing), RepeatMode.Reverse),
         label = "drift",
     )
-    Box(Modifier.fillMaxWidth().height(210.dp).clipToBounds().background(Color(0xFF1B1829))) {
+    var gazeTarget by remember { mutableStateOf(Offset.Zero) }
+    var flipped by remember { mutableStateOf(false) }
+    val gaze by animateOffsetAsState(
+        gazeTarget,
+        spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow),
+        label = "ghostGaze",
+    )
+    val turn by animateFloatAsState(
+        if (flipped) 1f else 0f,
+        tween(320, easing = FastOutSlowInEasing),
+        label = "ghostTurn",
+    )
+    val settle = abs(turn * 2f - 1f)
+    val side = if (turn < 0.5f) 1f else -1f
+    Box(
+        Modifier.fillMaxWidth().height(210.dp).clipToBounds().background(Color(0xFF1B1829))
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    fun track(at: Offset) {
+                        val s = 120.dp.toPx() / 512f
+                        val right = at.x > size.width / 2f
+                        flipped = right
+                        val face = Offset(
+                            size.width / 2f + (if (right) 16f else -16f) * s,
+                            size.height / 2f + 20f * s,
+                        )
+                        val v = at - face
+                        val len = v.getDistance()
+                        if (len > 1f) gazeTarget = v / len
+                    }
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    track(down.position)
+                    do {
+                        val event = awaitPointerEvent()
+                        event.changes.firstOrNull { it.id == down.id && it.pressed }?.let { track(it.position) }
+                    } while (event.changes.any { it.id == down.id && it.pressed })
+                }
+            },
+    ) {
         Image(
             painterResource(R.drawable.cloud_back),
             contentDescription = null,
@@ -157,9 +205,20 @@ private fun WhatsNewHero() {
             contentDescription = null,
             modifier = Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
         )
-        GhostEyes(
-            Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp),
-        )
+        Box(
+            Modifier.align(Alignment.Center).offset(y = (-2f + 4f * f).dp).size(120.dp)
+                .graphicsLayer {
+                    scaleX = side * (0.78f + 0.22f * settle)
+                    scaleY = 1f + 0.03f * (1f - settle)
+                },
+        ) {
+            Image(
+                painterResource(R.drawable.ic_whatsnew_ghost),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+            GhostEyes(gaze, side, Modifier.fillMaxSize())
+        }
     }
 }
 
@@ -172,7 +231,7 @@ private fun ColumnScope.WhatsNewBody(entry: WhatsNewEntry) {
                 .padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 12.dp),
         ) {
             Text(
-                "What's new",
+                stringResource(R.string.you_about_whats_new),
                 color = Accent,
                 fontFamily = Lilita,
                 fontSize = 24.sp,
@@ -187,6 +246,16 @@ private fun ColumnScope.WhatsNewBody(entry: WhatsNewEntry) {
             Spacer(Modifier.height(5.dp))
             Text(entry.version, color = Slate500, fontFamily = WorkSans, style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(22.dp))
+            if (entry.body.isNotBlank()) {
+                Text(
+                    entry.body,
+                    color = Slate100,
+                    fontFamily = WorkSans,
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp,
+                )
+                Spacer(Modifier.height(16.dp))
+            }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 entry.bullets.forEach { WhatsNewBullet(it) }
             }
@@ -223,7 +292,7 @@ private fun WhatsNewOkay(onDismiss: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "Okay",
+                stringResource(R.string.whats_new_okay),
                 color = Color.Black,
                 fontFamily = WorkSans,
                 fontWeight = FontWeight.Bold,
@@ -245,7 +314,7 @@ fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
                 BackButton(onClose)
                 Spacer(Modifier.width(2.dp))
                 Text(
-                    "What's new",
+                    stringResource(R.string.you_about_whats_new),
                     color = SettingsText,
                     fontFamily = WorkSans,
                     fontWeight = FontWeight.SemiBold,
@@ -273,10 +342,21 @@ fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
                         Text(
                             entry.title,
                             color = Slate100,
-                            fontFamily = Lilita,
+                            fontFamily = WorkSans,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 22.sp,
                         )
                         Spacer(Modifier.height(18.dp))
+                        if (entry.body.isNotBlank()) {
+                            Text(
+                                entry.body,
+                                color = Slate100,
+                                fontFamily = WorkSans,
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp,
+                            )
+                            Spacer(Modifier.height(16.dp))
+                        }
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             entry.bullets.forEach { WhatsNewBullet(it) }
                         }
@@ -288,7 +368,7 @@ fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
 }
 
 @Composable
-private fun GhostEyes(modifier: Modifier) {
+private fun GhostEyes(gaze: Offset, side: Float, modifier: Modifier) {
     val lid = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         suspend fun blink() {
@@ -307,15 +387,28 @@ private fun GhostEyes(modifier: Modifier) {
     }
     Canvas(modifier) {
         val s = size.width / 512f
+        val gx = gaze.x * 8.5f * s * side
+        val gy = gaze.y * (if (gaze.y < 0f) 11f else 3.5f) * s
+        // ghost png ships without pupils so these can move
+        drawOval(
+            Color(0xFF262A3C),
+            topLeft = Offset(221.5f * s + gx, 268f * s + gy),
+            size = Size(13f * s, 19f * s),
+        )
+        drawOval(
+            Color(0xFF262A3C),
+            topLeft = Offset(244.5f * s + gx, 265.5f * s + gy),
+            size = Size(13f * s, 20f * s),
+        )
         val brush = Brush.verticalGradient(
             listOf(Color(0xFFD0D2D9), Color(0xFF97989F)),
-            startY = 262f * s,
-            endY = 292f * s,
+            startY = 262f * s + gy,
+            endY = 292f * s + gy,
         )
         listOf(230f, 253f).forEach { cx ->
             drawOval(
                 brush = brush,
-                topLeft = Offset((cx - 13f) * s, 260f * s),
+                topLeft = Offset((cx - 13f) * s + gx, 260f * s + gy),
                 size = Size(26f * s, 32f * s),
                 alpha = lid.value,
             )

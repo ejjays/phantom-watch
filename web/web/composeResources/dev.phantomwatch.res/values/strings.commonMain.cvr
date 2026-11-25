@@ -99,7 +99,7 @@ string|tab_home|SG9tZQ==
 string|tab_library|TGlicmFyeQ==
 string|tab_search|U2VhcmNo
 string|tab_you|WW91
-string|you_about_licences_note|TGljZW5zZWQgdW5kZXIgQUdQTHYz
+string|you_about_licences_note|T3BlbnNvdXJjZSwgbGljZW5zZWQgdW5kZXIgQUdQTHYz
 string|you_about_licences|U291cmNlIENvZGU=
 string|you_about_update_now|VXBkYXRlIG5vdw==
 string|you_about_updates_note|Q2hlY2sgZm9yIGEgbmV3ZXIgdmVyc2lvbg==
@@ -134,7 +134,7 @@ string|you_profile_guest|R3Vlc3Q=
 string|you_profile_note|U2F2ZSB5b3VyIHByZWZlcmVuY2VzIGFuZCBqb2luIHRoZSBjb21tdW5pdHk=
 string|you_region_country_note|T3ZlcnJpZGUgdGhlIGRldGVjdGVkIGNvdW50cnk=
 string|you_region_country|VG9wIDEwIGNvdW50cnk=
-string|you_section_about_blurb|VmVyc2lvbiwgdXBkYXRlcyBhbmQgbGljZW5jZXM=
+string|you_section_about_blurb|VmVyc2lvbiwgdXBkYXRlcyBhbmQgc291cmNl
 string|you_section_about|QWJvdXQ=
 string|you_section_app|QXBw
 string|you_section_library_blurb|SGlzdG9yeSBhbmQgY29udGludWUgd2F0Y2hpbmc=

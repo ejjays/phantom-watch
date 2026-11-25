@@ -115,7 +115,7 @@
 <string name="you_section_region">Region</string>
 <string name="you_section_region_blurb">Regional charts and titles</string>
 <string name="you_section_about">About</string>
-<string name="you_section_about_blurb">Version, updates and licences</string>
+<string name="you_section_about_blurb">Version, updates and source</string>
 <string name="you_section_support">Support</string>
 <string name="you_section_support_blurb">Privacy, usage and feedback</string>
 <string name="you_playback_autoplay">Autoplay next episode</string>
@@ -162,7 +162,7 @@
 <string name="you_about_update_now">Update now</string>
 <string name="you_about_updates_note">Check for a newer version</string>
 <string name="you_about_licences">Source Code</string>
-<string name="you_about_licences_note">Licensed under AGPLv3</string>
+<string name="you_about_licences_note">Opensource, licensed under AGPLv3</string>
 <string name="you_support_privacy">Privacy policy</string>
 <string name="you_support_privacy_note">What the app stores and sends</string>
 <string name="you_support_share">Share anonymous usage</string>
