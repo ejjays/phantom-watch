@@ -155,51 +155,9 @@ private fun WhatsNewHero() {
     val side = if (turn < 0.5f) 1f else -1f
     Box(
         Modifier.fillMaxWidth().height(210.dp).clipToBounds().background(Color(0xFF1B1829))
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    fun track(at: Offset) {
-                        val s = 120.dp.toPx() / 512f
-                        val right = at.x > size.width / 2f
-                        flipped = right
-                        val face = Offset(
-                            size.width / 2f + (if (right) 16f else -16f) * s,
-                            size.height / 2f + 20f * s,
-                        )
-                        val v = at - face
-                        val len = v.getDistance()
-                        if (len > 1f) gazeTarget = v / len
-                    }
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    track(down.position)
-                    do {
-                        val event = awaitPointerEvent()
-                        event.changes.firstOrNull { it.id == down.id && it.pressed }?.let { track(it.position) }
-                    } while (event.changes.any { it.id == down.id && it.pressed })
-                }
-            },
+            .ghostInput({ flipped = it }, { gazeTarget = it }),
     ) {
-        Image(
-            painterResource(R.drawable.cloud_back),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().graphicsLayer {
-                scaleX = 1.14f
-                scaleY = 1.12f
-                translationX = (-12f + 24f * c).dp.toPx()
-                translationY = (-3.5f + 7f * c).dp.toPx()
-            },
-        )
-        TwinklingStars(Modifier.fillMaxSize())
-        Image(
-            painterResource(R.drawable.cloud_front),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().graphicsLayer {
-                scaleX = 1.14f
-                scaleY = 1.12f
-                translationY = (3.5f - 7f * c + (-2f + 4f * f)).dp.toPx()
-            },
-        )
+        WhatsNewSky(f, c)
         Image(
             painterResource(R.drawable.ic_whatsnew_rocket),
             contentDescription = null,
@@ -220,6 +178,55 @@ private fun WhatsNewHero() {
             GhostEyes(gaze, side, Modifier.fillMaxSize())
         }
     }
+}
+
+private fun Modifier.ghostInput(onSide: (Boolean) -> Unit, onGaze: (Offset) -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        fun track(at: Offset) {
+            val s = 120.dp.toPx() / 512f
+            val right = at.x > size.width / 2f
+            onSide(right)
+            val face = Offset(
+                size.width / 2f + (if (right) 16f else -16f) * s,
+                size.height / 2f + 20f * s,
+            )
+            val v = at - face
+            val len = v.getDistance()
+            if (len > 1f) onGaze(v / len)
+        }
+        val down = awaitFirstDown(requireUnconsumed = false)
+        track(down.position)
+        do {
+            val event = awaitPointerEvent()
+            event.changes.firstOrNull { it.id == down.id && it.pressed }?.let { track(it.position) }
+        } while (event.changes.any { it.id == down.id && it.pressed })
+    }
+}
+
+@Composable
+private fun WhatsNewSky(f: Float, c: Float) {
+    Image(
+        painterResource(R.drawable.cloud_back),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize().graphicsLayer {
+            scaleX = 1.14f
+            scaleY = 1.12f
+            translationX = (-12f + 24f * c).dp.toPx()
+            translationY = (-3.5f + 7f * c).dp.toPx()
+        },
+    )
+    TwinklingStars(Modifier.fillMaxSize())
+    Image(
+        painterResource(R.drawable.cloud_front),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize().graphicsLayer {
+            scaleX = 1.14f
+            scaleY = 1.12f
+            translationY = (3.5f - 7f * c + (-2f + 4f * f)).dp.toPx()
+        },
+    )
 }
 
 @Composable
@@ -307,22 +314,7 @@ fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
     PlatformBackHandler(enabled = true, onBack = onClose)
     Box(Modifier.fillMaxSize().background(SettingsCanvas)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 8.dp, end = 24.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BackButton(onClose)
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    stringResource(R.string.you_about_whats_new),
-                    color = SettingsText,
-                    fontFamily = WorkSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 30.sp,
-                    lineHeight = 36.sp,
-                    letterSpacing = (-0.5).sp,
-                )
-            }
+            WhatsNewTopBar(onClose)
             LazyColumn(
                 Modifier.fillMaxWidth().weight(1f),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
@@ -364,6 +356,26 @@ fun WhatsNewScreen(entries: List<WhatsNewEntry>, onClose: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WhatsNewTopBar(onClose: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 8.dp, end = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BackButton(onClose)
+        Spacer(Modifier.width(2.dp))
+        Text(
+            stringResource(R.string.you_about_whats_new),
+            color = SettingsText,
+            fontFamily = WorkSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 30.sp,
+            lineHeight = 36.sp,
+            letterSpacing = (-0.5).sp,
+        )
     }
 }
 
