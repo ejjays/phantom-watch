@@ -161,6 +161,10 @@ string|you_subs_size_large|TGFyZ2U=
 string|you_subs_size_medium|TWVkaXVt
 string|you_subs_size_small|U21hbGw=
 string|you_subs_size|VGV4dCBzaXpl
+string|you_subs_style_boxed|Qm94ZWQ=
+string|you_subs_style_outlined|T3V0bGluZWQ=
+string|you_subs_style_sample|Q2FwdGlvbg==
+string|you_subs_style|U3R5bGU=
 string|you_support_get_phantom_note|Q29tcGFuaW9uIGFwcCBmb3IgZG93bmxvYWRz
 string|you_support_get_phantom|R2V0IFBoYW50b20=
 string|you_support_open_phantom|T3BlbiBQaGFudG9t

@@ -40,4 +40,15 @@ class SettingsTest {
             assertTrue(Settings.SUBS_BASE_FRACTION * Settings.sizeScale(it) < 0.2f)
         }
     }
+
+    @Test
+    fun defaultCaptionStyleKeepsTheCurrentSize() {
+        assertEquals(1f, Settings.subsStyleScale(Settings.STYLE_BOXED))
+        assertEquals(1f, Settings.subsStyleScale(99))
+    }
+
+    @Test
+    fun outlinedCaptionStyleEnlargesCaptions() {
+        assertTrue(Settings.subsStyleScale(Settings.STYLE_OUTLINED) > Settings.subsStyleScale(Settings.STYLE_BOXED))
+    }
 }

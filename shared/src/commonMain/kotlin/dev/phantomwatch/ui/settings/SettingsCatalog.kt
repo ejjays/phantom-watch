@@ -28,6 +28,7 @@ sealed interface SettingItem {
         val options: List<StringResource>,
         val shortLabels: List<String>? = null,
         val default: Int = 0,
+        val preview: Boolean = false,
     ) : SettingItem
 
     data class Value(
@@ -120,6 +121,17 @@ fun settingsCatalog(
         title = Res.string.you_section_subtitles,
         blurb = Res.string.you_section_subtitles_blurb,
         items = listOf(
+            SettingItem.Choice(
+                SettingsKeys.SUBS_STYLE,
+                Res.string.you_subs_style,
+                Res.drawable.ic_style,
+                options = listOf(
+                    Res.string.you_subs_style_boxed,
+                    Res.string.you_subs_style_outlined,
+                ),
+                default = 1,
+                preview = true,
+            ),
             SettingItem.Toggle(
                 SettingsKeys.SUBS_ON,
                 Res.string.you_subs_on,

@@ -133,6 +133,10 @@
 <string name="you_subs_bg_off">Off</string>
 <string name="you_subs_bg_dim">Dim</string>
 <string name="you_subs_bg_solid">Solid</string>
+<string name="you_subs_style">Style</string>
+<string name="you_subs_style_boxed">Boxed</string>
+<string name="you_subs_style_outlined">Outlined</string>
+<string name="you_subs_style_sample">Caption</string>
 <string name="you_library_continue">Continue watching</string>
 <string name="you_library_continue_note">Show what you have not finished</string>
 <string name="you_library_history">Save watch history</string>

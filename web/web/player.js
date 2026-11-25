@@ -315,6 +315,7 @@
       nextCount: [5, 10, 15][d.nextCount] || 10,
       subsSize: d.subsSize == null ? 1 : d.subsSize,
       subsBg: d.subsBg == null ? 1 : d.subsBg,
+      subsStyle: d.subsStyle == null ? 1 : d.subsStyle,
       skipIntro: d.skipIntro == null ? 1 : d.skipIntro,
       autoplay: d.autoplay == null ? 1 : d.autoplay,
     };
@@ -809,7 +810,7 @@
     if (!S.subOn || !S.cues.length) { setSub(S, ''); return; }
     var r = pictureRect(S);
     if (r.height <= 0) { setSub(S, ''); return; }
-    var key = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height);
+    var key = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height) + ',' + S.cfg.subsStyle;
     if (key !== S.subKey) {
       S.subKey = key;
       // 5.33% of min(shortSide/aspect, drawn height), floor 13px, 15px fullscreen
@@ -817,18 +818,31 @@
       var shortSide = Math.min(window.innerWidth, window.innerHeight);
       var basis = Math.min(shortSide / aspect, r.height);
       var scale = [0.82, 1, 1.22][S.cfg.subsSize] || 1;
+      var outlined = S.cfg.subsStyle === 1;
       var theater = !!S.subsTop;
       var floor = STAGE && (STAGE.dataset.fs === '1' || theater) ? 15 : 13;
-      var px = Math.max(basis * 0.0533 * scale, floor);
+      var px = Math.max(basis * 0.0533 * scale * (outlined ? 1.14 : 1), floor);
       S.subsWrap.style.left = r.left + 'px';
       S.subsWrap.style.top = (theater ? r.top + r.height + 6 : r.top) + 'px';
       S.subsWrap.style.width = r.width + 'px';
       S.subsWrap.style.height = (theater ? 90 : r.height) + 'px';
       S.subsEl.style.fontSize = px + 'px';
       S.subsEl.style.lineHeight = (px * 1.2) + 'px';
-      S.subsEl.style.borderRadius = (px * 0.52) + 'px';
-      S.subsEl.style.padding = (px * 0.33) + 'px ' + (px * 0.59) + 'px';
-      S.subsEl.style.background = 'rgba(8,12,16,' + [0, 0.8, 0.95][S.cfg.subsBg] + ')';
+      if (outlined) {
+        S.subsEl.style.background = 'transparent';
+        S.subsEl.style.padding = '0';
+        S.subsEl.style.borderRadius = '0';
+        S.subsEl.style.webkitTextStroke = Math.max(1.8, px * 0.055) + 'px #000';
+        S.subsEl.style.textShadow = '0 ' + (px * 0.15) + 'px ' + (px * 0.42) + 'px rgba(0,0,0,.95)';
+        S.subsEl.style.fontWeight = '600';
+      } else {
+        S.subsEl.style.borderRadius = (px * 0.52) + 'px';
+        S.subsEl.style.padding = (px * 0.33) + 'px ' + (px * 0.59) + 'px';
+        S.subsEl.style.background = 'rgba(8,12,16,' + [0, 0.8, 0.95][S.cfg.subsBg] + ')';
+        S.subsEl.style.webkitTextStroke = '';
+        S.subsEl.style.textShadow = '';
+        S.subsEl.style.fontWeight = '';
+      }
     }
     var t = S.v.currentTime * 1000, cues = S.cues;
     var lo = 0, hi = cues.length;

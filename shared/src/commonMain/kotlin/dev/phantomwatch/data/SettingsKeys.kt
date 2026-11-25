@@ -6,6 +6,9 @@ object SettingsKeys {
     const val SUBS_ON = "subs_on"
     const val SUBS_SIZE = "subs_size"
     const val SUBS_BG = "subs_bg"
+    const val SUBS_STYLE = "subs_style"
+    const val STYLE_BOXED = 0
+    const val STYLE_OUTLINED = 1
     const val SAVE_HISTORY = "save_history"
     const val CONTINUE_WATCHING = "continue_watching"
     const val AUTOPLAY = "autoplay"
@@ -16,7 +19,7 @@ object SettingsKeys {
     const val COUNTRY = "country"
 
     val ALL = setOf(
-        SUBS_ON, SUBS_SIZE, SUBS_BG, SAVE_HISTORY, CONTINUE_WATCHING,
+        SUBS_ON, SUBS_SIZE, SUBS_BG, SUBS_STYLE, SAVE_HISTORY, CONTINUE_WATCHING,
         AUTOPLAY, SKIP_INTRO, SHARE_USAGE, SEEK_STEP, NEXT_COUNT, COUNTRY,
     )
 }

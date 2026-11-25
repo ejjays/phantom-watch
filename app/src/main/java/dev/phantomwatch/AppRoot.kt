@@ -583,6 +583,7 @@ private fun liveSettings(ctx: android.content.Context): Map<String, Int> = mapOf
     Settings.SEEK_STEP to Settings.choice(ctx, Settings.SEEK_STEP, 1),
     Settings.NEXT_COUNT to Settings.choice(ctx, Settings.NEXT_COUNT, 1),
     Settings.SUBS_BG to Settings.choice(ctx, Settings.SUBS_BG, Settings.BG_DIM),
+    Settings.SUBS_STYLE to Settings.choice(ctx, Settings.SUBS_STYLE, Settings.STYLE_OUTLINED),
     Settings.SAVE_HISTORY to if (Settings.on(ctx, Settings.SAVE_HISTORY, true)) 1 else 0,
     Settings.CONTINUE_WATCHING to if (Settings.on(ctx, Settings.CONTINUE_WATCHING, true)) 1 else 0,
     Settings.AUTOPLAY to if (Settings.on(ctx, Settings.AUTOPLAY, true)) 1 else 0,
@@ -593,8 +594,8 @@ private fun liveSettings(ctx: android.content.Context): Map<String, Int> = mapOf
 
 private fun applySetting(ctx: android.content.Context, key: String, value: Int) {
     when (key) {
-        Settings.SUBS_SIZE, Settings.SUBS_BG, Settings.SEEK_STEP, Settings.NEXT_COUNT,
-        SettingsKeys.COUNTRY -> Settings.setChoice(ctx, key, value)
+        Settings.SUBS_SIZE, Settings.SUBS_BG, Settings.SUBS_STYLE, Settings.SEEK_STEP,
+        Settings.NEXT_COUNT, SettingsKeys.COUNTRY -> Settings.setChoice(ctx, key, value)
         Settings.SHARE_USAGE -> Telemetry.setEnabled(ctx, value != 0)
         else -> Settings.setOn(ctx, key, value != 0)
     }
