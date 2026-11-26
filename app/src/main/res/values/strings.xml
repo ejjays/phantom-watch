@@ -96,7 +96,10 @@
 <string name="comments_report_title">Report comment</string>
 <string name="comments_report_body">Choose the reason for your report.</string>
 <string name="comments_report">Report</string>
+<string name="comments_copy">Copy</string>
 <string name="comments_reply">Reply</string>
+<string name="comments_react">React to this comment</string>
+<string name="comments_replying_to">Replying to %1$s</string>
 <string name="comments_hide_replies">Hide replies</string>
 <string name="comments_hint">Add a comment...</string>
 <string name="comments_post">Post comment</string>
