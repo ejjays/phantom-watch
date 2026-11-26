@@ -38,6 +38,7 @@ data class SettingsData(
     val settings: Map<String, Int>,
     val updateVersion: String? = null,
     val account: Account? = null,
+    val handle: String? = null,
     val accountBusy: Boolean = false,
     val accountError: String? = null,
     val googleReady: Boolean = false,
@@ -50,6 +51,7 @@ data class SettingsData(
     val onAction: (SettingsAction) -> Unit,
     val onSignIn: () -> Unit = {},
     val onSignOut: () -> Unit = {},
+    val onEditAvatar: (() -> Unit)? = null,
 )
 
 @Composable
@@ -96,6 +98,8 @@ fun SettingsScreen(data: SettingsData) {
                             version = data.version,
                             width = settingsRailWidth(pane),
                             account = data.account,
+                            handle = data.handle,
+                            onEditAvatar = data.onEditAvatar,
                             onSelect = { index ->
                                 categories.getOrNull(index)?.let { data.onOpenCategory(it.id) }
                                 open = index

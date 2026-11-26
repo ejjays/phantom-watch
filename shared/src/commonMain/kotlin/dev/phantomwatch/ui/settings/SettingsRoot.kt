@@ -72,9 +72,12 @@ internal fun SettingsRoot(
                     Column(Modifier.padding(horizontal = gutter)) {
                         SettingsAccountHeader(
                             name = account?.let { it.name.ifBlank { it.email.substringBefore('@') } }
-                                ?: stringResource(Res.string.you_profile_guest),
+                                ?: data.handle?.let { stringResource(Res.string.you_profile_anonymous_handle, it) }
+                                    ?: stringResource(Res.string.you_profile_anonymous),
                             subtitle = account?.email ?: stringResource(Res.string.you_profile_note),
                             picture = account?.picture,
+                            anonymous = account == null,
+                            onEditAvatar = data.onEditAvatar,
                         )
                         if (data.googleReady && account == null) {
                             Spacer(Modifier.height(16.dp))

@@ -81,36 +81,69 @@ internal fun SettingsSectionLabel(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun SettingsAvatar(picture: String?, size: Dp) {
+internal fun SettingsAvatar(
+    picture: String?,
+    size: Dp,
+    anonymous: Boolean = false,
+    onEdit: (() -> Unit)? = null,
+) {
     Box(
-        Modifier.size(size)
-            .clip(CircleShape)
-            .background(SettingsTile)
-            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
+        Modifier.size(size).clickable(enabled = onEdit != null) { onEdit?.invoke() },
         contentAlignment = Alignment.Center,
     ) {
-        if (picture != null) {
-            AsyncImage(
-                model = picture,
+        if (picture == null && anonymous) {
+            Image(
+                painter = painterResource(Res.drawable.anonymous_avatar),
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(size),
             )
         } else {
-            Image(
-                painter = painterResource(Res.drawable.guest_avatar),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize(),
+            Box(
+                Modifier.size(size)
+                    .clip(CircleShape)
+                    .background(SettingsTile)
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (picture != null) {
+                    AsyncImage(
+                        model = picture,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(Res.drawable.guest_avatar),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+            }
+        }
+        if (onEdit != null) {
+            Icon(
+                painter = painterResource(Res.drawable.ic_pen),
+                contentDescription = stringResource(Res.string.you_edit_avatar),
+                tint = Color.White,
+                modifier = Modifier.align(Alignment.BottomEnd).size(18.dp),
             )
         }
     }
 }
 
 @Composable
-internal fun SettingsAccountHeader(name: String, subtitle: String?, picture: String?) {
+internal fun SettingsAccountHeader(
+    name: String,
+    subtitle: String?,
+    picture: String?,
+    anonymous: Boolean = false,
+    onEditAvatar: (() -> Unit)? = null,
+) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        SettingsAvatar(picture, 76.dp)
+        SettingsAvatar(picture, 76.dp, anonymous, onEditAvatar)
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(
                 name,
@@ -139,10 +172,12 @@ internal fun SettingsProfile(
     subtitle: String? = null,
     compact: Boolean = false,
     picture: String? = null,
+    anonymous: Boolean = false,
+    onEditAvatar: (() -> Unit)? = null,
 ) {
     val avatar = if (compact) 44.dp else 96.dp
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        SettingsAvatar(picture, avatar)
+        SettingsAvatar(picture, avatar, anonymous, onEditAvatar)
         Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
         Text(
             name,

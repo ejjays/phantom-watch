@@ -45,6 +45,8 @@ internal fun SettingsRail(
     version: String,
     width: Dp,
     account: Account?,
+    handle: String? = null,
+    onEditAvatar: (() -> Unit)? = null,
     onSelect: (Int) -> Unit,
 ) {
     Column(
@@ -57,10 +59,13 @@ internal fun SettingsRail(
     ) {
         SettingsProfile(
             name = account?.let { it.name.ifBlank { it.email.substringBefore('@') } }
-                ?: stringResource(Res.string.you_profile_guest),
+                ?: handle?.let { stringResource(Res.string.you_profile_anonymous_handle, it) }
+                    ?: stringResource(Res.string.you_profile_anonymous),
             subtitle = account?.email ?: version,
             compact = true,
             picture = account?.picture,
+            anonymous = account == null,
+            onEditAvatar = onEditAvatar,
         )
         Spacer(Modifier.height(24.dp))
         categories.forEachIndexed { index, category ->

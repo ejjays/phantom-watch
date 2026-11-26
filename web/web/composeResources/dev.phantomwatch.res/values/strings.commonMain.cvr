@@ -107,9 +107,15 @@ string|you_about_updates|Q2hlY2sgZm9yIHVwZGF0ZXM=
 string|you_about_version|VmVyc2lvbg==
 string|you_about_whats_new_note|U2VlIHdoYXQgY2hhbmdlZCBhY3Jvc3MgcmVsZWFzZXM=
 string|you_about_whats_new|V2hhdOKAmXMgbmV3
+string|you_avatar_bmo|Qk1P
+string|you_avatar_creatures|TWFza3MgYW5kIGNyZWF0dXJlcw==
+string|you_avatar_faces|RmFjZXM=
+string|you_avatar_robots|Um9ib3Rz
+string|you_choose_avatar|Q2hvb3NlIGF2YXRhcg==
 string|you_clear_body|WW91ciBDb250aW51ZSB3YXRjaGluZyBhbmQgUmVjZW50bHkgd2F0Y2hlZCB3aWxsIGJlIGVtcHRpZWQuIFRoaXMgY2Fubm90IGJlIHVuZG9uZS4=
 string|you_clear_confirm|Q2xlYXI=
 string|you_clear_title|Q2xlYXIgeW91ciB3YXRjaCBoaXN0b3J5Pw==
+string|you_edit_avatar|RWRpdCBhdmF0YXI=
 string|you_library_clear|Q2xlYXIgd2F0Y2ggaGlzdG9yeQ==
 string|you_library_continue_note|U2hvdyB3aGF0IHlvdSBoYXZlIG5vdCBmaW5pc2hlZA==
 string|you_library_continue|Q29udGludWUgd2F0Y2hpbmc=
@@ -130,7 +136,8 @@ string|you_player_seek_30|MzBz
 string|you_player_seek_5|NXM=
 string|you_player_seek_note|SnVtcCBsZW5ndGggcGVyIGRvdWJsZSB0YXA=
 string|you_player_seek|RG91YmxlLXRhcCBzZWVr
-string|you_profile_guest|R3Vlc3Q=
+string|you_profile_anonymous_handle|QW5vbnltb3VzIMK3ICUxJHM=
+string|you_profile_anonymous|QW5vbnltb3Vz
 string|you_profile_note|U2F2ZSB5b3VyIHByZWZlcmVuY2VzIGFuZCBqb2luIHRoZSBjb21tdW5pdHk=
 string|you_region_country_note|T3ZlcnJpZGUgdGhlIGRldGVjdGVkIGNvdW50cnk=
 string|you_region_country|VG9wIDEwIGNvdW50cnk=

@@ -93,6 +93,7 @@ import dev.phantomwatch.social.Social
 import dev.phantomwatch.provider.DeadHosts
 import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.data.SettingsKeys
+import dev.phantomwatch.ui.AvatarPickerScreen
 import dev.phantomwatch.ui.BrowseState
 import dev.phantomwatch.ui.ClipsScreen
 import dev.phantomwatch.ui.DetailPane
@@ -169,6 +170,7 @@ internal fun AppRoot() {
     var whatsNewEntries by remember { mutableStateOf(emptyList<WhatsNewEntry>()) }
     var whatsNew by remember { mutableStateOf<WhatsNewEntry?>(null) }
     var whatsNewList by remember { mutableStateOf(false) }
+    var showAvatarPicker by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val entries = withContext(Dispatchers.IO) { WhatsNews.load(context) }
         whatsNewEntries = entries
@@ -337,6 +339,7 @@ internal fun AppRoot() {
                                 settings = settings,
                                 updateVersion = update?.tag,
                                 account = remember(youRev) { Social.account() },
+                                handle = remember(youRev) { Social.me()?.take(4) },
                                 accountBusy = accountBusy,
                                 accountError = accountError,
                                 googleReady = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank(),
@@ -376,6 +379,7 @@ internal fun AppRoot() {
                                             else showInstallDialog = true
                                     }
                                 },
+                                onEditAvatar = { showAvatarPicker = true },
                                 onSignIn = signIn,
                                 onSignOut = {
                                     Social.signOut()
@@ -475,6 +479,13 @@ internal fun AppRoot() {
                 },
                 onDismiss = { showInstallDialog = false },
             )
+        }
+        AnimatedVisibility(
+            visible = showAvatarPicker,
+            enter = slideInHorizontally(tween(240)) { it } + fadeIn(tween(180)),
+            exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(150)),
+        ) {
+            AvatarPickerScreen(onClose = { showAvatarPicker = false })
         }
         }
     }
