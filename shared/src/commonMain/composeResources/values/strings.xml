@@ -173,7 +173,7 @@
 <string name="you_support_share_note">Playback and source stats, no personal data</string>
 <string name="you_support_report">Report a problem</string>
 <string name="you_support_report_note">Opens an issue with device info</string>
-<string name="you_support_get_phantom">Get Phantom</string>
-<string name="you_support_open_phantom">Open Phantom</string>
+<string name="you_support_get_phantom">Phantom DL</string>
+<string name="you_support_open_phantom">Phantom DL</string>
 <string name="you_support_get_phantom_note">Companion app for downloads</string>
 </resources>

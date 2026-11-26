@@ -257,18 +257,18 @@ fun settingsCatalog(
                 value = version,
             ),
             SettingItem.Action(
-                SettingsAction.WhatsNew,
-                Res.string.you_about_whats_new,
-                Res.drawable.ic_whats_new,
-                Res.string.you_about_whats_new_note,
-            ),
-            SettingItem.Action(
                 SettingsAction.Updates,
                 if (update != null) Res.string.you_about_update_now else Res.string.you_about_updates,
                 Res.drawable.ic_row_refresh,
                 if (update != null) null else Res.string.you_about_updates_note,
                 noteText = update?.let { "Version $it is available" },
                 badge = badgeUpdate,
+            ),
+            SettingItem.Action(
+                SettingsAction.WhatsNew,
+                Res.string.you_about_whats_new,
+                Res.drawable.ic_whats_new,
+                Res.string.you_about_whats_new_note,
             ),
             SettingItem.Action(
                 SettingsAction.Licences,
