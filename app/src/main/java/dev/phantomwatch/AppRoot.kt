@@ -102,6 +102,7 @@ import dev.phantomwatch.ui.countryChoiceCode
 import dev.phantomwatch.ui.HomeLiquidTabs
 import dev.phantomwatch.ui.settings.SettingsAction
 import dev.phantomwatch.ui.settings.SettingsData
+import dev.phantomwatch.ui.settings.ProfileScreen
 import dev.phantomwatch.ui.settings.SettingsScreen
 import dev.phantomwatch.ui.HomeScreen
 import dev.phantomwatch.ui.WhatsNewDialog
@@ -171,6 +172,7 @@ internal fun AppRoot() {
     var whatsNew by remember { mutableStateOf<WhatsNewEntry?>(null) }
     var whatsNewList by remember { mutableStateOf(false) }
     var showAvatarPicker by remember { mutableStateOf(false) }
+    var showProfile by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val entries = withContext(Dispatchers.IO) { WhatsNews.load(context) }
         whatsNewEntries = entries
@@ -379,7 +381,7 @@ internal fun AppRoot() {
                                             else showInstallDialog = true
                                     }
                                 },
-                                onEditAvatar = { showAvatarPicker = true },
+                                onEditAvatar = { showProfile = true },
                                 onSignIn = signIn,
                                 onSignOut = {
                                     Social.signOut()
@@ -478,6 +480,26 @@ internal fun AppRoot() {
                     PhantomDownload.install(context, job = null)
                 },
                 onDismiss = { showInstallDialog = false },
+            )
+        }
+        AnimatedVisibility(
+            visible = showProfile,
+            enter = slideInHorizontally(tween(240)) { it } + fadeIn(tween(180)),
+            exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(150)),
+        ) {
+            val account = remember(youRev) { Social.account() }
+            val handle = remember(youRev) { Social.me()?.take(4) }
+            ProfileScreen(
+                name = account?.let { it.name.ifBlank { it.email.substringBefore('@') } }
+                    ?: handle?.let { stringResource(R.string.you_profile_anonymous_handle, it) }
+                        ?: stringResource(R.string.you_profile_anonymous),
+                subtitle = account?.email ?: stringResource(R.string.you_profile_note),
+                picture = account?.picture,
+                anonymous = account == null,
+                busy = accountBusy,
+                onClose = { showProfile = false },
+                onPickAvatar = { showAvatarPicker = true },
+                onSignIn = signIn,
             )
         }
         AnimatedVisibility(

@@ -1,8 +1,6 @@
 package dev.phantomwatch.ui.settings
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,8 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -169,36 +164,5 @@ private fun CategoryRow(category: SettingCategory, gutter: Dp, onClick: () -> Un
             )
         }
         SettingsChevron()
-    }
-}
-
-@Composable
-private fun SignInButton(busy: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            .clip(CircleShape)
-            .background(SettingsSurface)
-            .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
-            .clickable(enabled = !busy, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(color = SettingsAccent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-        } else {
-            Image(
-                painterResource(Res.drawable.ic_google_g),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                stringResource(Res.string.you_sign_in_google),
-                color = SettingsText,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
     }
 }

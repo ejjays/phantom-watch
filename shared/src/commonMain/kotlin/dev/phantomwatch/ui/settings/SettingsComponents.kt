@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -88,7 +90,12 @@ internal fun SettingsAvatar(
     onEdit: (() -> Unit)? = null,
 ) {
     Box(
-        Modifier.size(size).clickable(enabled = onEdit != null) { onEdit?.invoke() },
+        Modifier.size(size).clickable(
+            enabled = onEdit != null,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = { onEdit?.invoke() },
+        ),
         contentAlignment = Alignment.Center,
     ) {
         if (picture == null && anonymous) {
@@ -123,14 +130,6 @@ internal fun SettingsAvatar(
                 }
             }
         }
-        if (onEdit != null) {
-            Icon(
-                painter = painterResource(Res.drawable.ic_pen),
-                contentDescription = stringResource(Res.string.you_edit_avatar),
-                tint = Color.White,
-                modifier = Modifier.align(Alignment.BottomEnd).size(18.dp),
-            )
-        }
     }
 }
 
@@ -142,16 +141,37 @@ internal fun SettingsAccountHeader(
     anonymous: Boolean = false,
     onEditAvatar: (() -> Unit)? = null,
 ) {
+    val nameClick = if (onEditAvatar != null) Modifier.clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+        onClick = { onEditAvatar?.invoke() },
+    ) else Modifier
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         SettingsAvatar(picture, 76.dp, anonymous, onEditAvatar)
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(
-                name,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                color = SettingsText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    name,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = SettingsText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false).then(nameClick),
+                )
+                onEditAvatar?.let { edit ->
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        painter = painterResource(Res.drawable.ic_pen),
+                        contentDescription = stringResource(Res.string.you_edit_avatar),
+                        tint = SettingsText2,
+                        modifier = Modifier.size(16.dp).clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = edit,
+                        ),
+                    )
+                }
+            }
             if (subtitle != null) {
                 Text(
                     subtitle,
@@ -176,14 +196,37 @@ internal fun SettingsProfile(
     onEditAvatar: (() -> Unit)? = null,
 ) {
     val avatar = if (compact) 44.dp else 96.dp
+    val nameClick = if (onEditAvatar != null) Modifier.clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+        onClick = { onEditAvatar?.invoke() },
+    ) else Modifier
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         SettingsAvatar(picture, avatar, anonymous, onEditAvatar)
         Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
-        Text(
-            name,
-            style = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
-            color = SettingsText,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                name,
+                style = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                color = SettingsText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = nameClick,
+            )
+            onEditAvatar?.let { edit ->
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    painter = painterResource(Res.drawable.ic_pen),
+                    contentDescription = stringResource(Res.string.you_edit_avatar),
+                    tint = SettingsText2,
+                    modifier = Modifier.size(16.dp).clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = edit,
+                    ),
+                )
+            }
+        }
         if (subtitle != null) {
             Spacer(Modifier.height(3.dp))
             Text(
@@ -548,6 +591,37 @@ internal fun SettingsChevron(modifier: Modifier = Modifier) {
         tint = SettingsText3,
         modifier = modifier.size(18.dp).scale(scaleX = if (rtl) -1f else 1f, scaleY = 1f),
     )
+}
+
+@Composable
+internal fun SignInButton(busy: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .clip(CircleShape)
+            .background(SettingsSurface)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
+            .clickable(enabled = !busy, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (busy) {
+            CircularProgressIndicator(color = SettingsAccent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+        } else {
+            Image(
+                painterResource(Res.drawable.ic_google_g),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                stringResource(Res.string.you_sign_in_google),
+                color = SettingsText,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
 }
 
 @Composable
