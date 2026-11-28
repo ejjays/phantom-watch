@@ -211,7 +211,7 @@ async function handleResolve(req, res, base) {
     cfg: cfg.version || 0,
     pick: pick ? wire(pick) : null,
     formats: ordered.map(wire),
-    subs: usable.map((s) => ({ label: s.label || 'Subtitles', url: proxyUrl(base, s.url, subHeaders(s, pick)), src: s.src })),
+    subs: usable.map((s) => ({ label: s.label || 'Subtitles', url: s.direct ? s.url : proxyUrl(base, s.url, subHeaders(s, pick)), src: s.src })),
     legs: stats,
     ms: Date.now() - t0,
   });

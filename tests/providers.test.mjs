@@ -387,3 +387,36 @@ test('allanime answers empty when the crypto chunk cannot be read', async () => 
   assert.ok(asked.some((u) => u.startsWith('https://mkissa.to')));
 });
 
+test('vidora decrypts the moscow token and binds opensubtitles', async () => {
+  doneCalls.length = 0;
+  const token = 'ms_1ac493955cd0657b1ca86df6c2b6df7bf3e90b966d2e580c727b16e067438a6bbb12f705a8eb3364ac60032f2c022cf617295844bb51f970650e2eacb857bce721008b4b0a03d73a621a53447a3b5d67c277d9a45a5cee9b74caf5ab6714c733593a58356b2eab237f2e832725763c3154dece74c2794dde8e5dc2f1d0bbc6466a56728b59';
+  const master = 'https://stream.hls.lol/nesterov/master.m3u8?i=0&k=1a481364520692f13f31&s=6d6c21d43fd881d0e29f46bde769c4b3';
+  const playlist = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=640x360\n360.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2,RESOLUTION=1280x720\n720.m3u8\n';
+  await withHttp(
+    (id, json) => {
+      const u = JSON.parse(json).url;
+      let body = '{}';
+      if (u.includes('/moscow')) body = JSON.stringify({ sources: { Moscow: { url: token } } });
+      else if (u === master) body = playlist;
+      else if (u.includes('rest.opensubtitles.org')) {
+        body = JSON.stringify([{ SubLanguageID: 'eng', SubDownloadLink: 'https://dl.opensubtitles.org/en/download/src-api/vrf-abc/file/123' }]);
+      }
+      window.__pwBridge.httpDone(id, JSON.stringify({ code: 200, body }));
+    },
+    async () => {
+      window.__pwRun('vo1', 'vidora', JSON.stringify({
+        kind: 'movie', tmdbId: '1690098', title: 'Test', imdb: 'tt42576213',
+        cfg: {
+          api: 'https://stream.hls.lol/moscow',
+          key: '55060a042823f51a94c296894a58a0db15f3baef807155140983083fa799ef47',
+        },
+      }));
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  );
+  const res = JSON.parse(doneCalls[0].out);
+  assert.deepEqual(res.formats.map((f) => f.label), ['vidora-auto', 'vidora-720p', 'vidora-360p']);
+  assert.deepEqual(res.formats.map((f) => f.height), [720, 720, 360]);
+  assert.equal(res.formats[0].enSubs, true);
+  assert.deepEqual(res.subs.map((s) => s.url), ['https://dl.opensubtitles.org/en/download/subencoding-utf8/src-api/vrf-abc/file/123']);
+});

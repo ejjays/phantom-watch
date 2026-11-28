@@ -8,6 +8,7 @@ object Settings {
     const val SUBS_ON = SettingsKeys.SUBS_ON
     const val SUBS_SIZE = SettingsKeys.SUBS_SIZE
     const val SUBS_BG = SettingsKeys.SUBS_BG
+    const val SUBS_STYLE = SettingsKeys.SUBS_STYLE
     const val SAVE_HISTORY = SettingsKeys.SAVE_HISTORY
     const val CONTINUE_WATCHING = SettingsKeys.CONTINUE_WATCHING
     const val AUTOPLAY = SettingsKeys.AUTOPLAY
@@ -31,6 +32,9 @@ object Settings {
     const val BG_OFF = 0
     const val BG_DIM = 1
     const val BG_SOLID = 2
+
+    const val STYLE_BOXED = SettingsKeys.STYLE_BOXED
+    const val STYLE_OUTLINED = SettingsKeys.STYLE_OUTLINED
 
     fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -64,4 +68,6 @@ object Settings {
         BG_SOLID -> 0.95f
         else -> 0.80f
     }
+
+    internal fun subsStyleScale(choice: Int): Float = if (choice == STYLE_OUTLINED) 1.14f else 1f
 }

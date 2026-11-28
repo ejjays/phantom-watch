@@ -1,5 +1,5 @@
 {
-  "version": 40,
+  "version": 43,
   "ua": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Safari/537.36",
   "services": {
     "tmdb": {
@@ -74,6 +74,13 @@
       "api": "https://vidlink.pro/api/b",
       "enc": "https://enc-dec.app/api/enc-vidlink?text=",
       "referer": "https://vidlink.pro/"
+    },
+    "vidora": {
+      "enabled": true,
+      "api": "https://stream.hls.lol/moscow",
+      "key": "55060a042823f51a94c296894a58a0db15f3baef807155140983083fa799ef47",
+      "referer": "https://vidora.ac/",
+      "subs": "https://rest.opensubtitles.org/search/imdbid-"
     },
     "hianime": {
       "enabled": true,

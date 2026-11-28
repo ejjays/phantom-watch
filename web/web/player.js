@@ -168,14 +168,6 @@
     + '.pw-next-play{background:rgba(255,255,255,.12);color:#CBD5E1}'
     + '.pw-next-stay{background:' + CYAN + ';color:#0B0B0B;font-weight:600}'
 
-    + '.pw-swipe{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:min(50%,220px);height:40px;'
-    + 'border-radius:20px;background:rgba(0,0,0,.7);display:none;align-items:center;gap:8px;padding:0 12px;z-index:5;'
-    + 'color:#fff;font:600 12px PWRubik,sans-serif}'
-    + '.pw-stage[data-swipe="1"] .pw-swipe{display:flex}'
-    + '.pw-swipe-track{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}'
-    + '.pw-swipe-fill{height:100%;background:#fff;width:0}'
-    + '.pw-swipe svg{width:18px;height:18px;display:block;flex:0 0 auto}'
-
     // preview anchored to bar: frame ends 5px above, dot 10px below top
     + '.pw-preview{position:absolute;bottom:14px;left:0;display:none;flex-direction:column;align-items:center;'
     + 'z-index:5;pointer-events:none}'
@@ -315,6 +307,7 @@
       nextCount: [5, 10, 15][d.nextCount] || 10,
       subsSize: d.subsSize == null ? 1 : d.subsSize,
       subsBg: d.subsBg == null ? 1 : d.subsBg,
+      subsStyle: d.subsStyle == null ? 1 : d.subsStyle,
       skipIntro: d.skipIntro == null ? 1 : d.skipIntro,
       autoplay: d.autoplay == null ? 1 : d.autoplay,
     };
@@ -396,8 +389,6 @@
       + '<div class="pw-next-name"></div><div class="pw-next-left"></div><div class="pw-next-btns">'
       + '<button class="pw-next-play" type="button">Autoplay</button>'
       + '<button class="pw-next-stay" type="button">Stay on this episode</button></div></div>'
-      + '<div class="pw-swipe"><span class="pw-swipe-icon"></span>'
-      + '<div class="pw-swipe-track"><div class="pw-swipe-fill"></div></div><span class="pw-swipe-n"></span></div>'
       + '<div class="pw-failed"><div>Playback failed</div>'
       + '<button class="pw-fail-go" type="button">Choose source</button>'
       + '<button class="pw-fail-back" type="button">Back</button></div>';
@@ -465,7 +456,6 @@
       skipPill: st.querySelector('.pw-pill[data-kind="skip"]'),
       undoPill: st.querySelector('.pw-pill[data-kind="undo"]'),
       nextCard: st.querySelector('.pw-next'),
-      swipe: st.querySelector('.pw-swipe'),
       preview: st.querySelector('.pw-preview'),
       previewFrame: st.querySelector('.pw-preview-frame'),
       failed: st.querySelector('.pw-failed'),
@@ -478,7 +468,6 @@
       cfg: { seekStep: 10, subsSize: 1, subsBg: 1, skipIntro: 1, autoplay: 1, nextCount: 10 },
       pills: { intro: null, recap: null, outro: null },
       next: null, nextLeft: 0, stay: false, seekBack: null, seekBackTimer: 0,
-      bright: 1, swipeTimer: 0, swipeKind: '',
     };
     st.__pwS = S;
     return S;
@@ -809,26 +798,44 @@
     if (!S.subOn || !S.cues.length) { setSub(S, ''); return; }
     var r = pictureRect(S);
     if (r.height <= 0) { setSub(S, ''); return; }
-    var key = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height);
+    var key = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height) + ',' + S.cfg.subsStyle;
     if (key !== S.subKey) {
       S.subKey = key;
-      // 5.33% of min(shortSide/aspect, drawn height), floor 13px, 15px fullscreen
       var aspect = r.width / r.height;
       var shortSide = Math.min(window.innerWidth, window.innerHeight);
       var basis = Math.min(shortSide / aspect, r.height);
       var scale = [0.82, 1, 1.22][S.cfg.subsSize] || 1;
+      var outlined = S.cfg.subsStyle === 1;
       var theater = !!S.subsTop;
-      var floor = STAGE && (STAGE.dataset.fs === '1' || theater) ? 15 : 13;
-      var px = Math.max(basis * 0.0533 * scale, floor);
+      var floor = STAGE && (STAGE.dataset.fs === '1' || theater) ? 17 : 16;
+      // one continuous curve: short side and picture height both bound the glyph, capped for wide screens
+      var target = Math.min(shortSide * 0.042, basis * 0.08) * scale * (outlined ? 1.2 : 1);
+      var px = Math.max(floor, Math.min(26, target));
       S.subsWrap.style.left = r.left + 'px';
       S.subsWrap.style.top = (theater ? r.top + r.height + 6 : r.top) + 'px';
       S.subsWrap.style.width = r.width + 'px';
       S.subsWrap.style.height = (theater ? 90 : r.height) + 'px';
       S.subsEl.style.fontSize = px + 'px';
       S.subsEl.style.lineHeight = (px * 1.2) + 'px';
-      S.subsEl.style.borderRadius = (px * 0.52) + 'px';
-      S.subsEl.style.padding = (px * 0.33) + 'px ' + (px * 0.59) + 'px';
-      S.subsEl.style.background = 'rgba(8,12,16,' + [0, 0.8, 0.95][S.cfg.subsBg] + ')';
+      if (outlined) {
+        S.subsEl.style.background = 'transparent';
+        S.subsEl.style.padding = '0';
+        S.subsEl.style.borderRadius = '0';
+        // stroke centered on the glyph thins the white face, shadow only draws outside it
+        var sw = Math.max(1.8, px * 0.055) * 0.5;
+        var edge = [[-sw, -sw], [0, -sw], [sw, -sw], [-sw, 0], [sw, 0], [-sw, sw], [0, sw], [sw, sw]]
+          .map(function (p) { return p[0] + 'px ' + p[1] + 'px 0 #000'; }).join(',');
+        S.subsEl.style.webkitTextStroke = '';
+        S.subsEl.style.textShadow = edge + ', 0 ' + (px * 0.15) + 'px ' + (px * 0.42) + 'px rgba(0,0,0,.95)';
+        S.subsEl.style.fontWeight = '700';
+      } else {
+        S.subsEl.style.borderRadius = (px * 0.52) + 'px';
+        S.subsEl.style.padding = (px * 0.33) + 'px ' + (px * 0.59) + 'px';
+        S.subsEl.style.background = 'rgba(8,12,16,' + [0, 0.8, 0.95][S.cfg.subsBg] + ')';
+        S.subsEl.style.webkitTextStroke = '';
+        S.subsEl.style.textShadow = '';
+        S.subsEl.style.fontWeight = '';
+      }
     }
     var t = S.v.currentTime * 1000, cues = S.cues;
     var lo = 0, hi = cues.length;
@@ -1030,51 +1037,9 @@
     if (STAGE.__pwS) updateZoom(STAGE.__pwS);
   };
 
-  // brightness is css filter, browser cannot set window brightness
-  function verticalSwipe(S) {
-    var start = null, kind = '', base = 0;
-    function show(val) {
-      S.stage.dataset.swipe = '1';
-      S.swipe.querySelector('.pw-swipe-icon').innerHTML = kind === 'bright'
-        ? (ICON.brightness || '') : (ICON.volume_on || '');
-      S.swipe.querySelector('.pw-swipe-fill').style.width = Math.round(val * 100) + '%';
-      S.swipe.querySelector('.pw-swipe-n').textContent = Math.round(val * 100) + '%';
-      clearTimeout(S.swipeTimer);
-      S.swipeTimer = setTimeout(function () { S.stage.dataset.swipe = '0'; }, 500);
-    }
-    S.stage.querySelectorAll('.pw-zone').forEach(function (z) {
-      z.addEventListener('pointerdown', function (e) {
-        if (S.stage.dataset.lock === '1' || S.open || e.pointerType === 'mouse') return;
-        kind = z.dataset.z === 'l' ? 'bright' : z.dataset.z === 'r' ? 'volume' : '';
-        if (!kind) return;
-        start = { x: e.clientX, y: e.clientY, id: e.pointerId };
-        base = kind === 'bright' ? S.bright : S.v.volume;
-        try { z.setPointerCapture(e.pointerId); } catch (err) {}
-      });
-      z.addEventListener('pointermove', function (e) {
-        if (!start || e.pointerId !== start.id || !kind) return;
-        var dy = start.y - e.clientY, dx = Math.abs(e.clientX - start.x);
-        if (Math.abs(dy) < 24 || Math.abs(dy) < dx * 1.5) return;
-        var val = Math.min(1, Math.max(0.05, base + dy / 200));
-        if (kind === 'bright') {
-          S.bright = val;
-          S.v.style.filter = 'brightness(' + val + ')';
-        } else {
-          S.v.volume = val;
-          S.v.muted = false;
-        }
-        show(val);
-      });
-      function up() { start = null; kind = ''; }
-      z.addEventListener('pointerup', up);
-      z.addEventListener('pointercancel', up);
-    });
-  }
-
   function wire(S) {
     var v = S.v;
     pinch(S);
-    verticalSwipe(S);
     S.stage.querySelectorAll('.pw-zone').forEach(function (z) {
       z.addEventListener('click', function () { zone(S, z.dataset.z); });
     });
@@ -1448,8 +1413,9 @@
       });
     } else {
       var q = qualities(S);
-      if (q.length > 1) {
-        var qv = S.auto ? (window.innerWidth >= 840 && S.qh ? 'Auto · ' + S.qh + 'p' : 'Auto') : S.qh + 'p';
+      if (q.length) {
+        var qv = q.length === 1 ? q[0] + 'p'
+          : S.auto ? (window.innerWidth >= 840 && S.qh ? 'Auto · ' + S.qh + 'p' : 'Auto') : S.qh + 'p';
         m.appendChild(menuRow('Quality', qv, 'quality', true, false, null,
           function () { S.page = 1; menuRender(S); }));
       }
@@ -1667,7 +1633,6 @@
     clearTimeout(S.flashTimer);
     clearTimeout(S.autoTimer);
     clearTimeout(S.seekBackTimer);
-    clearTimeout(S.swipeTimer);
     S.preview.dataset.on = '0';
     S.open = false;
     S.menu.dataset.on = '0';

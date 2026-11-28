@@ -8,6 +8,8 @@ data class SubtitleCue(var start: Long, var end: Long, val text: String)
 object Subtitles {
     private val TIMING = Regex("""(?:(\d+):)?(\d+):(\d+)[,.](\d+)\s*-->\s*(?:(\d+):)?(\d+):(\d+)[,.](\d+)""")
 
+    fun stripTags(text: String): String = text.replace(Regex("\\{[^}]*\\}"), "").trim()
+
     fun englishFirst(subs: List<Sub>): List<Sub> =
         subs.sortedBy { if (it.label.contains("english", true)) 0 else 1 }
 

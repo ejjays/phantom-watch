@@ -24,7 +24,8 @@ LINE_CAPS = {
     # cap moves with leg count ~30 per leg
     # allanime carries client that reads mask out of site chunk, derives aes key and signs calls
     # +54 for shared resolve pipeline, replaces node relay copy
-    "app/src/main/assets/providers.js": 1580,
+    # vidora adds moscow token decrypt and opensubtitles binding
+    "app/src/main/assets/providers.js": 1620,
     "app/src/main/assets": 700,
     "backend/worker": 700,
     "checks": 400,

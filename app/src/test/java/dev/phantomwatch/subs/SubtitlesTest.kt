@@ -29,6 +29,11 @@ class SubtitlesTest {
     }
 
     @Test
+    fun assPositionTagsAreStrippedFromCues() {
+        assertEquals("A world where men can be heroes", Subtitles.stripTags("{\\an8}A world where men can be heroes"))
+    }
+
+    @Test
     fun shortTimingsAndEntitiesParse() {
         val vtt = "WEBVTT\n\n01:02.500 --> 01:03.000\nFish &amp; chips &lt;3\n"
         val cues = Subtitles.parseCues(vtt)

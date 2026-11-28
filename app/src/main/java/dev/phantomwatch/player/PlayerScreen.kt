@@ -126,6 +126,7 @@ import dev.phantomwatch.provider.JsProviders
 import dev.phantomwatch.provider.Providers
 import dev.phantomwatch.provider.Resolve
 import dev.phantomwatch.subs.MkvSubs
+import dev.phantomwatch.subs.Subtitles
 import dev.phantomwatch.provider.DeadReleases
 import dev.phantomwatch.data.DetailCache
 import dev.phantomwatch.data.DubPref
@@ -938,7 +939,7 @@ internal fun PlayerScreen(title: String, media: Title, initial: Stream?, season:
                     logged = true
                     AppLog.d("subs cues ${cues.size}")
                 }
-                subCues = cues.joinToString("\n") { it.text?.toString().orEmpty() }.trim()
+                subCues = cues.joinToString("\n") { Subtitles.stripTags(it.text?.toString().orEmpty()) }.trim()
             }
         }
         exo.addListener(l)

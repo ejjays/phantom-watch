@@ -34,12 +34,16 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,6 +55,8 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.google.android.gms.media.effect.enhancement.EnhancementSession
 import dev.phantomwatch.core.AppLog
+import dev.phantomwatch.data.Settings
+import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.ui.AmbientGlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -216,32 +222,74 @@ fun PlayerVideo(
 private fun SubtitleLayer(cues: String, style: Pair<Float, Float>?, topPx: Float?, bgAlpha: Float) {
     if (cues.isEmpty()) return
     val d = LocalDensity.current
+    val ctx = LocalContext.current
+    val outlined = Settings.choice(ctx, SettingsKeys.SUBS_STYLE, Settings.STYLE_OUTLINED) == Settings.STYLE_OUTLINED
     val top = topPx?.let { with(d) { it.toDp() } }
     BoxWithConstraints(
         Modifier.fillMaxSize().then(if (top != null) Modifier.padding(top = top) else Modifier),
         contentAlignment = if (top != null) Alignment.TopCenter else Alignment.BottomCenter,
     ) {
-        val textPx = style?.first ?: with(d) { maxHeight.toPx() } * 0.0533f
+        val basePx = style?.first ?: with(d) { maxHeight.toPx() } * Settings.SUBS_BASE_FRACTION
         val shift = style?.second ?: if (Pip.inPip) 0f else -with(d) { 14.dp.toPx() }
-        val shape = RoundedCornerShape(with(d) { (textPx * 0.52f).toDp() })
-        Text(
-            text = cues,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            style = TextStyle(
-                fontSize = with(d) { textPx.toSp() },
-                lineHeight = with(d) { (textPx * 1.2f).toSp() },
-                platformStyle = PlatformTextStyle(includeFontPadding = false),
-            ),
-            modifier = Modifier
-                .graphicsLayer { translationY = if (top == null) shift else 0f }
-                .padding(horizontal = 8.dp)
-                .background(if (bgAlpha > 0f) Color(0xFF080C10).copy(alpha = bgAlpha) else Color.Transparent, shape)
-                .padding(
-                    horizontal = with(d) { (textPx * 0.59f).toDp() },
-                    vertical = with(d) { (textPx * 0.33f).toDp() },
+        if (outlined) {
+            OutlinedSubtitleText(
+                cues,
+                basePx * Settings.subsStyleScale(Settings.STYLE_OUTLINED),
+                if (top == null) shift else 0f,
+            )
+        } else {
+            Text(
+                text = cues,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                style = TextStyle(
+                    fontSize = with(d) { basePx.toSp() },
+                    lineHeight = with(d) { (basePx * 1.2f).toSp() },
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
                 ),
-        )
+                modifier = Modifier
+                    .graphicsLayer { translationY = if (top == null) shift else 0f }
+                    .padding(horizontal = 8.dp)
+                    .background(
+                        if (bgAlpha > 0f) Color(0xFF080C10).copy(alpha = bgAlpha) else Color.Transparent,
+                        RoundedCornerShape(with(d) { (basePx * 0.52f).toDp() }),
+                    )
+                    .padding(
+                        horizontal = with(d) { (basePx * 0.59f).toDp() },
+                        vertical = with(d) { (basePx * 0.33f).toDp() },
+                    ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun OutlinedSubtitleText(cues: String, textPx: Float, lift: Float) {
+    val d = LocalDensity.current
+    val stroke = maxOf(1.8f, textPx * 0.055f)
+    val size = with(d) { textPx.toSp() }
+    val leading = with(d) { (textPx * 1.2f).toSp() }
+    Box(
+        Modifier.padding(horizontal = 8.dp).graphicsLayer { translationY = lift },
+    ) {
+        listOf(
+            TextStyle(color = Color.Black, drawStyle = Stroke(stroke), fontWeight = FontWeight.SemiBold),
+            TextStyle(
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                shadow = Shadow(Color.Black.copy(alpha = 0.95f), blurRadius = textPx * 0.42f, offset = Offset(0f, textPx * 0.15f)),
+            ),
+        ).forEach { look ->
+            Text(
+                text = cues,
+                textAlign = TextAlign.Center,
+                style = look.copy(
+                    fontSize = size,
+                    lineHeight = leading,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                ),
+            )
+        }
     }
 }
 

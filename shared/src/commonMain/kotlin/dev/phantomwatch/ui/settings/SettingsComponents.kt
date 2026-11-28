@@ -42,11 +42,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
@@ -54,6 +60,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import dev.phantomwatch.data.SettingsKeys
 import dev.phantomwatch.res.*
 import dev.phantomwatch.ui.Badge
 import org.jetbrains.compose.resources.DrawableResource
@@ -161,6 +168,7 @@ internal fun SettingsGroup(
     onValue: (String, Int) -> Unit,
     onAction: (SettingsAction) -> Unit,
 ) {
+    val bgOff = (state[SettingsKeys.SUBS_STYLE] ?: SettingsKeys.STYLE_OUTLINED) == SettingsKeys.STYLE_OUTLINED
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.forEach { item ->
             when (item) {
@@ -170,7 +178,12 @@ internal fun SettingsGroup(
                 }
                 is SettingItem.Choice -> {
                     val selected = (state[item.key] ?: item.default).coerceIn(0, item.options.lastIndex)
-                    ChoiceRow(item, selected, gutter) { onValue(item.key, it) }
+                    if (item.preview) {
+                        CaptionStylePreview(item, selected, gutter) { onValue(item.key, it) }
+                    } else {
+                        val enabled = !(item.key == SettingsKeys.SUBS_BG && bgOff)
+                        ChoiceRow(item, selected, gutter, { onValue(item.key, it) }, enabled)
+                    }
                 }
                 is SettingItem.Value -> ValueRow(item, gutter)
                 is SettingItem.Action -> ActionRow(item, gutter) { onAction(item.action) }
@@ -187,6 +200,7 @@ private fun RowShell(
     gutter: Dp,
     modifier: Modifier = Modifier,
     titleColor: Color = SettingsText,
+    noteColor: Color = SettingsText2,
     noteText: String? = null,
     badge: Boolean = false,
     animate: Boolean = false,
@@ -237,7 +251,7 @@ private fun RowShell(
                 Text(
                     line,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = SettingsText2,
+                    color = noteColor,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -269,32 +283,135 @@ private fun settingsSwitchColors() = SwitchDefaults.colors(
     uncheckedBorderColor = Color(0xFF6B7684),
 )
 
+@Composable
+private fun CaptionStylePreview(
+    item: SettingItem.Choice,
+    selected: Int,
+    gutter: Dp,
+    onSelect: (Int) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = gutter, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(item.icon), null, tint = SettingsText, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(16.dp))
+            Text(
+                stringResource(item.title),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+                color = SettingsText,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            item.options.forEachIndexed { index, option ->
+                StylePreviewCard(
+                    label = stringResource(option),
+                    chosen = index == selected,
+                    outlined = index == SettingsKeys.STYLE_OUTLINED,
+                    modifier = Modifier.weight(1f),
+                ) { onSelect(index) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StylePreviewCard(
+    label: String,
+    chosen: Boolean,
+    outlined: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier.clip(RoundedCornerShape(14.dp))
+            .border(1.dp, if (chosen) SettingsAccent else Color(0xFF3A4252), RoundedCornerShape(14.dp))
+            .background(Color(0xFF20242F))
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF151922)),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            SampleCaption(outlined, Modifier.padding(bottom = 6.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (chosen) {
+                Icon(painterResource(Res.drawable.ic_check), null, tint = SettingsAccent,
+                    modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(label, color = if (chosen) SettingsAccent else SettingsText, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+private fun SampleCaption(outlined: Boolean, modifier: Modifier = Modifier) {
+    val d = LocalDensity.current
+    val px = with(d) { 13.sp.toPx() }
+    val sample = stringResource(Res.string.you_subs_style_sample)
+    val base = TextStyle(
+        fontSize = 13.sp,
+        lineHeight = 16.sp,
+        textAlign = TextAlign.Center,
+    )
+    Box(modifier) {
+        if (outlined) {
+            Text(sample, color = Color.Black,
+                style = base.copy(drawStyle = Stroke(maxOf(1f, px * 0.05f)), fontWeight = FontWeight.SemiBold))
+            Text(sample, color = Color.White,
+                style = base.copy(fontWeight = FontWeight.SemiBold,
+                    shadow = Shadow(Color.Black, blurRadius = px * 0.3f, offset = Offset(0f, px * 0.12f))))
+        } else {
+            Text(
+                sample,
+                color = Color.White,
+                style = base,
+                modifier = Modifier.background(Color(0xFF080C10).copy(alpha = 0.85f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
+    }
+}
+
 private val ChoiceMenuWidth = 132.dp
 private val ChoiceValueWidth = 88.dp
 
 @Composable
-private fun ChoiceRow(item: SettingItem.Choice, selected: Int, gutter: Dp, onSelect: (Int) -> Unit) {
+private fun ChoiceRow(
+    item: SettingItem.Choice,
+    selected: Int,
+    gutter: Dp,
+    onSelect: (Int) -> Unit,
+    enabled: Boolean = true,
+) {
     var expanded by remember { mutableStateOf(false) }
+    val dim = SettingsText2.copy(alpha = 0.45f)
     Box {
         RowShell(
             icon = item.icon,
             title = item.title,
             note = item.note,
             gutter = gutter,
-            modifier = Modifier.clickable(role = Role.Button) { expanded = true },
+            titleColor = if (enabled) SettingsText else dim,
+            noteColor = if (enabled) SettingsText2 else dim,
+            modifier = Modifier.clickable(enabled = enabled, role = Role.Button) { expanded = true },
         ) {
             Text(
                 item.shortLabels?.getOrNull(selected)?.takeIf { it.isNotEmpty() }
                     ?: stringResource(item.options[selected]),
                 style = MaterialTheme.typography.bodyMedium,
-                color = SettingsText2,
+                color = if (enabled) SettingsText2 else dim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            SettingsChevron(Modifier.padding(start = 6.dp))
+            if (enabled) SettingsChevron(Modifier.padding(start = 6.dp))
         }
         DropdownMenu(
-            expanded = expanded,
+            expanded = enabled && expanded,
             onDismissRequest = { expanded = false },
             offset = DpOffset(-(ChoiceMenuWidth - ChoiceValueWidth), 0.dp),
         ) {

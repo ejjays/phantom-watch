@@ -144,6 +144,7 @@ private fun playerConfig(tmdb: String, episode: String, language: String?): Stri
     .put("subsOn", WebSettings.on(SettingsKeys.SUBS_ON))
     .put("subsSize", WebSettings.on(SettingsKeys.SUBS_SIZE, 1))
     .put("subsBg", WebSettings.on(SettingsKeys.SUBS_BG, 1))
+    .put("subsStyle", WebSettings.on(SettingsKeys.SUBS_STYLE, SettingsKeys.STYLE_OUTLINED))
     .put("seekStep", WebSettings.on(SettingsKeys.SEEK_STEP, 1))
     .put("skipIntro", WebSettings.on(SettingsKeys.SKIP_INTRO))
     .put("autoplay", WebSettings.on(SettingsKeys.AUTOPLAY))
