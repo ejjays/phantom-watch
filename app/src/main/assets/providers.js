@@ -276,6 +276,20 @@
     return new TextDecoder().decode(pt);
   }
 
+  async function moscowDecrypt(token, keyHex) {
+    var raw = hexBytes(String(token || '').replace(/^ms_/, ''));
+    var key = await crypto.subtle.importKey('raw', hexBytes(keyHex), { name: 'AES-GCM' }, false, ['decrypt']);
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, 12), tagLength: 128 }, key, raw.slice(12)));
+  }
+
+  async function imdbDigits(ctx) {
+    if (ctx.imdb) return String(ctx.imdb).replace(/^tt/, '');
+    if (!ctx.tmdbKey) return '';
+    var base = ctx.tmdbBase || 'https://api.themoviedb.org/3';
+    var body = await get(base + '/' + (ctx.kind === 'movie' ? 'movie' : 'tv') + '/' + ctx.tmdbId + '?api_key=' + encodeURIComponent(ctx.tmdbKey), '', 8);
+    try { return ((JSON.parse(body).imdb_id || '').match(/\d+/) || [''])[0]; } catch (e) { return ''; }
+  }
+
   async function getRange(url, referer, timeout) {
     var r = await http({ url: url, referer: referer, timeout: timeout || 8 });
     return r && r.code >= 200 && r.code < 300 ? r.body : null;
@@ -1533,10 +1547,45 @@
     }
     return formats.length ? { formats: formats, subs: [] } : empty();
   }
+  async function vidora(ctx) {
+    var cfg = ctx.cfg || {}, api = cfg.api || 'https://stream.hls.lol/moscow';
+    var referer = cfg.referer || 'https://vidora.ac/';
+    var q = ctx.kind === 'movie' ? 'tmdbId=' + ctx.tmdbId + '&type=movie'
+      : 'tmdbId=' + ctx.tmdbId + '&type=tv&season=' + ctx.season + '&episode=' + ctx.episode;
+    var body = await get(api + '?' + q, referer, 10);
+    if (body === null) return empty();
+    var obj; try { obj = JSON.parse(body); } catch (e) { return empty(); }
+    var token = obj && obj.sources && obj.sources.Moscow && obj.sources.Moscow.url;
+    if (!token) return empty();
+    var master; try { master = await moscowDecrypt(token, cfg.key); } catch (e) { return empty(); }
+    if (master.indexOf('http') !== 0) return empty();
+    var manifest = await get(master, referer, 10);
+    if (manifest === null || manifest.indexOf('#EXTM3U') < 0) return empty();
+    var rungs = masterVariants(manifest, master).map(function (v) {
+      var f = fmt(v.url, true, 'vidora-' + v.label, v.height); f.referer = referer; return f;
+    });
+    if (!rungs.length) return empty();
+    var auto = fmt(master, true, 'vidora-auto', maxHeight(rungs)); auto.referer = referer;
+    // vidora has no own caption api, its player pulls opensubtitles by imdb id
+    var imdb = await imdbDigits(ctx), subs = [];
+    if (imdb) {
+      var search = await get((cfg.subs || 'https://rest.opensubtitles.org/search/imdbid-') + imdb, referer, 10);
+      if (search !== null) try { JSON.parse(search).forEach(function (s) {
+        if (!/^eng$/i.test(s.SubLanguageID || '')) return;
+        var m = /\/vrf-([^/]+)\/file\/(\d+)/.exec(s.SubDownloadLink || ''); if (!m) return;
+        var u = 'https://dl.opensubtitles.org/en/download/subencoding-utf8/src-api/vrf-' + m[1] + '/file/' + m[2];
+        if (!subs.some(function (x) { return x.url === u; })) subs.push({ label: 'English', url: u, src: 'vidora', direct: true });
+      }); } catch (e) {}
+    }
+    var out = [auto].concat(rungs);
+    out.forEach(function (f) { f.enSubs = subs.length > 0; });
+    return { formats: out, subs: subs };
+  }
+
   var legs = {
     love: love, rock: rock, vix: vix, zee: zee, light: light,
     paradise: paradise, vap: vap, vidlink: vidlink, hianime: hianime, pinoy: pinoy,
-    net79: net79, videasy: videasy, allanime: allanime,
+    net79: net79, videasy: videasy, allanime: allanime, vidora: vidora,
   };
 
   try {

@@ -106,8 +106,10 @@ async function handleProxy(req, url, env) {
     return viaOracle(req, url, env);
   }
   // some cdns refuse cloudflare egress but allow the oracle box
+  // opensubtitles anubis challenges cloudflare with 401, oracle passes
   // the signature is host agnostic
-  if (up.status === 403 || up.status === 427) {
+  if (up.status === 403 || up.status === 427 ||
+    (up.status === 401 && /opensubtitles/i.test(hostOf(upstream)))) {
     await up.body?.cancel().catch(() => {});
     return viaOracle(req, url, env);
   }
